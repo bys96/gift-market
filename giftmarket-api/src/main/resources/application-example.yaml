@@ -35,7 +35,7 @@ server:
   port: 8080
 
 app:
-  frontend-url: http://localhost:5173
+  frontend-url: http://localhost:3000
 
   jwt:
     # 반드시 환경변수로 등록한다.

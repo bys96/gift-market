@@ -1,6 +1,7 @@
 package com.giftmarket.auth.controller;
 
 import com.giftmarket.auth.dto.LoginUserResponse;
+import com.giftmarket.auth.dto.TokenReissueResult;
 import com.giftmarket.auth.dto.TokenResponse;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.auth.jwt.JwtTokenProvider;
@@ -37,20 +38,17 @@ public class AuthController {
             String refreshToken,
             HttpServletResponse response
     ) {
-        User user = refreshTokenService.validate(refreshToken);
-
-        String newRefreshToken = refreshTokenService.rotate(refreshToken);
+        TokenReissueResult result =
+                refreshTokenService.reissue(refreshToken);
 
         refreshTokenCookieManager.addRefreshTokenCookie(
                 response,
-                newRefreshToken
+                result.refreshToken()
         );
-
-        String accessToken = jwtTokenProvider.createAccessToken(user);
 
         return ApiResponse.success(
                 TokenResponse.bearer(
-                        accessToken,
+                        result.accessToken(),
                         jwtTokenProvider.getAccessTokenExpirationSeconds()
                 )
         );

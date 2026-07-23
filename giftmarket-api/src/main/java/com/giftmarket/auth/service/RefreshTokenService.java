@@ -1,8 +1,10 @@
 package com.giftmarket.auth.service;
 
 import com.giftmarket.auth.config.JwtProperties;
+import com.giftmarket.auth.dto.TokenReissueResult;
 import com.giftmarket.auth.entity.RefreshToken;
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.auth.jwt.JwtTokenProvider;
 import com.giftmarket.auth.repository.RefreshTokenRepository;
 import com.giftmarket.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -26,17 +28,19 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties jwtProperties;
+    private final JwtTokenProvider jwtTokenProvider;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
+    /**
+     * 로그인 성공 시 Refresh Token을 최초 발급하거나 기존 토큰을 교체한다.
+     */
     @Transactional
     public String issue(User user) {
         String rawToken = generateToken();
         String tokenHash = hash(rawToken);
 
-        Instant expiresAt = Instant.now().plusSeconds(
-                jwtProperties.getRefreshTokenExpirationSeconds()
-        );
+        Instant expiresAt = calculateExpiration();
 
         refreshTokenRepository.findByUserId(user.getId())
                 .ifPresentOrElse(
@@ -56,30 +60,34 @@ public class RefreshTokenService {
         return rawToken;
     }
 
+    /**
+     * Refresh Token 검증, 회전, Access Token 발급을
+     * 하나의 트랜잭션에서 처리한다.
+     */
     @Transactional
-    public User validate(String rawToken) {
+    public TokenReissueResult reissue(String rawToken) {
         RefreshToken refreshToken = findValidToken(rawToken);
 
-        return refreshToken.getUser();
-    }
-
-    @Transactional
-    public String rotate(String rawToken) {
-        RefreshToken refreshToken = findValidToken(rawToken);
+        /*
+         * User가 LAZY 프록시여도 현재 트랜잭션 안에서
+         * Access Token을 생성하므로 정상적으로 조회된다.
+         */
+        User user = refreshToken.getUser();
 
         String newRawToken = generateToken();
         String newTokenHash = hash(newRawToken);
 
-        Instant newExpiresAt = Instant.now().plusSeconds(
-                jwtProperties.getRefreshTokenExpirationSeconds()
-        );
-
         refreshToken.rotate(
                 newTokenHash,
-                newExpiresAt
+                calculateExpiration()
         );
 
-        return newRawToken;
+        String accessToken = jwtTokenProvider.createAccessToken(user);
+
+        return new TokenReissueResult(
+                accessToken,
+                newRawToken
+        );
     }
 
     @Transactional
@@ -94,11 +102,7 @@ public class RefreshTokenService {
     }
 
     private RefreshToken findValidToken(String rawToken) {
-        if (rawToken == null || rawToken.isBlank()) {
-            throw new AuthenticationException(
-                    "Refresh Token이 없습니다."
-            );
-        }
+        validateRawToken(rawToken);
 
         RefreshToken refreshToken = refreshTokenRepository
                 .findByTokenHash(hash(rawToken))
@@ -115,6 +119,20 @@ public class RefreshTokenService {
         }
 
         return refreshToken;
+    }
+
+    private void validateRawToken(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new AuthenticationException(
+                    "Refresh Token이 없습니다."
+            );
+        }
+    }
+
+    private Instant calculateExpiration() {
+        return Instant.now().plusSeconds(
+                jwtProperties.getRefreshTokenExpirationSeconds()
+        );
     }
 
     private String generateToken() {
