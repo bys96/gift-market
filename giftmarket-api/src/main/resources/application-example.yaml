@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: giftmarket-api
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/gift_market?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useUnicode=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+
+    open-in-view: false
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+
+server:
+  port: 8080
