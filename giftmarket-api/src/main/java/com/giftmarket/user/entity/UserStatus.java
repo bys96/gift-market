@@ -1,4 +1,7 @@
 package com.giftmarket.user.entity;
 
-public class UserStatus {
+public enum UserStatus {
+    ACTIVE,
+    SUSPENDED,
+    WITHDRAWN
 }

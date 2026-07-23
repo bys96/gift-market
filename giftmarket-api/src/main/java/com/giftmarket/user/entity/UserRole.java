@@ -1,4 +1,7 @@
 package com.giftmarket.user.entity;
 
-public class UserRole {
+public enum UserRole {
+    USER,
+    SELLER,
+    ADMIN
 }
