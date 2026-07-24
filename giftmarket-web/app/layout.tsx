@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+import AuthInitializer from "@/components/auth/AuthInitializer";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
+        <AuthInitializer />
         <Header />
 
         <main className="layout-main">{children}</main>

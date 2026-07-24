@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import type { Product } from "@/types/product";
 
+import ProductDetailActions from "@/components/product/ProductDetailActions";
+
 interface ProductDetailPageProps {
   params: Promise<{
     productId: string;
@@ -179,15 +181,7 @@ export default async function ProductDetailPage({
             </div>
           </dl>
 
-          <div className="product-detail-actions">
-            <button type="button" className="product-detail-wishlist-button">
-              찜하기
-            </button>
-
-            <button type="button" className="product-detail-cart-button">
-              장바구니
-            </button>
-          </div>
+          <ProductDetailActions product={product} />
 
           <button type="button" className="product-detail-gift-button">
             선물하기
