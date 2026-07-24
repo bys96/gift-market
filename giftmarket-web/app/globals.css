@@ -1,4 +1,13 @@
 @import "tailwindcss";
+@import "../styles/home.css";
+@import "../styles/reset.css";
+@import "../styles/variables.css";
+@import "../styles/common.css";
+@import "../styles/layout.css";
+@import "../styles/product.css";
+@import "../styles/auth.css";
+@import "../styles/order.css";
+@import "../styles/mypage.css";
 
 :root {
   --background: #ffffff;
