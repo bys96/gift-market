@@ -1094,3 +1094,423 @@
     border-radius: 10px;
   }
 }
+
+/* =========================
+   배송지 관리
+========================= */
+
+.mypage-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.mypage-description {
+  margin-top: 10px;
+  color: #777;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.address-add-button,
+.address-empty-button {
+  flex-shrink: 0;
+  min-width: 120px;
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid #222;
+  border-radius: 8px;
+  background: #222;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.address-add-button:hover,
+.address-empty-button:hover {
+  background: #000;
+}
+
+.address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.address-card {
+  overflow: hidden;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.address-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eee;
+}
+
+.address-card-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.address-card-title {
+  overflow: hidden;
+  margin: 0;
+  color: #222;
+  font-size: 17px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-default-badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fff2f5;
+  color: #e84a70;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.address-card-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.address-text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.address-text-button:hover {
+  color: #222;
+  text-decoration: underline;
+}
+
+.address-delete-button:hover {
+  color: #e5484d;
+}
+
+.address-action-divider {
+  color: #ddd;
+  font-size: 12px;
+}
+
+.address-card-body {
+  padding: 22px 24px;
+}
+
+.address-recipient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  color: #444;
+  font-size: 14px;
+}
+
+.address-recipient strong {
+  color: #222;
+  font-size: 15px;
+}
+
+.address-postal-code {
+  margin: 0 0 6px;
+  color: #666;
+  font-size: 14px;
+}
+
+.address-location {
+  margin: 0;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.address-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 24px;
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+
+.address-default-button {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  color: #555;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.address-default-button:hover {
+  border-color: #222;
+  color: #222;
+}
+
+.address-empty {
+  padding: 80px 20px;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.address-empty-title {
+  margin: 0;
+  color: #333;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.address-empty-description {
+  margin: 10px 0 24px;
+  color: #888;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 배송지 등록 모달 */
+
+.address-modal-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.address-modal {
+  overflow-y: auto;
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100vh - 40px);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.address-modal-header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 24px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+.address-modal-title {
+  margin: 0;
+  color: #222;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.address-modal-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #555;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.address-form {
+  padding: 24px;
+}
+
+.address-form-field {
+  margin-bottom: 20px;
+}
+
+.address-form-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.address-required {
+  color: #e5484d;
+}
+
+.address-form-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  color: #222;
+  font-size: 14px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.address-form-input::placeholder {
+  color: #aaa;
+}
+
+.address-form-input:focus {
+  border-color: #555;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.address-postal-input {
+  max-width: 180px;
+}
+
+.address-default-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #444;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.address-default-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #222;
+}
+
+.address-default-checkbox input:disabled {
+  cursor: not-allowed;
+}
+
+.address-default-checkbox:has(input:disabled) {
+  color: #999;
+  cursor: not-allowed;
+}
+
+.address-form-error {
+  margin: 14px 0 0;
+  color: #e5484d;
+  font-size: 13px;
+}
+
+.address-form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 32px;
+}
+
+.address-form-cancel-button,
+.address-form-submit-button {
+  height: 48px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.address-form-cancel-button {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #555;
+}
+
+.address-form-cancel-button:hover {
+  border-color: #999;
+}
+
+.address-form-submit-button {
+  border: 1px solid #222;
+  background: #222;
+  color: #fff;
+}
+
+.address-form-submit-button:hover {
+  background: #000;
+}
+
+@media (max-width: 768px) {
+  .mypage-section-header {
+    align-items: stretch;
+    flex-direction: column;
+    margin-bottom: 24px;
+  }
+
+  .address-add-button {
+    width: 100%;
+  }
+
+  .address-card-header {
+    align-items: flex-start;
+    padding: 18px;
+  }
+
+  .address-card-title-area {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .address-card-body {
+    padding: 20px 18px;
+  }
+
+  .address-card-footer {
+    padding: 12px 18px;
+  }
+
+  .address-recipient {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .address-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .address-modal {
+    max-width: none;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .address-modal-header,
+  .address-form {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .address-postal-input {
+    max-width: none;
+  }
+}
