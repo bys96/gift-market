@@ -22,6 +22,7 @@ const INITIAL_SUMMARY: MySummary = {
 export default function MyPage() {
   const router = useRouter();
 
+  const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const clearAuth = useAuthStore((state) => state.clearAuth);
@@ -30,10 +31,14 @@ export default function MyPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
+    if (!initialized) {
+      return;
+    }
+
     if (!isAuthenticated || !user) {
       router.replace("/");
     }
-  }, [isAuthenticated, user, router]);
+  }, [initialized, isAuthenticated, user, router]);
 
   const handleLogout = async () => {
     try {

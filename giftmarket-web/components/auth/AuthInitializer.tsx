@@ -25,7 +25,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export default function AuthInitializer() {
   const initializedRef = useRef(false);
-
+  const setInitialized = useAuthStore((state) => state.setInitialized);
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clearAuth);
@@ -72,6 +72,8 @@ export default function AuthInitializer() {
         setUser(userResult.data);
       } catch {
         clearAuth();
+      } finally {
+        setInitialized(true);
       }
     };
 

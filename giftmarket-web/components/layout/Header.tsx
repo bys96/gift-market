@@ -57,7 +57,7 @@ export default function Header() {
         </form>
 
         <nav className="layout-header-actions" aria-label="사용자 메뉴">
-          <Link href="/wishlist" className="layout-header-action">
+          <Link href="/my/wishlist" className="layout-header-action">
             찜
           </Link>
 
@@ -67,7 +67,7 @@ export default function Header() {
 
           {isAuthenticated && user ? (
             <Link href="/my" className="layout-header-profile">
-              {user.profileImageUrl ? (
+              {user?.profileImageUrl ? (
                 <Image
                   src={user.profileImageUrl}
                   alt={`${user.name} 프로필`}
