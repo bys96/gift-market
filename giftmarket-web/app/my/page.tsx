@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 import MyMenuList from "@/components/my/MyMenuList";
 import MyProfileCard from "@/components/my/MyProfileCard";
 import MyQuickStats from "@/components/my/MyQuickStats";
@@ -44,14 +45,10 @@ export default function MyPage() {
     try {
       setIsLoggingOut(true);
 
-      // 백엔드 로그아웃 API 구현 후 활성화
-      // await fetch(
-      //   `${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`,
-      //   {
-      //     method: "POST",
-      //     credentials: "include",
-      //   },
-      // );
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
 
       clearAuth();
       router.replace("/");
