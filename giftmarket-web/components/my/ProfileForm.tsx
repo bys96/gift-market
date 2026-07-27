@@ -31,6 +31,7 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
     setName(user.name);
     setProfileImageUrl(user.profileImageUrl);
     setErrorMessage("");
+    console.log(user);
   }, [user]);
 
   const handleProfileImageButtonClick = () => {
@@ -194,17 +195,35 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
               이메일
             </label>
 
+            {/* 이메일 등록/변경 API 구현시 div 대신 사용
             <input
               id="profile-email"
               className="profile-input profile-input-readonly"
               type="email"
-              value={user.email}
-              readOnly
-            />
+              value={user.email ?? ""}
+              placeholder="등록된 이메일 없음"
+            /> */}
+            <div className="profile-readonly-value">
+              {user.email ?? "등록된 이메일 없음"}
+            </div>
 
             <p className="profile-field-guide">
-              소셜 로그인 계정의 이메일은 변경할 수 없습니다.
+              {user.email
+                ? "소셜 로그인 계정의 이메일은 변경할 수 없습니다."
+                : "로그인 제공자로부터 전달받은 이메일이 없습니다."}
             </p>
+          </div>
+
+          <div className="profile-field">
+            <span className="profile-label">로그인 방식</span>
+
+            <div className="profile-readonly-value">
+              {user.provider === "GOOGLE"
+                ? "Google"
+                : user.provider === "KAKAO"
+                  ? "Kakao"
+                  : "이메일"}
+            </div>
           </div>
 
           <div className="profile-field">
