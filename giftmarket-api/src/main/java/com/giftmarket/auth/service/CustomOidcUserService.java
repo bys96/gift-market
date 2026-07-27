@@ -1,16 +1,16 @@
 package com.giftmarket.auth.service;
 
-import com.giftmarket.auth.oauth.KakaoOAuth2UserInfo;
+import com.giftmarket.auth.oauth.GoogleOAuth2UserInfo;
 import com.giftmarket.auth.oauth.OAuth2UserInfo;
 import com.giftmarket.user.entity.AuthProvider;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
-import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,18 +18,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class CustomOAuth2UserService extends DefaultOAuth2UserService {
+public class CustomOidcUserService extends OidcUserService {
 
     private final UserRepository userRepository;
 
     @Override
     @Transactional
-    public OAuth2User loadUser(OAuth2UserRequest userRequest)
+    public OidcUser loadUser(OidcUserRequest userRequest)
             throws OAuth2AuthenticationException {
 
-        log.info("CustomOAuth2UserService 실행");
+        log.info("CustomOidcUserService 실행");
 
-        OAuth2User oauth2User = super.loadUser(userRequest);
+        OidcUser oidcUser = super.loadUser(userRequest);
 
         String registrationId = userRequest
                 .getClientRegistration()
@@ -37,47 +37,34 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         OAuth2UserInfo userInfo = createOAuth2UserInfo(
                 registrationId,
-                oauth2User
+                oidcUser
         );
 
         validateUserInfo(userInfo);
 
-        AuthProvider provider = resolveProvider(registrationId);
-
-        User user = findOrCreateUser(provider, userInfo);
+        User user = findOrCreateUser(userInfo);
 
         log.info(
-                "{} 로그인 사용자 처리 완료. userId={}, email={}",
-                provider,
+                "Google 로그인 사용자 처리 완료. userId={}, email={}",
                 user.getId(),
                 user.getEmail()
         );
 
-        return oauth2User;
+        return oidcUser;
     }
 
     private OAuth2UserInfo createOAuth2UserInfo(
             String registrationId,
-            OAuth2User oauth2User
+            OidcUser oidcUser
     ) {
-        if ("kakao".equalsIgnoreCase(registrationId)) {
-            return new KakaoOAuth2UserInfo(
-                    oauth2User.getAttributes()
+        if ("google".equalsIgnoreCase(registrationId)) {
+            return new GoogleOAuth2UserInfo(
+                    oidcUser.getAttributes()
             );
         }
 
         throw new OAuth2AuthenticationException(
-                "지원하지 않는 OAuth2 제공자입니다: " + registrationId
-        );
-    }
-
-    private AuthProvider resolveProvider(String registrationId) {
-        if ("kakao".equalsIgnoreCase(registrationId)) {
-            return AuthProvider.KAKAO;
-        }
-
-        throw new OAuth2AuthenticationException(
-                "지원하지 않는 OAuth2 제공자입니다: " + registrationId
+                "지원하지 않는 OIDC 제공자입니다: " + registrationId
         );
     }
 
@@ -97,28 +84,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
     }
 
-    private User findOrCreateUser(
-            AuthProvider provider,
-            OAuth2UserInfo userInfo
-    ) {
+    private User findOrCreateUser(OAuth2UserInfo userInfo) {
         return userRepository
                 .findByProviderAndProviderId(
-                        provider,
+                        AuthProvider.GOOGLE,
                         userInfo.getProviderId()
                 )
-                .map(user -> updateExistingUser(
-                        provider,
-                        user,
-                        userInfo
-                ))
-                .orElseGet(() -> createUser(
-                        provider,
-                        userInfo
-                ));
+                .map(user -> updateExistingUser(user, userInfo))
+                .orElseGet(() -> createUser(userInfo));
     }
 
     private User updateExistingUser(
-            AuthProvider provider,
             User user,
             OAuth2UserInfo userInfo
     ) {
@@ -128,8 +104,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         );
 
         log.info(
-                "기존 {} 사용자 정보 갱신. userId={}, email={}",
-                provider,
+                "기존 Google 사용자 정보 갱신. userId={}, email={}",
                 user.getId(),
                 user.getEmail()
         );
@@ -137,23 +112,19 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return user;
     }
 
-    private User createUser(
-            AuthProvider provider,
-            OAuth2UserInfo userInfo
-    ) {
+    private User createUser(OAuth2UserInfo userInfo) {
         User user = User.createOAuthUser(
                 userInfo.getEmail(),
                 userInfo.getName(),
                 userInfo.getProfileImageUrl(),
-                provider,
+                AuthProvider.GOOGLE,
                 userInfo.getProviderId()
         );
 
         User savedUser = userRepository.save(user);
 
         log.info(
-                "신규 {} 사용자 저장. userId={}, email={}",
-                provider,
+                "신규 Google 사용자 저장. userId={}, email={}",
                 savedUser.getId(),
                 savedUser.getEmail()
         );

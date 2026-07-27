@@ -13,10 +13,6 @@ import lombok.NoArgsConstructor;
         name = "users",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_users_email",
-                        columnNames = "email"
-                ),
-                @UniqueConstraint(
                         name = "uk_users_provider_provider_id",
                         columnNames = {"provider", "provider_id"}
                 )
@@ -29,7 +25,7 @@ public class User extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 255)
+    @Column
     private String email;
 
     @Column(nullable = false, length = 100)
@@ -72,10 +68,11 @@ public class User extends BaseEntity {
         this.status = status;
     }
 
-    public static User createGoogleUser(
+    public static User createOAuthUser(
             String email,
             String name,
             String profileImageUrl,
+            AuthProvider provider,
             String providerId
     ) {
         return User.builder()
@@ -83,13 +80,13 @@ public class User extends BaseEntity {
                 .name(name)
                 .profileImageUrl(profileImageUrl)
                 .role(UserRole.USER)
-                .provider(AuthProvider.GOOGLE)
+                .provider(provider)
                 .providerId(providerId)
                 .status(UserStatus.ACTIVE)
                 .build();
     }
 
-    public void updateGoogleProfile(
+    public void updateOAuthProfile(
             String name,
             String profileImageUrl
     ) {

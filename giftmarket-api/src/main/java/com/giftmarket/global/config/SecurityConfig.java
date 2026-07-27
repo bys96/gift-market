@@ -2,7 +2,7 @@ package com.giftmarket.global.config;
 
 import com.giftmarket.auth.handler.OAuth2AuthenticationSuccessHandler;
 import com.giftmarket.auth.jwt.JwtAuthenticationFilter;
-import com.giftmarket.auth.service.CustomOAuth2UserService;
+import com.giftmarket.auth.service.CustomOidcUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +24,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOidcUserService CustomOidcUserService;
     private final OAuth2AuthenticationSuccessHandler authenticationSuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -72,7 +72,7 @@ public class SecurityConfig {
 
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(userInfo -> userInfo
-                                .oidcUserService(customOAuth2UserService)
+                                .oidcUserService(CustomOidcUserService)
                         )
                         .successHandler(authenticationSuccessHandler)
                 )
