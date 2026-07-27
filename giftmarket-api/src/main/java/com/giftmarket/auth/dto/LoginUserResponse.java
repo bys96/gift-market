@@ -7,6 +7,7 @@ public record LoginUserResponse(
         String email,
         String name,
         String profileImageUrl,
+        String provider,
         String role
 ) {
 
@@ -16,6 +17,7 @@ public record LoginUserResponse(
                 user.getEmail(),
                 user.getName(),
                 user.getProfileImageUrl(),
+                user.getProvider().name(),
                 user.getRole().name()
         );
     }
