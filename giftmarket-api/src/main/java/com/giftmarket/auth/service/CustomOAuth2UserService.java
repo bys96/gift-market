@@ -106,35 +106,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         provider,
                         userInfo.getProviderId()
                 )
-                .map(user -> updateExistingUser(
-                        provider,
-                        user,
-                        userInfo
-                ))
                 .orElseGet(() -> createUser(
                         provider,
                         userInfo
                 ));
-    }
-
-    private User updateExistingUser(
-            AuthProvider provider,
-            User user,
-            OAuth2UserInfo userInfo
-    ) {
-        user.updateOAuthProfile(
-                userInfo.getName(),
-                userInfo.getProfileImageUrl()
-        );
-
-        log.info(
-                "기존 {} 사용자 정보 갱신. userId={}, email={}",
-                provider,
-                user.getId(),
-                user.getEmail()
-        );
-
-        return user;
     }
 
     private User createUser(

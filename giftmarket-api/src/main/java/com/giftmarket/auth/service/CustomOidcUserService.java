@@ -90,26 +90,7 @@ public class CustomOidcUserService extends OidcUserService {
                         AuthProvider.GOOGLE,
                         userInfo.getProviderId()
                 )
-                .map(user -> updateExistingUser(user, userInfo))
                 .orElseGet(() -> createUser(userInfo));
-    }
-
-    private User updateExistingUser(
-            User user,
-            OAuth2UserInfo userInfo
-    ) {
-        user.updateOAuthProfile(
-                userInfo.getName(),
-                userInfo.getProfileImageUrl()
-        );
-
-        log.info(
-                "기존 Google 사용자 정보 갱신. userId={}, email={}",
-                user.getId(),
-                user.getEmail()
-        );
-
-        return user;
     }
 
     private User createUser(OAuth2UserInfo userInfo) {
