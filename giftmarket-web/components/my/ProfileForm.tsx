@@ -7,10 +7,17 @@ import type { User } from "@/types/user";
 
 interface ProfileFormProps {
   user: User;
-  onSave: (name: string, profileImageUrl: string) => void;
+  onSave: (name: string, profileImageFile: File | null) => Promise<void>;
 }
 
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_PROFILE_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
 
 export default function ProfileForm({ user, onSave }: ProfileFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -18,23 +25,33 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
 
   const [name, setName] = useState(user.name);
   const [profileImageUrl, setProfileImageUrl] = useState(user.profileImageUrl);
+  const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(
+    null,
+  );
+
   const [errorMessage, setErrorMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
 
   const trimmedName = name.trim();
 
-  const hasChanges =
-    trimmedName !== user.name || profileImageUrl !== user.profileImageUrl;
+  const hasChanges = trimmedName !== user.name || selectedProfileImage !== null;
 
   useEffect(() => {
     setName(user.name);
     setProfileImageUrl(user.profileImageUrl);
+    setSelectedProfileImage(null);
     setErrorMessage("");
-    console.log(user);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }, [user]);
 
   const handleProfileImageButtonClick = () => {
+    if (isSaving) {
+      return;
+    }
+
     fileInputRef.current?.click();
   };
 
@@ -46,10 +63,9 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
     }
 
     setErrorMessage("");
-    setIsSaved(false);
 
-    if (!file.type.startsWith("image/")) {
-      setErrorMessage("이미지 파일만 업로드할 수 있습니다.");
+    if (!ALLOWED_PROFILE_IMAGE_TYPES.includes(file.type)) {
+      setErrorMessage("JPG, PNG, WEBP, GIF 이미지만 업로드할 수 있습니다.");
       event.target.value = "";
       return;
     }
@@ -64,15 +80,17 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
 
     reader.onload = () => {
       if (typeof reader.result !== "string") {
+        setErrorMessage("이미지를 불러오지 못했습니다.");
+        event.target.value = "";
         return;
       }
 
-      // 현재는 프론트 미리보기용 Data URL을 사용한다.
-      // 백엔드 연동 시 File 객체를 multipart/form-data로 전송한다.
+      setSelectedProfileImage(file);
       setProfileImageUrl(reader.result);
     };
 
     reader.onerror = () => {
+      setSelectedProfileImage(null);
       setErrorMessage("이미지를 불러오지 못했습니다.");
       event.target.value = "";
     };
@@ -83,10 +101,9 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
   const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     setName(event.target.value);
     setErrorMessage("");
-    setIsSaved(false);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!hasChanges || isSaving) {
@@ -105,20 +122,25 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
 
     setErrorMessage("");
     setIsSaving(true);
-    setIsSaved(false);
 
     try {
-      onSave(trimmedName, profileImageUrl);
+      await onSave(trimmedName, selectedProfileImage);
+
       setName(trimmedName);
-      setIsSaved(true);
+      setSelectedProfileImage(null);
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
 
       alert("회원정보가 변경되었습니다.");
-
       router.push("/my");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "회원정보 변경 중 오류가 발생했습니다.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -150,12 +172,14 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
               className="profile-image-input"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={isSaving}
               onChange={handleProfileImageChange}
             />
 
             <button
               className="profile-secondary-button"
               type="button"
+              disabled={isSaving}
               onClick={handleProfileImageButtonClick}
             >
               이미지 변경
@@ -184,6 +208,7 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
               value={name}
               maxLength={30}
               autoComplete="name"
+              disabled={isSaving}
               onChange={handleNameChange}
             />
 
@@ -195,15 +220,7 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
               이메일
             </label>
 
-            {/* 이메일 등록/변경 API 구현시 div 대신 사용
-            <input
-              id="profile-email"
-              className="profile-input profile-input-readonly"
-              type="email"
-              value={user.email ?? ""}
-              placeholder="등록된 이메일 없음"
-            /> */}
-            <div className="profile-readonly-value">
+            <div id="profile-email" className="profile-readonly-value">
               {user.email ?? "등록된 이메일 없음"}
             </div>
 
@@ -242,12 +259,6 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
         </p>
       )}
 
-      {isSaved && !hasChanges && (
-        <p className="profile-form-message profile-form-success" role="status">
-          회원정보가 변경되었습니다.
-        </p>
-      )}
-
       <div className="profile-form-actions">
         <button
           className="profile-save-button"
@@ -260,6 +271,7 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
         <button
           type="button"
           className="profile-cancel-button"
+          disabled={isSaving}
           onClick={() => router.push("/my")}
         >
           취소

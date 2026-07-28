@@ -94,6 +94,10 @@ public class User extends BaseEntity {
         this.profileImageUrl = profileImageUrl;
     }
 
+    public void updateName(String name) {
+        this.name = name;
+    }
+
     public void changeRole(UserRole role) {
         this.role = role;
     }

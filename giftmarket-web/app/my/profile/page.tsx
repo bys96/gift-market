@@ -6,11 +6,15 @@ import { useEffect } from "react";
 
 import ProfileForm from "@/components/my/ProfileForm";
 import { useAuthStore } from "@/stores/auth-store";
+import type { ApiResponse } from "@/types/api";
+import type { User } from "@/types/user";
 
 export default function MyProfilePage() {
   const router = useRouter();
 
-  const { user, isAuthenticated, initialized, setUser } = useAuthStore();
+  const ApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const { user, isAuthenticated, initialized, setUser, accessToken } =
+    useAuthStore();
 
   useEffect(() => {
     if (!initialized) {
@@ -22,18 +26,46 @@ export default function MyProfilePage() {
     }
   }, [initialized, isAuthenticated, user, router]);
 
-  const handleSave = (name: string, profileImageUrl: string) => {
-    if (!user) {
-      return;
+  const handleSave = async (name: string, profileImageFile: File | null) => {
+    if (!accessToken) {
+      throw new Error("로그인 정보가 없습니다.");
     }
 
-    // 현재는 Zustand Mock 반영.
-    // 백엔드 연동 시 API 성공 응답으로 받은 User를 저장한다.
-    setUser({
-      ...user,
-      name,
-      profileImageUrl,
+    if (profileImageFile) {
+      await uploadProfileImage(profileImageFile);
+    }
+
+    const response = await fetch(`${ApiUrl}/api/users/me`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        name,
+      }),
     });
+
+    const result: ApiResponse<User> = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message ?? "회원정보 변경에 실패했습니다.");
+    }
+
+    setUser(result.data);
+  };
+
+  const uploadProfileImage = async (
+    profileImageFile: File,
+  ): Promise<string | null> => {
+    // TODO: Presigned URL 발급
+    // TODO: Object Storage 직접 업로드
+    // TODO: 업로드한 objectKey 반환
+
+    console.log("추후 업로드할 이미지:", profileImageFile.name);
+
+    return null;
   };
 
   if (!initialized) {
