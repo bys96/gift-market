@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuthStore } from "@/stores/auth-store";
+import { resolveImageUrl } from "@/utils/image-url";
 
 export default function Header() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function Header() {
 
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const profileImageSrc = resolveImageUrl(user?.profileImageUrl);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -67,21 +69,16 @@ export default function Header() {
 
           {isAuthenticated && user ? (
             <Link href="/my" className="layout-header-profile">
-              {user?.profileImageUrl ? (
+              {profileImageSrc ? (
                 <Image
-                  src={user.profileImageUrl}
-                  alt={`${user.name} 프로필`}
+                  className="layout-header-profile-image"
+                  src={profileImageSrc}
+                  alt={`${user?.name ?? "회원"} 프로필`}
                   width={32}
                   height={32}
-                  className="layout-header-profile-image"
                 />
               ) : (
-                <span
-                  className="layout-header-profile-fallback"
-                  aria-hidden="true"
-                >
-                  {user.name.slice(0, 1)}
-                </span>
+                <span>{user?.name?.charAt(0) ?? "회"}</span>
               )}
 
               <span>{user.name}</span>

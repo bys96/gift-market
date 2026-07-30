@@ -6,7 +6,7 @@ import { useEffect } from "react";
 
 import ProfileForm from "@/components/my/ProfileForm";
 import { useAuthStore } from "@/stores/auth-store";
-import type { ApiResponse } from "@/types/api";
+import type { ApiResponse, PresignedUrlResponse } from "@/types/api";
 import type { User } from "@/types/user";
 
 export default function MyProfilePage() {
@@ -31,8 +31,10 @@ export default function MyProfilePage() {
       throw new Error("로그인 정보가 없습니다.");
     }
 
+    let profileImageUrl: string | null = null;
+
     if (profileImageFile) {
-      await uploadProfileImage(profileImageFile);
+      profileImageUrl = await uploadProfileImage(profileImageFile);
     }
 
     const response = await fetch(`${ApiUrl}/api/users/me`, {
@@ -44,6 +46,7 @@ export default function MyProfilePage() {
       credentials: "include",
       body: JSON.stringify({
         name,
+        profileImageUrl,
       }),
     });
 
@@ -58,14 +61,42 @@ export default function MyProfilePage() {
 
   const uploadProfileImage = async (
     profileImageFile: File,
-  ): Promise<string | null> => {
-    // TODO: Presigned URL 발급
-    // TODO: Object Storage 직접 업로드
-    // TODO: 업로드한 objectKey 반환
+  ): Promise<string> => {
+    const response = await fetch(`${ApiUrl}/api/storage/presigned-url`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        type: "PROFILE",
+        fileName: profileImageFile.name,
+        contentType: profileImageFile.type,
+      }),
+    });
 
-    console.log("추후 업로드할 이미지:", profileImageFile.name);
+    const result: ApiResponse<PresignedUrlResponse> = await response.json();
 
-    return null;
+    if (!response.ok || !result.success) {
+      throw new Error(result.message ?? "Presigned URL 발급 실패");
+    }
+
+    const { uploadUrl, objectKey } = result.data;
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": profileImageFile.type,
+      },
+      body: profileImageFile,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("이미지 업로드에 실패했습니다.");
+    }
+
+    return objectKey;
   };
 
   if (!initialized) {

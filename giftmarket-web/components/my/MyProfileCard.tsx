@@ -1,21 +1,24 @@
 import Image from "next/image";
 import type { User } from "@/types/user";
+import { resolveImageUrl } from "@/utils/image-url";
 
 interface MyProfileCardProps {
   user: User;
 }
 
 export default function MyProfileCard({ user }: MyProfileCardProps) {
+  const profileImageSrc = resolveImageUrl(user.profileImageUrl);
+
   return (
     <section className="my-profile-card">
       <div className="my-profile-image-wrapper">
-        {user.profileImageUrl ? (
+        {profileImageSrc ? (
           <Image
             className="my-profile-image"
-            src={user.profileImageUrl}
+            src={profileImageSrc}
             alt={`${user.name} 프로필 이미지`}
             fill
-            sizes="80px"
+            sizes="(max-width: 768px) 64px, 80px"
           />
         ) : (
           <div className="my-profile-placeholder">{user.name.slice(0, 1)}</div>

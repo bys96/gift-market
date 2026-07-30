@@ -33,6 +33,10 @@ public class UserService {
 
         user.updateName(request.trimmedName());
 
+        if (request.profileImageUrl() != null) {
+            user.updateProfileImage(request.trimmedProfileImageUrl());
+        }
+
         return LoginUserResponse.from(user);
     }
 }

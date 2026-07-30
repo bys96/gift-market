@@ -68,3 +68,9 @@ logging:
   level:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: info
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: giftmarket
+  secret-key: giftmarket123!
+  bucket: gift-market

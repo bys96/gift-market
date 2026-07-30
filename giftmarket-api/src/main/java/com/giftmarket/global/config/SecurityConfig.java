@@ -24,7 +24,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomOidcUserService CustomOidcUserService;
+    private final CustomOidcUserService customOidcUserService;
     private final OAuth2AuthenticationSuccessHandler authenticationSuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -52,18 +52,24 @@ public class SecurityConfig {
                                 "/oauth2/**",
                                 "/login/oauth2/**",
                                 "/error"
-                        ).permitAll()
+                        )
+                        .permitAll()
 
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/auth/token",
                                 "/api/auth/logout"
-                        ).permitAll()
+                        )
+                        .permitAll()
 
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 
-                        .requestMatchers("/api/auth/me")
+                        .requestMatchers(
+                                "/api/auth/me",
+                                "/api/users/me",
+                                "/api/storage/**"
+                        )
                         .authenticated()
 
                         .anyRequest()
@@ -72,7 +78,7 @@ public class SecurityConfig {
 
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(userInfo -> userInfo
-                                .oidcUserService(CustomOidcUserService)
+                                .oidcUserService(customOidcUserService)
                         )
                         .successHandler(authenticationSuccessHandler)
                 )

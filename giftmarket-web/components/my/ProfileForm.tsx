@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { User } from "@/types/user";
+import { resolveImageUrl } from "@/utils/image-url";
 
 interface ProfileFormProps {
   user: User;
@@ -31,6 +32,8 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const profileImageSrc = resolveImageUrl(profileImageUrl);
 
   const trimmedName = name.trim();
 
@@ -153,16 +156,16 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
 
         <div className="profile-image-editor">
           <div className="profile-image-preview">
-            {profileImageUrl ? (
+            {profileImageSrc ? (
               <img
                 className="profile-image"
-                src={profileImageUrl}
-                alt={`${trimmedName || user.name} 프로필`}
+                src={profileImageSrc}
+                alt={`${name || user.name} 프로필`}
               />
             ) : (
-              <span className="profile-image-placeholder" aria-hidden="true">
-                {trimmedName.charAt(0) || "회"}
-              </span>
+              <div className="profile-image-placeholder">
+                {name?.charAt(0) || user.name?.charAt(0) || "회"}
+              </div>
             )}
           </div>
 
