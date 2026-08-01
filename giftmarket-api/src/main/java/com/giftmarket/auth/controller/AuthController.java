@@ -38,6 +38,11 @@ public class AuthController {
             String refreshToken,
             HttpServletResponse response
     ) {
+        // 쿠키가 아예 없으면 오류가 아니라 정상적인 비로그인 상태로 처리
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ApiResponse.success(null);
+        }
+
         TokenReissueResult result =
                 refreshTokenService.reissue(refreshToken);
 

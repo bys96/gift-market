@@ -29,16 +29,16 @@ export default function OAuthCallbackPage() {
           },
         );
 
+        if (!tokenResponse.success || !tokenResponse.data?.accessToken) {
+          throw new Error("Access Token 발급에 실패했습니다.");
+        }
+
         const accessToken = tokenResponse.data.accessToken;
 
         setAccessToken(accessToken);
 
         // 2. Access Token으로 로그인 사용자 정보 조회
-        const userResponse = await apiFetch<ApiResponse<User>>("/api/auth/me", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const userResponse = await apiFetch<ApiResponse<User>>("/api/auth/me");
 
         // 3. 사용자 정보를 Zustand에 저장
         setUser(userResponse.data);

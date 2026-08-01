@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import MyMenuList from "@/components/my/MyMenuList";
 import MyProfileCard from "@/components/my/MyProfileCard";
 import MyQuickStats from "@/components/my/MyQuickStats";
@@ -45,18 +45,16 @@ export default function MyPage() {
     try {
       setIsLoggingOut(true);
 
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await apiFetch("/api/auth/logout", {
         method: "POST",
-        credentials: "include",
       });
-
+    } catch (error) {
+      console.error("서버 로그아웃 처리 실패:", error);
+    } finally {
+      // 서버 요청이 실패해도 프론트 로그인 상태는 제거
       clearAuth();
       router.replace("/");
       router.refresh();
-    } catch (error) {
-      console.error(error);
-      alert("로그아웃 처리 중 오류가 발생했습니다.");
-    } finally {
       setIsLoggingOut(false);
     }
   };

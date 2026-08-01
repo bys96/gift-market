@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import ProfileForm from "@/components/my/ProfileForm";
+import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { ApiResponse, PresignedUrlResponse } from "@/types/api";
 import type { User } from "@/types/user";
@@ -12,9 +13,7 @@ import type { User } from "@/types/user";
 export default function MyProfilePage() {
   const router = useRouter();
 
-  const ApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const { user, isAuthenticated, initialized, setUser, accessToken } =
-    useAuthStore();
+  const { user, isAuthenticated, initialized, setUser } = useAuthStore();
 
   useEffect(() => {
     if (!initialized) {
@@ -27,32 +26,24 @@ export default function MyProfilePage() {
   }, [initialized, isAuthenticated, user, router]);
 
   const handleSave = async (name: string, profileImageFile: File | null) => {
-    if (!accessToken) {
-      throw new Error("로그인 정보가 없습니다.");
-    }
-
     let profileImageUrl: string | null = null;
 
     if (profileImageFile) {
       profileImageUrl = await uploadProfileImage(profileImageFile);
     }
 
-    const response = await fetch(`${ApiUrl}/api/users/me`, {
+    const result = await apiFetch<ApiResponse<User>>("/api/users/me", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
       },
-      credentials: "include",
       body: JSON.stringify({
         name,
         profileImageUrl,
       }),
     });
 
-    const result: ApiResponse<User> = await response.json();
-
-    if (!response.ok || !result.success) {
+    if (!result.success) {
       throw new Error(result.message ?? "회원정보 변경에 실패했습니다.");
     }
 
@@ -62,23 +53,22 @@ export default function MyProfilePage() {
   const uploadProfileImage = async (
     profileImageFile: File,
   ): Promise<string> => {
-    const response = await fetch(`${ApiUrl}/api/storage/presigned-url`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+    const result = await apiFetch<ApiResponse<PresignedUrlResponse>>(
+      "/api/storage/presigned-url",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "PROFILE",
+          fileName: profileImageFile.name,
+          contentType: profileImageFile.type,
+        }),
       },
-      credentials: "include",
-      body: JSON.stringify({
-        type: "PROFILE",
-        fileName: profileImageFile.name,
-        contentType: profileImageFile.type,
-      }),
-    });
+    );
 
-    const result: ApiResponse<PresignedUrlResponse> = await response.json();
-
-    if (!response.ok || !result.success) {
+    if (!result.success) {
       throw new Error(result.message ?? "Presigned URL 발급 실패");
     }
 
