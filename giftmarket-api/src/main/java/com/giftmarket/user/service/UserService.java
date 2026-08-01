@@ -63,19 +63,41 @@ public class UserService {
             String previousProfileImageKey,
             String newProfileImageKey
     ) {
+        log.info(
+                "프로필 이미지 정리 등록. previous={}, new={}",
+                previousProfileImageKey,
+                newProfileImageKey
+        );
+
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
 
                     @Override
                     public void afterCompletion(int status) {
+                        log.info(
+                                "프로필 이미지 트랜잭션 완료. status={}, previous={}, new={}",
+                                status,
+                                previousProfileImageKey,
+                                newProfileImageKey
+                        );
+
                         if (status == STATUS_COMMITTED) {
+                            log.info(
+                                    "DB 커밋 성공: 기존 프로필 이미지 삭제. objectKey={}",
+                                    previousProfileImageKey
+                            );
+
                             deleteManagedProfileObject(
                                     previousProfileImageKey
                             );
                             return;
                         }
 
-                        // DB 저장이 실패하면 새로 올린 파일을 정리
+                        log.info(
+                                "DB 롤백: 새 프로필 이미지 삭제. objectKey={}",
+                                newProfileImageKey
+                        );
+
                         deleteManagedProfileObject(
                                 newProfileImageKey
                         );

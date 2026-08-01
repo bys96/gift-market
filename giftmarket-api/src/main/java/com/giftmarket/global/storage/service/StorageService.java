@@ -12,9 +12,11 @@ import io.minio.http.Method;
 import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StorageService {
@@ -78,17 +80,28 @@ public class StorageService {
 
     public void deleteObject(String objectKey) {
         if (objectKey == null || objectKey.isBlank()) {
+            log.warn("MinIO 삭제 생략: objectKey가 비어 있습니다.");
             return;
         }
 
         try {
+            log.info("MinIO 객체 삭제 시작. objectKey={}", objectKey);
+
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(minioProperties.bucket())
                             .object(objectKey)
                             .build()
             );
+
+            log.info("MinIO 객체 삭제 요청 완료. objectKey={}", objectKey);
         } catch (Exception exception) {
+            log.error(
+                    "MinIO 객체 삭제 실패. objectKey={}",
+                    objectKey,
+                    exception
+            );
+
             throw new IllegalStateException(
                     "파일 삭제에 실패했습니다.",
                     exception
