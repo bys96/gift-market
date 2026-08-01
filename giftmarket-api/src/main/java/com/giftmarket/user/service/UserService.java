@@ -8,12 +8,18 @@ import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.giftmarket.global.storage.service.StorageService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
+    private final StorageService storageService;
 
     @Transactional
     public LoginUserResponse updateMyProfile(
@@ -33,10 +39,67 @@ public class UserService {
 
         user.updateName(request.trimmedName());
 
-        if (request.profileImageUrl() != null) {
-            user.updateProfileImage(request.trimmedProfileImageUrl());
+        String newProfileImageKey =
+                request.trimmedProfileImageUrl();
+
+        if (newProfileImageKey != null) {
+            String previousProfileImageKey =
+                    user.getProfileImageUrl();
+
+            user.updateProfileImage(newProfileImageKey);
+
+            if (!newProfileImageKey.equals(previousProfileImageKey)) {
+                registerProfileImageCleanup(
+                        previousProfileImageKey,
+                        newProfileImageKey
+                );
+            }
         }
 
         return LoginUserResponse.from(user);
+    }
+
+    private void registerProfileImageCleanup(
+            String previousProfileImageKey,
+            String newProfileImageKey
+    ) {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status == STATUS_COMMITTED) {
+                            deleteManagedProfileObject(
+                                    previousProfileImageKey
+                            );
+                            return;
+                        }
+
+                        // DB 저장이 실패하면 새로 올린 파일을 정리
+                        deleteManagedProfileObject(
+                                newProfileImageKey
+                        );
+                    }
+                }
+        );
+    }
+
+    private void deleteManagedProfileObject(String objectKey) {
+        if (objectKey == null
+                || objectKey.isBlank()
+                || !objectKey.startsWith("profile/")) {
+            return;
+        }
+
+        try {
+            storageService.deleteObject(objectKey);
+        } catch (Exception exception) {
+            // DB 트랜잭션 결과에는 영향을 주지 않고 로그만 남긴다.
+            log.error(
+                    "프로필 이미지 삭제 실패. objectKey={}",
+                    objectKey,
+                    exception
+            );
+        }
     }
 }

@@ -1,11 +1,15 @@
 package com.giftmarket.global.storage.service;
 
+import java.util.Map;
+import java.util.Set;
+
 import com.giftmarket.global.storage.config.MinioProperties;
 import com.giftmarket.global.storage.dto.PresignedUrlRequest;
 import com.giftmarket.global.storage.dto.PresignedUrlResponse;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.http.Method;
+import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,12 +21,34 @@ public class StorageService {
 
     private static final int PRESIGNED_URL_EXPIRATION_SECONDS = 300;
 
+    private static final Map<String, String> ALLOWED_IMAGE_CONTENT_TYPES =
+            Map.of(
+                    "image/jpeg", ".jpg",
+                    "image/png", ".png",
+                    "image/webp", ".webp",
+                    "image/gif", ".gif"
+            );
+
+    private static final Set<String> ALLOWED_IMAGE_EXTENSIONS =
+            Set.of(
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                    ".webp",
+                    ".gif"
+            );
+
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
 
     public PresignedUrlResponse createPresignedUrl(
             PresignedUrlRequest request
     ) {
+        validateImageFile(
+                request.fileName(),
+                request.contentType()
+        );
+
         String objectKey = createObjectKey(
                 request.type().getDirectory(),
                 request.fileName()
@@ -50,6 +76,26 @@ public class StorageService {
         }
     }
 
+    public void deleteObject(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            return;
+        }
+
+        try {
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(minioProperties.bucket())
+                            .object(objectKey)
+                            .build()
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException(
+                    "파일 삭제에 실패했습니다.",
+                    exception
+            );
+        }
+    }
+
     private String createObjectKey(
             String directory,
             String originalFileName
@@ -72,5 +118,46 @@ public class StorageService {
         return fileName
                 .substring(lastDotIndex)
                 .toLowerCase();
+    }
+
+    private void validateImageFile(
+            String fileName,
+            String contentType
+    ) {
+        String normalizedContentType =
+                contentType.trim().toLowerCase();
+
+        String extension = extractExtension(fileName);
+
+        if (!ALLOWED_IMAGE_CONTENT_TYPES.containsKey(
+                normalizedContentType
+        )) {
+            throw new IllegalArgumentException(
+                    "지원하지 않는 이미지 형식입니다."
+            );
+        }
+
+        if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException(
+                    "지원하지 않는 이미지 확장자입니다."
+            );
+        }
+
+        String expectedExtension =
+                ALLOWED_IMAGE_CONTENT_TYPES.get(normalizedContentType);
+
+        boolean jpegExtension =
+                normalizedContentType.equals("image/jpeg")
+                        && (
+                        extension.equals(".jpg")
+                                || extension.equals(".jpeg")
+                );
+
+        if (!jpegExtension
+                && !expectedExtension.equals(extension)) {
+            throw new IllegalArgumentException(
+                    "파일 확장자와 콘텐츠 타입이 일치하지 않습니다."
+            );
+        }
     }
 }
