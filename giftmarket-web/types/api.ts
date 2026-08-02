@@ -8,6 +8,7 @@ export interface PresignedUrlRequest {
   type: "PROFILE";
   fileName: string;
   contentType: string;
+  fileSize: number;
 }
 
 export interface PresignedUrlResponse {

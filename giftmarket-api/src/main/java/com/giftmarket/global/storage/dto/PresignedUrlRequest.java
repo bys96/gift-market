@@ -3,6 +3,7 @@ package com.giftmarket.global.storage.dto;
 import com.giftmarket.global.storage.type.StorageType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 public record PresignedUrlRequest(
 
@@ -13,6 +14,10 @@ public record PresignedUrlRequest(
         String fileName,
 
         @NotBlank(message = "콘텐츠 타입은 필수입니다.")
-        String contentType
+        String contentType,
+
+        @NotNull(message = "파일 크기는 필수입니다.")
+        @Positive(message = "파일 크기는 0보다 커야 합니다.")
+        Long fileSize
 ) {
 }

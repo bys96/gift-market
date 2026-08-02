@@ -22,6 +22,7 @@ import java.util.UUID;
 public class StorageService {
 
     private static final int PRESIGNED_URL_EXPIRATION_SECONDS = 300;
+    private static final long MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024L;
 
     private static final Map<String, String> ALLOWED_IMAGE_CONTENT_TYPES =
             Map.of(
@@ -50,6 +51,8 @@ public class StorageService {
                 request.fileName(),
                 request.contentType()
         );
+
+        validateFileSize(request.fileSize());
 
         String objectKey = createObjectKey(
                 request.type().getDirectory(),
@@ -170,6 +173,14 @@ public class StorageService {
                 && !expectedExtension.equals(extension)) {
             throw new IllegalArgumentException(
                     "파일 확장자와 콘텐츠 타입이 일치하지 않습니다."
+            );
+        }
+    }
+
+    private void validateFileSize(Long fileSize) {
+        if (fileSize > MAX_IMAGE_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "이미지 파일은 최대 5MB까지 업로드할 수 있습니다."
             );
         }
     }

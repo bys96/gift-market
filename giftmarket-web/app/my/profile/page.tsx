@@ -64,6 +64,7 @@ export default function MyProfilePage() {
           type: "PROFILE",
           fileName: profileImageFile.name,
           contentType: profileImageFile.type,
+          fileSize: profileImageFile.size,
         }),
       },
     );
