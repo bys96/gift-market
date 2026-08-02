@@ -38,25 +38,32 @@ public class AuthController {
             String refreshToken,
             HttpServletResponse response
     ) {
-        // 쿠키가 아예 없으면 오류가 아니라 정상적인 비로그인 상태로 처리
+        // 쿠키가 없으면 정상적인 비로그인 상태
         if (refreshToken == null || refreshToken.isBlank()) {
             return ApiResponse.success(null);
         }
 
-        TokenReissueResult result =
-                refreshTokenService.reissue(refreshToken);
+        try {
+            TokenReissueResult result =
+                    refreshTokenService.reissue(refreshToken);
 
-        refreshTokenCookieManager.addRefreshTokenCookie(
-                response,
-                result.refreshToken()
-        );
+            refreshTokenCookieManager.addRefreshTokenCookie(
+                    response,
+                    result.refreshToken()
+            );
 
-        return ApiResponse.success(
-                TokenResponse.bearer(
-                        result.accessToken(),
-                        jwtTokenProvider.getAccessTokenExpirationSeconds()
-                )
-        );
+            return ApiResponse.success(
+                    TokenResponse.bearer(
+                            result.accessToken(),
+                            jwtTokenProvider.getAccessTokenExpirationSeconds()
+                    )
+            );
+        } catch (AuthenticationException exception) {
+            // 만료되거나 서버 DB와 일치하지 않는 쿠키 제거
+            refreshTokenCookieManager.deleteRefreshTokenCookie(response);
+
+            return ApiResponse.success(null);
+        }
     }
 
     @PostMapping("/logout")
