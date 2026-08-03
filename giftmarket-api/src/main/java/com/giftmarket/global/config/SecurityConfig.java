@@ -68,7 +68,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/me",
                                 "/api/users/me",
-                                "/api/storage/**"
+                                "/api/storage/**",
+                                "/api/seller-applications/**"
                         )
                         .authenticated()
 

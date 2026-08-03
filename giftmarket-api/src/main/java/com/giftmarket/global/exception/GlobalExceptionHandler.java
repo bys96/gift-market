@@ -2,6 +2,7 @@ package com.giftmarket.global.exception;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.global.response.ApiResponse;
+import com.giftmarket.seller.exception.SellerException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,6 +18,15 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(SellerException.class)
+    public ResponseEntity<ApiResponse<?>> handleSellerException(
+            SellerException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(exception.getMessage()));
     }
 
