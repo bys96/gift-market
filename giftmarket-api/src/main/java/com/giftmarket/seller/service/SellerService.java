@@ -71,14 +71,10 @@ public class SellerService {
     public SellerApplicationResponse getMyLatestApplication(Long userId) {
         User user = getAuthenticatedUser(userId);
 
-        SellerApplication application =
-                sellerApplicationRepository
-                        .findFirstByUserOrderByCreatedAtDesc(user)
-                        .orElseThrow(() -> new SellerException(
-                                "판매자 신청 내역이 없습니다."
-                        ));
-
-        return SellerApplicationResponse.from(application);
+        return sellerApplicationRepository
+                .findFirstByUserOrderByCreatedAtDesc(user)
+                .map(SellerApplicationResponse::from)
+                .orElse(null);
     }
 
     private User getAuthenticatedUser(Long userId) {

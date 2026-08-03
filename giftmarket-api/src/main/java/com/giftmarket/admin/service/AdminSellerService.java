@@ -117,7 +117,8 @@ public class AdminSellerService {
             Long applicationId
     ) {
         SellerApplication application =
-                sellerApplicationRepository.findById(applicationId)
+                sellerApplicationRepository
+                        .findByIdForUpdate(applicationId)
                         .orElseThrow(() -> new SellerException(
                                 "판매자 신청을 찾을 수 없습니다."
                         ));
