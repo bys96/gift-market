@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { User } from "@/types/user";
+import { roleLabel } from "@/types/user";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface ProfileFormProps {
@@ -249,9 +250,7 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
           <div className="profile-field">
             <span className="profile-label">회원 권한</span>
 
-            <div className="profile-readonly-value">
-              {user.role === "ADMIN" ? "관리자" : "일반 회원"}
-            </div>
+            <div className="profile-readonly-value">{roleLabel[user.role]}</div>
           </div>
         </div>
       </section>

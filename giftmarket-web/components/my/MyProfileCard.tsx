@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { User } from "@/types/user";
+import { roleLabel } from "@/types/user";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface MyProfileCardProps {
@@ -29,9 +30,7 @@ export default function MyProfileCard({ user }: MyProfileCardProps) {
         <div className="my-profile-name-row">
           <h2 className="my-profile-name">{user.name}</h2>
 
-          <span className="my-profile-role">
-            {user.role === "ADMIN" ? "관리자" : "회원"}
-          </span>
+          <span className="my-profile-role">{roleLabel[user.role]}</span>
         </div>
 
         <p className="my-profile-email">{user.email}</p>
