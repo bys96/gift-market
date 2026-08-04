@@ -3,6 +3,8 @@ package com.giftmarket.seller.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.seller.dto.request.SellerApplicationCreateRequest;
 import com.giftmarket.seller.dto.response.SellerApplicationResponse;
+import com.giftmarket.seller.dto.response.SellerResponse;
+import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerApplication;
 import com.giftmarket.seller.entity.SellerApplicationStatus;
 import com.giftmarket.seller.exception.SellerException;
@@ -14,6 +16,7 @@ import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -96,5 +99,14 @@ public class SellerService {
         }
 
         return value.trim();
+    }
+
+    @Transactional(readOnly = true)
+    public SellerResponse getMySeller(Long userId) {
+
+        Seller seller = sellerRepository.findByUserId(userId)
+                .orElseThrow(() -> new SellerException("판매자 정보를 찾을 수 없습니다."));
+
+        return SellerResponse.from(seller);
     }
 }

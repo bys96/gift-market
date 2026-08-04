@@ -1,0 +1,10 @@
+.common-inner {
+  width: min(1200px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+@media (max-width: 520px) {
+  .common-inner {
+    width: min(100% - 32px, 1200px);
+  }
+}

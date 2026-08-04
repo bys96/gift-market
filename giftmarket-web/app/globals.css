@@ -9,6 +9,8 @@
 @import "../styles/auth.css";
 @import "../styles/order.css";
 @import "../styles/mypage.css";
+@import "../styles/admin.css";
+@import "../styles/seller.css";
 
 :root {
   --background: #ffffff;

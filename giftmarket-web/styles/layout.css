@@ -1,5 +1,10 @@
-/* Header */
+/* ========================================
+   Header
+======================================== */
+
 .layout-header {
+  position: relative;
+  z-index: 100;
   width: 100%;
   border-bottom: 1px solid #e5e5e5;
   background: #ffffff;
@@ -7,61 +12,70 @@
 
 .layout-header-inner {
   display: flex;
+  width: min(1200px, calc(100% - 40px));
+  height: 80px;
   align-items: center;
   justify-content: space-between;
-
-  max-width: 1200px;
-  height: 80px;
-
+  gap: 28px;
   margin: 0 auto;
 }
 
 .layout-header-logo {
+  flex-shrink: 0;
   font-size: 28px;
   font-weight: 700;
   color: #111111;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .layout-header-search {
   display: flex;
-  align-items: center;
-
-  width: 480px;
   height: 46px;
-
+  align-items: center;
+  overflow: hidden;
   border: 2px solid #fae100;
   border-radius: 999px;
+  background: #ffffff;
+}
 
-  overflow: hidden;
+.layout-header-desktop-search {
+  width: 480px;
+  min-width: 260px;
 }
 
 .layout-header-search input {
-  flex: 1;
+  min-width: 0;
   height: 100%;
+  flex: 1;
   padding: 0 18px;
-
   border: none;
   outline: none;
-
+  background: transparent;
+  font: inherit;
   font-size: 15px;
+  color: #111111;
+}
+
+.layout-header-search input::placeholder {
+  color: #999999;
 }
 
 .layout-header-search button {
   width: 80px;
   height: 100%;
-
+  flex-shrink: 0;
   border: none;
-
   background: #fae100;
   cursor: pointer;
-
   font-size: 15px;
   font-weight: 600;
+  color: #111111;
 }
 
 .layout-header-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 24px;
 }
@@ -72,12 +86,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-
   color: #333333;
   text-decoration: none;
-
   font-size: 15px;
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.layout-header-profile {
+  max-width: 140px;
+}
+
+.layout-header-profile > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .layout-header-profile-image,
@@ -85,7 +108,6 @@
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-
   border-radius: 50%;
 }
 
@@ -97,14 +119,334 @@
   display: flex;
   align-items: center;
   justify-content: center;
-
   background: #fae100;
   font-weight: 700;
+  color: #111111;
 }
+
+.layout-header-mobile-actions,
+.layout-header-mobile-search {
+  display: none;
+}
+
+/* ========================================
+   Mobile Header Buttons
+======================================== */
+
+.layout-header-icon-button {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #222222;
+  cursor: pointer;
+}
+
+.layout-header-icon-button svg {
+  width: 24px;
+  height: 24px;
+  fill: currentcolor;
+}
+
+/* ========================================
+   Mobile Search
+======================================== */
+
+.layout-header-mobile-search {
+  overflow: hidden;
+  max-height: 0;
+  border-top: 1px solid transparent;
+  background: #ffffff;
+  opacity: 0;
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.layout-header-mobile-search-open {
+  max-height: 88px;
+  border-top-color: #eeeeee;
+  opacity: 1;
+}
+
+.layout-header-mobile-search form {
+  display: flex;
+  width: min(100% - 32px, 720px);
+  height: 46px;
+  align-items: center;
+  overflow: hidden;
+  margin: 14px auto;
+  border: 2px solid #fae100;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.layout-header-mobile-search input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  padding: 0 17px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: #111111;
+}
+
+.layout-header-mobile-search input::placeholder {
+  color: #999999;
+}
+
+.layout-header-mobile-search button {
+  width: 72px;
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: #fae100;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111111;
+  cursor: pointer;
+}
+
+/* ========================================
+   Mobile Drawer Backdrop
+======================================== */
+
+.layout-mobile-menu-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  visibility: hidden;
+  background: rgb(0 0 0 / 0%);
+  pointer-events: none;
+  transition:
+    visibility 0s linear 0.3s,
+    background 0.3s ease;
+}
+
+.layout-mobile-menu-backdrop-open {
+  visibility: visible;
+  background: rgb(0 0 0 / 42%);
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+/* ========================================
+   Mobile Drawer
+======================================== */
+
+.layout-mobile-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: min(360px, calc(100% - 48px));
+  height: 100%;
+  flex-direction: column;
+  overflow-y: auto;
+  background: #ffffff;
+  box-shadow: -12px 0 40px rgb(0 0 0 / 12%);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.layout-mobile-drawer-open {
+  transform: translateX(0);
+}
+
+.layout-mobile-drawer-header {
+  display: flex;
+  min-height: 68px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.layout-mobile-drawer-header > strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.layout-mobile-drawer-header button {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #333333;
+  cursor: pointer;
+}
+
+.layout-mobile-drawer-header button svg {
+  width: 24px;
+  height: 24px;
+  fill: currentcolor;
+}
+
+/* ========================================
+   Mobile Profile
+======================================== */
+
+.layout-mobile-profile {
+  display: flex;
+  min-height: 104px;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 20px;
+  border-bottom: 8px solid #f6f6f6;
+  color: #111111;
+  text-decoration: none;
+}
+
+.layout-mobile-profile-image,
+.layout-mobile-profile-fallback {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.layout-mobile-profile-image {
+  object-fit: cover;
+}
+
+.layout-mobile-profile-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fae100;
+  font-size: 19px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.layout-mobile-profile-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.layout-mobile-profile-content strong {
+  display: block;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111111;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-mobile-profile-content > span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #777777;
+}
+
+.layout-mobile-menu-arrow {
+  flex-shrink: 0;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  color: #aaaaaa;
+}
+
+/* ========================================
+   Mobile Login
+======================================== */
+
+.layout-mobile-login-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 20px;
+  border-bottom: 8px solid #f6f6f6;
+}
+
+.layout-mobile-login-section > div {
+  min-width: 0;
+}
+
+.layout-mobile-login-section strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.layout-mobile-login-section p {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #777777;
+}
+
+.layout-mobile-login-section > a {
+  display: flex;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0 17px;
+  border-radius: 9px;
+  background: #fae100;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111111;
+  text-decoration: none;
+}
+
+/* ========================================
+   Mobile Menu
+======================================== */
+
+.layout-mobile-menu-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-mobile-menu-list > a {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  border-bottom: 1px solid #eeeeee;
+  color: #222222;
+  text-decoration: none;
+}
+
+.layout-mobile-menu-list > a > span:first-child {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ========================================
+   Main
+======================================== */
 
 .layout-main {
   min-height: calc(100vh - 160px);
 }
+
+/* ========================================
+   Footer
+======================================== */
 
 .layout-footer {
   border-top: 1px solid #e5e7eb;
@@ -115,7 +457,208 @@
   width: min(1200px, calc(100% - 40px));
   margin: 0 auto;
   padding: 40px 0;
-
-  color: #666;
+  color: #666666;
   font-size: 14px;
+}
+
+/* ========================================
+   Hover
+======================================== */
+
+@media (hover: hover) {
+  .layout-header-action:hover,
+  .layout-header-login:hover,
+  .layout-header-profile:hover {
+    color: #000000;
+  }
+
+  .layout-header-search button:hover,
+  .layout-header-mobile-search button:hover,
+  .layout-mobile-login-section > a:hover {
+    background: #f4db00;
+  }
+
+  .layout-header-icon-button:hover,
+  .layout-mobile-drawer-header button:hover {
+    background: #f5f5f5;
+  }
+
+  .layout-mobile-profile:hover,
+  .layout-mobile-menu-list > a:hover {
+    background: #fafafa;
+  }
+}
+
+/* ========================================
+   Tablet
+======================================== */
+
+@media (max-width: 1100px) {
+  .layout-header-inner {
+    gap: 20px;
+  }
+
+  .layout-header-logo {
+    font-size: 25px;
+  }
+
+  .layout-header-desktop-search {
+    width: min(390px, 38vw);
+  }
+
+  .layout-header-actions {
+    gap: 16px;
+  }
+
+  .layout-header-action,
+  .layout-header-login,
+  .layout-header-profile {
+    font-size: 14px;
+  }
+
+  .layout-header-profile {
+    max-width: 110px;
+  }
+}
+
+@media (max-width: 900px) {
+  .layout-header-inner {
+    width: min(100% - 32px, 1200px);
+    height: 68px;
+  }
+
+  .layout-header-logo {
+    font-size: 23px;
+  }
+
+  .layout-header-desktop-search,
+  .layout-header-actions {
+    display: none;
+  }
+
+  .layout-header-mobile-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .layout-header-mobile-search {
+    display: block;
+  }
+
+  .layout-main {
+    min-height: calc(100vh - 148px);
+  }
+
+  .layout-footer-inner {
+    width: min(100% - 32px, 1200px);
+    padding: 32px 0;
+  }
+}
+
+/* ========================================
+   Mobile
+======================================== */
+
+@media (max-width: 520px) {
+  .layout-header-inner {
+    width: calc(100% - 28px);
+    height: 62px;
+    gap: 14px;
+  }
+
+  .layout-header-logo {
+    overflow: hidden;
+    max-width: calc(100% - 100px);
+    font-size: 21px;
+    text-overflow: ellipsis;
+  }
+
+  .layout-header-mobile-actions {
+    gap: 2px;
+  }
+
+  .layout-header-icon-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .layout-header-icon-button svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .layout-header-mobile-search form {
+    width: calc(100% - 28px);
+    height: 44px;
+    margin: 12px auto;
+  }
+
+  .layout-header-mobile-search-open {
+    max-height: 72px;
+  }
+
+  .layout-header-mobile-search input {
+    padding: 0 15px;
+    font-size: 13px;
+  }
+
+  .layout-header-mobile-search button {
+    width: 66px;
+    font-size: 13px;
+  }
+
+  .layout-mobile-drawer {
+    width: min(340px, calc(100% - 32px));
+  }
+
+  .layout-mobile-drawer-header {
+    min-height: 62px;
+    padding: 0 18px;
+  }
+
+  .layout-mobile-profile {
+    min-height: 98px;
+    padding: 20px 18px;
+  }
+
+  .layout-mobile-profile-image,
+  .layout-mobile-profile-fallback {
+    width: 48px;
+    height: 48px;
+  }
+
+  .layout-mobile-login-section {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 22px 18px;
+  }
+
+  .layout-mobile-login-section > a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .layout-mobile-menu-list > a {
+    min-height: 56px;
+    padding: 0 18px;
+  }
+
+  .layout-main {
+    min-height: calc(100vh - 134px);
+  }
+
+  .layout-footer-inner {
+    width: calc(100% - 28px);
+    padding: 28px 0;
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-header-mobile-search,
+  .layout-mobile-menu-backdrop,
+  .layout-mobile-drawer {
+    transition: none;
+  }
 }
