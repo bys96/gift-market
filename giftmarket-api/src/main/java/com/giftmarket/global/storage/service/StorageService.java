@@ -1,19 +1,19 @@
 package com.giftmarket.global.storage.service;
 
-import java.util.Map;
-import java.util.Set;
-
 import com.giftmarket.global.storage.config.MinioProperties;
 import com.giftmarket.global.storage.dto.PresignedUrlRequest;
 import com.giftmarket.global.storage.dto.PresignedUrlResponse;
+import com.giftmarket.global.storage.type.StorageType;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
-import io.minio.http.Method;
 import io.minio.RemoveObjectArgs;
+import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -45,6 +45,7 @@ public class StorageService {
     private final MinioProperties minioProperties;
 
     public PresignedUrlResponse createPresignedUrl(
+            Long ownerId,
             PresignedUrlRequest request
     ) {
         validateImageFile(
@@ -55,7 +56,8 @@ public class StorageService {
         validateFileSize(request.fileSize());
 
         String objectKey = createObjectKey(
-                request.type().getDirectory(),
+                ownerId,
+                request.type(),
                 request.fileName()
         );
 
@@ -73,10 +75,10 @@ public class StorageService {
                     uploadUrl,
                     objectKey
             );
-        } catch (Exception e) {
+        } catch (Exception exception) {
             throw new IllegalStateException(
                     "파일 업로드 URL 생성에 실패했습니다.",
-                    e
+                    exception
             );
         }
     }
@@ -113,15 +115,44 @@ public class StorageService {
     }
 
     private String createObjectKey(
-            String directory,
+            Long ownerId,
+            StorageType storageType,
             String originalFileName
     ) {
         String extension = extractExtension(originalFileName);
+        String fileName = UUID.randomUUID() + extension;
 
-        return directory
-                + "/"
-                + UUID.randomUUID()
-                + extension;
+        return switch (storageType) {
+            case PRODUCT_REPRESENTATIVE -> {
+                validateProductOwnerId(ownerId);
+
+                yield "products/"
+                        + ownerId
+                        + "/representative/"
+                        + fileName;
+            }
+
+            case PRODUCT_DETAIL -> {
+                validateProductOwnerId(ownerId);
+
+                yield "products/"
+                        + ownerId
+                        + "/detail/"
+                        + fileName;
+            }
+
+            default -> storageType.getDirectory()
+                    + "/"
+                    + fileName;
+        };
+    }
+
+    private void validateProductOwnerId(Long ownerId) {
+        if (ownerId == null) {
+            throw new IllegalArgumentException(
+                    "상품 이미지 업로드 소유자 정보가 필요합니다."
+            );
+        }
     }
 
     private String extractExtension(String fileName) {
@@ -178,6 +209,12 @@ public class StorageService {
     }
 
     private void validateFileSize(Long fileSize) {
+        if (fileSize == null || fileSize <= 0) {
+            throw new IllegalArgumentException(
+                    "올바른 파일 크기를 입력해주세요."
+            );
+        }
+
         if (fileSize > MAX_IMAGE_FILE_SIZE) {
             throw new IllegalArgumentException(
                     "이미지 파일은 최대 5MB까지 업로드할 수 있습니다."

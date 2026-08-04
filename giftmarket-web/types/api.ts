@@ -4,8 +4,15 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+export type StorageType =
+  | "PROFILE"
+  | "PRODUCT_REPRESENTATIVE"
+  | "PRODUCT_DETAIL"
+  | "REVIEW"
+  | "BANNER";
+
 export interface PresignedUrlRequest {
-  type: "PROFILE";
+  type: StorageType;
   fileName: string;
   contentType: string;
   fileSize: number;

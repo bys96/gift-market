@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 public enum StorageType {
 
     PROFILE("profile"),
-    PRODUCT("product"),
+    PRODUCT_REPRESENTATIVE("products/representative"),
+    PRODUCT_DETAIL("products/detail"),
     REVIEW("review"),
     BANNER("banner");
 

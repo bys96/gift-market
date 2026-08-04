@@ -65,6 +65,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 
+                        .requestMatchers("/api/seller/products/**")
+                        .hasRole("SELLER")
+
                         .requestMatchers(
                                 "/api/auth/me",
                                 "/api/users/me",
