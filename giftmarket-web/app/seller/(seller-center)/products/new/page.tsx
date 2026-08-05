@@ -124,6 +124,10 @@ export default function SellerProductCreatePage() {
 
   const detailInputRef = useRef<HTMLInputElement>(null);
 
+  const representativePreviewUrlRef = useRef<string | null>(null);
+
+  const detailImagesRef = useRef<DetailImageFile[]>([]);
+
   const initialized = useAuthStore((state) => state.initialized);
 
   const user = useAuthStore((state) => state.user);
@@ -193,16 +197,27 @@ export default function SellerProductCreatePage() {
   }, [initialized, isAuthenticated, user, router]);
 
   useEffect(() => {
+    representativePreviewUrlRef.current = representativePreviewUrl;
+  }, [representativePreviewUrl]);
+
+  useEffect(() => {
+    detailImagesRef.current = detailImages;
+  }, [detailImages]);
+
+  useEffect(() => {
     return () => {
-      if (representativePreviewUrl) {
-        URL.revokeObjectURL(representativePreviewUrl);
+      const currentRepresentativePreviewUrl =
+        representativePreviewUrlRef.current;
+
+      if (currentRepresentativePreviewUrl) {
+        URL.revokeObjectURL(currentRepresentativePreviewUrl);
       }
 
-      detailImages.forEach((image) => {
+      detailImagesRef.current.forEach((image) => {
         URL.revokeObjectURL(image.previewUrl);
       });
     };
-  }, [representativePreviewUrl, detailImages]);
+  }, []);
 
   const handleTextChange = (
     event: ChangeEvent<
@@ -422,9 +437,16 @@ export default function SellerProductCreatePage() {
         ? await uploadImage(representativeFile, "PRODUCT_REPRESENTATIVE")
         : null;
 
-      const detailImageKeys = await Promise.all(
-        detailImages.map((image) => uploadImage(image.file, "PRODUCT_DETAIL")),
-      );
+      const detailImageKeys: string[] = [];
+
+      for (const image of detailImages) {
+        const detailImageKey = await uploadImage(
+          image.file,
+          "PRODUCT_DETAIL",
+        );
+
+        detailImageKeys.push(detailImageKey);
+      }
 
       await createProduct({
         ...request,

@@ -227,16 +227,8 @@
   color: var(--color-text-disabled);
 }
 
+
 @media (hover: hover) {
-  .seller-application-error button:hover {
-    border-color: var(--color-primary-hover);
-    background: var(--color-primary-hover);
-  }
-
-  .seller-application-home-button:hover {
-    background: #f7f7f7;
-  }
-
   .seller-dashboard-panel-link:hover {
     color: var(--color-text-primary);
   }
@@ -257,31 +249,6 @@
 }
 
 @media (max-width: 768px) {
-  .seller-application-page {
-    padding: 36px 0 64px;
-  }
-
-  .seller-application-title {
-    font-size: 29px;
-  }
-
-  .seller-application-status-hero {
-    padding: 42px 24px 34px;
-  }
-
-  .seller-application-detail {
-    padding: 26px 24px;
-  }
-
-  .seller-application-process {
-    grid-template-columns: 1fr;
-  }
-
-  .seller-application-process-item + .seller-application-process-item {
-    border-top: 1px solid var(--color-border);
-    border-left: 0;
-  }
-
   .seller-dashboard-page {
     padding: 32px 0 64px;
   }
@@ -297,36 +264,6 @@
 }
 
 @media (max-width: 560px) {
-  .seller-application-title {
-    font-size: 25px;
-  }
-
-  .seller-application-description {
-    font-size: 14px;
-  }
-
-  .seller-application-status-hero {
-    padding: 36px 20px 30px;
-  }
-
-  .seller-application-status-icon {
-    width: 66px;
-    height: 66px;
-    font-size: 27px;
-  }
-
-  .seller-application-status-title {
-    font-size: 22px;
-  }
-
-  .seller-application-detail {
-    padding: 22px 20px;
-  }
-
-  .seller-application-detail-list {
-    grid-template-columns: 1fr;
-  }
-
   .seller-dashboard-title {
     font-size: 27px;
   }
