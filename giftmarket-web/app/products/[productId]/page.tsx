@@ -1,138 +1,123 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-
-import type { Product } from "@/types/product";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import ProductDetailActions from "@/components/product/ProductDetailActions";
+import { getProduct } from "@/lib/product-api";
+import type { ProductDetail } from "@/types/product";
+import { resolveImageUrl } from "@/utils/image-url";
 
-interface ProductDetailPageProps {
-  params: Promise<{
-    productId: string;
-  }>;
-}
+export default function ProductDetailPage() {
+  const params = useParams<{ productId: string }>();
 
-interface ProductDetail extends Product {
-  description: string;
-  categoryName: string;
-  stockQuantity: number;
-}
+  const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-const products: ProductDetail[] = [
-  {
-    id: 1,
-    name: "마음을 담은 프리미엄 초콜릿 선물 세트",
-    brandName: "스위트하우스",
-    price: 32900,
-    imageUrl: "/images/products/product-1.jpg",
-    isFreeShipping: true,
-    categoryName: "간식",
-    stockQuantity: 30,
-    description:
-      "다양한 맛의 초콜릿을 고급 패키지에 담은 선물 세트입니다. 생일과 감사 선물로 추천합니다.",
-  },
-  {
-    id: 2,
-    name: "향기로운 핸드크림 & 바디케어 세트",
-    brandName: "오브제뷰티",
-    price: 27900,
-    imageUrl: "/images/products/product-2.jpg",
-    isFreeShipping: true,
-    categoryName: "뷰티",
-    stockQuantity: 18,
-    description:
-      "은은한 향과 촉촉한 보습감을 제공하는 핸드크림과 바디케어 구성입니다.",
-  },
-  {
-    id: 3,
-    name: "매일 사용하기 좋은 머그컵 세트",
-    brandName: "데일리리빙",
-    price: 19800,
-    imageUrl: "/images/products/product-3.jpg",
-    isFreeShipping: false,
-    categoryName: "리빙",
-    stockQuantity: 42,
-    description:
-      "따뜻한 음료를 즐기기 좋은 심플한 디자인의 머그컵 2종 세트입니다.",
-  },
-  {
-    id: 4,
-    name: "특별한 날을 위한 꽃다발 선물",
-    brandName: "플라워데이",
-    price: 45000,
-    imageUrl: "/images/products/product-4.jpg",
-    isFreeShipping: true,
-    categoryName: "축하",
-    stockQuantity: 12,
-    description:
-      "특별한 날 마음을 전할 수 있도록 화사한 꽃으로 구성한 꽃다발입니다.",
-  },
-  {
-    id: 5,
-    name: "프리미엄 티 컬렉션 선물 세트",
-    brandName: "티가든",
-    price: 38900,
-    imageUrl: "/images/products/product-5.jpg",
-    isFreeShipping: true,
-    categoryName: "감사",
-    stockQuantity: 25,
-    description: "다양한 향과 맛을 경험할 수 있는 프리미엄 티 컬렉션입니다.",
-  },
-  {
-    id: 6,
-    name: "부드러운 수건 기프트 패키지",
-    brandName: "코지홈",
-    price: 24900,
-    imageUrl: "/images/products/product-6.jpg",
-    isFreeShipping: false,
-    categoryName: "리빙",
-    stockQuantity: 37,
-    description:
-      "부드러운 촉감과 높은 흡수력을 갖춘 수건을 선물 패키지로 구성했습니다.",
-  },
-  {
-    id: 7,
-    name: "데일리 향수 미니어처 컬렉션",
-    brandName: "센트오브제",
-    price: 59000,
-    imageUrl: "/images/products/product-7.jpg",
-    isFreeShipping: true,
-    categoryName: "뷰티",
-    stockQuantity: 9,
-    description: "매일 다른 향을 즐길 수 있는 미니어처 향수 컬렉션입니다.",
-  },
-  {
-    id: 8,
-    name: "베이커리 쿠키 선물 박스",
-    brandName: "브레드하우스",
-    price: 21500,
-    imageUrl: "/images/products/product-8.jpg",
-    isFreeShipping: true,
-    categoryName: "간식",
-    stockQuantity: 20,
-    description:
-      "바삭하고 달콤한 쿠키를 다양하게 담은 베이커리 선물 박스입니다.",
-  },
-];
+  const productId = Number(params.productId);
 
-export default async function ProductDetailPage({
-  params,
-}: ProductDetailPageProps) {
-  const { productId } = await params;
-  const parsedProductId = Number(productId);
+  useEffect(() => {
+    if (!Number.isSafeInteger(productId) || productId <= 0) {
+      setErrorMessage("올바르지 않은 상품 번호입니다.");
+      setIsLoading(false);
+      return;
+    }
 
-  if (!Number.isInteger(parsedProductId)) {
-    notFound();
+    const loadProduct = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMessage("");
+
+        const productResponse = await getProduct(productId);
+
+        setProduct(productResponse);
+
+        const representativeImageUrl = resolveImageUrl(
+          productResponse.representativeImageKey,
+        );
+
+        const firstGalleryImageUrl = productResponse.galleryImageKeys
+          .map(resolveImageUrl)
+          .find((imageUrl): imageUrl is string => Boolean(imageUrl));
+
+        setSelectedImageUrl(
+          representativeImageUrl ?? firstGalleryImageUrl ?? null,
+        );
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "상품 정보를 불러오지 못했습니다.",
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadProduct();
+  }, [productId]);
+
+  const productImages = useMemo(() => {
+    if (!product) {
+      return [];
+    }
+
+    const imageUrls = [
+      resolveImageUrl(product.representativeImageKey),
+      ...product.galleryImageKeys.map(resolveImageUrl),
+    ].filter((imageUrl): imageUrl is string => Boolean(imageUrl));
+
+    return [...new Set(imageUrls)];
+  }, [product]);
+
+  if (isLoading) {
+    return (
+      <main className="product-not-found">
+        <h1 className="product-not-found-title">
+          상품 정보를 불러오는 중입니다.
+        </h1>
+      </main>
+    );
   }
 
-  const product = products.find((item) => item.id === parsedProductId);
+  if (errorMessage || !product) {
+    return (
+      <main className="product-not-found">
+        <h1 className="product-not-found-title">상품을 찾을 수 없습니다.</h1>
 
-  if (!product) {
-    notFound();
+        <p className="product-not-found-description">
+          {errorMessage || "판매 중인 상품이 아니거나 삭제된 상품입니다."}
+        </p>
+
+        <Link href="/products" className="product-not-found-link">
+          상품 목록으로 이동
+        </Link>
+      </main>
+    );
   }
+
+  const isSoldOut = product.status === "SOLD_OUT" || product.stockQuantity <= 0;
+
+  const shippingText = product.freeShipping
+    ? "무료배송"
+    : `${product.shippingFee.toLocaleString("ko-KR")}원`;
+
+  const actionProduct = {
+    id: product.id,
+    name: product.name,
+    brandName: product.brandName ?? "브랜드 미등록",
+    price: product.price,
+    imageUrl: selectedImageUrl ?? "",
+    stockQuantity: product.stockQuantity,
+    isFreeShipping: product.freeShipping,
+  };
 
   return (
-    <div className="product-detail-page">
+    <main className="product-detail-page">
       <nav className="product-detail-breadcrumb" aria-label="현재 위치">
         <Link href="/">홈</Link>
         <span aria-hidden="true">/</span>
@@ -142,23 +127,83 @@ export default async function ProductDetailPage({
       </nav>
 
       <section className="product-detail">
-        <div className="product-detail-image-wrapper">
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 560px"
-            className="product-detail-image"
-          />
+        <div>
+          <div className="product-detail-image-wrapper">
+            {selectedImageUrl ? (
+              <Image
+                src={selectedImageUrl}
+                alt={product.name}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 640px"
+                className="product-detail-image"
+              />
+            ) : (
+              <div className="product-detail-image-empty">
+                등록된 상품 이미지가 없습니다.
+              </div>
+            )}
+
+            {isSoldOut && (
+              <div className="product-detail-sold-out-overlay">품절</div>
+            )}
+          </div>
+
+          {productImages.length > 1 && (
+            <div
+              className="product-detail-thumbnail-list"
+              aria-label="상품 이미지 목록"
+            >
+              {productImages.map((imageUrl, index) => {
+                const isSelected = selectedImageUrl === imageUrl;
+
+                return (
+                  <button
+                    key={imageUrl}
+                    type="button"
+                    className={[
+                      "product-detail-thumbnail-button",
+                      isSelected
+                        ? "product-detail-thumbnail-button-active"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    aria-label={`${index + 1}번째 상품 이미지 보기`}
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedImageUrl(imageUrl)}
+                  >
+                    <Image
+                      src={imageUrl}
+                      alt={`${product.name} 이미지 ${index + 1}`}
+                      fill
+                      sizes="88px"
+                      className="product-detail-thumbnail-image"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="product-detail-info">
-          <p className="product-detail-brand">{product.brandName}</p>
+          <Link
+            href={`/products?categoryId=${product.categoryId}`}
+            className="product-detail-category"
+          >
+            {product.categoryName}
+          </Link>
+
+          <p className="product-detail-brand">
+            {product.brandName ?? product.storeName}
+          </p>
 
           <h1 className="product-detail-name">{product.name}</h1>
 
-          <p className="product-detail-description">{product.description}</p>
+          {product.summary && (
+            <p className="product-detail-description">{product.summary}</p>
+          )}
 
           <strong className="product-detail-price">
             {product.price.toLocaleString("ko-KR")}원
@@ -166,42 +211,93 @@ export default async function ProductDetailPage({
 
           <dl className="product-detail-meta">
             <div className="product-detail-meta-row">
+              <dt>판매자</dt>
+              <dd>{product.storeName}</dd>
+            </div>
+
+            <div className="product-detail-meta-row">
               <dt>배송비</dt>
-              <dd>{product.isFreeShipping ? "무료배송" : "배송비 3,000원"}</dd>
+              <dd>{shippingText}</dd>
             </div>
 
             <div className="product-detail-meta-row">
-              <dt>재고</dt>
-              <dd>{product.stockQuantity}개</dd>
-            </div>
-
-            <div className="product-detail-meta-row">
-              <dt>카테고리</dt>
-              <dd>{product.categoryName}</dd>
+              <dt>판매 상태</dt>
+              <dd>
+                {isSoldOut ? (
+                  <span className="product-detail-sold-out-text">품절</span>
+                ) : (
+                  "판매 중"
+                )}
+              </dd>
             </div>
           </dl>
 
-          <ProductDetailActions product={product} />
-
-          <button type="button" className="product-detail-gift-button">
-            선물하기
-          </button>
+          {isSoldOut ? (
+            <div className="product-detail-sold-out-notice">
+              현재 품절된 상품입니다.
+            </div>
+          ) : (
+            <ProductDetailActions product={actionProduct} />
+          )}
         </div>
       </section>
 
       <section className="product-detail-content">
-        <h2 className="product-detail-content-title">상품 정보</h2>
-
-        <div className="product-detail-content-box">
-          <p>{product.description}</p>
-
-          <ul>
-            <li>상품명: {product.name}</li>
-            <li>브랜드: {product.brandName}</li>
-            <li>카테고리: {product.categoryName}</li>
-          </ul>
+        <div className="product-detail-tab-list">
+          <a href="#product-description">상품 상세</a>
+          <button type="button" disabled>
+            리뷰 준비 중
+          </button>
+          <button type="button" disabled>
+            상품 문의 준비 중
+          </button>
+          <a href="#shipping-information">배송·교환</a>
         </div>
+
+        <article
+          id="product-description"
+          className="product-detail-description-content"
+        >
+          <h2 className="product-detail-content-title">상품 상세</h2>
+
+          {product.description ? (
+            <div
+              className="product-detail-editor-content"
+              dangerouslySetInnerHTML={{
+                __html: product.description,
+              }}
+            />
+          ) : (
+            <div className="product-detail-content-empty">
+              등록된 상품 상세 설명이 없습니다.
+            </div>
+          )}
+        </article>
+
+        <section
+          id="shipping-information"
+          className="product-detail-shipping-information"
+        >
+          <h2 className="product-detail-content-title">배송·교환 안내</h2>
+
+          <dl>
+            <div>
+              <dt>배송비</dt>
+              <dd>{shippingText}</dd>
+            </div>
+
+            <div>
+              <dt>배송 안내</dt>
+              <dd>결제 완료 후 판매자가 상품을 준비해 배송합니다.</dd>
+            </div>
+
+            <div>
+              <dt>교환·반품</dt>
+              <dd>상품 수령 후 교환·반품 정책에 따라 신청할 수 있습니다.</dd>
+            </div>
+          </dl>
+        </section>
       </section>
-    </div>
+    </main>
   );
 }

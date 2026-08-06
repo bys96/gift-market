@@ -95,3 +95,22 @@ export interface Category {
   name: string;
   children: Category[];
 }
+
+export interface ProductDetail {
+  id: number;
+  sellerId: number;
+  storeName: string;
+  categoryId: number;
+  categoryName: string;
+  name: string;
+  brandName: string | null;
+  summary: string | null;
+  description: string | null;
+  price: number;
+  stockQuantity: number;
+  status: ProductStatus;
+  representativeImageKey: string | null;
+  galleryImageKeys: string[];
+  freeShipping: boolean;
+  shippingFee: number;
+}

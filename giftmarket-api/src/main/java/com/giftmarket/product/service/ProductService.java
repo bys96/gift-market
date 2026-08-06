@@ -5,6 +5,7 @@ import com.giftmarket.product.dto.request.ProductCreateRequest;
 import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
+import com.giftmarket.product.dto.response.ProductDetailResponse;
 import com.giftmarket.product.dto.response.ProductListResponse;
 import com.giftmarket.product.dto.response.ProductPageResponse;
 import com.giftmarket.product.dto.response.ProductResponse;
@@ -104,6 +105,31 @@ public class ProductService {
 
         return ProductResponse.from(
                 savedProduct,
+                productImages
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public ProductDetailResponse getProduct(Long productId) {
+        Product product = productRepository
+                .findByIdAndStatusIn(
+                        productId,
+                        List.of(
+                                ProductStatus.ON_SALE,
+                                ProductStatus.SOLD_OUT
+                        )
+                )
+                .orElseThrow(() -> new ProductException(
+                        "상품을 찾을 수 없습니다."
+                ));
+
+        List<ProductImage> productImages = productImageRepository
+                .findAllByProductIdOrderBySortOrderAsc(
+                        product.getId()
+                );
+
+        return ProductDetailResponse.from(
+                product,
                 productImages
         );
     }

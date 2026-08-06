@@ -3,6 +3,7 @@ import type { ApiResponse } from "@/types/api";
 import type {
   Category,
   ProductCreateRequest,
+  ProductDetail,
   ProductStatus,
   ProductStatusUpdateRequest,
   ProductStockUpdateRequest,
@@ -134,6 +135,18 @@ export async function updateProductStock(
 
   if (!response.data) {
     throw new Error("재고 변경 결과를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function getProduct(productId: number): Promise<ProductDetail> {
+  const response = await apiFetch<ApiResponse<ProductDetail>>(
+    `/api/products/${productId}`,
+  );
+
+  if (!response.data) {
+    throw new Error("상품 정보를 확인할 수 없습니다.");
   }
 
   return response.data;

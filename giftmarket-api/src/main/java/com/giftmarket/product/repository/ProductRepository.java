@@ -1,5 +1,7 @@
 package com.giftmarket.product.repository;
 
+import java.util.Collection;
+
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             Long sellerId
     );
 
+    Optional<Product> findByIdAndStatusIn(
+            Long productId,
+            Collection<ProductStatus> statuses
+    );
+
     Page<Product> findAllBySellerId(
             Long sellerId,
             Pageable pageable
@@ -22,6 +29,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Page<Product> findAllBySellerIdAndStatus(
             Long sellerId,
+            ProductStatus status,
+            Pageable pageable
+    );
+
+    Page<Product> findAllByStatus(
             ProductStatus status,
             Pageable pageable
     );
