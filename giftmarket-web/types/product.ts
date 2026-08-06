@@ -22,7 +22,7 @@ export interface SellerProduct {
   stockQuantity: number;
   status: ProductStatus;
   representativeImageKey: string | null;
-  detailImageKeys: string[];
+  galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
   createdAt: string;
@@ -62,7 +62,7 @@ export interface ProductCreateRequest {
   price: number;
   stockQuantity: number;
   representativeImageKey: string | null;
-  detailImageKeys: string[];
+  galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
   startSale: boolean;
@@ -77,7 +77,7 @@ export interface ProductUpdateRequest {
   price: number;
   stockQuantity: number;
   representativeImageKey: string | null;
-  detailImageKeys: string[];
+  galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
 }

@@ -132,12 +132,21 @@ public class StorageService {
                         + fileName;
             }
 
-            case PRODUCT_DETAIL -> {
+            case PRODUCT_GALLERY -> {
                 validateProductOwnerId(ownerId);
 
                 yield "products/"
                         + ownerId
-                        + "/detail/"
+                        + "/gallery/"
+                        + fileName;
+            }
+
+            case PRODUCT_CONTENT -> {
+                validateProductOwnerId(ownerId);
+
+                yield "products/"
+                        + ownerId
+                        + "/content/"
                         + fileName;
             }
 

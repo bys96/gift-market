@@ -7,7 +7,8 @@ export interface ApiResponse<T> {
 export type StorageType =
   | "PROFILE"
   | "PRODUCT_REPRESENTATIVE"
-  | "PRODUCT_DETAIL"
+  | "PRODUCT_GALLERY"
+  | "PRODUCT_CONTENT"
   | "REVIEW"
   | "BANNER";
 

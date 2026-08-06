@@ -42,6 +42,7 @@ public class ProductService {
     private final ProductImageRepository productImageRepository;
     private final CategoryRepository categoryRepository;
     private final SellerRepository sellerRepository;
+    private final ProductDescriptionSanitizer productDescriptionSanitizer;
 
     @Transactional
     public ProductResponse createProduct(
@@ -55,20 +56,24 @@ public class ProductService {
                 request.representativeImageKey()
         );
 
-        List<String> detailImageKeys = normalizeDetailImageKeys(
-                request.normalizedDetailImageKeys()
+        List<String> galleryImageKeys = normalizeGalleryImageKeys(
+                request.normalizedGalleryImageKeys()
+        );
+
+        String description = sanitizeDescription(
+                request.description()
         );
 
         validateImageKeys(
                 seller,
                 representativeImageKey,
-                detailImageKeys
+                galleryImageKeys
         );
 
         if (Boolean.TRUE.equals(request.startSale())) {
             validateSaleRequirements(
                     representativeImageKey,
-                    request.description()
+                    description
             );
         }
 
@@ -78,7 +83,7 @@ public class ProductService {
                 request.name().trim(),
                 trimToNull(request.brandName()),
                 trimToNull(request.summary()),
-                trimToNull(request.description()),
+                description,
                 request.price(),
                 request.stockQuantity(),
                 representativeImageKey,
@@ -90,7 +95,7 @@ public class ProductService {
 
         List<ProductImage> productImages = saveProductImages(
                 savedProduct,
-                detailImageKeys
+                galleryImageKeys
         );
 
         if (Boolean.TRUE.equals(request.startSale())) {
@@ -179,21 +184,25 @@ public class ProductService {
                 request.representativeImageKey()
         );
 
-        List<String> detailImageKeys = normalizeDetailImageKeys(
-                request.normalizedDetailImageKeys()
+        List<String> galleryImageKeys = normalizeGalleryImageKeys(
+                request.normalizedGalleryImageKeys()
+        );
+
+        String description = sanitizeDescription(
+                request.description()
         );
 
         validateImageKeys(
                 seller,
                 representativeImageKey,
-                detailImageKeys
+                galleryImageKeys
         );
 
         if (product.getStatus() == ProductStatus.ON_SALE
                 || product.getStatus() == ProductStatus.SOLD_OUT) {
             validateSaleRequirements(
                     representativeImageKey,
-                    request.description()
+                    description
             );
         }
 
@@ -202,7 +211,7 @@ public class ProductService {
                 request.name().trim(),
                 trimToNull(request.brandName()),
                 trimToNull(request.summary()),
-                trimToNull(request.description()),
+                description,
                 request.price(),
                 request.stockQuantity(),
                 representativeImageKey,
@@ -212,7 +221,7 @@ public class ProductService {
 
         List<ProductImage> productImages = replaceProductImages(
                 product,
-                detailImageKeys
+                galleryImageKeys
         );
 
         return ProductResponse.from(
@@ -333,11 +342,11 @@ public class ProductService {
 
     private List<ProductImage> saveProductImages(
             Product product,
-            List<String> detailImageKeys
+            List<String> galleryImageKeys
     ) {
         List<ProductImage> productImages = createProductImages(
                 product,
-                detailImageKeys
+                galleryImageKeys
         );
 
         if (productImages.isEmpty()) {
@@ -349,7 +358,7 @@ public class ProductService {
 
     private List<ProductImage> replaceProductImages(
             Product product,
-            List<String> detailImageKeys
+            List<String> galleryImageKeys
     ) {
         productImageRepository.deleteAllByProductId(
                 product.getId()
@@ -359,21 +368,21 @@ public class ProductService {
 
         return saveProductImages(
                 product,
-                detailImageKeys
+                galleryImageKeys
         );
     }
 
     private List<ProductImage> createProductImages(
             Product product,
-            List<String> detailImageKeys
+            List<String> galleryImageKeys
     ) {
         return IntStream.range(
                         0,
-                        detailImageKeys.size()
+                        galleryImageKeys.size()
                 )
                 .mapToObj(index -> ProductImage.create(
                         product,
-                        detailImageKeys.get(index),
+                        galleryImageKeys.get(index),
                         index
                 ))
                 .toList();
@@ -399,7 +408,7 @@ public class ProductService {
     private void validateImageKeys(
             Seller seller,
             String representativeImageKey,
-            List<String> detailImageKeys
+            List<String> galleryImageKeys
     ) {
         if (representativeImageKey != null) {
             validateProductObjectKey(
@@ -411,22 +420,22 @@ public class ProductService {
 
         Set<String> uniqueImageKeys = new HashSet<>();
 
-        for (String detailImageKey : detailImageKeys) {
-            if (detailImageKey == null) {
+        for (String galleryImageKey : galleryImageKeys) {
+            if (galleryImageKey == null) {
                 throw new ProductException(
-                        "상세 이미지 키는 비어 있을 수 없습니다."
+                        "갤러리 이미지 키는 비어 있을 수 없습니다."
                 );
             }
 
             validateProductObjectKey(
                     seller,
-                    detailImageKey,
+                    galleryImageKey,
                     false
             );
 
-            if (!uniqueImageKeys.add(detailImageKey)) {
+            if (!uniqueImageKeys.add(galleryImageKey)) {
                 throw new ProductException(
-                        "동일한 상세 이미지를 중복 등록할 수 없습니다."
+                        "동일한 갤러리 이미지를 중복 등록할 수 없습니다."
                 );
             }
         }
@@ -434,7 +443,7 @@ public class ProductService {
         if (representativeImageKey != null
                 && uniqueImageKeys.contains(representativeImageKey)) {
             throw new ProductException(
-                    "대표 이미지와 상세 이미지는 중복될 수 없습니다."
+                    "대표 이미지와 갤러리 이미지는 중복될 수 없습니다."
             );
         }
     }
@@ -453,7 +462,7 @@ public class ProductService {
         } else {
             expectedPrefix = "products/"
                     + seller.getId()
-                    + "/detail/";
+                    + "/gallery/";
         }
 
         if (!objectKey.startsWith(expectedPrefix)
@@ -467,10 +476,10 @@ public class ProductService {
         }
     }
 
-    private List<String> normalizeDetailImageKeys(
-            List<String> detailImageKeys
+    private List<String> normalizeGalleryImageKeys(
+            List<String> galleryImageKeys
     ) {
-        return detailImageKeys.stream()
+        return galleryImageKeys.stream()
                 .map(this::normalizeImageKey)
                 .toList();
     }
@@ -481,6 +490,22 @@ public class ProductService {
         }
 
         return imageKey.trim();
+    }
+
+    private String sanitizeDescription(String description) {
+        String normalizedDescription = trimToNull(description);
+
+        if (normalizedDescription == null) {
+            return null;
+        }
+
+        String sanitizedDescription = productDescriptionSanitizer.sanitize(
+                normalizedDescription
+        );
+
+        return sanitizedDescription.isBlank()
+                ? null
+                : sanitizedDescription;
     }
 
     private Pageable createPageable(

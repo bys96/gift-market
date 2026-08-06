@@ -45,16 +45,16 @@ public record ProductCreateRequest(
 
         @Size(
                 max = 10,
-                message = "상세 이미지는 최대 10장까지 등록할 수 있습니다."
+                message = "갤러리 이미지는 최대 10장까지 등록할 수 있습니다."
         )
         List<
-                @NotBlank(message = "상세 이미지 키는 비어 있을 수 없습니다.")
+                @NotBlank(message = "갤러리 이미지 키는 비어 있을 수 없습니다.")
                 @Size(
                         max = 1000,
-                        message = "상세 이미지 키는 1000자 이하입니다."
+                        message = "갤러리 이미지 키는 1000자 이하입니다."
                 )
                         String
-                > detailImageKeys,
+                > galleryImageKeys,
 
         @NotNull(message = "무료배송 여부를 선택해주세요.")
         Boolean freeShipping,
@@ -68,10 +68,10 @@ public record ProductCreateRequest(
 
 ) {
 
-    public List<String> normalizedDetailImageKeys() {
-        return detailImageKeys == null
+    public List<String> normalizedGalleryImageKeys() {
+        return galleryImageKeys == null
                 ? List.of()
-                : List.copyOf(detailImageKeys);
+                : List.copyOf(galleryImageKeys);
     }
 
     public long normalizedShippingFee() {

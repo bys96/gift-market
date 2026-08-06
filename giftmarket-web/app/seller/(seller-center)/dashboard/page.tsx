@@ -3,27 +3,24 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { getSellerProducts } from "@/lib/product-api";
 import { getMySeller } from "@/lib/seller-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { Seller } from "@/types/seller";
 
 interface SellerDashboardSummary {
-  productCount: number;
-  orderCount: number;
-  salesAmount: number;
-  inquiryCount: number;
+  totalProductCount: number;
+  onSaleProductCount: number;
+  soldOutProductCount: number;
+  draftProductCount: number;
 }
 
 const INITIAL_SUMMARY: SellerDashboardSummary = {
-  productCount: 0,
-  orderCount: 0,
-  salesAmount: 0,
-  inquiryCount: 0,
+  totalProductCount: 0,
+  onSaleProductCount: 0,
+  soldOutProductCount: 0,
+  draftProductCount: 0,
 };
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat("ko-KR").format(price);
-}
 
 export default function SellerDashboardPage() {
   const router = useRouter();
@@ -33,7 +30,8 @@ export default function SellerDashboardPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [seller, setSeller] = useState<Seller | null>(null);
-  const [summary] = useState<SellerDashboardSummary>(INITIAL_SUMMARY);
+  const [summary, setSummary] =
+    useState<SellerDashboardSummary>(INITIAL_SUMMARY);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -47,38 +45,56 @@ export default function SellerDashboardPage() {
       return;
     }
 
-    if (user.role !== "SELLER" && user.role !== "ADMIN") {
+    if (user.role !== "SELLER") {
       router.replace("/seller");
       return;
     }
 
-    const loadSeller = async () => {
+    const loadDashboard = async () => {
       try {
         setIsLoading(true);
         setErrorMessage("");
 
-        const sellerResponse = await getMySeller();
+        const [
+          sellerResponse,
+          allProducts,
+          onSaleProducts,
+          soldOutProducts,
+          draftProducts,
+        ] = await Promise.all([
+          getMySeller(),
+          getSellerProducts(0, 1),
+          getSellerProducts(0, 1, "ON_SALE"),
+          getSellerProducts(0, 1, "SOLD_OUT"),
+          getSellerProducts(0, 1, "DRAFT"),
+        ]);
 
         setSeller(sellerResponse);
+        setSummary({
+          totalProductCount: allProducts.totalElements,
+          onSaleProductCount: onSaleProducts.totalElements,
+          soldOutProductCount: soldOutProducts.totalElements,
+          draftProductCount: draftProducts.totalElements,
+        });
       } catch (error) {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "판매자 정보를 불러오지 못했습니다.",
+            : "판매자 대시보드 정보를 불러오지 못했습니다.",
         );
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadSeller();
+    void loadDashboard();
   }, [initialized, isAuthenticated, user, router]);
 
   if (
     !initialized ||
     !isAuthenticated ||
     !user ||
-    (user.role !== "SELLER" && user.role !== "ADMIN") ||
+    user.role !== "SELLER" ||
     isLoading
   ) {
     return (
@@ -104,12 +120,7 @@ export default function SellerDashboardPage() {
               {errorMessage || "현재 계정에 연결된 판매자 정보가 없습니다."}
             </p>
 
-            <button
-              type="button"
-              onClick={() => {
-                window.location.reload();
-              }}
-            >
+            <button type="button" onClick={() => window.location.reload()}>
               다시 시도
             </button>
           </section>
@@ -153,41 +164,41 @@ export default function SellerDashboardPage() {
 
           <section
             className="seller-dashboard-summary"
-            aria-label="판매 현황 요약"
+            aria-label="상품 현황 요약"
           >
             <article className="seller-dashboard-summary-card">
               <p className="seller-dashboard-summary-label">등록 상품</p>
 
               <strong className="seller-dashboard-summary-value">
-                {summary.productCount}
+                {summary.totalProductCount}
                 <span className="seller-dashboard-summary-unit">개</span>
               </strong>
             </article>
 
             <article className="seller-dashboard-summary-card">
-              <p className="seller-dashboard-summary-label">신규 주문</p>
+              <p className="seller-dashboard-summary-label">판매 중</p>
 
               <strong className="seller-dashboard-summary-value">
-                {summary.orderCount}
-                <span className="seller-dashboard-summary-unit">건</span>
+                {summary.onSaleProductCount}
+                <span className="seller-dashboard-summary-unit">개</span>
               </strong>
             </article>
 
             <article className="seller-dashboard-summary-card">
-              <p className="seller-dashboard-summary-label">총 판매 금액</p>
+              <p className="seller-dashboard-summary-label">품절</p>
 
               <strong className="seller-dashboard-summary-value">
-                {formatPrice(summary.salesAmount)}
-                <span className="seller-dashboard-summary-unit">원</span>
+                {summary.soldOutProductCount}
+                <span className="seller-dashboard-summary-unit">개</span>
               </strong>
             </article>
 
             <article className="seller-dashboard-summary-card">
-              <p className="seller-dashboard-summary-label">미답변 문의</p>
+              <p className="seller-dashboard-summary-label">임시 저장</p>
 
               <strong className="seller-dashboard-summary-value">
-                {summary.inquiryCount}
-                <span className="seller-dashboard-summary-unit">건</span>
+                {summary.draftProductCount}
+                <span className="seller-dashboard-summary-unit">개</span>
               </strong>
             </article>
           </section>
@@ -196,23 +207,15 @@ export default function SellerDashboardPage() {
             <section className="seller-dashboard-panel">
               <header className="seller-dashboard-panel-header">
                 <h2 className="seller-dashboard-panel-title">최근 주문</h2>
-
-                <button
-                  type="button"
-                  className="seller-dashboard-panel-link"
-                  onClick={() => router.push("/seller/orders")}
-                >
-                  전체 보기
-                </button>
               </header>
 
               <div className="seller-dashboard-empty">
                 <div className="seller-dashboard-empty-icon">✓</div>
 
-                <strong>아직 접수된 주문이 없습니다.</strong>
+                <strong>주문 관리 기능을 준비 중입니다.</strong>
 
                 <p>
-                  상품을 등록하고 판매를 시작하면 최근 주문이 이곳에 표시됩니다.
+                  주문 기능 구현 후 최근 주문과 처리 상태가 이곳에 표시됩니다.
                 </p>
               </div>
             </section>
@@ -239,28 +242,19 @@ export default function SellerDashboardPage() {
                   <span aria-hidden="true">›</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => router.push("/seller/orders")}
-                >
+                <button type="button" disabled>
                   <strong>주문 관리</strong>
-                  <span aria-hidden="true">›</span>
+                  <span>준비 중</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => router.push("/seller/inquiries")}
-                >
+                <button type="button" disabled>
                   <strong>문의 관리</strong>
-                  <span aria-hidden="true">›</span>
+                  <span>준비 중</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => router.push("/seller/settings")}
-                >
+                <button type="button" disabled>
                   <strong>스토어 설정</strong>
-                  <span aria-hidden="true">›</span>
+                  <span>준비 중</span>
                 </button>
               </div>
             </section>

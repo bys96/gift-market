@@ -37,7 +37,7 @@ public class ProductResponse {
 
     private String representativeImageKey;
 
-    private List<String> detailImageKeys;
+    private List<String> galleryImageKeys;
 
     private boolean freeShipping;
 
@@ -51,7 +51,7 @@ public class ProductResponse {
             Product product,
             List<ProductImage> productImages
     ) {
-        List<String> detailImageKeys = productImages.stream()
+        List<String> galleryImageKeys = productImages.stream()
                 .map(ProductImage::getObjectKey)
                 .toList();
 
@@ -70,7 +70,7 @@ public class ProductResponse {
                 .representativeImageKey(
                         product.getRepresentativeImageKey()
                 )
-                .detailImageKeys(detailImageKeys)
+                .galleryImageKeys(galleryImageKeys)
                 .freeShipping(product.isFreeShipping())
                 .shippingFee(product.getShippingFee())
                 .createdAt(product.getCreatedAt())

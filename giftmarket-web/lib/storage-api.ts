@@ -58,3 +58,15 @@ export async function uploadImage(
 
   return presignedUrl.objectKey;
 }
+
+export async function uploadRepresentativeImage(file: File): Promise<string> {
+  return uploadImage(file, "PRODUCT_REPRESENTATIVE");
+}
+
+export async function uploadGalleryImage(file: File): Promise<string> {
+  return uploadImage(file, "PRODUCT_GALLERY");
+}
+
+export async function uploadContentImage(file: File): Promise<string> {
+  return uploadImage(file, "PRODUCT_CONTENT");
+}

@@ -78,7 +78,7 @@ public class Product extends BaseEntity {
     @Column(length = 500)
     private String summary;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String description;
 
     @Column(nullable = false)

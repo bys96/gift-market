@@ -68,6 +68,7 @@ public class StorageController {
     private boolean isProductStorageType(StorageType storageType) {
         return storageType
                 == StorageType.PRODUCT_REPRESENTATIVE
-                || storageType == StorageType.PRODUCT_DETAIL;
+                || storageType == StorageType.PRODUCT_GALLERY
+                || storageType == StorageType.PRODUCT_CONTENT;
     }
 }

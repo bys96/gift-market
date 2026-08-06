@@ -9,7 +9,8 @@ public enum StorageType {
 
     PROFILE("profile"),
     PRODUCT_REPRESENTATIVE("products/representative"),
-    PRODUCT_DETAIL("products/detail"),
+    PRODUCT_GALLERY("products/gallery"),
+    PRODUCT_CONTENT("products/content"),
     REVIEW("review"),
     BANNER("banner");
 
