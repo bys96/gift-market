@@ -2,6 +2,7 @@ package com.giftmarket.product.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.product.dto.request.ProductCreateRequest;
+import com.giftmarket.product.dto.request.ProductSearchCondition;
 import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
@@ -19,6 +20,7 @@ import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.product.repository.CategoryRepository;
 import com.giftmarket.product.repository.ProductImageRepository;
 import com.giftmarket.product.repository.ProductRepository;
+import com.giftmarket.product.repository.ProductSpecifications;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.repository.SellerRepository;
@@ -27,6 +29,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -111,6 +114,10 @@ public class ProductService {
         );
     }
 
+    /**
+     * 기존 ProductController 호환용.
+     * Controller를 ProductSearchCondition 방식으로 변경한 뒤 제거 가능.
+     */
     @Transactional(readOnly = true)
     public ProductPageResponse getProducts(
             Long categoryId,
@@ -119,54 +126,66 @@ public class ProductService {
             int page,
             int size
     ) {
-        Pageable pageable = createPageable(page, size);
+        List<Long> categoryIds = categoryId == null
+                ? List.of()
+                : List.of(categoryId);
 
-        List<ProductStatus> statuses = excludeSoldOut
-                ? List.of(ProductStatus.ON_SALE)
-                : List.of(
-                ProductStatus.ON_SALE,
-                ProductStatus.SOLD_OUT
+        ProductSearchCondition condition =
+                new ProductSearchCondition(
+                        categoryIds,
+                        keyword,
+                        excludeSoldOut,
+                        page,
+                        size
+                );
+
+        return getProducts(condition);
+    }
+
+    @Transactional(readOnly = true)
+    public ProductPageResponse getProducts(
+            ProductSearchCondition condition
+    ) {
+        Pageable pageable = createPageable(
+                condition.normalizedPage(),
+                condition.normalizedSize()
         );
 
-        String normalizedKeyword = trimToNull(keyword);
+        List<ProductStatus> statuses =
+                condition.normalizedExcludeSoldOut()
+                        ? List.of(ProductStatus.ON_SALE)
+                        : List.of(
+                        ProductStatus.ON_SALE,
+                        ProductStatus.SOLD_OUT
+                );
 
-        boolean hasCategory = categoryId != null;
-        boolean hasKeyword = normalizedKeyword != null;
+        Specification<Product> specification =
+                Specification
+                        .where(
+                                ProductSpecifications.statusIn(
+                                        statuses
+                                )
+                        )
+                        .and(
+                                ProductSpecifications.categoryIdIn(
+                                        condition.normalizedCategoryIds()
+                                )
+                        )
+                        .and(
+                                ProductSpecifications.nameContains(
+                                        condition.normalizedKeyword()
+                                )
+                        );
 
-        Page<Product> productPage;
-
-        if (hasCategory && hasKeyword) {
-            productPage = productRepository
-                    .findByStatusInAndCategory_IdAndNameContainingIgnoreCase(
-                            statuses,
-                            categoryId,
-                            normalizedKeyword,
-                            pageable
-                    );
-        } else if (hasCategory) {
-            productPage = productRepository
-                    .findByStatusInAndCategory_Id(
-                            statuses,
-                            categoryId,
-                            pageable
-                    );
-        } else if (hasKeyword) {
-            productPage = productRepository
-                    .findByStatusInAndNameContainingIgnoreCase(
-                            statuses,
-                            normalizedKeyword,
-                            pageable
-                    );
-        } else {
-            productPage = productRepository.findByStatusIn(
-                    statuses,
-                    pageable
-            );
-        }
-
-        Page<ProductSummaryResponse> responsePage = productPage.map(
-                ProductSummaryResponse::from
+        Page<Product> productPage = productRepository.findAll(
+                specification,
+                pageable
         );
+
+        Page<ProductSummaryResponse> responsePage =
+                productPage.map(
+                        ProductSummaryResponse::from
+                );
 
         return ProductPageResponse.from(responsePage);
     }
@@ -221,9 +240,10 @@ public class ProductService {
             );
         }
 
-        Page<ProductListResponse> responsePage = productPage.map(
-                ProductListResponse::from
-        );
+        Page<ProductListResponse> responsePage =
+                productPage.map(
+                        ProductListResponse::from
+                );
 
         return SellerProductPageResponse.from(responsePage);
     }
@@ -587,9 +607,10 @@ public class ProductService {
             return null;
         }
 
-        String sanitizedDescription = productDescriptionSanitizer.sanitize(
-                normalizedDescription
-        );
+        String sanitizedDescription =
+                productDescriptionSanitizer.sanitize(
+                        normalizedDescription
+                );
 
         return sanitizedDescription.isBlank()
                 ? null

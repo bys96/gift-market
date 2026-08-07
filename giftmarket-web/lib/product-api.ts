@@ -20,7 +20,13 @@ const JSON_HEADERS = {
 interface GetProductsParams {
   page?: number;
   size?: number;
+
+  // 기존 화면 호환용
   categoryId?: number;
+
+  // 신규 다중 카테고리 필터
+  categoryIds?: number[];
+
   keyword?: string;
   excludeSoldOut?: boolean;
 }
@@ -35,6 +41,7 @@ export async function getProducts({
   page = 0,
   size = 20,
   categoryId,
+  categoryIds,
   keyword,
   excludeSoldOut = false,
 }: GetProductsParams = {}): Promise<ProductPage> {
@@ -44,9 +51,17 @@ export async function getProducts({
     excludeSoldOut: String(excludeSoldOut),
   });
 
-  if (categoryId !== undefined) {
-    params.set("categoryId", String(categoryId));
-  }
+  const normalizedCategoryIds = [
+    ...(categoryIds ?? []),
+    ...(categoryId !== undefined ? [categoryId] : []),
+  ].filter(
+    (id, index, ids) =>
+      Number.isInteger(id) && id > 0 && ids.indexOf(id) === index,
+  );
+
+  normalizedCategoryIds.forEach((id) => {
+    params.append("categoryIds", String(id));
+  });
 
   const normalizedKeyword = keyword?.trim();
 

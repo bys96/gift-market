@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import ProductCard from "@/components/product/ProductCard";
 import { getCategories, getProducts } from "@/lib/product-api";
@@ -12,24 +19,10 @@ const PAGE_SIZE = 20;
 const PAGE_GROUP_SIZE = 5;
 
 interface ProductsUrlOptions {
-  categoryId?: number | null;
+  categoryIds?: number[];
   keyword?: string;
   excludeSoldOut?: boolean;
   page?: number;
-}
-
-function parsePositiveNumber(value: string | null) {
-  if (!value) {
-    return undefined;
-  }
-
-  const parsedValue = Number(value);
-
-  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-    return undefined;
-  }
-
-  return parsedValue;
 }
 
 function parsePage(value: string | null) {
@@ -53,6 +46,10 @@ function flattenCategories(categories: Category[]): Category[] {
   ]);
 }
 
+function getDescendantIds(category: Category) {
+  return flattenCategories(category.children ?? []).map((child) => child.id);
+}
+
 function createPageNumbers(currentPage: number, totalPages: number) {
   if (totalPages <= 0) {
     return [];
@@ -63,16 +60,49 @@ function createPageNumbers(currentPage: number, totalPages: number) {
   const endPage = Math.min(startPage + PAGE_GROUP_SIZE, totalPages);
 
   return Array.from(
-    { length: endPage - startPage },
+    {
+      length: endPage - startPage,
+    },
     (_, index) => startPage + index,
   );
+}
+
+function isSameNumberArray(first: number[], second: number[]) {
+  if (first.length !== second.length) {
+    return false;
+  }
+
+  const firstSorted = [...first].sort((a, b) => a - b);
+  const secondSorted = [...second].sort((a, b) => a - b);
+
+  return firstSorted.every((value, index) => value === secondSorted[index]);
 }
 
 export default function ProductsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const categoryId = parsePositiveNumber(searchParams.get("categoryId"));
+  /*
+   * 연속으로 필터/검색/페이지 요청이 발생했을 때
+   * 가장 마지막 요청의 결과만 화면에 반영한다.
+   */
+  const productRequestIdRef = useRef(0);
+
+  const categoryIdsKey = [
+    ...searchParams.getAll("categoryIds"),
+    searchParams.get("categoryId"),
+  ]
+    .filter((value): value is string => value !== null && value !== "")
+    .join(",");
+
+  const categoryIds = useMemo(() => {
+    const ids = categoryIdsKey
+      .split(",")
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    return [...new Set(ids)];
+  }, [categoryIdsKey]);
 
   const keyword = searchParams.get("keyword")?.trim() ?? "";
 
@@ -81,22 +111,81 @@ export default function ProductsPage() {
   const page = parsePage(searchParams.get("page"));
 
   const [categories, setCategories] = useState<Category[]>([]);
+
+  const [activeRootCategoryId, setActiveRootCategoryId] = useState<
+    number | null
+  >(null);
+
+  /*
+   * URL 변경이 반영되기 전에
+   * 카테고리 UI를 즉시 변경하기 위한 상태.
+   */
+  const [optimisticCategoryIds, setOptimisticCategoryIds] = useState<
+    number[] | null
+  >(null);
+
+  /*
+   * 한 번 조회된 상품 목록은
+   * 다음 조회가 완료될 때까지 유지한다.
+   */
   const [productPage, setProductPage] = useState<ProductPage | null>(null);
 
   const [searchKeyword, setSearchKeyword] = useState(keyword);
+
+  /*
+   * isLoading은 API 요청 상태만 나타낸다.
+   *
+   * 실제 Loading 화면 노출 여부는
+   * productPage 존재 여부와 함께 판단한다.
+   */
   const [isLoading, setIsLoading] = useState(true);
+
   const [isCategoryLoading, setIsCategoryLoading] = useState(true);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const displayedCategoryIds = optimisticCategoryIds ?? categoryIds;
+
+  /*
+   * 최초 진입 시에만 전체 Loading 화면을 표시한다.
+   *
+   * 이미 상품 데이터가 있다면 재조회 중이어도
+   * 기존 상품 목록을 계속 보여준다.
+   */
+  const isInitialLoading = isLoading && productPage === null;
 
   const flatCategories = useMemo(
     () => flattenCategories(categories),
     [categories],
   );
 
-  const selectedCategory = useMemo(
-    () => flatCategories.find((category) => category.id === categoryId),
-    [categoryId, flatCategories],
+  const activeRootCategory = useMemo(
+    () =>
+      categories.find((category) => category.id === activeRootCategoryId) ??
+      null,
+    [activeRootCategoryId, categories],
+  );
+
+  const selectedCategories = useMemo(
+    () =>
+      flatCategories.filter(
+        (category) =>
+          displayedCategoryIds.includes(category.id) &&
+          (category.children?.length ?? 0) === 0,
+      ),
+    [displayedCategoryIds, flatCategories],
+  );
+
+  const filteredRootCategoryIds = useMemo(
+    () =>
+      categories
+        .filter((category) => {
+          const descendantIds = getDescendantIds(category);
+
+          return descendantIds.some((id) => displayedCategoryIds.includes(id));
+        })
+        .map((category) => category.id),
+    [categories, displayedCategoryIds],
   );
 
   const pageNumbers = useMemo(
@@ -107,8 +196,8 @@ export default function ProductsPage() {
 
   const createProductsUrl = useCallback(
     (options: ProductsUrlOptions = {}) => {
-      const nextCategoryId =
-        options.categoryId === undefined ? categoryId : options.categoryId;
+      const nextCategoryIds =
+        options.categoryIds === undefined ? categoryIds : options.categoryIds;
 
       const nextKeyword =
         options.keyword === undefined ? keyword : options.keyword.trim();
@@ -122,9 +211,11 @@ export default function ProductsPage() {
 
       const params = new URLSearchParams();
 
-      if (nextCategoryId !== null && nextCategoryId !== undefined) {
-        params.set("categoryId", String(nextCategoryId));
-      }
+      [...new Set(nextCategoryIds)]
+        .filter((id) => Number.isInteger(id) && id > 0)
+        .forEach((id) => {
+          params.append("categoryIds", String(id));
+        });
 
       if (nextKeyword) {
         params.set("keyword", nextKeyword);
@@ -142,46 +233,94 @@ export default function ProductsPage() {
 
       return queryString ? `/products?${queryString}` : "/products";
     },
-    [categoryId, excludeSoldOut, keyword, page],
+    [categoryIds, excludeSoldOut, keyword, page],
   );
 
   const loadProducts = useCallback(async () => {
+    const requestId = ++productRequestIdRef.current;
+
     try {
       setIsLoading(true);
       setErrorMessage(null);
 
       const response = await getProducts({
-        categoryId,
+        categoryIds,
         keyword,
         excludeSoldOut,
         page,
         size: PAGE_SIZE,
       });
 
+      /*
+       * 이 요청 이후에 새로운 요청이 시작됐다면
+       * 오래된 응답이므로 무시한다.
+       */
+      if (requestId !== productRequestIdRef.current) {
+        return;
+      }
+
+      /*
+       * 존재하지 않는 페이지로 접근한 경우
+       * 마지막 페이지 URL로 보정한다.
+       *
+       * 이때도 기존 상품 목록은 유지한다.
+       */
       if (response.totalPages > 0 && page >= response.totalPages) {
         router.replace(
           createProductsUrl({
             page: response.totalPages - 1,
           }),
+          {
+            scroll: false,
+          },
         );
 
         return;
       }
 
+      /*
+       * API 응답이 완료된 시점에만
+       * 기존 상품 목록을 새 목록으로 한 번에 교체한다.
+       */
       setProductPage(response);
     } catch (error) {
+      if (requestId !== productRequestIdRef.current) {
+        return;
+      }
+
       console.error(error);
 
-      setProductPage(null);
+      /*
+       * 기존 productPage는 제거하지 않는다.
+       *
+       * 최초 조회 실패라면 에러 화면이 나오고,
+       * 이후 재조회 실패라면 기존 상품 목록을 유지한다.
+       */
       setErrorMessage(
         error instanceof Error
           ? error.message
           : "상품 목록을 불러오지 못했습니다.",
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === productRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [categoryId, createProductsUrl, excludeSoldOut, keyword, page, router]);
+  }, [categoryIds, createProductsUrl, excludeSoldOut, keyword, page, router]);
+
+  /*
+   * URL이 optimistic 상태를 따라오면
+   * 임시 상태를 제거하고 다시 URL을 기준으로 사용한다.
+   */
+  useEffect(() => {
+    if (optimisticCategoryIds === null) {
+      return;
+    }
+
+    if (isSameNumberArray(optimisticCategoryIds, categoryIds)) {
+      setOptimisticCategoryIds(null);
+    }
+  }, [categoryIds, optimisticCategoryIds]);
 
   useEffect(() => {
     setSearchKeyword(keyword);
@@ -231,16 +370,81 @@ export default function ProductsPage() {
         keyword: searchKeyword,
         page: 0,
       }),
+      {
+        scroll: false,
+      },
     );
   };
 
   const handleExcludeSoldOutChange = () => {
-    router.push(
+    router.replace(
       createProductsUrl({
         excludeSoldOut: !excludeSoldOut,
         page: 0,
       }),
-      { scroll: false },
+      {
+        scroll: false,
+      },
+    );
+  };
+
+  const handleRootCategoryClick = (categoryId: number) => {
+    setActiveRootCategoryId((currentId) =>
+      currentId === categoryId ? null : categoryId,
+    );
+  };
+
+  const handleAllCategoryClick = () => {
+    setOptimisticCategoryIds([]);
+    setActiveRootCategoryId(null);
+
+    router.replace(
+      createProductsUrl({
+        categoryIds: [],
+        page: 0,
+      }),
+      {
+        scroll: false,
+      },
+    );
+  };
+
+  const handleChildCategoryToggle = (categoryId: number) => {
+    const isSelected = displayedCategoryIds.includes(categoryId);
+
+    const nextCategoryIds = isSelected
+      ? displayedCategoryIds.filter((id) => id !== categoryId)
+      : [...displayedCategoryIds, categoryId];
+
+    /*
+     * 카테고리 UI는 즉시 반영한다.
+     * 상품 목록은 기존 데이터를 유지한다.
+     */
+    setOptimisticCategoryIds(nextCategoryIds);
+
+    router.replace(
+      createProductsUrl({
+        categoryIds: nextCategoryIds,
+        page: 0,
+      }),
+      {
+        scroll: false,
+      },
+    );
+  };
+
+  const handleClearCategoryFilters = () => {
+    setOptimisticCategoryIds([]);
+    setActiveRootCategoryId(null);
+
+    router.replace(
+      createProductsUrl({
+        categoryIds: [],
+        page: 0,
+      }),
+      {
+        scroll: false,
+      },
     );
   };
 
@@ -248,11 +452,14 @@ export default function ProductsPage() {
     void loadProducts();
   };
 
+  const isAllCategoryActive = displayedCategoryIds.length === 0;
+
   return (
     <main className="product-page">
       <header className="product-page-header">
         <div>
           <p className="product-page-eyebrow">PRODUCTS</p>
+
           <h1 className="product-page-title">선물 전체보기</h1>
         </div>
 
@@ -284,56 +491,114 @@ export default function ProductsPage() {
         </button>
       </form>
 
-      <div className="product-page-category-list">
-        <Link
-          href={createProductsUrl({
-            categoryId: null,
-            page: 0,
-          })}
-          scroll={false}
-          className={[
-            "product-page-category",
-            categoryId === undefined ? "product-page-category-active" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          전체
-        </Link>
+      <section className="product-page-category-filter">
+        <div className="product-page-category-primary">
+          <button
+            type="button"
+            className={[
+              "product-page-category-primary-item",
+              isAllCategoryActive
+                ? "product-page-category-primary-item-all-active"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onClick={handleAllCategoryClick}
+          >
+            전체
+          </button>
 
-        {isCategoryLoading && (
-          <span className="product-page-category-loading">
-            카테고리를 불러오는 중입니다.
-          </span>
+          {isCategoryLoading && (
+            <span className="product-page-category-loading">
+              카테고리를 불러오는 중입니다.
+            </span>
+          )}
+
+          {!isCategoryLoading &&
+            categories.map((category) => {
+              const isActive = activeRootCategoryId === category.id;
+
+              const isFiltered = filteredRootCategoryIds.includes(category.id);
+
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  className={[
+                    "product-page-category-primary-item",
+                    isFiltered
+                      ? "product-page-category-primary-item-filtered"
+                      : "",
+                    isActive ? "product-page-category-primary-item-active" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => handleRootCategoryClick(category.id)}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+        </div>
+
+        {activeRootCategory && activeRootCategory.children.length > 0 && (
+          <div className="product-page-category-secondary">
+            {activeRootCategory.children.map((category) => {
+              const isSelected = displayedCategoryIds.includes(category.id);
+
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  className={[
+                    "product-page-category-secondary-item",
+                    isSelected
+                      ? "product-page-category-secondary-item-active"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => handleChildCategoryToggle(category.id)}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
         )}
+      </section>
 
-        {!isCategoryLoading &&
-          flatCategories.map((category) => (
-            <Link
+      <div className="product-page-filter-toolbar">
+        <div className="product-page-filter-toolbar-left">
+          {selectedCategories.map((category) => (
+            <button
               key={category.id}
-              href={createProductsUrl({
-                categoryId: category.id,
-                page: 0,
-              })}
-              scroll={false}
-              className={[
-                "product-page-category",
-                category.id === categoryId
-                  ? "product-page-category-active"
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
+              type="button"
+              className="product-page-selected-filter"
+              aria-label={`${category.name} 필터 제거`}
+              onClick={() => handleChildCategoryToggle(category.id)}
             >
-              {category.name}
-            </Link>
-          ))}
-      </div>
+              <span>{category.name}</span>
 
-      <div className="product-page-toolbar">
-        <p className="product-page-selected-category">
-          {selectedCategory ? `${selectedCategory.name} 상품` : "전체 상품"}
-        </p>
+              <span
+                aria-hidden="true"
+                className="product-page-selected-filter-remove"
+              >
+                ×
+              </span>
+            </button>
+          ))}
+
+          {selectedCategories.length > 0 && (
+            <button
+              type="button"
+              className="product-page-selected-filter-reset"
+              onClick={handleClearCategoryFilters}
+            >
+              전체 해제
+            </button>
+          )}
+        </div>
 
         <label className="product-page-sold-out-filter">
           <input
@@ -346,13 +611,13 @@ export default function ProductsPage() {
         </label>
       </div>
 
-      {isLoading && (
+      {isInitialLoading && (
         <div className="product-page-state">
           <p>상품을 불러오는 중입니다.</p>
         </div>
       )}
 
-      {!isLoading && errorMessage && (
+      {!isLoading && errorMessage && productPage === null && (
         <div className="product-page-state">
           <p>{errorMessage}</p>
 
@@ -366,108 +631,112 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {!isLoading && !errorMessage && productPage?.products.length === 0 && (
+      {productPage && productPage.products.length === 0 && (
         <div className="product-page-state">
           <p>조건에 맞는 상품이 없습니다.</p>
 
-          <Link href="/products" className="product-page-reset-link">
+          <Link
+            href="/products"
+            scroll={false}
+            className="product-page-reset-link"
+          >
             전체 상품 보기
           </Link>
         </div>
       )}
 
-      {!isLoading &&
-        !errorMessage &&
-        productPage &&
-        productPage.products.length > 0 && (
-          <>
-            <div className="product-list">
-              {productPage.products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+      {productPage && productPage.products.length > 0 && (
+        <>
+          <div className="product-list">
+            {productPage.products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
 
-            {productPage.totalPages > 1 && (
-              <nav
-                className="product-page-pagination"
-                aria-label="상품 목록 페이지"
+          {productPage.totalPages > 1 && (
+            <nav
+              className="product-page-pagination"
+              aria-label="상품 목록 페이지"
+            >
+              <Link
+                href={createProductsUrl({
+                  page: Math.max(productPage.page - 1, 0),
+                })}
+                scroll={false}
+                className={[
+                  "product-page-pagination-button",
+                  productPage.first
+                    ? "product-page-pagination-button-disabled"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-disabled={productPage.first}
+                tabIndex={productPage.first ? -1 : undefined}
+                onClick={(event) => {
+                  if (productPage.first) {
+                    event.preventDefault();
+                  }
+                }}
               >
-                <Link
-                  href={createProductsUrl({
-                    page: Math.max(productPage.page - 1, 0),
-                  })}
-                  className={[
-                    "product-page-pagination-button",
-                    productPage.first
-                      ? "product-page-pagination-button-disabled"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  aria-disabled={productPage.first}
-                  tabIndex={productPage.first ? -1 : undefined}
-                  onClick={(event) => {
-                    if (productPage.first) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  이전
-                </Link>
+                이전
+              </Link>
 
-                <div className="product-page-pagination-pages">
-                  {pageNumbers.map((pageNumber) => (
-                    <Link
-                      key={pageNumber}
-                      href={createProductsUrl({
-                        page: pageNumber,
-                      })}
-                      className={[
-                        "product-page-pagination-number",
-                        pageNumber === productPage.page
-                          ? "product-page-pagination-number-active"
-                          : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                      aria-current={
-                        pageNumber === productPage.page ? "page" : undefined
-                      }
-                    >
-                      {pageNumber + 1}
-                    </Link>
-                  ))}
-                </div>
-
-                <Link
-                  href={createProductsUrl({
-                    page: Math.min(
-                      productPage.page + 1,
-                      productPage.totalPages - 1,
-                    ),
-                  })}
-                  className={[
-                    "product-page-pagination-button",
-                    productPage.last
-                      ? "product-page-pagination-button-disabled"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  aria-disabled={productPage.last}
-                  tabIndex={productPage.last ? -1 : undefined}
-                  onClick={(event) => {
-                    if (productPage.last) {
-                      event.preventDefault();
+              <div className="product-page-pagination-pages">
+                {pageNumbers.map((pageNumber) => (
+                  <Link
+                    key={pageNumber}
+                    href={createProductsUrl({
+                      page: pageNumber,
+                    })}
+                    scroll={false}
+                    className={[
+                      "product-page-pagination-number",
+                      pageNumber === productPage.page
+                        ? "product-page-pagination-number-active"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    aria-current={
+                      pageNumber === productPage.page ? "page" : undefined
                     }
-                  }}
-                >
-                  다음
-                </Link>
-              </nav>
-            )}
-          </>
-        )}
+                  >
+                    {pageNumber + 1}
+                  </Link>
+                ))}
+              </div>
+
+              <Link
+                href={createProductsUrl({
+                  page: Math.min(
+                    productPage.page + 1,
+                    productPage.totalPages - 1,
+                  ),
+                })}
+                scroll={false}
+                className={[
+                  "product-page-pagination-button",
+                  productPage.last
+                    ? "product-page-pagination-button-disabled"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-disabled={productPage.last}
+                tabIndex={productPage.last ? -1 : undefined}
+                onClick={(event) => {
+                  if (productPage.last) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                다음
+              </Link>
+            </nav>
+          )}
+        </>
+      )}
     </main>
   );
 }
