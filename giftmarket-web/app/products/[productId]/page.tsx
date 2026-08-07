@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import ProductDetailActions from "@/components/product/ProductDetailActions";
+import ProductImageModal from "@/components/product/ProductImageModal";
 import { getProduct } from "@/lib/product-api";
 import type { ProductDetail } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
@@ -15,6 +16,7 @@ export default function ProductDetailPage() {
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -101,10 +103,17 @@ export default function ProductDetailPage() {
   }
 
   const isSoldOut = product.status === "SOLD_OUT" || product.stockQuantity <= 0;
+  const isLowStock = !isSoldOut && product.stockQuantity <= 10;
 
   const shippingText = product.freeShipping
     ? "무료배송"
     : `${product.shippingFee.toLocaleString("ko-KR")}원`;
+
+  const shippingPreparationDays = product.shippingPreparationDays ?? 3;
+
+  const returnShippingFee = product.returnShippingFee ?? 3000;
+
+  const exchangeShippingFee = product.exchangeShippingFee ?? 6000;
 
   const actionProduct = {
     id: product.id,
@@ -121,23 +130,38 @@ export default function ProductDetailPage() {
       <nav className="product-detail-breadcrumb" aria-label="현재 위치">
         <Link href="/">홈</Link>
         <span aria-hidden="true">/</span>
+
         <Link href="/products">상품</Link>
         <span aria-hidden="true">/</span>
-        <span>{product.categoryName}</span>
+
+        <Link href={`/products?categoryId=${product.categoryId}`}>
+          {product.categoryName}
+        </Link>
       </nav>
 
       <section className="product-detail">
-        <div>
+        <div className="product-detail-gallery">
           <div className="product-detail-image-wrapper">
             {selectedImageUrl ? (
-              <Image
-                src={selectedImageUrl}
-                alt={product.name}
-                fill
-                priority
-                sizes="(max-width: 768px) 100vw, 640px"
-                className="product-detail-image"
-              />
+              <button
+                type="button"
+                className="product-detail-image-button"
+                aria-label={`${product.name} 이미지 확대 보기`}
+                onClick={() => setIsImageModalOpen(true)}
+              >
+                <Image
+                  src={selectedImageUrl}
+                  alt={product.name}
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 640px"
+                  className="product-detail-image"
+                />
+
+                <span className="product-detail-image-zoom" aria-hidden="true">
+                  이미지 확대
+                </span>
+              </button>
             ) : (
               <div className="product-detail-image-empty">
                 등록된 상품 이미지가 없습니다.
@@ -205,9 +229,24 @@ export default function ProductDetailPage() {
             <p className="product-detail-description">{product.summary}</p>
           )}
 
-          <strong className="product-detail-price">
-            {product.price.toLocaleString("ko-KR")}원
-          </strong>
+          <div className="product-detail-price-row">
+            <strong className="product-detail-price">
+              {product.price.toLocaleString("ko-KR")}
+              <span>원</span>
+            </strong>
+
+            {isSoldOut ? (
+              <span className="product-detail-status-badge product-detail-status-badge-sold-out">
+                품절
+              </span>
+            ) : isLowStock ? (
+              <span className="product-detail-status-badge product-detail-status-badge-low-stock">
+                재고 {product.stockQuantity.toLocaleString("ko-KR")}개 남음
+              </span>
+            ) : (
+              <span className="product-detail-status-badge">판매 중</span>
+            )}
+          </div>
 
           <dl className="product-detail-meta">
             <div className="product-detail-meta-row">
@@ -217,17 +256,29 @@ export default function ProductDetailPage() {
 
             <div className="product-detail-meta-row">
               <dt>배송비</dt>
-              <dd>{shippingText}</dd>
+              <dd>
+                <span
+                  className={
+                    product.freeShipping
+                      ? "product-detail-shipping-free"
+                      : undefined
+                  }
+                >
+                  {shippingText}
+                </span>
+
+                <span className="product-detail-meta-help">
+                  결제 완료 후 최대 {shippingPreparationDays}일 이내 출고 예정
+                </span>
+              </dd>
             </div>
 
             <div className="product-detail-meta-row">
-              <dt>판매 상태</dt>
+              <dt>재고</dt>
               <dd>
-                {isSoldOut ? (
-                  <span className="product-detail-sold-out-text">품절</span>
-                ) : (
-                  "판매 중"
-                )}
+                {isSoldOut
+                  ? "재고 없음"
+                  : `${product.stockQuantity.toLocaleString("ko-KR")}개`}
               </dd>
             </div>
           </dl>
@@ -245,12 +296,13 @@ export default function ProductDetailPage() {
       <section className="product-detail-content">
         <div className="product-detail-tab-list">
           <a href="#product-description">상품 상세</a>
+
+          <a href="#seller-information">판매자 정보</a>
+
           <button type="button" disabled>
             리뷰 준비 중
           </button>
-          <button type="button" disabled>
-            상품 문의 준비 중
-          </button>
+
           <a href="#shipping-information">배송·교환</a>
         </div>
 
@@ -275,10 +327,48 @@ export default function ProductDetailPage() {
         </article>
 
         <section
+          id="seller-information"
+          className="product-detail-seller-information"
+        >
+          <h2 className="product-detail-content-title">판매자 정보</h2>
+
+          <div className="product-detail-seller-card">
+            <div className="product-detail-seller-card-header">
+              <div className="product-detail-seller-avatar" aria-hidden="true">
+                {product.storeName.trim().charAt(0).toUpperCase()}
+              </div>
+
+              <div className="product-detail-seller-heading">
+                <span className="product-detail-seller-label">판매자</span>
+
+                <strong className="product-detail-seller-name">
+                  {product.storeName}
+                </strong>
+              </div>
+            </div>
+
+            {product.sellerIntroduction ? (
+              <p className="product-detail-seller-introduction">
+                {product.sellerIntroduction}
+              </p>
+            ) : (
+              <p className="product-detail-seller-introduction product-detail-seller-introduction-empty">
+                등록된 판매자 소개가 없습니다.
+              </p>
+            )}
+
+            <div className="product-detail-seller-notice">
+              상품, 배송, 교환 및 반품에 관한 문의는 상품 문의 기능을 통해
+              판매자에게 전달할 수 있습니다.
+            </div>
+          </div>
+        </section>
+
+        <section
           id="shipping-information"
           className="product-detail-shipping-information"
         >
-          <h2 className="product-detail-content-title">배송·교환 안내</h2>
+          <h2 className="product-detail-content-title">배송·교환·반품 안내</h2>
 
           <dl>
             <div>
@@ -287,17 +377,59 @@ export default function ProductDetailPage() {
             </div>
 
             <div>
-              <dt>배송 안내</dt>
-              <dd>결제 완료 후 판매자가 상품을 준비해 배송합니다.</dd>
+              <dt>출고 안내</dt>
+              <dd>
+                결제 완료 후 최대{" "}
+                <strong>{product.shippingPreparationDays}일 이내</strong> 출고
+                예정입니다.
+              </dd>
             </div>
 
             <div>
-              <dt>교환·반품</dt>
-              <dd>상품 수령 후 교환·반품 정책에 따라 신청할 수 있습니다.</dd>
+              <dt>반품 배송비</dt>
+              <dd>
+                구매자 귀책 사유로 반품하는 경우{" "}
+                <strong>{returnShippingFee.toLocaleString("ko-KR")}원</strong>의
+                배송비가 발생합니다.
+              </dd>
+            </div>
+
+            <div>
+              <dt>교환 배송비</dt>
+              <dd>
+                구매자 귀책 사유로 교환하는 경우 왕복{" "}
+                <strong>{exchangeShippingFee.toLocaleString("ko-KR")}원</strong>
+                의 배송비가 발생합니다.
+              </dd>
+            </div>
+
+            <div>
+              <dt>교환·반품 신청</dt>
+              <dd>
+                상품 수령 후 7일 이내 신청할 수 있습니다. 단, 상품 사용 또는
+                훼손 등으로 상품 가치가 감소한 경우 교환·반품이 제한될 수
+                있습니다.
+              </dd>
+            </div>
+
+            <div>
+              <dt>판매자 귀책</dt>
+              <dd>
+                오배송, 상품 불량 등 판매자 귀책 사유로 발생한 교환·반품
+                배송비는 판매자가 부담합니다.
+              </dd>
             </div>
           </dl>
         </section>
       </section>
+
+      {isImageModalOpen && selectedImageUrl && (
+        <ProductImageModal
+          imageUrl={selectedImageUrl}
+          productName={product.name}
+          onClose={() => setIsImageModalOpen(false)}
+        />
+      )}
     </main>
   );
 }

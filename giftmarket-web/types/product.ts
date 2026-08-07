@@ -48,6 +48,9 @@ export interface SellerProduct {
   galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
+  shippingPreparationDays: number;
+  returnShippingFee: number;
+  exchangeShippingFee: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,6 +91,9 @@ export interface ProductCreateRequest {
   galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
+  shippingPreparationDays: number;
+  returnShippingFee: number;
+  exchangeShippingFee: number;
   startSale: boolean;
 }
 
@@ -103,6 +109,9 @@ export interface ProductUpdateRequest {
   galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
+  shippingPreparationDays: number;
+  returnShippingFee: number;
+  exchangeShippingFee: number;
 }
 
 export interface ProductStatusUpdateRequest {
@@ -123,6 +132,7 @@ export interface ProductDetail {
   id: number;
   sellerId: number;
   storeName: string;
+  sellerIntroduction: string | null;
   categoryId: number;
   categoryName: string;
   name: string;
@@ -136,4 +146,7 @@ export interface ProductDetail {
   galleryImageKeys: string[];
   freeShipping: boolean;
   shippingFee: number;
+  shippingPreparationDays: number;
+  returnShippingFee: number;
+  exchangeShippingFee: number;
 }

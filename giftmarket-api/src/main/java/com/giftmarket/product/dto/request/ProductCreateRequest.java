@@ -1,5 +1,6 @@
 package com.giftmarket.product.dto.request;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -62,6 +63,19 @@ public record ProductCreateRequest(
         @NotNull(message = "배송비를 입력해주세요.")
         @PositiveOrZero(message = "배송비는 0원 이상이어야 합니다.")
         Long shippingFee,
+
+        @NotNull(message = "출고 소요일을 입력해주세요.")
+        @Positive(message = "출고 소요일은 1일 이상이어야 합니다.")
+        @Max(value = 30, message = "출고 소요일은 최대 30일까지 설정할 수 있습니다.")
+        Integer shippingPreparationDays,
+
+        @NotNull(message = "반품 배송비를 입력해주세요.")
+        @PositiveOrZero(message = "반품 배송비는 0원 이상이어야 합니다.")
+        Long returnShippingFee,
+
+        @NotNull(message = "교환 배송비를 입력해주세요.")
+        @PositiveOrZero(message = "교환 배송비는 0원 이상이어야 합니다.")
+        Long exchangeShippingFee,
 
         @NotNull(message = "판매 시작 여부를 선택해주세요.")
         Boolean startSale

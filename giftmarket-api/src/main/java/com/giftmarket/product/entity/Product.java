@@ -42,6 +42,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product extends BaseEntity {
 
+    private static final int DEFAULT_SHIPPING_PREPARATION_DAYS = 3;
+    private static final long DEFAULT_RETURN_SHIPPING_FEE = 3_000L;
+    private static final long DEFAULT_EXCHANGE_SHIPPING_FEE = 6_000L;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -115,6 +119,19 @@ public class Product extends BaseEntity {
     )
     private Long shippingFee;
 
+    /*
+     * 기존 상품 데이터와의 호환을 위해 nullable로 유지합니다.
+     * 기존 데이터가 null이면 getter에서 운영 기본값을 반환합니다.
+     */
+    @Column(name = "shipping_preparation_days")
+    private Integer shippingPreparationDays;
+
+    @Column(name = "return_shipping_fee")
+    private Long returnShippingFee;
+
+    @Column(name = "exchange_shipping_fee")
+    private Long exchangeShippingFee;
+
     @Builder
     private Product(
             Seller seller,
@@ -128,7 +145,10 @@ public class Product extends BaseEntity {
             ProductStatus status,
             String representativeImageKey,
             boolean freeShipping,
-            Long shippingFee
+            Long shippingFee,
+            Integer shippingPreparationDays,
+            Long returnShippingFee,
+            Long exchangeShippingFee
     ) {
         this.seller = seller;
         this.category = category;
@@ -145,6 +165,15 @@ public class Product extends BaseEntity {
                 freeShipping,
                 shippingFee
         );
+        this.shippingPreparationDays = resolveShippingPreparationDays(
+                shippingPreparationDays
+        );
+        this.returnShippingFee = resolveReturnShippingFee(
+                returnShippingFee
+        );
+        this.exchangeShippingFee = resolveExchangeShippingFee(
+                exchangeShippingFee
+        );
     }
 
     public static Product createDraft(
@@ -158,7 +187,10 @@ public class Product extends BaseEntity {
             Integer stockQuantity,
             String representativeImageKey,
             boolean freeShipping,
-            Long shippingFee
+            Long shippingFee,
+            Integer shippingPreparationDays,
+            Long returnShippingFee,
+            Long exchangeShippingFee
     ) {
         return Product.builder()
                 .seller(seller)
@@ -173,6 +205,9 @@ public class Product extends BaseEntity {
                 .representativeImageKey(representativeImageKey)
                 .freeShipping(freeShipping)
                 .shippingFee(shippingFee)
+                .shippingPreparationDays(shippingPreparationDays)
+                .returnShippingFee(returnShippingFee)
+                .exchangeShippingFee(exchangeShippingFee)
                 .build();
     }
 
@@ -186,7 +221,10 @@ public class Product extends BaseEntity {
             Integer stockQuantity,
             String representativeImageKey,
             boolean freeShipping,
-            Long shippingFee
+            Long shippingFee,
+            Integer shippingPreparationDays,
+            Long returnShippingFee,
+            Long exchangeShippingFee
     ) {
         this.category = category;
         this.name = name;
@@ -200,6 +238,15 @@ public class Product extends BaseEntity {
         this.shippingFee = resolveShippingFee(
                 freeShipping,
                 shippingFee
+        );
+        this.shippingPreparationDays = resolveShippingPreparationDays(
+                shippingPreparationDays
+        );
+        this.returnShippingFee = resolveReturnShippingFee(
+                returnShippingFee
+        );
+        this.exchangeShippingFee = resolveExchangeShippingFee(
+                exchangeShippingFee
         );
 
         synchronizeStatusWithStock();
@@ -257,6 +304,18 @@ public class Product extends BaseEntity {
         return stockQuantity > 0;
     }
 
+    public Integer getShippingPreparationDays() {
+        return resolveShippingPreparationDays(shippingPreparationDays);
+    }
+
+    public Long getReturnShippingFee() {
+        return resolveReturnShippingFee(returnShippingFee);
+    }
+
+    public Long getExchangeShippingFee() {
+        return resolveExchangeShippingFee(exchangeShippingFee);
+    }
+
     private void synchronizeStatusWithStock() {
         if (status == ProductStatus.ON_SALE && !hasStock()) {
             this.status = ProductStatus.SOLD_OUT;
@@ -273,5 +332,29 @@ public class Product extends BaseEntity {
             Long shippingFee
     ) {
         return freeShipping ? 0L : shippingFee;
+    }
+
+    private static Integer resolveShippingPreparationDays(
+            Integer shippingPreparationDays
+    ) {
+        return shippingPreparationDays == null
+                ? DEFAULT_SHIPPING_PREPARATION_DAYS
+                : shippingPreparationDays;
+    }
+
+    private static Long resolveReturnShippingFee(
+            Long returnShippingFee
+    ) {
+        return returnShippingFee == null
+                ? DEFAULT_RETURN_SHIPPING_FEE
+                : returnShippingFee;
+    }
+
+    private static Long resolveExchangeShippingFee(
+            Long exchangeShippingFee
+    ) {
+        return exchangeShippingFee == null
+                ? DEFAULT_EXCHANGE_SHIPPING_FEE
+                : exchangeShippingFee;
     }
 }

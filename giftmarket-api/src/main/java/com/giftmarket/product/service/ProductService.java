@@ -94,7 +94,10 @@ public class ProductService {
                 request.stockQuantity(),
                 representativeImageKey,
                 request.freeShipping(),
-                request.normalizedShippingFee()
+                request.normalizedShippingFee(),
+                request.shippingPreparationDays(),
+                request.returnShippingFee(),
+                request.exchangeShippingFee()
         );
 
         Product savedProduct = productRepository.save(product);
@@ -114,10 +117,6 @@ public class ProductService {
         );
     }
 
-    /**
-     * 기존 ProductController 호환용.
-     * Controller를 ProductSearchCondition 방식으로 변경한 뒤 제거 가능.
-     */
     @Transactional(readOnly = true)
     public ProductPageResponse getProducts(
             Long categoryId,
@@ -324,7 +323,10 @@ public class ProductService {
                 request.stockQuantity(),
                 representativeImageKey,
                 request.freeShipping(),
-                request.normalizedShippingFee()
+                request.normalizedShippingFee(),
+                request.shippingPreparationDays(),
+                request.returnShippingFee(),
+                request.exchangeShippingFee()
         );
 
         List<ProductImage> productImages = replaceProductImages(

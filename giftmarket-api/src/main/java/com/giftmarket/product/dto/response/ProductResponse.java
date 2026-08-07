@@ -43,6 +43,12 @@ public class ProductResponse {
 
     private Long shippingFee;
 
+    private Integer shippingPreparationDays;
+
+    private Long returnShippingFee;
+
+    private Long exchangeShippingFee;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -73,6 +79,15 @@ public class ProductResponse {
                 .galleryImageKeys(galleryImageKeys)
                 .freeShipping(product.isFreeShipping())
                 .shippingFee(product.getShippingFee())
+                .shippingPreparationDays(
+                        product.getShippingPreparationDays()
+                )
+                .returnShippingFee(
+                        product.getReturnShippingFee()
+                )
+                .exchangeShippingFee(
+                        product.getExchangeShippingFee()
+                )
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();

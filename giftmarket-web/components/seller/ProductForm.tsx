@@ -30,6 +30,10 @@ import { resolveImageUrl } from "@/utils/image-url";
 const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_GALLERY_IMAGE_COUNT = 10;
 
+const DEFAULT_SHIPPING_PREPARATION_DAYS = "3";
+const DEFAULT_RETURN_SHIPPING_FEE = "3000";
+const DEFAULT_EXCHANGE_SHIPPING_FEE = "6000";
+
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -63,6 +67,9 @@ interface ProductFormState {
   stockQuantity: string;
   freeShipping: boolean;
   shippingFee: string;
+  shippingPreparationDays: string;
+  returnShippingFee: string;
+  exchangeShippingFee: string;
 }
 
 interface ProductFormProps {
@@ -80,6 +87,9 @@ const INITIAL_FORM_STATE: ProductFormState = {
   stockQuantity: "0",
   freeShipping: true,
   shippingFee: "0",
+  shippingPreparationDays: DEFAULT_SHIPPING_PREPARATION_DAYS,
+  returnShippingFee: DEFAULT_RETURN_SHIPPING_FEE,
+  exchangeShippingFee: DEFAULT_EXCHANGE_SHIPPING_FEE,
 };
 
 function createImageId(): string {
@@ -155,6 +165,15 @@ function createInitialForm(product?: SellerProduct): ProductFormState {
     stockQuantity: String(product.stockQuantity),
     freeShipping: product.freeShipping,
     shippingFee: String(product.shippingFee),
+    shippingPreparationDays: String(
+      product.shippingPreparationDays ?? DEFAULT_SHIPPING_PREPARATION_DAYS,
+    ),
+    returnShippingFee: String(
+      product.returnShippingFee ?? DEFAULT_RETURN_SHIPPING_FEE,
+    ),
+    exchangeShippingFee: String(
+      product.exchangeShippingFee ?? DEFAULT_EXCHANGE_SHIPPING_FEE,
+    ),
   };
 }
 
@@ -446,6 +465,19 @@ export default function ProductForm({
       ? 0
       : parseRequiredNumber(form.shippingFee, "배송비");
 
+    const shippingPreparationDays = parseRequiredNumber(
+      form.shippingPreparationDays,
+      "출고 소요일",
+    );
+    const returnShippingFee = parseRequiredNumber(
+      form.returnShippingFee,
+      "반품 배송비",
+    );
+    const exchangeShippingFee = parseRequiredNumber(
+      form.exchangeShippingFee,
+      "교환 배송비",
+    );
+
     if (!form.name.trim()) {
       throw new Error("상품명을 입력해주세요.");
     }
@@ -478,6 +510,18 @@ export default function ProductForm({
       throw new Error("배송비는 0원 이상이어야 합니다.");
     }
 
+    if (shippingPreparationDays < 1 || shippingPreparationDays > 30) {
+      throw new Error("출고 소요일은 1일 이상 30일 이하로 입력해주세요.");
+    }
+
+    if (returnShippingFee < 0) {
+      throw new Error("반품 배송비는 0원 이상이어야 합니다.");
+    }
+
+    if (exchangeShippingFee < 0) {
+      throw new Error("교환 배송비는 0원 이상이어야 합니다.");
+    }
+
     return {
       categoryId,
       name: form.name.trim(),
@@ -488,6 +532,9 @@ export default function ProductForm({
       stockQuantity,
       freeShipping: form.freeShipping,
       shippingFee,
+      shippingPreparationDays,
+      returnShippingFee,
+      exchangeShippingFee,
     };
   };
 
@@ -752,11 +799,13 @@ export default function ProductForm({
                           unoptimized
                         />
                       </div>
+
                       <div className="seller-product-image-information">
                         <strong>
                           {representativeFile?.name ?? "기존 대표 이미지"}
                         </strong>
                         <span>대표 이미지로 사용됩니다.</span>
+
                         <div className="seller-product-image-actions">
                           <button
                             type="button"
@@ -767,6 +816,7 @@ export default function ProductForm({
                           >
                             이미지 변경
                           </button>
+
                           <button
                             type="button"
                             onClick={handleRemoveRepresentativeImage}
@@ -830,6 +880,7 @@ export default function ProductForm({
                           />
                           <span>{index + 1}</span>
                         </div>
+
                         <div className="seller-product-gallery-image-card-actions">
                           <button
                             type="button"
@@ -838,6 +889,7 @@ export default function ProductForm({
                           >
                             ←
                           </button>
+
                           <button
                             type="button"
                             onClick={() => handleMoveGalleryImage(index, 1)}
@@ -847,6 +899,7 @@ export default function ProductForm({
                           >
                             →
                           </button>
+
                           <button
                             type="button"
                             onClick={() => handleRemoveGalleryImage(image.id)}
@@ -901,7 +954,7 @@ export default function ProductForm({
                   <span className="seller-product-form-section-number">04</span>
                   <h2>판매 및 배송</h2>
                 </div>
-                <p>가격, 재고 및 배송비를 설정합니다.</p>
+                <p>가격, 재고 및 배송 정책을 설정합니다.</p>
               </header>
 
               <div className="seller-product-form-fields seller-product-form-grid">
@@ -936,6 +989,7 @@ export default function ProductForm({
 
                 <div className="seller-product-form-field seller-product-form-field-full">
                   <label>배송 방식 *</label>
+
                   <div className="seller-product-form-shipping-options">
                     <label
                       className={[
@@ -998,6 +1052,70 @@ export default function ProductForm({
                     </div>
                   </div>
                 )}
+
+                <div className="seller-product-form-field">
+                  <label htmlFor="shippingPreparationDays">출고 소요일 *</label>
+
+                  <div className="seller-product-form-input-unit">
+                    <input
+                      id="shippingPreparationDays"
+                      name="shippingPreparationDays"
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={form.shippingPreparationDays}
+                      onChange={handleTextChange}
+                      disabled={isSubmitting}
+                    />
+                    <span>일</span>
+                  </div>
+
+                  <span className="seller-product-form-help">
+                    결제 완료 후 상품 출고까지 예상되는 기간입니다.
+                  </span>
+                </div>
+
+                <div className="seller-product-form-field">
+                  <label htmlFor="returnShippingFee">반품 배송비 *</label>
+
+                  <div className="seller-product-form-input-unit">
+                    <input
+                      id="returnShippingFee"
+                      name="returnShippingFee"
+                      type="number"
+                      min="0"
+                      value={form.returnShippingFee}
+                      onChange={handleTextChange}
+                      disabled={isSubmitting}
+                    />
+                    <span>원</span>
+                  </div>
+
+                  <span className="seller-product-form-help">
+                    구매자 귀책 사유로 반품할 때 부과되는 배송비입니다.
+                  </span>
+                </div>
+
+                <div className="seller-product-form-field">
+                  <label htmlFor="exchangeShippingFee">교환 배송비 *</label>
+
+                  <div className="seller-product-form-input-unit">
+                    <input
+                      id="exchangeShippingFee"
+                      name="exchangeShippingFee"
+                      type="number"
+                      min="0"
+                      value={form.exchangeShippingFee}
+                      onChange={handleTextChange}
+                      disabled={isSubmitting}
+                    />
+                    <span>원</span>
+                  </div>
+
+                  <span className="seller-product-form-help">
+                    구매자 귀책 사유로 교환할 때 발생하는 왕복 배송비입니다.
+                  </span>
+                </div>
               </div>
             </section>
 

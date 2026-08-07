@@ -14,10 +14,6 @@ public class ProductDetailResponse {
 
     private Long id;
 
-    private Long sellerId;
-
-    private String storeName;
-
     private Long categoryId;
 
     private String categoryName;
@@ -44,18 +40,24 @@ public class ProductDetailResponse {
 
     private Long shippingFee;
 
+    private Integer shippingPreparationDays;
+
+    private Long returnShippingFee;
+
+    private Long exchangeShippingFee;
+
+    private Long sellerId;
+
+    private String storeName;
+
+    private String sellerIntroduction;
+
     public static ProductDetailResponse from(
             Product product,
             List<ProductImage> productImages
     ) {
-        List<String> galleryImageKeys = productImages.stream()
-                .map(ProductImage::getObjectKey)
-                .toList();
-
         return ProductDetailResponse.builder()
                 .id(product.getId())
-                .sellerId(product.getSeller().getId())
-                .storeName(product.getSeller().getStoreName())
                 .categoryId(product.getCategory().getId())
                 .categoryName(product.getCategory().getName())
                 .name(product.getName())
@@ -68,9 +70,27 @@ public class ProductDetailResponse {
                 .representativeImageKey(
                         product.getRepresentativeImageKey()
                 )
-                .galleryImageKeys(galleryImageKeys)
+                .galleryImageKeys(
+                        productImages.stream()
+                                .map(ProductImage::getObjectKey)
+                                .toList()
+                )
                 .freeShipping(product.isFreeShipping())
                 .shippingFee(product.getShippingFee())
+                .shippingPreparationDays(
+                        product.getShippingPreparationDays()
+                )
+                .returnShippingFee(
+                        product.getReturnShippingFee()
+                )
+                .exchangeShippingFee(
+                        product.getExchangeShippingFee()
+                )
+                .sellerId(product.getSeller().getId())
+                .storeName(product.getSeller().getStoreName())
+                .sellerIntroduction(
+                        product.getSeller().getIntroduction()
+                )
                 .build();
     }
 }
