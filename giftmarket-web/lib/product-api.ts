@@ -4,6 +4,7 @@ import type {
   Category,
   ProductCreateRequest,
   ProductDetail,
+  ProductPage,
   ProductStatus,
   ProductStatusUpdateRequest,
   ProductStockUpdateRequest,
@@ -16,10 +17,64 @@ const JSON_HEADERS = {
   "Content-Type": "application/json",
 };
 
+interface GetProductsParams {
+  page?: number;
+  size?: number;
+  categoryId?: number;
+  keyword?: string;
+  excludeSoldOut?: boolean;
+}
+
 export async function getCategories(): Promise<Category[]> {
   const response = await apiFetch<ApiResponse<Category[]>>("/api/categories");
 
   return response.data ?? [];
+}
+
+export async function getProducts({
+  page = 0,
+  size = 20,
+  categoryId,
+  keyword,
+  excludeSoldOut = false,
+}: GetProductsParams = {}): Promise<ProductPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+    excludeSoldOut: String(excludeSoldOut),
+  });
+
+  if (categoryId !== undefined) {
+    params.set("categoryId", String(categoryId));
+  }
+
+  const normalizedKeyword = keyword?.trim();
+
+  if (normalizedKeyword) {
+    params.set("keyword", normalizedKeyword);
+  }
+
+  const response = await apiFetch<ApiResponse<ProductPage>>(
+    `/api/products?${params.toString()}`,
+  );
+
+  if (!response.data) {
+    throw new Error("상품 목록을 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function getProduct(productId: number): Promise<ProductDetail> {
+  const response = await apiFetch<ApiResponse<ProductDetail>>(
+    `/api/products/${productId}`,
+  );
+
+  if (!response.data) {
+    throw new Error("상품 정보를 확인할 수 없습니다.");
+  }
+
+  return response.data;
 }
 
 export async function createProduct(
@@ -135,18 +190,6 @@ export async function updateProductStock(
 
   if (!response.data) {
     throw new Error("재고 변경 결과를 확인할 수 없습니다.");
-  }
-
-  return response.data;
-}
-
-export async function getProduct(productId: number): Promise<ProductDetail> {
-  const response = await apiFetch<ApiResponse<ProductDetail>>(
-    `/api/products/${productId}`,
-  );
-
-  if (!response.data) {
-    throw new Error("상품 정보를 확인할 수 없습니다.");
   }
 
   return response.data;

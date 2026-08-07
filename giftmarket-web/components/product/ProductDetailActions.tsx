@@ -29,9 +29,11 @@ export default function ProductDetailActions({
   const addCartItem = useCartStore((state) => state.addItem);
 
   const wishlistItems = useWishlistStore((state) => state.items);
+  const wishlistHydrated = useWishlistStore((state) => state.hydrated);
   const toggleWishlistItem = useWishlistStore((state) => state.toggleItem);
 
-  const isWishlisted = wishlistItems.some((item) => item.id === product.id);
+  const isWishlisted =
+    wishlistHydrated && wishlistItems.some((item) => item.id === product.id);
 
   const totalPrice = useMemo(
     () => product.price * quantity,
@@ -71,6 +73,10 @@ export default function ProductDetailActions({
   };
 
   const handleToggleWishlist = () => {
+    if (!wishlistHydrated) {
+      return;
+    }
+
     toggleWishlistItem(wishlistProduct);
   };
 
@@ -142,6 +148,7 @@ export default function ProductDetailActions({
             .join(" ")}
           aria-label={isWishlisted ? "찜 목록에서 제거" : "찜 목록에 추가"}
           aria-pressed={isWishlisted}
+          disabled={!wishlistHydrated}
           onClick={handleToggleWishlist}
         >
           <span aria-hidden="true">{isWishlisted ? "♥" : "♡"}</span>

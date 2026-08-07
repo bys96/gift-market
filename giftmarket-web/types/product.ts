@@ -1,3 +1,5 @@
+export type ProductStatus = "DRAFT" | "ON_SALE" | "SOLD_OUT" | "HIDDEN";
+
 export interface Product {
   id: number;
   name: string;
@@ -7,7 +9,28 @@ export interface Product {
   isFreeShipping: boolean;
 }
 
-export type ProductStatus = "DRAFT" | "ON_SALE" | "SOLD_OUT" | "HIDDEN";
+export interface ProductSummary {
+  id: number;
+  categoryId: number;
+  categoryName: string;
+  name: string;
+  brandName: string | null;
+  price: number;
+  status: ProductStatus;
+  representativeImageKey: string | null;
+  freeShipping: boolean;
+  shippingFee: number;
+}
+
+export interface ProductPage {
+  products: ProductSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
 
 export interface SellerProduct {
   id: number;

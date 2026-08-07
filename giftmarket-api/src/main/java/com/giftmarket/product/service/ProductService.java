@@ -9,6 +9,8 @@ import com.giftmarket.product.dto.response.ProductDetailResponse;
 import com.giftmarket.product.dto.response.ProductListResponse;
 import com.giftmarket.product.dto.response.ProductPageResponse;
 import com.giftmarket.product.dto.response.ProductResponse;
+import com.giftmarket.product.dto.response.ProductSummaryResponse;
+import com.giftmarket.product.dto.response.SellerProductPageResponse;
 import com.giftmarket.product.entity.Category;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductImage;
@@ -110,6 +112,66 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public ProductPageResponse getProducts(
+            Long categoryId,
+            String keyword,
+            boolean excludeSoldOut,
+            int page,
+            int size
+    ) {
+        Pageable pageable = createPageable(page, size);
+
+        List<ProductStatus> statuses = excludeSoldOut
+                ? List.of(ProductStatus.ON_SALE)
+                : List.of(
+                ProductStatus.ON_SALE,
+                ProductStatus.SOLD_OUT
+        );
+
+        String normalizedKeyword = trimToNull(keyword);
+
+        boolean hasCategory = categoryId != null;
+        boolean hasKeyword = normalizedKeyword != null;
+
+        Page<Product> productPage;
+
+        if (hasCategory && hasKeyword) {
+            productPage = productRepository
+                    .findByStatusInAndCategory_IdAndNameContainingIgnoreCase(
+                            statuses,
+                            categoryId,
+                            normalizedKeyword,
+                            pageable
+                    );
+        } else if (hasCategory) {
+            productPage = productRepository
+                    .findByStatusInAndCategory_Id(
+                            statuses,
+                            categoryId,
+                            pageable
+                    );
+        } else if (hasKeyword) {
+            productPage = productRepository
+                    .findByStatusInAndNameContainingIgnoreCase(
+                            statuses,
+                            normalizedKeyword,
+                            pageable
+                    );
+        } else {
+            productPage = productRepository.findByStatusIn(
+                    statuses,
+                    pageable
+            );
+        }
+
+        Page<ProductSummaryResponse> responsePage = productPage.map(
+                ProductSummaryResponse::from
+        );
+
+        return ProductPageResponse.from(responsePage);
+    }
+
+    @Transactional(readOnly = true)
     public ProductDetailResponse getProduct(Long productId) {
         Product product = productRepository
                 .findByIdAndStatusIn(
@@ -135,7 +197,7 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public ProductPageResponse getMyProducts(
+    public SellerProductPageResponse getMyProducts(
             Long userId,
             ProductStatus status,
             int page,
@@ -163,7 +225,7 @@ public class ProductService {
                 ProductListResponse::from
         );
 
-        return ProductPageResponse.from(responsePage);
+        return SellerProductPageResponse.from(responsePage);
     }
 
     @Transactional(readOnly = true)

@@ -5,8 +5,8 @@ import com.giftmarket.product.dto.request.ProductCreateRequest;
 import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
-import com.giftmarket.product.dto.response.ProductPageResponse;
 import com.giftmarket.product.dto.response.ProductResponse;
+import com.giftmarket.product.dto.response.SellerProductPageResponse;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.service.ProductService;
 import jakarta.validation.Valid;
@@ -43,7 +43,7 @@ public class SellerProductController {
     }
 
     @GetMapping
-    public ApiResponse<ProductPageResponse> getMyProducts(
+    public ApiResponse<SellerProductPageResponse> getMyProducts(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) ProductStatus status,
             @RequestParam(defaultValue = "0") int page,

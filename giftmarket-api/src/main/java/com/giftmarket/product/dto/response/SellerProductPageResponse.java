@@ -4,9 +4,9 @@ import org.springframework.data.domain.Page;
 
 import java.util.List;
 
-public record ProductPageResponse(
+public record SellerProductPageResponse(
 
-        List<ProductSummaryResponse> products,
+        List<ProductListResponse> products,
         int page,
         int size,
         long totalElements,
@@ -16,10 +16,10 @@ public record ProductPageResponse(
 
 ) {
 
-    public static ProductPageResponse from(
-            Page<ProductSummaryResponse> page
+    public static SellerProductPageResponse from(
+            Page<ProductListResponse> page
     ) {
-        return new ProductPageResponse(
+        return new SellerProductPageResponse(
                 page.getContent(),
                 page.getNumber(),
                 page.getSize(),

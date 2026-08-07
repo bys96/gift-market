@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import WishlistProductCard from "@/components/product/WishlistProductCard";
+
+import ProductCard from "@/components/product/ProductCard";
 import { useAuthStore } from "@/stores/auth-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
 
@@ -64,9 +65,9 @@ export default function MyWishlistPage() {
             </button>
           </div>
 
-          <div className="wishlist-product-grid">
+          <div className="product-list">
             {items.map((product) => (
-              <WishlistProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
         </>

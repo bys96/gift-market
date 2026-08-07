@@ -18,6 +18,7 @@ interface AddCartItem {
   brandName: string;
   price: number;
   imageUrl: string;
+  quantity?: number;
   stockQuantity: number;
   isFreeShipping: boolean;
 }
@@ -39,6 +40,11 @@ export const useCartStore = create<CartState>()(
 
       addItem: (newItem) =>
         set((state) => {
+          const requestedQuantity = Math.max(
+            1,
+            Math.min(newItem.quantity ?? 1, newItem.stockQuantity),
+          );
+
           const existingItem = state.items.find(
             (item) => item.productId === newItem.productId,
           );
@@ -49,7 +55,7 @@ export const useCartStore = create<CartState>()(
                 ...state.items,
                 {
                   ...newItem,
-                  quantity: 1,
+                  quantity: requestedQuantity,
                 },
               ],
             };
@@ -60,7 +66,16 @@ export const useCartStore = create<CartState>()(
               item.productId === newItem.productId
                 ? {
                     ...item,
-                    quantity: Math.min(item.quantity + 1, item.stockQuantity),
+                    name: newItem.name,
+                    brandName: newItem.brandName,
+                    price: newItem.price,
+                    imageUrl: newItem.imageUrl,
+                    stockQuantity: newItem.stockQuantity,
+                    isFreeShipping: newItem.isFreeShipping,
+                    quantity: Math.min(
+                      item.quantity + requestedQuantity,
+                      newItem.stockQuantity,
+                    ),
                   }
                 : item,
             ),

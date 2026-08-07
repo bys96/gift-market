@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import ProductCard from "@/components/product/ProductCard";
-import type { Product } from "@/types/product";
+import { getProducts } from "@/lib/product-api";
+import type { ProductSummary } from "@/types/product";
+
+const HOME_PRODUCT_SIZE = 4;
 
 const categories = [
   { name: "생일", emoji: "🎂" },
@@ -14,42 +20,57 @@ const categories = [
   { name: "리빙", emoji: "🏠" },
 ];
 
-const recommendedProducts: Product[] = [
-  {
-    id: 1,
-    name: "마음을 담은 프리미엄 초콜릿 선물 세트",
-    brandName: "스위트하우스",
-    price: 32900,
-    imageUrl: "/images/products/product-1.jpg",
-    isFreeShipping: true,
-  },
-  {
-    id: 2,
-    name: "향기로운 핸드크림 & 바디케어 세트",
-    brandName: "오브제뷰티",
-    price: 27900,
-    imageUrl: "/images/products/product-2.jpg",
-    isFreeShipping: true,
-  },
-  {
-    id: 3,
-    name: "매일 사용하기 좋은 머그컵 세트",
-    brandName: "데일리리빙",
-    price: 19800,
-    imageUrl: "/images/products/product-3.jpg",
-    isFreeShipping: false,
-  },
-  {
-    id: 4,
-    name: "특별한 날을 위한 꽃다발 선물",
-    brandName: "플라워데이",
-    price: 45000,
-    imageUrl: "/images/products/product-4.jpg",
-    isFreeShipping: true,
-  },
-];
-
 export default function HomePage() {
+  const [products, setProducts] = useState<ProductSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProducts = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMessage(null);
+
+        const response = await getProducts({
+          page: 0,
+          size: HOME_PRODUCT_SIZE,
+          excludeSoldOut: true,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProducts(response.products);
+      } catch (error) {
+        console.error(error);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProducts([]);
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "상품을 불러오지 못했습니다.",
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="home">
       <section className="home-hero">
@@ -80,6 +101,7 @@ export default function HomePage() {
         <div className="home-section-header">
           <div>
             <p className="home-section-eyebrow">CATEGORY</p>
+
             <h2 className="home-section-title">어떤 선물을 찾고 있나요?</h2>
           </div>
         </div>
@@ -88,7 +110,7 @@ export default function HomePage() {
           {categories.map((category) => (
             <Link
               key={category.name}
-              href={`/products?category=${encodeURIComponent(category.name)}`}
+              href={`/products?keyword=${encodeURIComponent(category.name)}`}
               className="home-category-item"
             >
               <span className="home-category-icon" aria-hidden="true">
@@ -105,19 +127,41 @@ export default function HomePage() {
         <div className="home-section-header">
           <div>
             <p className="home-section-eyebrow">RECOMMEND</p>
-            <h2 className="home-section-title">지금 인기 있는 선물</h2>
+
+            <h2 className="home-section-title">지금 만나볼 수 있는 선물</h2>
           </div>
 
-          <Link href="/products" className="home-section-more">
+          <Link
+            href="/products?excludeSoldOut=true"
+            className="home-section-more"
+          >
             전체 보기
           </Link>
         </div>
 
-        <div className="product-list">
-          {recommendedProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {isLoading && (
+          <div className="home-product-placeholder">
+            상품을 불러오는 중입니다.
+          </div>
+        )}
+
+        {!isLoading && errorMessage && (
+          <div className="home-product-placeholder">{errorMessage}</div>
+        )}
+
+        {!isLoading && !errorMessage && products.length === 0 && (
+          <div className="home-product-placeholder">
+            현재 판매 중인 상품이 없습니다.
+          </div>
+        )}
+
+        {!isLoading && !errorMessage && products.length > 0 && (
+          <div className="product-list">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
