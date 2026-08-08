@@ -1,15 +1,15 @@
 package com.giftmarket.global.exception;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
-import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.product.exception.ProductException;
+import com.giftmarket.seller.exception.SellerException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -26,6 +26,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(SellerException.class)
     public ResponseEntity<ApiResponse<?>> handleSellerException(
             SellerException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(ProductException.class)
+    public ResponseEntity<ApiResponse<?>> handleProductException(
+            ProductException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(CartException.class)
+    public ResponseEntity<ApiResponse<?>> handleCartException(
+            CartException exception
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -52,15 +70,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handle(Exception exception) {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.fail(exception.getMessage()));
-    }
-
-    @ExceptionHandler(ProductException.class)
-    public ResponseEntity<ApiResponse<?>> handleProductException(
-            ProductException exception
-    ) {
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(exception.getMessage()));
     }
 }

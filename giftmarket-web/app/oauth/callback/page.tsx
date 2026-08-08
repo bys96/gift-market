@@ -12,6 +12,22 @@ interface TokenResponse {
   accessToken: string;
 }
 
+const DEFAULT_REDIRECT_URL = "/";
+const LOGIN_REDIRECT_STORAGE_KEY = "login_redirect_url";
+
+function resolveRedirectUrl(redirect: string | null): string {
+  if (!redirect) {
+    return DEFAULT_REDIRECT_URL;
+  }
+
+  // 외부 URL redirect 방지
+  if (!redirect.startsWith("/") || redirect.startsWith("//")) {
+    return DEFAULT_REDIRECT_URL;
+  }
+
+  return redirect;
+}
+
 export default function OAuthCallbackPage() {
   const router = useRouter();
 
@@ -40,19 +56,33 @@ export default function OAuthCallbackPage() {
         // 2. Access Token으로 로그인 사용자 정보 조회
         const userResponse = await apiFetch<ApiResponse<User>>("/api/auth/me");
 
+        if (!userResponse.success || !userResponse.data) {
+          throw new Error("로그인 사용자 정보를 불러오지 못했습니다.");
+        }
+
         // 3. 사용자 정보를 Zustand에 저장
         setUser(userResponse.data);
 
-        // 4. 메인 페이지로 이동
-        router.replace("/");
+        // 4. 로그인 전에 있던 페이지 확인
+        const redirectUrl = resolveRedirectUrl(
+          sessionStorage.getItem(LOGIN_REDIRECT_STORAGE_KEY),
+        );
+
+        // 5. 사용한 redirect 제거
+        sessionStorage.removeItem(LOGIN_REDIRECT_STORAGE_KEY);
+
+        // 6. 원래 페이지로 복귀
+        router.replace(redirectUrl);
       } catch (error) {
         console.error("로그인 처리 실패:", error);
+
+        sessionStorage.removeItem(LOGIN_REDIRECT_STORAGE_KEY);
 
         router.replace("/login");
       }
     };
 
-    completeLogin();
+    void completeLogin();
   }, [router, setAccessToken, setUser]);
 
   return (

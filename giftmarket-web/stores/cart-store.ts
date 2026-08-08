@@ -1,122 +1,303 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
-export interface CartItem {
-  productId: number;
-  name: string;
-  brandName: string;
-  price: number;
-  imageUrl: string;
-  quantity: number;
-  stockQuantity: number;
-  isFreeShipping: boolean;
-}
+import {
+  addCartItem,
+  clearCart as clearCartApi,
+  deleteCartItem,
+  getCart,
+  updateCartItemQuantity,
+} from "@/lib/cart-api";
+import type { Cart, CartItem } from "@/types/cart";
 
 interface AddCartItem {
   productId: number;
-  name: string;
-  brandName: string;
-  price: number;
-  imageUrl: string;
   quantity?: number;
-  stockQuantity: number;
-  isFreeShipping: boolean;
+
+  // 기존 ProductDetailActions 호출부 호환용
+  name?: string;
+  brandName?: string;
+  price?: number;
+  imageUrl?: string;
+  stockQuantity?: number;
+  isFreeShipping?: boolean;
 }
 
 interface CartState {
   items: CartItem[];
 
-  addItem: (item: AddCartItem) => void;
-  removeItem: (productId: number) => void;
-  increaseQuantity: (productId: number) => void;
-  decreaseQuantity: (productId: number) => void;
-  clearCart: () => void;
+  totalProductPrice: number;
+  totalShippingFee: number;
+  totalPrice: number;
+  itemCount: number;
+
+  initialized: boolean;
+  isLoading: boolean;
+  errorMessage: string;
+
+  loadCart: () => Promise<void>;
+  addItem: (item: AddCartItem) => Promise<void>;
+  removeItem: (productId: number) => Promise<void>;
+  increaseQuantity: (productId: number) => Promise<void>;
+  decreaseQuantity: (productId: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  resetCart: () => void;
 }
 
-export const useCartStore = create<CartState>()(
-  persist(
-    (set) => ({
-      items: [],
+const EMPTY_CART_STATE = {
+  items: [],
+  totalProductPrice: 0,
+  totalShippingFee: 0,
+  totalPrice: 0,
+  itemCount: 0,
+};
 
-      addItem: (newItem) =>
-        set((state) => {
-          const requestedQuantity = Math.max(
-            1,
-            Math.min(newItem.quantity ?? 1, newItem.stockQuantity),
-          );
+function createCartState(cart: Cart) {
+  return {
+    items: cart.items,
+    totalProductPrice: cart.totalProductPrice,
+    totalShippingFee: cart.totalShippingFee,
+    totalPrice: cart.totalPrice,
+    itemCount: cart.itemCount,
+  };
+}
 
-          const existingItem = state.items.find(
-            (item) => item.productId === newItem.productId,
-          );
+export const useCartStore = create<CartState>((set, get) => ({
+  ...EMPTY_CART_STATE,
 
-          if (!existingItem) {
-            return {
-              items: [
-                ...state.items,
-                {
-                  ...newItem,
-                  quantity: requestedQuantity,
-                },
-              ],
-            };
-          }
+  initialized: false,
+  isLoading: false,
+  errorMessage: "",
 
-          return {
-            items: state.items.map((item) =>
-              item.productId === newItem.productId
-                ? {
-                    ...item,
-                    name: newItem.name,
-                    brandName: newItem.brandName,
-                    price: newItem.price,
-                    imageUrl: newItem.imageUrl,
-                    stockQuantity: newItem.stockQuantity,
-                    isFreeShipping: newItem.isFreeShipping,
-                    quantity: Math.min(
-                      item.quantity + requestedQuantity,
-                      newItem.stockQuantity,
-                    ),
-                  }
-                : item,
-            ),
-          };
-        }),
+  loadCart: async () => {
+    if (get().isLoading) {
+      return;
+    }
 
-      removeItem: (productId) =>
-        set((state) => ({
-          items: state.items.filter((item) => item.productId !== productId),
-        })),
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
 
-      increaseQuantity: (productId) =>
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.productId === productId
-              ? {
-                  ...item,
-                  quantity: Math.min(item.quantity + 1, item.stockQuantity),
-                }
-              : item,
-          ),
-        })),
+      const cart = await getCart();
 
-      decreaseQuantity: (productId) =>
-        set((state) => ({
-          items: state.items
-            .map((item) =>
-              item.productId === productId
-                ? {
-                    ...item,
-                    quantity: item.quantity - 1,
-                  }
-                : item,
-            )
-            .filter((item) => item.quantity > 0),
-        })),
+      set({
+        ...createCartState(cart),
+        initialized: true,
+      });
+    } catch (error) {
+      set({
+        ...EMPTY_CART_STATE,
+        initialized: true,
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "장바구니를 불러오지 못했습니다.",
+      });
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
 
-      clearCart: () => set({ items: [] }),
-    }),
-    {
-      name: "open-market-cart",
-    },
-  ),
-);
+  addItem: async (item) => {
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      const cart = await addCartItem({
+        productId: item.productId,
+        quantity: item.quantity ?? 1,
+      });
+
+      set({
+        ...createCartState(cart),
+        initialized: true,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "장바구니에 상품을 담지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
+  removeItem: async (productId) => {
+    const cartItem = get().items.find((item) => item.productId === productId);
+
+    if (!cartItem) {
+      return;
+    }
+
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      const cart = await deleteCartItem(cartItem.cartItemId);
+
+      set({
+        ...createCartState(cart),
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "장바구니 상품을 삭제하지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
+  increaseQuantity: async (productId) => {
+    const cartItem = get().items.find((item) => item.productId === productId);
+
+    if (!cartItem) {
+      return;
+    }
+
+    if (cartItem.quantity >= cartItem.stockQuantity) {
+      return;
+    }
+
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      const cart = await updateCartItemQuantity(cartItem.cartItemId, {
+        quantity: cartItem.quantity + 1,
+      });
+
+      set({
+        ...createCartState(cart),
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "장바구니 수량을 변경하지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
+  decreaseQuantity: async (productId) => {
+    const cartItem = get().items.find((item) => item.productId === productId);
+
+    if (!cartItem) {
+      return;
+    }
+
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      if (cartItem.quantity <= 1) {
+        const cart = await deleteCartItem(cartItem.cartItemId);
+
+        set({
+          ...createCartState(cart),
+        });
+
+        return;
+      }
+
+      const cart = await updateCartItemQuantity(cartItem.cartItemId, {
+        quantity: cartItem.quantity - 1,
+      });
+
+      set({
+        ...createCartState(cart),
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "장바구니 수량을 변경하지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
+  clearCart: async () => {
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      await clearCartApi();
+
+      set({
+        ...EMPTY_CART_STATE,
+        initialized: true,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "장바구니를 비우지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
+  resetCart: () => {
+    set({
+      ...EMPTY_CART_STATE,
+      initialized: false,
+      isLoading: false,
+      errorMessage: "",
+    });
+  },
+}));

@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
+import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
 import type { Product } from "@/types/product";
@@ -23,11 +25,15 @@ export default function ProductDetailActions({
   product,
 }: ProductDetailActionsProps) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [quantity, setQuantity] = useState(1);
+  const [isAddingCart, setIsAddingCart] = useState(false);
+  const [isBuyingNow, setIsBuyingNow] = useState(false);
 
   const addCartItem = useCartStore((state) => state.addItem);
 
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const wishlistItems = useWishlistStore((state) => state.items);
   const wishlistHydrated = useWishlistStore((state) => state.hydrated);
   const toggleWishlistItem = useWishlistStore((state) => state.toggleItem);
@@ -59,19 +65,6 @@ export default function ProductDetailActions({
     );
   };
 
-  const addSelectedQuantityToCart = () => {
-    addCartItem({
-      productId: product.id,
-      name: product.name,
-      brandName: product.brandName,
-      price: product.price,
-      imageUrl: product.imageUrl,
-      quantity,
-      stockQuantity: product.stockQuantity,
-      isFreeShipping: product.isFreeShipping,
-    });
-  };
-
   const handleToggleWishlist = () => {
     if (!wishlistHydrated) {
       return;
@@ -80,15 +73,63 @@ export default function ProductDetailActions({
     toggleWishlistItem(wishlistProduct);
   };
 
-  const handleAddCart = () => {
-    addSelectedQuantityToCart();
-    alert("장바구니에 상품을 담았습니다.");
+  const handleAddCart = async () => {
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    if (isAddingCart || isBuyingNow) {
+      return;
+    }
+
+    try {
+      setIsAddingCart(true);
+
+      await addCartItem({
+        productId: product.id,
+        quantity,
+      });
+
+      alert("장바구니에 상품을 담았습니다.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "장바구니에 상품을 담지 못했습니다.",
+      );
+    } finally {
+      setIsAddingCart(false);
+    }
   };
 
   const handleBuyNow = () => {
-    addSelectedQuantityToCart();
-    router.push("/cart");
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    if (isAddingCart || isBuyingNow) {
+      return;
+    }
+
+    try {
+      setIsBuyingNow(true);
+
+      /*
+       * 바로 구매는 장바구니에 저장하지 않습니다.
+       *
+       * 주문 기능 구현 시 /order 페이지에서
+       * productId + quantity를 이용해 주문 상품을 조회합니다.
+       */
+      router.push(`/order?productId=${product.id}&quantity=${quantity}`);
+    } finally {
+      setIsBuyingNow(false);
+    }
   };
+
+  const isActionDisabled =
+    isAddingCart || isBuyingNow || product.stockQuantity <= 0;
 
   return (
     <div className="product-detail-purchase">
@@ -109,7 +150,7 @@ export default function ProductDetailActions({
             type="button"
             className="product-detail-quantity-button"
             aria-label="수량 줄이기"
-            disabled={quantity <= 1}
+            disabled={isActionDisabled || quantity <= 1}
             onClick={decreaseQuantity}
           >
             −
@@ -123,7 +164,7 @@ export default function ProductDetailActions({
             type="button"
             className="product-detail-quantity-button"
             aria-label="수량 늘리기"
-            disabled={quantity >= product.stockQuantity}
+            disabled={isActionDisabled || quantity >= product.stockQuantity}
             onClick={increaseQuantity}
           >
             +
@@ -148,7 +189,7 @@ export default function ProductDetailActions({
             .join(" ")}
           aria-label={isWishlisted ? "찜 목록에서 제거" : "찜 목록에 추가"}
           aria-pressed={isWishlisted}
-          disabled={!wishlistHydrated}
+          disabled={!wishlistHydrated || isAddingCart || isBuyingNow}
           onClick={handleToggleWishlist}
         >
           <span aria-hidden="true">{isWishlisted ? "♥" : "♡"}</span>
@@ -159,17 +200,19 @@ export default function ProductDetailActions({
         <button
           type="button"
           className="product-detail-cart-button"
-          onClick={handleAddCart}
+          onClick={() => void handleAddCart()}
+          disabled={isActionDisabled}
         >
-          장바구니
+          {isAddingCart ? "담는 중..." : "장바구니"}
         </button>
 
         <button
           type="button"
           className="product-detail-gift-button"
           onClick={handleBuyNow}
+          disabled={isActionDisabled}
         >
-          바로 구매
+          {isBuyingNow ? "이동 중..." : "바로 구매"}
         </button>
       </div>
     </div>

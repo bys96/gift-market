@@ -72,7 +72,8 @@ public class SecurityConfig {
                                 "/api/auth/me",
                                 "/api/users/me",
                                 "/api/storage/**",
-                                "/api/seller-applications/**"
+                                "/api/seller-applications/**",
+                                "/api/cart/**"
                         )
                         .authenticated()
 

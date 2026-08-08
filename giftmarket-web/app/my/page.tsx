@@ -7,6 +7,7 @@ import MyMenuList from "@/components/my/MyMenuList";
 import MyProfileCard from "@/components/my/MyProfileCard";
 import MyQuickStats from "@/components/my/MyQuickStats";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCartStore } from "@/stores/cart-store";
 
 interface MySummary {
   orderCount: number;
@@ -53,6 +54,7 @@ export default function MyPage() {
     } finally {
       // 서버 요청이 실패해도 프론트 로그인 상태는 제거
       clearAuth();
+      useCartStore.getState().resetCart();
       router.replace("/");
       router.refresh();
       setIsLoggingOut(false);

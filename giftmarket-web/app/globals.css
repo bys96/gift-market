@@ -5,6 +5,7 @@
 @import "../styles/variables.css";
 @import "../styles/common.css";
 @import "../styles/layout.css";
+@import "../styles/login.css";
 @import "../styles/product.css";
 @import "../styles/auth.css";
 @import "../styles/order.css";
