@@ -128,6 +128,28 @@ export interface Category {
   children: Category[];
 }
 
+export interface ProductDetailOptionValue {
+  id: number;
+  value: string;
+  sortOrder: number;
+}
+
+export interface ProductDetailOptionGroup {
+  id: number;
+  name: string;
+  sortOrder: number;
+  values: ProductDetailOptionValue[];
+}
+
+export interface ProductDetailVariant {
+  id: number;
+  optionValueIds: number[];
+  additionalPrice: number;
+  price: number;
+  stockQuantity: number;
+  available: boolean;
+}
+
 export interface ProductDetail {
   id: number;
   sellerId: number;
@@ -149,4 +171,71 @@ export interface ProductDetail {
   shippingPreparationDays: number;
   returnShippingFee: number;
   exchangeShippingFee: number;
+
+  hasOptions: boolean;
+  optionGroups: ProductDetailOptionGroup[];
+  variants: ProductDetailVariant[];
+}
+
+export interface ProductOptionValue {
+  id: number;
+  value: string;
+  sortOrder: number;
+}
+
+export interface ProductOptionGroup {
+  id: number;
+  name: string;
+  sortOrder: number;
+  values: ProductOptionValue[];
+}
+
+export interface ProductOptionResponse {
+  productId: number;
+  optionGroups: ProductOptionGroup[];
+}
+
+export interface ProductOptionValueUpdateRequest {
+  id: number | null;
+  value: string;
+  sortOrder: number;
+}
+
+export interface ProductOptionGroupUpdateRequest {
+  id: number | null;
+  name: string;
+  sortOrder: number;
+  values: ProductOptionValueUpdateRequest[];
+}
+
+export interface ProductOptionUpdateRequest {
+  optionGroups: ProductOptionGroupUpdateRequest[];
+}
+
+export interface ProductVariant {
+  id: number;
+  skuCode: string;
+  combinationKey: string;
+  optionValueIds: number[];
+  additionalPrice: number;
+  stockQuantity: number;
+  active: boolean;
+}
+
+export interface ProductVariantListResponse {
+  productId: number;
+  variants: ProductVariant[];
+}
+
+export interface ProductVariantUpdateItem {
+  id: number | null;
+  skuCode: string;
+  optionValueIds: number[];
+  additionalPrice: number;
+  stockQuantity: number;
+  active: boolean;
+}
+
+export interface ProductVariantUpdateRequest {
+  variants: ProductVariantUpdateItem[];
 }

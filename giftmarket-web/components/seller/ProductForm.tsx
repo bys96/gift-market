@@ -12,17 +12,24 @@ import {
 } from "react";
 
 import ProductEditor from "@/components/seller/ProductEditor";
+import ProductOptionManager, {
+  type ProductOptionEditorState,
+} from "@/components/seller/ProductOptionManager";
 import {
   createProduct,
   getCategories,
   updateProduct,
+  updateProductOptions,
   updateProductStatus,
+  updateProductVariants,
 } from "@/lib/product-api";
 import { uploadImage } from "@/lib/storage-api";
 import type {
   Category,
   ProductCreateRequest,
+  ProductOptionUpdateRequest,
   ProductUpdateRequest,
+  ProductVariantUpdateRequest,
   SellerProduct,
 } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
@@ -198,6 +205,13 @@ function createExistingGalleryImages(
   });
 }
 
+const INITIAL_OPTION_EDITOR_STATE: ProductOptionEditorState = {
+  enabled: false,
+  optionGroups: [],
+  variants: [],
+  initialized: true,
+};
+
 export default function ProductForm({
   mode,
   initialProduct,
@@ -228,6 +242,11 @@ export default function ProductForm({
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [optionEditorState, setOptionEditorState] =
+    useState<ProductOptionEditorState>(() => ({
+      ...INITIAL_OPTION_EDITOR_STATE,
+      initialized: mode === "create",
+    }));
 
   const [selectedRootCategoryId, setSelectedRootCategoryId] = useState("");
 
@@ -457,10 +476,12 @@ export default function ProductForm({
     });
   };
 
-  const validateCommonRequest = () => {
+  const validateCommonRequest = (stockQuantityOverride?: number) => {
     const categoryId = parseRequiredNumber(form.categoryId, "카테고리");
     const price = parseRequiredNumber(form.price, "판매가");
-    const stockQuantity = parseRequiredNumber(form.stockQuantity, "재고 수량");
+    const stockQuantity =
+      stockQuantityOverride ??
+      parseRequiredNumber(form.stockQuantity, "재고 수량");
     const shippingFee = form.freeShipping
       ? 0
       : parseRequiredNumber(form.shippingFee, "배송비");
@@ -538,6 +559,205 @@ export default function ProductForm({
     };
   };
 
+  const validateOptionConfiguration = () => {
+    if (!optionEditorState.initialized) {
+      throw new Error("상품 옵션 정보를 아직 불러오는 중입니다.");
+    }
+
+    const hasPersistedOptionData =
+      optionEditorState.optionGroups.some((group) => group.id !== null) ||
+      optionEditorState.variants.some((variant) => variant.id !== null);
+
+    if (!optionEditorState.enabled) {
+      if (hasPersistedOptionData) {
+        throw new Error(
+          "기존 옵션 상품은 옵션 없음 상품으로 변경할 수 없습니다. 기존 SKU를 유지한 상태에서 옵션을 수정해주세요.",
+        );
+      }
+
+      return {
+        totalStockQuantity: undefined as number | undefined,
+        optionRequest: null as ProductOptionUpdateRequest | null,
+      };
+    }
+
+    if (optionEditorState.optionGroups.length === 0) {
+      throw new Error("옵션을 1개 이상 등록해주세요.");
+    }
+
+    const groupNames = new Set<string>();
+
+    const optionGroups = optionEditorState.optionGroups.map(
+      (group, groupIndex) => {
+        const name = group.name.trim();
+
+        if (!name) {
+          throw new Error(`옵션 ${groupIndex + 1}의 이름을 입력해주세요.`);
+        }
+
+        const normalizedName = name.toLocaleLowerCase("ko-KR");
+
+        if (groupNames.has(normalizedName)) {
+          throw new Error("동일한 옵션명을 중복 등록할 수 없습니다.");
+        }
+
+        groupNames.add(normalizedName);
+
+        if (group.values.length === 0) {
+          throw new Error(`${name} 옵션 값을 1개 이상 등록해주세요.`);
+        }
+
+        const optionValues = new Set<string>();
+
+        const values = group.values.map((optionValue, valueIndex) => {
+          const value = optionValue.value.trim();
+
+          if (!value) {
+            throw new Error(
+              `${name} 옵션의 ${valueIndex + 1}번째 값을 입력해주세요.`,
+            );
+          }
+
+          const normalizedValue = value.toLocaleLowerCase("ko-KR");
+
+          if (optionValues.has(normalizedValue)) {
+            throw new Error(
+              `${name} 옵션에 동일한 값을 중복 등록할 수 없습니다.`,
+            );
+          }
+
+          optionValues.add(normalizedValue);
+
+          return {
+            id: optionValue.id,
+            value,
+            sortOrder: valueIndex,
+          };
+        });
+
+        return {
+          id: group.id,
+          name,
+          sortOrder: groupIndex,
+          values,
+        };
+      },
+    );
+
+    if (optionEditorState.variants.length === 0) {
+      throw new Error("옵션 조합별 SKU를 확인해주세요.");
+    }
+
+    const skuCodes = new Set<string>();
+    let totalStockQuantity = 0;
+
+    optionEditorState.variants.forEach((variant, variantIndex) => {
+      const skuCode = variant.skuCode.trim();
+
+      if (!skuCode) {
+        throw new Error(`${variantIndex + 1}번째 SKU 코드를 입력해주세요.`);
+      }
+
+      const normalizedSkuCode = skuCode.toUpperCase();
+
+      if (skuCodes.has(normalizedSkuCode)) {
+        throw new Error("SKU 코드는 중복될 수 없습니다.");
+      }
+
+      skuCodes.add(normalizedSkuCode);
+
+      const additionalPrice = parseRequiredNumber(
+        variant.additionalPrice,
+        `${skuCode} 추가금`,
+      );
+      const stockQuantity = parseRequiredNumber(
+        variant.stockQuantity,
+        `${skuCode} 재고`,
+      );
+
+      if (additionalPrice < 0) {
+        throw new Error("옵션 추가 금액은 0원 이상이어야 합니다.");
+      }
+
+      if (stockQuantity < 0) {
+        throw new Error("옵션 재고는 0개 이상이어야 합니다.");
+      }
+
+      if (variant.active) {
+        totalStockQuantity += stockQuantity;
+      }
+    });
+
+    return {
+      totalStockQuantity,
+      optionRequest: {
+        optionGroups,
+      } satisfies ProductOptionUpdateRequest,
+    };
+  };
+
+  const saveProductOptionsAndVariants = async (
+    productId: number,
+    optionRequest: ProductOptionUpdateRequest,
+  ) => {
+    const optionResponse = await updateProductOptions(productId, optionRequest);
+
+    const optionValueIdByClientId = new Map<string, number>();
+
+    optionEditorState.optionGroups.forEach((draftGroup, groupIndex) => {
+      const savedGroup = optionResponse.optionGroups.find(
+        (group) => group.sortOrder === groupIndex,
+      );
+
+      if (!savedGroup) {
+        throw new Error("저장된 상품 옵션 정보를 확인할 수 없습니다.");
+      }
+
+      draftGroup.values.forEach((draftValue, valueIndex) => {
+        const savedValue = savedGroup.values.find(
+          (value) => value.sortOrder === valueIndex,
+        );
+
+        if (!savedValue) {
+          throw new Error("저장된 상품 옵션 값을 확인할 수 없습니다.");
+        }
+
+        optionValueIdByClientId.set(draftValue.clientId, savedValue.id);
+      });
+    });
+
+    const variantRequest: ProductVariantUpdateRequest = {
+      variants: optionEditorState.variants.map((variant) => {
+        const optionValueIds = variant.optionValueClientIds.map((clientId) => {
+          const optionValueId = optionValueIdByClientId.get(clientId);
+
+          if (!optionValueId) {
+            throw new Error("SKU에 연결된 옵션 값을 확인할 수 없습니다.");
+          }
+
+          return optionValueId;
+        });
+
+        return {
+          id: variant.id,
+          skuCode: variant.skuCode.trim(),
+          optionValueIds,
+          additionalPrice: parseRequiredNumber(
+            variant.additionalPrice,
+            `${variant.skuCode.trim()} 추가금`,
+          ),
+          stockQuantity: parseRequiredNumber(
+            variant.stockQuantity,
+            `${variant.skuCode.trim()} 재고`,
+          ),
+          active: variant.active,
+        };
+      }),
+    };
+
+    await updateProductVariants(productId, variantRequest);
+  };
+
   const uploadImages = async () => {
     const nextRepresentativeImageKey = representativeFile
       ? await uploadImage(representativeFile, "PRODUCT_REPRESENTATIVE")
@@ -569,7 +789,10 @@ export default function ProductForm({
       setIsSubmitting(true);
       setErrorMessage("");
 
-      const commonRequest = validateCommonRequest();
+      const optionConfiguration = validateOptionConfiguration();
+      const commonRequest = validateCommonRequest(
+        optionConfiguration.totalStockQuantity,
+      );
 
       if (startSale && !representativePreviewUrl) {
         throw new Error("판매를 시작하려면 대표 이미지를 등록해주세요.");
@@ -581,14 +804,19 @@ export default function ProductForm({
 
       const imageRequest = await uploadImages();
 
+      let productId: number;
+
       if (mode === "create") {
         const request: ProductCreateRequest = {
           ...commonRequest,
           ...imageRequest,
-          startSale,
+          // 옵션/SKU 저장 도중 실패해도 판매 상품으로 노출되지 않도록
+          // 상품은 먼저 DRAFT 상태로 생성한다.
+          startSale: false,
         };
 
-        await createProduct(request);
+        const createdProduct = await createProduct(request);
+        productId = createdProduct.id;
       } else {
         if (!initialProduct) {
           throw new Error("수정할 상품 정보를 확인할 수 없습니다.");
@@ -600,10 +828,23 @@ export default function ProductForm({
         };
 
         await updateProduct(initialProduct.id, request);
-        await updateProductStatus(initialProduct.id, {
-          status: startSale ? "ON_SALE" : "DRAFT",
-        });
+        productId = initialProduct.id;
       }
+
+      if (optionEditorState.enabled) {
+        if (!optionConfiguration.optionRequest) {
+          throw new Error("상품 옵션 저장 정보를 확인할 수 없습니다.");
+        }
+
+        await saveProductOptionsAndVariants(
+          productId,
+          optionConfiguration.optionRequest,
+        );
+      }
+
+      await updateProductStatus(productId, {
+        status: startSale ? "ON_SALE" : "DRAFT",
+      });
 
       router.replace("/seller/products");
       router.refresh();
@@ -952,6 +1193,22 @@ export default function ProductForm({
               <header className="seller-product-form-section-header">
                 <div>
                   <span className="seller-product-form-section-number">04</span>
+                  <h2>상품 옵션</h2>
+                </div>
+                <p>색상, 사이즈 등 옵션과 SKU별 재고를 설정합니다.</p>
+              </header>
+
+              <ProductOptionManager
+                productId={initialProduct?.id}
+                disabled={isSubmitting}
+                onChange={setOptionEditorState}
+              />
+            </section>
+
+            <section className="seller-product-form-section">
+              <header className="seller-product-form-section-header">
+                <div>
+                  <span className="seller-product-form-section-number">05</span>
                   <h2>판매 및 배송</h2>
                 </div>
                 <p>가격, 재고 및 배송 정책을 설정합니다.</p>
@@ -974,18 +1231,43 @@ export default function ProductForm({
                   </div>
                 </div>
 
-                <div className="seller-product-form-field">
-                  <label htmlFor="stockQuantity">재고 수량 *</label>
-                  <input
-                    id="stockQuantity"
-                    name="stockQuantity"
-                    type="number"
-                    min="0"
-                    value={form.stockQuantity}
-                    onChange={handleTextChange}
-                    disabled={isSubmitting}
-                  />
-                </div>
+                {!optionEditorState.enabled && (
+                  <div className="seller-product-form-field">
+                    <label htmlFor="stockQuantity">재고 수량 *</label>
+                    <input
+                      id="stockQuantity"
+                      name="stockQuantity"
+                      type="number"
+                      min="0"
+                      value={form.stockQuantity}
+                      onChange={handleTextChange}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                )}
+
+                {optionEditorState.enabled && (
+                  <div className="seller-product-form-field">
+                    <label>총 재고</label>
+                    <div className="seller-product-form-readonly-value">
+                      {optionEditorState.variants
+                        .filter((variant) => variant.active)
+                        .reduce((total, variant) => {
+                          const stockQuantity = Number(variant.stockQuantity);
+
+                          return Number.isSafeInteger(stockQuantity) &&
+                            stockQuantity >= 0
+                            ? total + stockQuantity
+                            : total;
+                        }, 0)
+                        .toLocaleString("ko-KR")}
+                      개
+                    </div>
+                    <span className="seller-product-form-help">
+                      옵션 상품의 재고는 SKU별 재고 합계로 자동 관리됩니다.
+                    </span>
+                  </div>
+                )}
 
                 <div className="seller-product-form-field seller-product-form-field-full">
                   <label>배송 방식 *</label>
@@ -1125,7 +1407,7 @@ export default function ProductForm({
                   type="button"
                   className="seller-product-form-draft-button"
                   onClick={() => void handleSave(false)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !optionEditorState.initialized}
                 >
                   {isSubmitting ? "저장 중..." : "임시 저장"}
                 </button>
@@ -1145,7 +1427,7 @@ export default function ProductForm({
                   type="button"
                   className="seller-product-form-submit-button"
                   onClick={() => void handleSave(true)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !optionEditorState.initialized}
                 >
                   {isSubmitting ? "저장 중..." : "판매 시작"}
                 </button>

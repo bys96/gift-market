@@ -100,6 +100,10 @@ public class ProductVariantService {
 
             deactivateAllVariants(productId);
 
+            productVariantRepository.flush();
+
+            product.changeStockQuantity(0);
+
             return createResponse(product);
         }
 
@@ -226,6 +230,11 @@ public class ProductVariantService {
         }
 
         productVariantRepository.flush();
+
+        synchronizeProductStock(
+                product,
+                productId
+        );
 
         return createResponse(product);
     }
@@ -666,5 +675,25 @@ public class ProductVariantService {
                                 "상품을 찾을 수 없습니다."
                         )
                 );
+    }
+
+    private void synchronizeProductStock(
+            Product product,
+            Long productId
+    ) {
+        int totalStockQuantity =
+                productVariantRepository
+                        .findAllByProductIdAndActiveTrueOrderByIdAsc(
+                                productId
+                        )
+                        .stream()
+                        .mapToInt(
+                                ProductVariant::getStockQuantity
+                        )
+                        .sum();
+
+        product.changeStockQuantity(
+                totalStockQuantity
+        );
     }
 }

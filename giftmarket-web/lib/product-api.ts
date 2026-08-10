@@ -4,11 +4,15 @@ import type {
   Category,
   ProductCreateRequest,
   ProductDetail,
+  ProductOptionResponse,
+  ProductOptionUpdateRequest,
   ProductPage,
   ProductStatus,
   ProductStatusUpdateRequest,
   ProductStockUpdateRequest,
   ProductUpdateRequest,
+  ProductVariantListResponse,
+  ProductVariantUpdateRequest,
   SellerProduct,
   SellerProductPage,
 } from "@/types/product";
@@ -205,6 +209,74 @@ export async function updateProductStock(
 
   if (!response.data) {
     throw new Error("재고 변경 결과를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function getProductOptions(
+  productId: number,
+): Promise<ProductOptionResponse> {
+  const response = await apiFetch<ApiResponse<ProductOptionResponse>>(
+    `/api/seller/products/${productId}/options`,
+  );
+
+  if (!response.data) {
+    throw new Error("상품 옵션 정보를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function updateProductOptions(
+  productId: number,
+  request: ProductOptionUpdateRequest,
+): Promise<ProductOptionResponse> {
+  const response = await apiFetch<ApiResponse<ProductOptionResponse>>(
+    `/api/seller/products/${productId}/options`,
+    {
+      method: "PUT",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error("상품 옵션 저장 결과를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function getProductVariants(
+  productId: number,
+): Promise<ProductVariantListResponse> {
+  const response = await apiFetch<ApiResponse<ProductVariantListResponse>>(
+    `/api/seller/products/${productId}/variants`,
+  );
+
+  if (!response.data) {
+    throw new Error("상품 Variant 정보를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function updateProductVariants(
+  productId: number,
+  request: ProductVariantUpdateRequest,
+): Promise<ProductVariantListResponse> {
+  const response = await apiFetch<ApiResponse<ProductVariantListResponse>>(
+    `/api/seller/products/${productId}/variants`,
+    {
+      method: "PUT",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error("상품 Variant 저장 결과를 확인할 수 없습니다.");
   }
 
   return response.data;

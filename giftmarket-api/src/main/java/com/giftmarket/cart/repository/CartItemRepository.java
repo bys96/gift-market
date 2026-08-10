@@ -7,20 +7,37 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface CartItemRepository extends JpaRepository<CartItem, Long> {
+public interface CartItemRepository
+        extends JpaRepository<CartItem, Long> {
 
     @EntityGraph(attributePaths = {
             "product",
             "product.seller",
-            "product.category"
+            "product.category",
+            "variant"
     })
-    List<CartItem> findAllByUserIdOrderByCreatedAtDesc(Long userId);
+    List<CartItem> findAllByUserIdOrderByCreatedAtDesc(
+            Long userId
+    );
 
-    Optional<CartItem> findByUserIdAndProductId(
+    Optional<CartItem>
+    findByUserIdAndProductIdAndVariantIsNull(
             Long userId,
             Long productId
     );
 
+    Optional<CartItem>
+    findByUserIdAndProductIdAndVariantId(
+            Long userId,
+            Long productId,
+            Long variantId
+    );
+
+    @EntityGraph(attributePaths = {
+            "product",
+            "product.seller",
+            "variant"
+    })
     Optional<CartItem> findByIdAndUserId(
             Long cartItemId,
             Long userId

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
@@ -16,9 +16,6 @@ export default function CartPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const items = useCartStore((state) => state.items);
-  const totalProductPrice = useCartStore((state) => state.totalProductPrice);
-  const totalShippingFee = useCartStore((state) => state.totalShippingFee);
-  const totalPrice = useCartStore((state) => state.totalPrice);
   const initialized = useCartStore((state) => state.initialized);
   const isLoading = useCartStore((state) => state.isLoading);
   const errorMessage = useCartStore((state) => state.errorMessage);
@@ -28,6 +25,9 @@ export default function CartPage() {
   const increaseQuantity = useCartStore((state) => state.increaseQuantity);
   const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
   const clearCart = useCartStore((state) => state.clearCart);
+
+  const [selectedCartItemIds, setSelectedCartItemIds] = useState<number[]>([]);
+  const selectionInitializedRef = useRef(false);
 
   useEffect(() => {
     if (!authInitialized) {
@@ -43,6 +43,117 @@ export default function CartPage() {
       void loadCart();
     }
   }, [authInitialized, isAuthenticated, initialized, loadCart, router]);
+
+  useEffect(() => {
+    if (!initialized) {
+      return;
+    }
+
+    const currentCartItemIds = items.map((item) => item.cartItemId);
+
+    if (!selectionInitializedRef.current) {
+      selectionInitializedRef.current = true;
+      setSelectedCartItemIds(currentCartItemIds);
+      return;
+    }
+
+    setSelectedCartItemIds((current) =>
+      current.filter((cartItemId) => currentCartItemIds.includes(cartItemId)),
+    );
+  }, [initialized, items]);
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedCartItemIds.includes(item.cartItemId)),
+    [items, selectedCartItemIds],
+  );
+
+  const selectedProductPrice = useMemo(
+    () =>
+      selectedItems.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0,
+      ),
+    [selectedItems],
+  );
+
+  const selectedShippingFee = useMemo(
+    () =>
+      selectedItems.reduce(
+        (total, item) => total + (item.freeShipping ? 0 : item.shippingFee),
+        0,
+      ),
+    [selectedItems],
+  );
+
+  const selectedTotalPrice = selectedProductPrice + selectedShippingFee;
+
+  const isAllSelected =
+    items.length > 0 && selectedCartItemIds.length === items.length;
+
+  const handleToggleAll = () => {
+    if (isAllSelected) {
+      setSelectedCartItemIds([]);
+      return;
+    }
+
+    setSelectedCartItemIds(items.map((item) => item.cartItemId));
+  };
+
+  const handleToggleItem = (cartItemId: number) => {
+    setSelectedCartItemIds((current) => {
+      if (current.includes(cartItemId)) {
+        return current.filter((selectedId) => selectedId !== cartItemId);
+      }
+
+      return [...current, cartItemId];
+    });
+  };
+
+  const handleClearCart = async () => {
+    try {
+      await clearCart();
+      setSelectedCartItemIds([]);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleRemoveItem = async (cartItemId: number) => {
+    try {
+      await removeItem(cartItemId);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleIncreaseQuantity = async (cartItemId: number) => {
+    try {
+      await increaseQuantity(cartItemId);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDecreaseQuantity = async (cartItemId: number) => {
+    try {
+      await decreaseQuantity(cartItemId);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleOrder = () => {
+    if (selectedCartItemIds.length === 0) {
+      alert("주문할 상품을 선택해주세요.");
+      return;
+    }
+
+    const params = new URLSearchParams();
+
+    params.set("cartItemIds", selectedCartItemIds.join(","));
+
+    router.push(`/order?${params.toString()}`);
+  };
 
   if (!authInitialized || (isAuthenticated && !initialized)) {
     return (
@@ -96,38 +207,6 @@ export default function CartPage() {
     );
   }
 
-  const handleClearCart = async () => {
-    try {
-      await clearCart();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleRemoveItem = async (productId: number) => {
-    try {
-      await removeItem(productId);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleIncreaseQuantity = async (productId: number) => {
-    try {
-      await increaseQuantity(productId);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleDecreaseQuantity = async (productId: number) => {
-    try {
-      await decreaseQuantity(productId);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   return (
     <section className="cart-page">
       <div className="cart-header">
@@ -145,13 +224,47 @@ export default function CartPage() {
 
       {errorMessage && <p className="cart-error-message">{errorMessage}</p>}
 
+      <div className="cart-selection-bar">
+        <label className="cart-checkbox-label">
+          <input
+            type="checkbox"
+            className="cart-checkbox"
+            checked={isAllSelected}
+            onChange={handleToggleAll}
+            disabled={isLoading}
+          />
+
+          <span>
+            전체 선택 ({selectedCartItemIds.length}/{items.length})
+          </span>
+        </label>
+      </div>
+
       <div className="cart-layout">
         <div className="cart-item-list">
           {items.map((item) => {
             const imageUrl = resolveImageUrl(item.representativeImageKey);
 
+            const isSelected = selectedCartItemIds.includes(item.cartItemId);
+
             return (
-              <article key={item.cartItemId} className="cart-item">
+              <article
+                key={item.cartItemId}
+                className={["cart-item", isSelected ? "cart-item-selected" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <div className="cart-item-checkbox-area">
+                  <input
+                    type="checkbox"
+                    className="cart-checkbox"
+                    aria-label={`${item.productName} 선택`}
+                    checked={isSelected}
+                    disabled={isLoading}
+                    onChange={() => handleToggleItem(item.cartItemId)}
+                  />
+                </div>
+
                 <Link
                   href={`/products/${item.productId}`}
                   className="cart-item-image-wrapper"
@@ -179,6 +292,17 @@ export default function CartPage() {
                     </p>
 
                     <h2 className="cart-item-name">{item.productName}</h2>
+
+                    {item.options.length > 0 && (
+                      <p className="cart-item-options">
+                        {item.options
+                          .map(
+                            (option) =>
+                              `${option.optionGroupName}: ${option.optionValue}`,
+                          )
+                          .join(" / ")}
+                      </p>
+                    )}
                   </Link>
 
                   <strong className="cart-item-price">
@@ -197,7 +321,7 @@ export default function CartPage() {
                         type="button"
                         className="cart-item-quantity-button"
                         onClick={() =>
-                          void handleDecreaseQuantity(item.productId)
+                          void handleDecreaseQuantity(item.cartItemId)
                         }
                         disabled={isLoading}
                         aria-label="수량 감소"
@@ -213,7 +337,7 @@ export default function CartPage() {
                         type="button"
                         className="cart-item-quantity-button"
                         onClick={() =>
-                          void handleIncreaseQuantity(item.productId)
+                          void handleIncreaseQuantity(item.cartItemId)
                         }
                         disabled={
                           isLoading || item.quantity >= item.stockQuantity
@@ -227,7 +351,7 @@ export default function CartPage() {
                     <button
                       type="button"
                       className="cart-item-remove-button"
-                      onClick={() => void handleRemoveItem(item.productId)}
+                      onClick={() => void handleRemoveItem(item.cartItemId)}
                       disabled={isLoading}
                     >
                       삭제
@@ -240,37 +364,43 @@ export default function CartPage() {
         </div>
 
         <aside className="cart-summary">
-          <h2 className="cart-summary-title">결제 금액</h2>
+          <h2 className="cart-summary-title">주문 금액</h2>
+
+          <div className="cart-summary-selected">
+            선택 상품 {selectedItems.length}개
+          </div>
 
           <div className="cart-summary-row">
             <span>총 상품 금액</span>
 
-            <strong>{totalProductPrice.toLocaleString("ko-KR")}원</strong>
+            <strong>{selectedProductPrice.toLocaleString("ko-KR")}원</strong>
           </div>
 
           <div className="cart-summary-row">
             <span>배송비</span>
 
             <strong>
-              {totalShippingFee === 0
+              {selectedShippingFee === 0
                 ? "무료"
-                : `${totalShippingFee.toLocaleString("ko-KR")}원`}
+                : `${selectedShippingFee.toLocaleString("ko-KR")}원`}
             </strong>
           </div>
 
           <div className="cart-summary-total">
-            <span>최종 결제 금액</span>
+            <span>총 주문 금액</span>
 
-            <strong>{totalPrice.toLocaleString("ko-KR")}원</strong>
+            <strong>{selectedTotalPrice.toLocaleString("ko-KR")}원</strong>
           </div>
 
           <button
             type="button"
             className="cart-order-button"
-            onClick={() => router.push("/order")}
-            disabled={isLoading}
+            disabled={isLoading || selectedCartItemIds.length === 0}
+            onClick={handleOrder}
           >
-            주문하기
+            {selectedCartItemIds.length > 0
+              ? `${selectedCartItemIds.length}개 상품 주문하기`
+              : "상품을 선택해주세요"}
           </button>
         </aside>
       </div>

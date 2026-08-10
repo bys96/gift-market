@@ -16,10 +16,18 @@ import com.giftmarket.product.entity.Category;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductImage;
 import com.giftmarket.product.entity.ProductStatus;
+import com.giftmarket.product.entity.ProductOptionGroup;
+import com.giftmarket.product.entity.ProductOptionValue;
+import com.giftmarket.product.entity.ProductVariant;
+import com.giftmarket.product.entity.ProductVariantOptionValue;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.product.repository.CategoryRepository;
 import com.giftmarket.product.repository.ProductImageRepository;
 import com.giftmarket.product.repository.ProductRepository;
+import com.giftmarket.product.repository.ProductOptionGroupRepository;
+import com.giftmarket.product.repository.ProductOptionValueRepository;
+import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
+import com.giftmarket.product.repository.ProductVariantRepository;
 import com.giftmarket.product.repository.ProductSpecifications;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -46,9 +54,24 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
+
+    private final ProductOptionGroupRepository
+            productOptionGroupRepository;
+
+    private final ProductOptionValueRepository
+            productOptionValueRepository;
+
+    private final ProductVariantRepository
+            productVariantRepository;
+
+    private final ProductVariantOptionValueRepository
+            productVariantOptionValueRepository;
+
     private final CategoryRepository categoryRepository;
     private final SellerRepository sellerRepository;
-    private final ProductDescriptionSanitizer productDescriptionSanitizer;
+
+    private final ProductDescriptionSanitizer
+            productDescriptionSanitizer;
 
     @Transactional
     public ProductResponse createProduct(
@@ -203,14 +226,66 @@ public class ProductService {
                         "상품을 찾을 수 없습니다."
                 ));
 
-        List<ProductImage> productImages = productImageRepository
-                .findAllByProductIdOrderBySortOrderAsc(
-                        product.getId()
-                );
+        List<ProductImage> productImages =
+                productImageRepository
+                        .findAllByProductIdOrderBySortOrderAsc(
+                                product.getId()
+                        );
+
+        List<ProductOptionGroup> optionGroups =
+                productOptionGroupRepository
+                        .findAllByProductIdOrderBySortOrderAsc(
+                                product.getId()
+                        );
+
+        List<ProductOptionValue> optionValues;
+
+        if (optionGroups.isEmpty()) {
+            optionValues = List.of();
+        } else {
+            List<Long> optionGroupIds =
+                    optionGroups.stream()
+                            .map(ProductOptionGroup::getId)
+                            .toList();
+
+            optionValues =
+                    productOptionValueRepository
+                            .findAllByOptionGroupIdInOrderByOptionGroupIdAscSortOrderAsc(
+                                    optionGroupIds
+                            );
+        }
+
+        List<ProductVariant> variants =
+                productVariantRepository
+                        .findAllByProductIdAndActiveTrueOrderByIdAsc(
+                                product.getId()
+                        );
+
+        List<ProductVariantOptionValue>
+                variantOptionValues;
+
+        if (variants.isEmpty()) {
+            variantOptionValues = List.of();
+        } else {
+            List<Long> variantIds =
+                    variants.stream()
+                            .map(ProductVariant::getId)
+                            .toList();
+
+            variantOptionValues =
+                    productVariantOptionValueRepository
+                            .findAllByVariantIdIn(
+                                    variantIds
+                            );
+        }
 
         return ProductDetailResponse.from(
                 product,
-                productImages
+                productImages,
+                optionGroups,
+                optionValues,
+                variants,
+                variantOptionValues
         );
     }
 

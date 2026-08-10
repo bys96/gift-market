@@ -1,16 +1,33 @@
+export interface CartItemOption {
+  optionGroupId: number;
+  optionGroupName: string;
+  optionValueId: number;
+  optionValue: string;
+}
+
 export interface CartItem {
   cartItemId: number;
   productId: number;
+  variantId: number | null;
+
   sellerId: number;
   storeName: string;
+
   productName: string;
   brandName: string | null;
+
   price: number;
+  additionalPrice: number;
+
   stockQuantity: number;
   quantity: number;
+
   freeShipping: boolean;
   shippingFee: number;
+
   representativeImageKey: string | null;
+
+  options: CartItemOption[];
 }
 
 export interface Cart {
@@ -23,6 +40,7 @@ export interface Cart {
 
 export interface CartItemCreateRequest {
   productId: number;
+  variantId: number | null;
   quantity: number;
 }
 

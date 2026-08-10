@@ -123,6 +123,10 @@ export default function ProductDetailPage() {
     imageUrl: selectedImageUrl ?? "",
     stockQuantity: product.stockQuantity,
     isFreeShipping: product.freeShipping,
+
+    hasOptions: product.hasOptions ?? false,
+    optionGroups: product.optionGroups ?? [],
+    variants: product.variants ?? [],
   };
 
   return (

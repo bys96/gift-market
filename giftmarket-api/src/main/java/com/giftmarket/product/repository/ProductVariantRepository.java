@@ -21,6 +21,11 @@ public interface ProductVariantRepository
             String skuCode
     );
 
+    Optional<ProductVariant> findByIdAndProductId(
+            Long variantId,
+            Long productId
+    );
+
     Optional<ProductVariant> findByProductIdAndSkuCode(
             Long productId,
             String skuCode
