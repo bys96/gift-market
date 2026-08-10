@@ -7,20 +7,7 @@ import {
   getCart,
   updateCartItemQuantity,
 } from "@/lib/cart-api";
-import type { Cart, CartItem } from "@/types/cart";
-
-interface AddCartItem {
-  productId: number;
-  quantity?: number;
-
-  // 기존 ProductDetailActions 호출부 호환용
-  name?: string;
-  brandName?: string;
-  price?: number;
-  imageUrl?: string;
-  stockQuantity?: number;
-  isFreeShipping?: boolean;
-}
+import type { Cart, CartItem, CartItemCreateRequest } from "@/types/cart";
 
 interface CartState {
   items: CartItem[];
@@ -35,11 +22,17 @@ interface CartState {
   errorMessage: string;
 
   loadCart: () => Promise<void>;
-  addItem: (item: AddCartItem) => Promise<void>;
-  removeItem: (productId: number) => Promise<void>;
-  increaseQuantity: (productId: number) => Promise<void>;
-  decreaseQuantity: (productId: number) => Promise<void>;
+
+  addItem: (item: CartItemCreateRequest) => Promise<void>;
+
+  removeItem: (cartItemId: number) => Promise<void>;
+
+  increaseQuantity: (cartItemId: number) => Promise<void>;
+
+  decreaseQuantity: (cartItemId: number) => Promise<void>;
+
   clearCart: () => Promise<void>;
+
   resetCart: () => void;
 }
 
@@ -108,10 +101,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         errorMessage: "",
       });
 
-      const cart = await addCartItem({
-        productId: item.productId,
-        quantity: item.quantity ?? 1,
-      });
+      const cart = await addCartItem(item);
 
       set({
         ...createCartState(cart),
@@ -135,8 +125,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
-  removeItem: async (productId) => {
-    const cartItem = get().items.find((item) => item.productId === productId);
+  removeItem: async (cartItemId) => {
+    const cartItem = get().items.find((item) => item.cartItemId === cartItemId);
 
     if (!cartItem) {
       return;
@@ -148,7 +138,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         errorMessage: "",
       });
 
-      const cart = await deleteCartItem(cartItem.cartItemId);
+      const cart = await deleteCartItem(cartItemId);
 
       set({
         ...createCartState(cart),
@@ -171,8 +161,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
-  increaseQuantity: async (productId) => {
-    const cartItem = get().items.find((item) => item.productId === productId);
+  increaseQuantity: async (cartItemId) => {
+    const cartItem = get().items.find((item) => item.cartItemId === cartItemId);
 
     if (!cartItem) {
       return;
@@ -188,7 +178,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         errorMessage: "",
       });
 
-      const cart = await updateCartItemQuantity(cartItem.cartItemId, {
+      const cart = await updateCartItemQuantity(cartItemId, {
         quantity: cartItem.quantity + 1,
       });
 
@@ -213,8 +203,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
-  decreaseQuantity: async (productId) => {
-    const cartItem = get().items.find((item) => item.productId === productId);
+  decreaseQuantity: async (cartItemId) => {
+    const cartItem = get().items.find((item) => item.cartItemId === cartItemId);
 
     if (!cartItem) {
       return;
@@ -227,7 +217,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       });
 
       if (cartItem.quantity <= 1) {
-        const cart = await deleteCartItem(cartItem.cartItemId);
+        const cart = await deleteCartItem(cartItemId);
 
         set({
           ...createCartState(cart),
@@ -236,7 +226,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         return;
       }
 
-      const cart = await updateCartItemQuantity(cartItem.cartItemId, {
+      const cart = await updateCartItemQuantity(cartItemId, {
         quantity: cartItem.quantity - 1,
       });
 

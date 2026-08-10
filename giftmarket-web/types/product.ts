@@ -128,6 +128,10 @@ export interface Category {
   children: Category[];
 }
 
+/* ========================================
+   Buyer Product Detail
+======================================== */
+
 export interface ProductDetailOptionValue {
   id: number;
   value: string;
@@ -155,17 +159,22 @@ export interface ProductDetail {
   sellerId: number;
   storeName: string;
   sellerIntroduction: string | null;
+
   categoryId: number;
   categoryName: string;
+
   name: string;
   brandName: string | null;
   summary: string | null;
   description: string | null;
+
   price: number;
   stockQuantity: number;
   status: ProductStatus;
+
   representativeImageKey: string | null;
   galleryImageKeys: string[];
+
   freeShipping: boolean;
   shippingFee: number;
   shippingPreparationDays: number;
@@ -176,6 +185,10 @@ export interface ProductDetail {
   optionGroups: ProductDetailOptionGroup[];
   variants: ProductDetailVariant[];
 }
+
+/* ========================================
+   Seller Product Options
+======================================== */
 
 export interface ProductOptionValue {
   id: number;
@@ -212,14 +225,30 @@ export interface ProductOptionUpdateRequest {
   optionGroups: ProductOptionGroupUpdateRequest[];
 }
 
+/* ========================================
+   Seller Product Variants
+======================================== */
+
+export interface ProductVariantOptionValue {
+  optionGroupId: number;
+  optionGroupName: string;
+  optionGroupSortOrder: number;
+
+  optionValueId: number;
+  optionValue: string;
+  optionValueSortOrder: number;
+}
+
 export interface ProductVariant {
   id: number;
   skuCode: string;
   combinationKey: string;
-  optionValueIds: number[];
+
   additionalPrice: number;
   stockQuantity: number;
   active: boolean;
+
+  optionValues: ProductVariantOptionValue[];
 }
 
 export interface ProductVariantListResponse {
