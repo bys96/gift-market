@@ -13,6 +13,14 @@ public interface ProductVariantRepository
             Long productId
     );
 
+    List<ProductVariant> findAllByProductIdAndActiveTrueOrderByIdAsc(
+            Long productId
+    );
+
+    Optional<ProductVariant> findBySkuCode(
+            String skuCode
+    );
+
     Optional<ProductVariant> findByProductIdAndSkuCode(
             Long productId,
             String skuCode

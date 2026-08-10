@@ -3,6 +3,7 @@ package com.giftmarket.product.repository;
 import com.giftmarket.product.entity.ProductVariantOptionValue;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface ProductVariantOptionValueRepository
@@ -10,6 +11,14 @@ public interface ProductVariantOptionValueRepository
 
     List<ProductVariantOptionValue> findAllByVariantId(
             Long variantId
+    );
+
+    List<ProductVariantOptionValue> findAllByVariantIdIn(
+            Collection<Long> variantIds
+    );
+
+    boolean existsByOptionValueId(
+            Long optionValueId
     );
 
     void deleteAllByVariantId(Long variantId);

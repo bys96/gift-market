@@ -2,13 +2,19 @@ package com.giftmarket.product.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.product.dto.request.ProductCreateRequest;
+import com.giftmarket.product.dto.request.ProductOptionUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
+import com.giftmarket.product.dto.request.ProductVariantUpdateRequest;
+import com.giftmarket.product.dto.response.ProductOptionResponse;
 import com.giftmarket.product.dto.response.ProductResponse;
+import com.giftmarket.product.dto.response.ProductVariantListResponse;
 import com.giftmarket.product.dto.response.SellerProductPageResponse;
 import com.giftmarket.product.entity.ProductStatus;
+import com.giftmarket.product.service.ProductOptionService;
 import com.giftmarket.product.service.ProductService;
+import com.giftmarket.product.service.ProductVariantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class SellerProductController {
 
     private final ProductService productService;
+    private final ProductOptionService productOptionService;
+    private final ProductVariantService productVariantService;
 
     @PostMapping
     public ApiResponse<ProductResponse> createProduct(
@@ -80,6 +88,62 @@ public class SellerProductController {
     ) {
         return ApiResponse.success(
                 productService.updateProduct(
+                        userId,
+                        productId,
+                        request
+                )
+        );
+    }
+
+    @GetMapping("/{productId}/options")
+    public ApiResponse<ProductOptionResponse> getProductOptions(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long productId
+    ) {
+        return ApiResponse.success(
+                productOptionService.getProductOptions(
+                        userId,
+                        productId
+                )
+        );
+    }
+
+    @PutMapping("/{productId}/options")
+    public ApiResponse<ProductOptionResponse> updateProductOptions(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductOptionUpdateRequest request
+    ) {
+        return ApiResponse.success(
+                productOptionService.updateProductOptions(
+                        userId,
+                        productId,
+                        request
+                )
+        );
+    }
+
+    @GetMapping("/{productId}/variants")
+    public ApiResponse<ProductVariantListResponse> getProductVariants(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long productId
+    ) {
+        return ApiResponse.success(
+                productVariantService.getProductVariants(
+                        userId,
+                        productId
+                )
+        );
+    }
+
+    @PutMapping("/{productId}/variants")
+    public ApiResponse<ProductVariantListResponse> updateProductVariants(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductVariantUpdateRequest request
+    ) {
+        return ApiResponse.success(
+                productVariantService.updateProductVariants(
                         userId,
                         productId,
                         request

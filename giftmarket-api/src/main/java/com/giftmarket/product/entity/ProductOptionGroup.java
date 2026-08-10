@@ -11,7 +11,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,20 +20,14 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "product_option_groups",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_product_option_groups_product_id_name",
-                        columnNames = {"product_id", "name"}
-                ),
-                @UniqueConstraint(
-                        name = "uk_product_option_groups_product_id_sort_order",
-                        columnNames = {"product_id", "sort_order"}
-                )
-        },
         indexes = {
                 @Index(
                         name = "idx_product_option_groups_product_id",
                         columnList = "product_id"
+                ),
+                @Index(
+                        name = "idx_product_option_groups_product_id_sort_order",
+                        columnList = "product_id, sort_order"
                 )
         }
 )
