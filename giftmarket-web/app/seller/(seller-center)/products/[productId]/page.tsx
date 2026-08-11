@@ -8,6 +8,7 @@ import {
   getProductOptions,
   getProductVariants,
   getSellerProduct,
+  updateProductStatus,
 } from "@/lib/product-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type {
@@ -55,6 +56,8 @@ export default function SellerProductDetailPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusErrorMessage, setStatusErrorMessage] = useState("");
 
   const productId = Number(params.productId);
 
@@ -132,6 +135,54 @@ export default function SellerProductDetailPage() {
       cancelled = true;
     };
   }, [initialized, isAuthenticated, user, productId]);
+
+  const handleToggleSaleStatus = async () => {
+    if (!product || isUpdatingStatus) {
+      return;
+    }
+
+    const isHidden = product.status === "HIDDEN";
+
+    if (
+      product.status !== "ON_SALE" &&
+      product.status !== "SOLD_OUT" &&
+      product.status !== "HIDDEN"
+    ) {
+      setStatusErrorMessage(
+        "현재 상품 상태에서는 판매 상태를 변경할 수 없습니다.",
+      );
+      return;
+    }
+
+    if (!isHidden) {
+      const confirmed = window.confirm(
+        "상품 판매를 중단하시겠습니까?\n\n판매중단 후에는 구매자 상품 목록과 상품 상세에서 판매되지 않습니다.",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    try {
+      setIsUpdatingStatus(true);
+      setStatusErrorMessage("");
+
+      const updatedProduct = await updateProductStatus(product.id, {
+        status: isHidden ? "ON_SALE" : "HIDDEN",
+      });
+
+      setProduct(updatedProduct);
+    } catch (error) {
+      setStatusErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "상품 판매 상태를 변경하지 못했습니다.",
+      );
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const representativeImageUrl = useMemo(
     () => resolveImageUrl(product?.representativeImageKey),
@@ -553,11 +604,18 @@ export default function SellerProductDetailPage() {
               Actions
           ======================================== */}
 
+          {statusErrorMessage && (
+            <div className="seller-product-detail-status-error" role="alert">
+              {statusErrorMessage}
+            </div>
+          )}
+
           <div className="seller-product-detail-actions">
             <button
               type="button"
               className="seller-product-detail-list-button"
               onClick={() => router.push("/seller/products")}
+              disabled={isUpdatingStatus}
             >
               목록
             </button>
@@ -566,9 +624,30 @@ export default function SellerProductDetailPage() {
               type="button"
               className="seller-product-detail-edit-button"
               onClick={() => router.push(`/seller/products/${product.id}/edit`)}
+              disabled={isUpdatingStatus}
             >
               수정
             </button>
+
+            {product.status !== "DRAFT" && (
+              <button
+                type="button"
+                className={[
+                  "seller-product-detail-status-button",
+                  product.status === "HIDDEN"
+                    ? "seller-product-detail-status-button-start"
+                    : "seller-product-detail-status-button-stop",
+                ].join(" ")}
+                onClick={() => void handleToggleSaleStatus()}
+                disabled={isUpdatingStatus}
+              >
+                {isUpdatingStatus
+                  ? "처리 중..."
+                  : product.status === "HIDDEN"
+                    ? "판매시작"
+                    : "판매중단"}
+              </button>
+            )}
           </div>
         </div>
       </div>

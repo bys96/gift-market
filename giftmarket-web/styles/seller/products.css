@@ -2598,7 +2598,8 @@
 }
 
 .seller-product-detail-list-button,
-.seller-product-detail-edit-button {
+.seller-product-detail-edit-button,
+.seller-product-detail-status-button {
   min-width: 104px;
   min-height: 44px;
   padding: 0 18px;
@@ -2606,6 +2607,18 @@
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.seller-product-detail-list-button:disabled,
+.seller-product-detail-edit-button:disabled,
+.seller-product-detail-status-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .seller-product-detail-list-button {
@@ -2620,13 +2633,45 @@
   color: #ffffff;
 }
 
+.seller-product-detail-status-button-start {
+  border: 1px solid #2f8f57;
+  background: #ffffff;
+  color: #26784a;
+}
+
+.seller-product-detail-status-button-stop {
+  border: 1px solid #e2a23a;
+  background: #fffaf1;
+  color: #a86b08;
+}
+
+.seller-product-detail-status-error {
+  margin-top: 20px;
+  padding: 13px 16px;
+  border: 1px solid #f2c8c8;
+  border-radius: 10px;
+  background: #fff6f6;
+  color: #b33a3a;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .seller-product-detail-list-button:hover {
+  .seller-product-detail-list-button:not(:disabled):hover {
     background: #f7f7f7;
   }
 
-  .seller-product-detail-edit-button:hover {
+  .seller-product-detail-edit-button:not(:disabled):hover {
     opacity: 0.9;
+  }
+
+  .seller-product-detail-status-button-start:not(:disabled):hover {
+    background: #f1faf5;
+  }
+
+  .seller-product-detail-status-button-stop:not(:disabled):hover {
+    background: #fff5e4;
   }
 }
 
@@ -2751,11 +2796,12 @@
 
   .seller-product-detail-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .seller-product-detail-list-button,
-  .seller-product-detail-edit-button {
+  .seller-product-detail-edit-button,
+  .seller-product-detail-status-button {
     width: 100%;
   }
 }
