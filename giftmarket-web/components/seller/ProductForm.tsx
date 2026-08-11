@@ -18,6 +18,7 @@ import ProductOptionManager, {
 import {
   createProduct,
   getCategories,
+  modifyProduct,
   registerProduct,
   updateProduct,
   updateProductOptions,
@@ -34,6 +35,8 @@ import { uploadImage } from "@/lib/storage-api";
 import type {
   Category,
   ProductCreateRequest,
+  ProductModificationRequest,
+  ProductModificationVariantRequest,
   ProductOptionUpdateRequest,
   ProductRegistrationRequest,
   ProductRegistrationVariantRequest,
@@ -808,6 +811,59 @@ export default function ProductForm({
       });
     };
 
+  const createModificationVariants =
+    (): ProductModificationVariantRequest[] => {
+      if (!optionEditorState.enabled) {
+        return [];
+      }
+
+      const optionPositionByClientId = new Map<
+        string,
+        {
+          optionGroupSortOrder: number;
+          optionValueSortOrder: number;
+        }
+      >();
+
+      optionEditorState.optionGroups.forEach((group, groupIndex) => {
+        group.values.forEach((value, valueIndex) => {
+          optionPositionByClientId.set(value.clientId, {
+            optionGroupSortOrder: groupIndex,
+            optionValueSortOrder: valueIndex,
+          });
+        });
+      });
+
+      return optionEditorState.variants.map((variant) => {
+        const skuCode = variant.skuCode.trim();
+
+        const options = variant.optionValueClientIds.map((clientId) => {
+          const optionPosition = optionPositionByClientId.get(clientId);
+
+          if (!optionPosition) {
+            throw new Error(`${skuCode} SKU의 옵션 정보를 확인할 수 없습니다.`);
+          }
+
+          return optionPosition;
+        });
+
+        return {
+          id: variant.id,
+          skuCode,
+          options,
+          additionalPrice: parseRequiredNumber(
+            variant.additionalPrice,
+            `${skuCode} 추가금`,
+          ),
+          stockQuantity: parseRequiredNumber(
+            variant.stockQuantity,
+            `${skuCode} 재고`,
+          ),
+          active: variant.active,
+        };
+      });
+    };
+
   const saveProductOptionsAndVariants = async (
     productId: number,
     optionRequest: ProductOptionUpdateRequest,
@@ -1320,31 +1376,34 @@ export default function ProductForm({
         throw new Error("수정할 상품 정보를 확인할 수 없습니다.");
       }
 
-      const request: ProductUpdateRequest = {
-        ...commonRequest,
-        ...imageRequest,
+      const optionRequest: ProductOptionUpdateRequest =
+        optionEditorState.enabled
+          ? (optionConfiguration.optionRequest ?? {
+              optionGroups: [],
+            })
+          : {
+              optionGroups: [],
+            };
+
+      const modificationRequest: ProductModificationRequest = {
+        product: {
+          ...commonRequest,
+          ...imageRequest,
+        },
+
+        options: optionRequest,
+
+        variants: createModificationVariants(),
+
+        draftId,
       };
 
-      await updateProduct(initialProduct.id, request);
-      productId = initialProduct.id;
-
-      if (optionEditorState.enabled) {
-        if (!optionConfiguration.optionRequest) {
-          throw new Error("상품 옵션 저장 정보를 확인할 수 없습니다.");
-        }
-
-        await saveProductOptionsAndVariants(
-          productId,
-          optionConfiguration.optionRequest,
-        );
-      }
-
-      await updateProductStatus(productId, {
-        status: startSale ? "ON_SALE" : "DRAFT",
-      });
+      await modifyProduct(initialProduct.id, modificationRequest);
 
       router.replace("/seller/products");
       router.refresh();
+
+      return;
     } catch (error) {
       setErrorMessage(
         error instanceof Error

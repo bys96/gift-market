@@ -8,6 +8,7 @@ import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
 import com.giftmarket.product.dto.request.ProductVariantUpdateRequest;
 import com.giftmarket.product.dto.request.ProductRegistrationRequest;
+import com.giftmarket.product.dto.request.ProductModificationRequest;
 import com.giftmarket.product.dto.response.ProductOptionResponse;
 import com.giftmarket.product.dto.response.ProductResponse;
 import com.giftmarket.product.dto.response.ProductVariantListResponse;
@@ -18,6 +19,7 @@ import com.giftmarket.product.service.ProductOptionService;
 import com.giftmarket.product.service.ProductService;
 import com.giftmarket.product.service.ProductVariantService;
 import com.giftmarket.product.service.ProductRegistrationService;
+import com.giftmarket.product.service.ProductModificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,6 +42,7 @@ public class SellerProductController {
     private final ProductOptionService productOptionService;
     private final ProductVariantService productVariantService;
     private final ProductRegistrationService productRegistrationService;
+    private final ProductModificationService productModificationService;
 
     @PostMapping
     public ApiResponse<ProductResponse> createProduct(
@@ -62,6 +65,21 @@ public class SellerProductController {
         return ApiResponse.success(
                 productRegistrationService.registerProduct(
                         userId,
+                        request
+                )
+        );
+    }
+
+    @PutMapping("/{productId}/modification")
+    public ApiResponse<ProductResponse> modifyProduct(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductModificationRequest request
+    ) {
+        return ApiResponse.success(
+                productModificationService.modifyProduct(
+                        userId,
+                        productId,
                         request
                 )
         );

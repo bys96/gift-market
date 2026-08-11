@@ -293,3 +293,19 @@ export interface ProductRegistrationResponse {
   productId: number;
   product: SellerProduct;
 }
+
+export interface ProductModificationVariantRequest {
+  id: number | null;
+  skuCode: string;
+  options: ProductOptionReferenceRequest[];
+  additionalPrice: number;
+  stockQuantity: number;
+  active: boolean;
+}
+
+export interface ProductModificationRequest {
+  product: ProductUpdateRequest;
+  options: ProductOptionUpdateRequest;
+  variants: ProductModificationVariantRequest[];
+  draftId: number | null;
+}

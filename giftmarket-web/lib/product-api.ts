@@ -4,6 +4,7 @@ import type {
   Category,
   ProductCreateRequest,
   ProductDetail,
+  ProductModificationRequest,
   ProductOptionResponse,
   ProductOptionUpdateRequest,
   ProductPage,
@@ -131,6 +132,26 @@ export async function registerProduct(
 
   if (!response.data) {
     throw new Error("상품 등록 결과를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function modifyProduct(
+  productId: number,
+  request: ProductModificationRequest,
+): Promise<SellerProduct> {
+  const response = await apiFetch<ApiResponse<SellerProduct>>(
+    `/api/seller/products/${productId}/modification`,
+    {
+      method: "PUT",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error("상품 수정 결과를 확인할 수 없습니다.");
   }
 
   return response.data;
