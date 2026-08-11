@@ -1400,7 +1400,7 @@ export default function ProductForm({
 
       await modifyProduct(initialProduct.id, modificationRequest);
 
-      router.replace("/seller/products");
+      router.replace(`/seller/products/${initialProduct.id}`);
       router.refresh();
 
       return;
@@ -1434,10 +1434,17 @@ export default function ProductForm({
               <button
                 type="button"
                 className="seller-product-form-back-button"
-                onClick={() => router.push("/seller/products")}
+                onClick={() => {
+                  if (isEditMode && initialProduct) {
+                    router.push(`/seller/products/${initialProduct.id}`);
+                    return;
+                  }
+
+                  router.push("/seller/products");
+                }}
                 disabled={isSubmitting}
               >
-                ← 상품 관리
+                {isEditMode ? "← 상품 정보" : "← 상품 관리"}
               </button>
 
               <p className="seller-product-form-header-label">
@@ -2049,12 +2056,18 @@ export default function ProductForm({
                 <button
                   type="button"
                   className="seller-product-form-cancel-button"
-                  onClick={() => router.push("/seller/products")}
+                  onClick={() => {
+                    if (isEditMode && initialProduct) {
+                      router.push(`/seller/products/${initialProduct.id}`);
+                      return;
+                    }
+
+                    router.push("/seller/products");
+                  }}
                   disabled={isSubmitting || isSavingDraft}
                 >
                   취소
                 </button>
-
                 <button
                   type="button"
                   className="seller-product-form-submit-button"
@@ -2065,7 +2078,11 @@ export default function ProductForm({
                     !optionEditorState.initialized
                   }
                 >
-                  {isSubmitting ? "저장 중..." : "판매 시작"}
+                  {isSubmitting
+                    ? "저장 중..."
+                    : isEditMode
+                      ? "수정 완료"
+                      : "판매 시작"}
                 </button>
               </div>
             </div>
