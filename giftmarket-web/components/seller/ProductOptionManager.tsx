@@ -47,6 +47,10 @@ interface ProductOptionManagerProps {
 
   disabled?: boolean;
 
+  draftState?: ProductOptionEditorState | null;
+
+  draftRevision?: number;
+
   onChange: (state: ProductOptionEditorState) => void;
 }
 
@@ -209,6 +213,8 @@ function synchronizeVariants(
 export default function ProductOptionManager({
   productId,
   disabled = false,
+  draftState = null,
+  draftRevision = 0,
   onChange,
 }: ProductOptionManagerProps) {
   const onChangeRef = useRef(onChange);
@@ -290,6 +296,34 @@ export default function ProductOptionManager({
       cancelled = true;
     };
   }, [productId]);
+
+  useEffect(() => {
+    if (!draftState || draftRevision <= 0) {
+      return;
+    }
+
+    setEnabled(draftState.enabled);
+
+    setOptionGroups(
+      draftState.optionGroups.map((group) => ({
+        ...group,
+        values: group.values.map((value) => ({
+          ...value,
+        })),
+      })),
+    );
+
+    setVariants(
+      draftState.variants.map((variant) => ({
+        ...variant,
+        optionValueClientIds: [...variant.optionValueClientIds],
+      })),
+    );
+
+    setInitialized(true);
+    setIsLoading(false);
+    setErrorMessage("");
+  }, [draftRevision, draftState]);
 
   useEffect(() => {
     if (!initialized) {
@@ -468,6 +502,84 @@ export default function ProductOptionManager({
     );
   };
 
+  const handleVariantInputKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    const currentInput = event.currentTarget;
+
+    const row = currentInput.closest("tr");
+
+    if (!row) {
+      return;
+    }
+
+    const table = row.closest("table");
+
+    if (!table) {
+      return;
+    }
+
+    const rows = Array.from(
+      table.querySelectorAll<HTMLTableRowElement>("tbody tr"),
+    );
+
+    const currentRowIndex = rows.indexOf(row);
+
+    const inputs = Array.from(
+      row.querySelectorAll<HTMLInputElement>(
+        'input[data-variant-field="true"]',
+      ),
+    );
+
+    const currentColumnIndex = inputs.indexOf(currentInput);
+
+    let targetRowIndex = currentRowIndex;
+    let targetColumnIndex = currentColumnIndex;
+
+    switch (event.key) {
+      case "ArrowUp":
+        targetRowIndex -= 1;
+        break;
+
+      case "ArrowDown":
+      case "Enter":
+        targetRowIndex += 1;
+        break;
+
+      case "ArrowLeft":
+        targetColumnIndex -= 1;
+        break;
+
+      case "ArrowRight":
+        targetColumnIndex += 1;
+        break;
+
+      default:
+        return;
+    }
+
+    if (targetRowIndex < 0 || targetRowIndex >= rows.length) {
+      return;
+    }
+
+    const targetInputs = Array.from(
+      rows[targetRowIndex].querySelectorAll<HTMLInputElement>(
+        'input[data-variant-field="true"]',
+      ),
+    );
+
+    if (targetColumnIndex < 0 || targetColumnIndex >= targetInputs.length) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const targetInput = targetInputs[targetColumnIndex];
+
+    targetInput.focus();
+    targetInput.select();
+  };
+
   const handleVariantActiveChange = (
     variantClientId: string,
     active: boolean,
@@ -614,7 +726,13 @@ export default function ProductOptionManager({
                         <input
                           value={optionValue.value}
                           maxLength={100}
-                          placeholder="예: 블랙"
+                          placeholder={
+                            valueIndex === 0
+                              ? "예: 블랙"
+                              : valueIndex === 1
+                                ? "예: 화이트"
+                                : "옵션 값 입력"
+                          }
                           disabled={disabled}
                           onChange={(event) =>
                             handleOptionValueChange(
@@ -708,6 +826,7 @@ export default function ProductOptionManager({
                             maxLength={100}
                             placeholder="SKU 코드"
                             disabled={disabled}
+                            data-variant-field="true"
                             onChange={(event) =>
                               handleVariantChange(
                                 variant.clientId,
@@ -715,6 +834,7 @@ export default function ProductOptionManager({
                                 event.target.value,
                               )
                             }
+                            onKeyDown={handleVariantInputKeyDown}
                           />
 
                           {variant.id !== null && (
@@ -727,17 +847,42 @@ export default function ProductOptionManager({
                         <td>
                           <div className="seller-product-variant-number-input">
                             <input
-                              type="number"
-                              min="0"
+                              type="text"
+                              inputMode="numeric"
                               value={variant.additionalPrice}
                               disabled={disabled}
-                              onChange={(event) =>
+                              data-variant-field="true"
+                              onFocus={() => {
+                                if (variant.additionalPrice === "0") {
+                                  handleVariantChange(
+                                    variant.clientId,
+                                    "additionalPrice",
+                                    "",
+                                  );
+                                }
+                              }}
+                              onChange={(event) => {
+                                const value = event.target.value.replace(
+                                  /\D/g,
+                                  "",
+                                );
+
                                 handleVariantChange(
                                   variant.clientId,
                                   "additionalPrice",
-                                  event.target.value,
-                                )
-                              }
+                                  value,
+                                );
+                              }}
+                              onBlur={() => {
+                                handleVariantChange(
+                                  variant.clientId,
+                                  "additionalPrice",
+                                  variant.additionalPrice.trim() === ""
+                                    ? "0"
+                                    : String(Number(variant.additionalPrice)),
+                                );
+                              }}
+                              onKeyDown={handleVariantInputKeyDown}
                             />
 
                             <span>원</span>
@@ -747,17 +892,42 @@ export default function ProductOptionManager({
                         <td>
                           <div className="seller-product-variant-number-input">
                             <input
-                              type="number"
-                              min="0"
+                              type="text"
+                              inputMode="numeric"
                               value={variant.stockQuantity}
                               disabled={disabled}
-                              onChange={(event) =>
+                              data-variant-field="true"
+                              onFocus={() => {
+                                if (variant.stockQuantity === "0") {
+                                  handleVariantChange(
+                                    variant.clientId,
+                                    "stockQuantity",
+                                    "",
+                                  );
+                                }
+                              }}
+                              onChange={(event) => {
+                                const value = event.target.value.replace(
+                                  /\D/g,
+                                  "",
+                                );
+
                                 handleVariantChange(
                                   variant.clientId,
                                   "stockQuantity",
-                                  event.target.value,
-                                )
-                              }
+                                  value,
+                                );
+                              }}
+                              onBlur={() => {
+                                handleVariantChange(
+                                  variant.clientId,
+                                  "stockQuantity",
+                                  variant.stockQuantity.trim() === ""
+                                    ? "0"
+                                    : String(Number(variant.stockQuantity)),
+                                );
+                              }}
+                              onKeyDown={handleVariantInputKeyDown}
                             />
 
                             <span>개</span>

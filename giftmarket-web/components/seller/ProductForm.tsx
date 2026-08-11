@@ -18,20 +18,30 @@ import ProductOptionManager, {
 import {
   createProduct,
   getCategories,
+  registerProduct,
   updateProduct,
   updateProductOptions,
   updateProductStatus,
   updateProductVariants,
 } from "@/lib/product-api";
+import {
+  createProductDraft,
+  deleteProductDraft,
+  getProductDraftByProductId,
+  updateProductDraft,
+} from "@/lib/product-draft-api";
 import { uploadImage } from "@/lib/storage-api";
 import type {
   Category,
   ProductCreateRequest,
   ProductOptionUpdateRequest,
+  ProductRegistrationRequest,
+  ProductRegistrationVariantRequest,
   ProductUpdateRequest,
   ProductVariantUpdateRequest,
   SellerProduct,
 } from "@/types/product";
+import type { ProductDraft, ProductDraftData } from "@/types/product-draft";
 import { resolveImageUrl } from "@/utils/image-url";
 
 const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
@@ -82,6 +92,7 @@ interface ProductFormState {
 interface ProductFormProps {
   mode: ProductFormMode;
   initialProduct?: SellerProduct;
+  initialDraft?: ProductDraft | null;
 }
 
 const INITIAL_FORM_STATE: ProductFormState = {
@@ -91,7 +102,7 @@ const INITIAL_FORM_STATE: ProductFormState = {
   summary: "",
   description: "",
   price: "",
-  stockQuantity: "0",
+  stockQuantity: "",
   freeShipping: true,
   shippingFee: "0",
   shippingPreparationDays: DEFAULT_SHIPPING_PREPARATION_DAYS,
@@ -215,6 +226,7 @@ const INITIAL_OPTION_EDITOR_STATE: ProductOptionEditorState = {
 export default function ProductForm({
   mode,
   initialProduct,
+  initialDraft = null,
 }: ProductFormProps) {
   const router = useRouter();
 
@@ -240,8 +252,25 @@ export default function ProductForm({
     createExistingGalleryImages(initialProduct),
   );
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [draftId, setDraftId] = useState<number | null>(
+    initialDraft?.id ?? null,
+  );
+
+  const [availableDraft, setAvailableDraft] = useState<ProductDraft | null>(
+    initialDraft,
+  );
+
+  const [draftOptionState, setDraftOptionState] =
+    useState<ProductOptionEditorState | null>(null);
+
+  const [draftOptionRevision, setDraftOptionRevision] = useState(0);
   const [optionEditorState, setOptionEditorState] =
     useState<ProductOptionEditorState>(() => ({
       ...INITIAL_OPTION_EDITOR_STATE,
@@ -249,6 +278,8 @@ export default function ProductForm({
     }));
 
   const [selectedRootCategoryId, setSelectedRootCategoryId] = useState("");
+
+  const [editorRevision, setEditorRevision] = useState(0);
 
   const selectedRootCategory = useMemo(
     () =>
@@ -279,6 +310,35 @@ export default function ProductForm({
 
     void loadCategories();
   }, []);
+
+  useEffect(() => {
+    if (mode !== "edit" || !initialProduct) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadExistingDraft = async () => {
+      try {
+        const draft = await getProductDraftByProductId(initialProduct.id);
+
+        if (cancelled) {
+          return;
+        }
+
+        setAvailableDraft(draft);
+        setDraftId(draft.id);
+      } catch {
+        // 기존 수정 Draft가 없는 경우 정상
+      }
+    };
+
+    void loadExistingDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, initialProduct]);
 
   useEffect(() => {
     if (categories.length === 0) {
@@ -696,6 +756,58 @@ export default function ProductForm({
     };
   };
 
+  const createRegistrationVariants =
+    (): ProductRegistrationVariantRequest[] => {
+      if (!optionEditorState.enabled) {
+        return [];
+      }
+
+      const optionPositionByClientId = new Map<
+        string,
+        {
+          optionGroupSortOrder: number;
+          optionValueSortOrder: number;
+        }
+      >();
+
+      optionEditorState.optionGroups.forEach((group, groupIndex) => {
+        group.values.forEach((value, valueIndex) => {
+          optionPositionByClientId.set(value.clientId, {
+            optionGroupSortOrder: groupIndex,
+            optionValueSortOrder: valueIndex,
+          });
+        });
+      });
+
+      return optionEditorState.variants.map((variant) => {
+        const skuCode = variant.skuCode.trim();
+
+        const options = variant.optionValueClientIds.map((clientId) => {
+          const optionPosition = optionPositionByClientId.get(clientId);
+
+          if (!optionPosition) {
+            throw new Error(`${skuCode} SKU의 옵션 정보를 확인할 수 없습니다.`);
+          }
+
+          return optionPosition;
+        });
+
+        return {
+          skuCode,
+          options,
+          additionalPrice: parseRequiredNumber(
+            variant.additionalPrice,
+            `${skuCode} 추가금`,
+          ),
+          stockQuantity: parseRequiredNumber(
+            variant.stockQuantity,
+            `${skuCode} 재고`,
+          ),
+          active: variant.active,
+        };
+      });
+    };
+
   const saveProductOptionsAndVariants = async (
     productId: number,
     optionRequest: ProductOptionUpdateRequest,
@@ -758,6 +870,123 @@ export default function ProductForm({
     await updateProductVariants(productId, variantRequest);
   };
 
+  const uploadDraftImages = async () => {
+    let nextRepresentativeImageKey = representativeImageKey;
+
+    if (representativeFile) {
+      nextRepresentativeImageKey = await uploadImage(
+        representativeFile,
+        "PRODUCT_REPRESENTATIVE",
+      );
+
+      if (representativeBlobUrlRef.current) {
+        URL.revokeObjectURL(representativeBlobUrlRef.current);
+
+        representativeBlobUrlRef.current = null;
+      }
+
+      setRepresentativeFile(null);
+
+      setRepresentativeImageKey(nextRepresentativeImageKey);
+
+      setRepresentativePreviewUrl(resolveImageUrl(nextRepresentativeImageKey));
+    }
+
+    const nextGalleryImages: GalleryImageItem[] = [];
+    const galleryImageKeys: string[] = [];
+
+    for (const image of galleryImages) {
+      if (image.kind === "existing") {
+        galleryImageKeys.push(image.objectKey);
+
+        nextGalleryImages.push(image);
+
+        continue;
+      }
+
+      const objectKey = await uploadImage(image.file, "PRODUCT_GALLERY");
+
+      galleryImageKeys.push(objectKey);
+
+      URL.revokeObjectURL(image.previewUrl);
+
+      const previewUrl = resolveImageUrl(objectKey);
+
+      if (!previewUrl) {
+        continue;
+      }
+
+      nextGalleryImages.push({
+        id: createImageId(),
+        kind: "existing",
+        objectKey,
+        previewUrl,
+      });
+    }
+
+    setGalleryImages(nextGalleryImages);
+
+    return {
+      representativeImageKey: nextRepresentativeImageKey,
+
+      galleryImageKeys,
+    };
+  };
+
+  const createDraftData = (imageRequest: {
+    representativeImageKey: string | null;
+
+    galleryImageKeys: string[];
+  }): ProductDraftData => {
+    return {
+      categoryId: form.categoryId,
+
+      name: form.name,
+
+      brandName: form.brandName,
+
+      summary: form.summary,
+
+      description: form.description,
+
+      price: form.price,
+
+      stockQuantity: form.stockQuantity,
+
+      representativeImageKey: imageRequest.representativeImageKey,
+
+      galleryImageKeys: imageRequest.galleryImageKeys,
+
+      freeShipping: form.freeShipping,
+
+      shippingFee: form.shippingFee,
+
+      shippingPreparationDays: form.shippingPreparationDays,
+
+      returnShippingFee: form.returnShippingFee,
+
+      exchangeShippingFee: form.exchangeShippingFee,
+
+      options: {
+        enabled: optionEditorState.enabled,
+
+        optionGroups: optionEditorState.optionGroups.map((group) => ({
+          ...group,
+
+          values: group.values.map((value) => ({
+            ...value,
+          })),
+        })),
+
+        variants: optionEditorState.variants.map((variant) => ({
+          ...variant,
+
+          optionValueClientIds: [...variant.optionValueClientIds],
+        })),
+      },
+    };
+  };
+
   const uploadImages = async () => {
     const nextRepresentativeImageKey = representativeFile
       ? await uploadImage(representativeFile, "PRODUCT_REPRESENTATIVE")
@@ -779,6 +1008,248 @@ export default function ProductForm({
       galleryImageKeys,
     };
   };
+
+  const handleDraftSave = async () => {
+    if (isSubmitting || isSavingDraft) {
+      return;
+    }
+
+    if (!optionEditorState.initialized) {
+      setErrorMessage("상품 옵션 정보를 아직 불러오는 중입니다.");
+
+      return;
+    }
+
+    try {
+      setIsSavingDraft(true);
+      setErrorMessage("");
+
+      const imageRequest = await uploadDraftImages();
+
+      const draftData = createDraftData(imageRequest);
+
+      let savedDraft: ProductDraft;
+
+      if (draftId !== null) {
+        savedDraft = await updateProductDraft(draftId, {
+          draftData: JSON.stringify(draftData),
+        });
+      } else {
+        savedDraft = await createProductDraft({
+          productId: mode === "edit" ? (initialProduct?.id ?? null) : null,
+
+          draftData: JSON.stringify(draftData),
+        });
+      }
+
+      setDraftId(savedDraft.id);
+
+      setAvailableDraft(savedDraft);
+
+      alert("상품이 임시저장되었습니다.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "상품 임시저장에 실패했습니다.",
+      );
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handleLoadDraft = () => {
+    if (!availableDraft) {
+      return;
+    }
+
+    const draft = JSON.parse(availableDraft.draftData) as ProductDraftData;
+
+    setForm({
+      categoryId: draft.categoryId,
+
+      name: draft.name,
+
+      brandName: draft.brandName,
+
+      summary: draft.summary,
+
+      description: draft.description,
+
+      price: draft.price,
+
+      stockQuantity: draft.stockQuantity,
+
+      freeShipping: draft.freeShipping,
+
+      shippingFee: draft.shippingFee,
+
+      shippingPreparationDays: draft.shippingPreparationDays,
+
+      returnShippingFee: draft.returnShippingFee,
+
+      exchangeShippingFee: draft.exchangeShippingFee,
+    });
+
+    setEditorRevision((current) => current + 1);
+
+    if (representativeBlobUrlRef.current) {
+      URL.revokeObjectURL(representativeBlobUrlRef.current);
+
+      representativeBlobUrlRef.current = null;
+    }
+
+    setRepresentativeFile(null);
+
+    setRepresentativeImageKey(draft.representativeImageKey);
+
+    setRepresentativePreviewUrl(resolveImageUrl(draft.representativeImageKey));
+
+    galleryImages.forEach((image) => {
+      if (image.kind === "new") {
+        URL.revokeObjectURL(image.previewUrl);
+      }
+    });
+
+    const restoredGalleryImages = draft.galleryImageKeys.flatMap(
+      (objectKey) => {
+        const previewUrl = resolveImageUrl(objectKey);
+
+        if (!previewUrl) {
+          return [];
+        }
+
+        return [
+          {
+            id: createImageId(),
+            kind: "existing" as const,
+            objectKey,
+            previewUrl,
+          },
+        ];
+      },
+    );
+
+    setGalleryImages(restoredGalleryImages);
+
+    setDraftOptionState({
+      enabled: draft.options.enabled,
+
+      optionGroups: draft.options.optionGroups.map((group) => ({
+        ...group,
+
+        values: group.values.map((value) => ({
+          ...value,
+        })),
+      })),
+
+      variants: draft.options.variants.map((variant) => ({
+        ...variant,
+
+        optionValueClientIds: [...variant.optionValueClientIds],
+      })),
+
+      initialized: true,
+    });
+
+    setDraftOptionRevision((current) => current + 1);
+
+    setErrorMessage("");
+  };
+
+  useEffect(() => {
+    if (mode !== "create" || !initialDraft) {
+      return;
+    }
+
+    const draft = JSON.parse(initialDraft.draftData) as ProductDraftData;
+
+    setForm({
+      categoryId: draft.categoryId,
+
+      name: draft.name,
+
+      brandName: draft.brandName,
+
+      summary: draft.summary,
+
+      description: draft.description,
+
+      price: draft.price,
+
+      stockQuantity: draft.stockQuantity,
+
+      freeShipping: draft.freeShipping,
+
+      shippingFee: draft.shippingFee,
+
+      shippingPreparationDays: draft.shippingPreparationDays,
+
+      returnShippingFee: draft.returnShippingFee,
+
+      exchangeShippingFee: draft.exchangeShippingFee,
+    });
+
+    setEditorRevision((current) => current + 1);
+
+    if (representativeBlobUrlRef.current) {
+      URL.revokeObjectURL(representativeBlobUrlRef.current);
+
+      representativeBlobUrlRef.current = null;
+    }
+
+    setRepresentativeFile(null);
+
+    setRepresentativeImageKey(draft.representativeImageKey);
+
+    setRepresentativePreviewUrl(resolveImageUrl(draft.representativeImageKey));
+
+    setGalleryImages(
+      draft.galleryImageKeys.flatMap((objectKey) => {
+        const previewUrl = resolveImageUrl(objectKey);
+
+        if (!previewUrl) {
+          return [];
+        }
+
+        return [
+          {
+            id: createImageId(),
+            kind: "existing" as const,
+            objectKey,
+            previewUrl,
+          },
+        ];
+      }),
+    );
+
+    setDraftOptionState({
+      enabled: draft.options.enabled,
+
+      optionGroups: draft.options.optionGroups.map((group) => ({
+        ...group,
+
+        values: group.values.map((value) => ({
+          ...value,
+        })),
+      })),
+
+      variants: draft.options.variants.map((variant) => ({
+        ...variant,
+
+        optionValueClientIds: [...variant.optionValueClientIds],
+      })),
+
+      initialized: true,
+    });
+
+    setDraftOptionRevision((current) => current + 1);
+  }, [mode, initialDraft]);
 
   const handleSave = async (startSale: boolean) => {
     if (isSubmitting) {
@@ -807,29 +1278,55 @@ export default function ProductForm({
       let productId: number;
 
       if (mode === "create") {
-        const request: ProductCreateRequest = {
-          ...commonRequest,
-          ...imageRequest,
-          // 옵션/SKU 저장 도중 실패해도 판매 상품으로 노출되지 않도록
-          // 상품은 먼저 DRAFT 상태로 생성한다.
-          startSale: false,
-        };
-
-        const createdProduct = await createProduct(request);
-        productId = createdProduct.id;
-      } else {
-        if (!initialProduct) {
-          throw new Error("수정할 상품 정보를 확인할 수 없습니다.");
+        if (!startSale) {
+          throw new Error("임시저장은 임시저장 버튼을 이용해주세요.");
         }
 
-        const request: ProductUpdateRequest = {
-          ...commonRequest,
-          ...imageRequest,
+        const optionRequest: ProductOptionUpdateRequest =
+          optionEditorState.enabled
+            ? (optionConfiguration.optionRequest ?? {
+                optionGroups: [],
+              })
+            : {
+                optionGroups: [],
+              };
+
+        const registrationRequest: ProductRegistrationRequest = {
+          product: {
+            ...commonRequest,
+            ...imageRequest,
+
+            // 백엔드에서 다시 false로 강제하지만
+            // 기존 ProductCreateRequest 타입을 맞추기 위해 전달
+            startSale: false,
+          },
+
+          options: optionRequest,
+
+          variants: createRegistrationVariants(),
+
+          draftId,
         };
 
-        await updateProduct(initialProduct.id, request);
-        productId = initialProduct.id;
+        const registrationResult = await registerProduct(registrationRequest);
+
+        router.replace("/seller/products");
+        router.refresh();
+
+        return;
       }
+
+      if (!initialProduct) {
+        throw new Error("수정할 상품 정보를 확인할 수 없습니다.");
+      }
+
+      const request: ProductUpdateRequest = {
+        ...commonRequest,
+        ...imageRequest,
+      };
+
+      await updateProduct(initialProduct.id, request);
+      productId = initialProduct.id;
 
       if (optionEditorState.enabled) {
         if (!optionConfiguration.optionRequest) {
@@ -1178,6 +1675,7 @@ export default function ProductForm({
               </header>
 
               <ProductEditor
+                key={editorRevision}
                 value={form.description}
                 onChange={(description) =>
                   setForm((currentForm) => ({
@@ -1200,7 +1698,9 @@ export default function ProductForm({
 
               <ProductOptionManager
                 productId={initialProduct?.id}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSavingDraft}
+                draftState={draftOptionState}
+                draftRevision={draftOptionRevision}
                 onChange={setOptionEditorState}
               />
             </section>
@@ -1234,13 +1734,38 @@ export default function ProductForm({
                 {!optionEditorState.enabled && (
                   <div className="seller-product-form-field">
                     <label htmlFor="stockQuantity">재고 수량 *</label>
+
                     <input
                       id="stockQuantity"
                       name="stockQuantity"
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="numeric"
                       value={form.stockQuantity}
-                      onChange={handleTextChange}
+                      onFocus={() => {
+                        if (form.stockQuantity === "0") {
+                          setForm((currentForm) => ({
+                            ...currentForm,
+                            stockQuantity: "",
+                          }));
+                        }
+                      }}
+                      onChange={(event) => {
+                        const value = event.target.value.replace(/\D/g, "");
+
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          stockQuantity: value,
+                        }));
+                      }}
+                      onBlur={() => {
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          stockQuantity:
+                            currentForm.stockQuantity.trim() === ""
+                              ? "0"
+                              : String(Number(currentForm.stockQuantity)),
+                        }));
+                      }}
                       disabled={isSubmitting}
                     />
                   </div>
@@ -1317,23 +1842,57 @@ export default function ProductForm({
                   </div>
                 </div>
 
-                {!form.freeShipping && (
-                  <div className="seller-product-form-field">
-                    <label htmlFor="shippingFee">배송비 *</label>
-                    <div className="seller-product-form-input-unit">
-                      <input
-                        id="shippingFee"
-                        name="shippingFee"
-                        type="number"
-                        min="0"
-                        value={form.shippingFee}
-                        onChange={handleTextChange}
-                        disabled={isSubmitting}
-                      />
-                      <span>원</span>
-                    </div>
+                <div
+                  className={[
+                    "seller-product-form-field",
+                    "seller-product-form-shipping-fee-field",
+                    form.freeShipping
+                      ? "seller-product-form-shipping-fee-field-hidden"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <label htmlFor="shippingFee">배송비 *</label>
+
+                  <div className="seller-product-form-unit-input">
+                    <input
+                      id="shippingFee"
+                      name="shippingFee"
+                      type="text"
+                      inputMode="numeric"
+                      value={form.shippingFee}
+                      disabled={isSubmitting || form.freeShipping}
+                      onFocus={() => {
+                        if (form.shippingFee === "0") {
+                          setForm((currentForm) => ({
+                            ...currentForm,
+                            shippingFee: "",
+                          }));
+                        }
+                      }}
+                      onChange={(event) => {
+                        const value = event.target.value.replace(/\D/g, "");
+
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          shippingFee: value,
+                        }));
+                      }}
+                      onBlur={() => {
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          shippingFee:
+                            currentForm.shippingFee.trim() === ""
+                              ? "0"
+                              : String(Number(currentForm.shippingFee)),
+                        }));
+                      }}
+                    />
+
+                    <span>원</span>
                   </div>
-                )}
+                </div>
 
                 <div className="seller-product-form-field">
                   <label htmlFor="shippingPreparationDays">출고 소요일 *</label>
@@ -1378,7 +1937,7 @@ export default function ProductForm({
                   </span>
                 </div>
 
-                <div className="seller-product-form-field">
+                <div className="seller-product-form-field seller-product-form-exchange-shipping-fee-field">
                   <label htmlFor="exchangeShippingFee">교환 배송비 *</label>
 
                   <div className="seller-product-form-input-unit">
@@ -1406,11 +1965,25 @@ export default function ProductForm({
                 <button
                   type="button"
                   className="seller-product-form-draft-button"
-                  onClick={() => void handleSave(false)}
-                  disabled={isSubmitting || !optionEditorState.initialized}
+                  onClick={() => void handleDraftSave()}
+                  disabled={
+                    isSubmitting ||
+                    isSavingDraft ||
+                    !optionEditorState.initialized
+                  }
                 >
-                  {isSubmitting ? "저장 중..." : "임시 저장"}
+                  {isSavingDraft ? "임시저장 중..." : "임시 저장"}
                 </button>
+                {mode === "edit" && availableDraft && (
+                  <button
+                    type="button"
+                    className="seller-product-form-draft-button"
+                    onClick={handleLoadDraft}
+                    disabled={isSubmitting || isSavingDraft}
+                  >
+                    임시저장 불러오기
+                  </button>
+                )}
               </div>
 
               <div className="seller-product-form-actions-right">
@@ -1418,7 +1991,7 @@ export default function ProductForm({
                   type="button"
                   className="seller-product-form-cancel-button"
                   onClick={() => router.push("/seller/products")}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isSavingDraft}
                 >
                   취소
                 </button>
@@ -1427,7 +2000,11 @@ export default function ProductForm({
                   type="button"
                   className="seller-product-form-submit-button"
                   onClick={() => void handleSave(true)}
-                  disabled={isSubmitting || !optionEditorState.initialized}
+                  disabled={
+                    isSubmitting ||
+                    isSavingDraft ||
+                    !optionEditorState.initialized
+                  }
                 >
                   {isSubmitting ? "저장 중..." : "판매 시작"}
                 </button>

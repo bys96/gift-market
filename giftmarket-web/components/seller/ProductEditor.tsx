@@ -93,7 +93,10 @@ export default function ProductEditor({
     immediatelyRender: false,
     editable: !disabled,
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -149,7 +152,9 @@ export default function ProductEditor({
     }
 
     const normalizedValue = normalizeEditorContent(value);
+
     const currentHtml = editor.getHTML();
+
     const currentValue =
       editor.getText().trim().length > 0 || currentHtml.includes("<img")
         ? currentHtml
@@ -162,6 +167,8 @@ export default function ProductEditor({
     editor.commands.setContent(normalizedValue, {
       emitUpdate: false,
     });
+
+    editor.commands.blur();
   }, [editor, value]);
 
   const focusWithoutScroll = () => {

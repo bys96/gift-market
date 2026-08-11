@@ -4,6 +4,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  deleteProductDraft,
+  getNewProductDrafts,
+} from "@/lib/product-draft-api";
 import { getSellerProducts } from "@/lib/product-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type {
@@ -11,6 +15,7 @@ import type {
   SellerProductListItem,
   SellerProductPage,
 } from "@/types/product";
+import type { ProductDraft, ProductDraftData } from "@/types/product-draft";
 import { resolveImageUrl } from "@/utils/image-url";
 
 const PAGE_SIZE = 20;
@@ -33,7 +38,7 @@ const PRODUCT_STATUS_OPTIONS: {
   },
   {
     value: "DRAFT",
-    label: "임시 저장",
+    label: "기존 임시 상태",
   },
   {
     value: "HIDDEN",
@@ -42,7 +47,7 @@ const PRODUCT_STATUS_OPTIONS: {
 ];
 
 const PRODUCT_STATUS_LABEL: Record<ProductStatus, string> = {
-  DRAFT: "임시 저장",
+  DRAFT: "임시 상태",
   ON_SALE: "판매 중",
   SOLD_OUT: "품절",
   HIDDEN: "숨김",
@@ -57,26 +62,58 @@ function formatDate(dateTime: string): string {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(new Date(dateTime));
+}
+
+function parseDraftData(draft: ProductDraft): ProductDraftData | null {
+  try {
+    return JSON.parse(draft.draftData) as ProductDraftData;
+  } catch {
+    return null;
+  }
+}
+
+function getDraftName(draft: ProductDraft): string {
+  const data = parseDraftData(draft);
+
+  const name = data?.name?.trim();
+
+  return name ? name : "제목 없는 상품";
+}
+
+function getDraftImageKey(draft: ProductDraft): string | null {
+  return parseDraftData(draft)?.representativeImageKey ?? null;
 }
 
 export default function SellerProductsPage() {
   const router = useRouter();
 
   const initialized = useAuthStore((state) => state.initialized);
+
   const user = useAuthStore((state) => state.user);
+
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [productPage, setProductPage] = useState<SellerProductPage | null>(
     null,
   );
 
+  const [newProductDrafts, setNewProductDrafts] = useState<ProductDraft[]>([]);
+
   const [selectedStatus, setSelectedStatus] = useState<ProductStatus | "ALL">(
     "ALL",
   );
 
   const [currentPage, setCurrentPage] = useState(0);
+
   const [isLoading, setIsLoading] = useState(true);
+
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState(true);
+
+  const [deletingDraftId, setDeletingDraftId] = useState<number | null>(null);
+
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadProducts = useCallback(async () => {
@@ -102,6 +139,20 @@ export default function SellerProductsPage() {
     }
   }, [currentPage, selectedStatus]);
 
+  const loadDrafts = useCallback(async () => {
+    try {
+      setIsLoadingDrafts(true);
+
+      const drafts = await getNewProductDrafts();
+
+      setNewProductDrafts(drafts);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoadingDrafts(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!initialized) {
       return;
@@ -117,8 +168,8 @@ export default function SellerProductsPage() {
       return;
     }
 
-    loadProducts();
-  }, [initialized, isAuthenticated, user, router, loadProducts]);
+    void Promise.all([loadProducts(), loadDrafts()]);
+  }, [initialized, isAuthenticated, user, router, loadProducts, loadDrafts]);
 
   const handleStatusChange = (status: ProductStatus | "ALL") => {
     setSelectedStatus(status);
@@ -141,6 +192,40 @@ export default function SellerProductsPage() {
     setCurrentPage((page) => page + 1);
   };
 
+  const handleContinueDraft = (draftId: number) => {
+    router.push(`/seller/products/new?draftId=${draftId}`);
+  };
+
+  const handleDeleteDraft = async (draftId: number) => {
+    if (deletingDraftId !== null) {
+      return;
+    }
+
+    const confirmed = window.confirm("임시저장한 상품을 삭제하시겠습니까?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingDraftId(draftId);
+
+      await deleteProductDraft(draftId);
+
+      setNewProductDrafts((current) =>
+        current.filter((draft) => draft.id !== draftId),
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "임시저장 상품을 삭제하지 못했습니다.",
+      );
+    } finally {
+      setDeletingDraftId(null);
+    }
+  };
+
   if (
     !initialized ||
     !isAuthenticated ||
@@ -152,6 +237,7 @@ export default function SellerProductsPage() {
         <div className="common-inner">
           <div className="seller-application-loading">
             <span className="seller-application-loading-spinner" />
+
             <p>상품 정보를 확인하고 있습니다.</p>
           </div>
         </div>
@@ -170,7 +256,7 @@ export default function SellerProductsPage() {
               <h1 className="seller-products-title">상품 관리</h1>
 
               <p className="seller-products-description">
-                등록한 상품의 판매 상태와 재고를 관리할 수 있습니다.
+                등록 상품과 작성 중인 상품을 관리할 수 있습니다.
               </p>
             </div>
 
@@ -184,6 +270,91 @@ export default function SellerProductsPage() {
               상품 등록
             </button>
           </header>
+
+          {/* ========================================
+              작성 중 상품
+          ======================================== */}
+
+          <section className="seller-products-panel seller-products-draft-panel">
+            <div className="seller-products-draft-header">
+              <div>
+                <h2>작성 중 상품</h2>
+
+                <p>임시저장한 신규 상품을 이어서 작성할 수 있습니다.</p>
+              </div>
+
+              {!isLoadingDrafts && <span>{newProductDrafts.length}개</span>}
+            </div>
+
+            {isLoadingDrafts && (
+              <div className="seller-products-state seller-products-draft-loading">
+                <span className="seller-application-loading-spinner" />
+
+                <p>임시저장 상품을 불러오고 있습니다.</p>
+              </div>
+            )}
+
+            {!isLoadingDrafts && newProductDrafts.length === 0 && (
+              <div className="seller-products-draft-empty">
+                임시저장한 신규 상품이 없습니다.
+              </div>
+            )}
+
+            {!isLoadingDrafts && newProductDrafts.length > 0 && (
+              <div className="seller-products-draft-list">
+                {newProductDrafts.map((draft) => {
+                  const imageUrl = resolveImageUrl(getDraftImageKey(draft));
+
+                  return (
+                    <article
+                      key={draft.id}
+                      className="seller-products-draft-item"
+                    >
+                      <div className="seller-products-draft-product">
+                        <div className="seller-products-draft-image">
+                          {imageUrl ? (
+                            <Image src={imageUrl} alt="" fill sizes="64px" />
+                          ) : (
+                            <span>이미지 없음</span>
+                          )}
+                        </div>
+
+                        <div>
+                          <strong>{getDraftName(draft)}</strong>
+
+                          <span>마지막 저장 {formatDate(draft.updatedAt)}</span>
+                        </div>
+                      </div>
+
+                      <div className="seller-products-draft-actions">
+                        <button
+                          type="button"
+                          className="seller-products-draft-continue-button"
+                          disabled={deletingDraftId !== null}
+                          onClick={() => handleContinueDraft(draft.id)}
+                        >
+                          이어쓰기
+                        </button>
+
+                        <button
+                          type="button"
+                          className="seller-products-draft-delete-button"
+                          disabled={deletingDraftId !== null}
+                          onClick={() => void handleDeleteDraft(draft.id)}
+                        >
+                          {deletingDraftId === draft.id ? "삭제 중..." : "삭제"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* ========================================
+              등록 상품
+          ======================================== */}
 
           <section className="seller-products-panel">
             <div className="seller-products-toolbar">
@@ -220,6 +391,7 @@ export default function SellerProductsPage() {
             {isLoading && (
               <div className="seller-products-state">
                 <span className="seller-application-loading-spinner" />
+
                 <p>상품 목록을 불러오고 있습니다.</p>
               </div>
             )}
@@ -230,7 +402,7 @@ export default function SellerProductsPage() {
 
                 <p>{errorMessage}</p>
 
-                <button type="button" onClick={loadProducts}>
+                <button type="button" onClick={() => void loadProducts()}>
                   다시 시도
                 </button>
               </div>

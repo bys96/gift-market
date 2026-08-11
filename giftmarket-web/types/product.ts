@@ -268,3 +268,28 @@ export interface ProductVariantUpdateItem {
 export interface ProductVariantUpdateRequest {
   variants: ProductVariantUpdateItem[];
 }
+
+export interface ProductOptionReferenceRequest {
+  optionGroupSortOrder: number;
+  optionValueSortOrder: number;
+}
+
+export interface ProductRegistrationVariantRequest {
+  skuCode: string;
+  options: ProductOptionReferenceRequest[];
+  additionalPrice: number;
+  stockQuantity: number;
+  active: boolean;
+}
+
+export interface ProductRegistrationRequest {
+  product: ProductCreateRequest;
+  options: ProductOptionUpdateRequest;
+  variants: ProductRegistrationVariantRequest[];
+  draftId: number | null;
+}
+
+export interface ProductRegistrationResponse {
+  productId: number;
+  product: SellerProduct;
+}

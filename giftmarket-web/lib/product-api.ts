@@ -7,6 +7,8 @@ import type {
   ProductOptionResponse,
   ProductOptionUpdateRequest,
   ProductPage,
+  ProductRegistrationRequest,
+  ProductRegistrationResponse,
   ProductStatus,
   ProductStatusUpdateRequest,
   ProductStockUpdateRequest,
@@ -101,6 +103,25 @@ export async function createProduct(
 ): Promise<SellerProduct> {
   const response = await apiFetch<ApiResponse<SellerProduct>>(
     "/api/seller/products",
+    {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error("상품 등록 결과를 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function registerProduct(
+  request: ProductRegistrationRequest,
+): Promise<ProductRegistrationResponse> {
+  const response = await apiFetch<ApiResponse<ProductRegistrationResponse>>(
+    "/api/seller/products/registration",
     {
       method: "POST",
       headers: JSON_HEADERS,

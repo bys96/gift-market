@@ -7,14 +7,17 @@ import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
 import com.giftmarket.product.dto.request.ProductVariantUpdateRequest;
+import com.giftmarket.product.dto.request.ProductRegistrationRequest;
 import com.giftmarket.product.dto.response.ProductOptionResponse;
 import com.giftmarket.product.dto.response.ProductResponse;
 import com.giftmarket.product.dto.response.ProductVariantListResponse;
 import com.giftmarket.product.dto.response.SellerProductPageResponse;
+import com.giftmarket.product.dto.response.ProductRegistrationResponse;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.service.ProductOptionService;
 import com.giftmarket.product.service.ProductService;
 import com.giftmarket.product.service.ProductVariantService;
+import com.giftmarket.product.service.ProductRegistrationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,6 +39,7 @@ public class SellerProductController {
     private final ProductService productService;
     private final ProductOptionService productOptionService;
     private final ProductVariantService productVariantService;
+    private final ProductRegistrationService productRegistrationService;
 
     @PostMapping
     public ApiResponse<ProductResponse> createProduct(
@@ -44,6 +48,19 @@ public class SellerProductController {
     ) {
         return ApiResponse.success(
                 productService.createProduct(
+                        userId,
+                        request
+                )
+        );
+    }
+
+    @PostMapping("/registration")
+    public ApiResponse<ProductRegistrationResponse> registerProduct(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody ProductRegistrationRequest request
+    ) {
+        return ApiResponse.success(
+                productRegistrationService.registerProduct(
                         userId,
                         request
                 )
