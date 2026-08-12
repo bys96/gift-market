@@ -44,4 +44,9 @@ public interface CartItemRepository
     );
 
     void deleteAllByUserId(Long userId);
+
+    void deleteAllByIdInAndUserId(
+            List<Long> cartItemIds,
+            Long userId
+    );
 }

@@ -9,7 +9,6 @@ import com.giftmarket.cart.entity.CartItem;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.cart.repository.CartItemRepository;
 import com.giftmarket.product.entity.Product;
-import com.giftmarket.product.entity.ProductOptionGroup;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.entity.ProductVariant;
 import com.giftmarket.product.entity.ProductVariantOptionValue;
@@ -28,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -125,7 +123,14 @@ public class CartService {
                 cartItemRepository
                         .findAllByUserIdOrderByCreatedAtDesc(
                                 userId
-                        );
+                        )
+                        .stream()
+                        .filter(cartItem ->
+                                !cartItem
+                                        .getProduct()
+                                        .isDeleted()
+                        )
+                        .toList();
 
         if (cartItems.isEmpty()) {
             return CartResponse.from(List.of());
@@ -187,6 +192,7 @@ public class CartService {
         Product product =
                 cartItem.getProduct();
 
+        validateProductIsAvailable(product);
         validateProductIsOnSale(product);
 
         ProductVariant variant =
@@ -231,6 +237,21 @@ public class CartService {
                 );
 
         cartItemRepository.delete(cartItem);
+
+        return getCart(userId);
+    }
+
+    @Transactional
+    public CartResponse deleteCartItems(
+            Long userId,
+            List<Long> cartItemIds
+    ) {
+        validateAuthentication(userId);
+
+        cartItemRepository.deleteAllByIdInAndUserId(
+                cartItemIds,
+                userId
+        );
 
         return getCart(userId);
     }
@@ -401,9 +422,20 @@ public class CartService {
                                 )
                         );
 
+        validateProductIsAvailable(product);
         validateProductIsOnSale(product);
 
         return product;
+    }
+
+    private void validateProductIsAvailable(
+            Product product
+    ) {
+        if (product.isDeleted()) {
+            throw new CartException(
+                    "삭제된 상품은 구매할 수 없습니다."
+            );
+        }
     }
 
     private void validateProductIsOnSale(

@@ -4,6 +4,7 @@ import {
   addCartItem,
   clearCart as clearCartApi,
   deleteCartItem,
+  deleteCartItems,
   getCart,
   updateCartItemQuantity,
 } from "@/lib/cart-api";
@@ -26,6 +27,8 @@ interface CartState {
   addItem: (item: CartItemCreateRequest) => Promise<void>;
 
   removeItem: (cartItemId: number) => Promise<void>;
+
+  removeSelectedItems: (cartItemIds: number[]) => Promise<void>;
 
   increaseQuantity: (cartItemId: number) => Promise<void>;
 
@@ -161,10 +164,50 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
+  removeSelectedItems: async (cartItemIds) => {
+    if (cartItemIds.length === 0) {
+      return;
+    }
+
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      const cart = await deleteCartItems({
+        cartItemIds,
+      });
+
+      set({
+        ...createCartState(cart),
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "선택한 장바구니 상품을 삭제하지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
   increaseQuantity: async (cartItemId) => {
     const cartItem = get().items.find((item) => item.cartItemId === cartItemId);
 
     if (!cartItem) {
+      return;
+    }
+
+    if (!cartItem.purchasable) {
       return;
     }
 
@@ -210,6 +253,13 @@ export const useCartStore = create<CartState>((set, get) => ({
       return;
     }
 
+    if (
+      !cartItem.purchasable &&
+      cartItem.availability !== "INSUFFICIENT_STOCK"
+    ) {
+      return;
+    }
+
     try {
       set({
         isLoading: true,
@@ -226,8 +276,17 @@ export const useCartStore = create<CartState>((set, get) => ({
         return;
       }
 
+      const nextQuantity =
+        cartItem.availability === "INSUFFICIENT_STOCK"
+          ? cartItem.stockQuantity
+          : cartItem.quantity - 1;
+
+      if (nextQuantity <= 0) {
+        return;
+      }
+
       const cart = await updateCartItemQuantity(cartItemId, {
-        quantity: cartItem.quantity - 1,
+        quantity: nextQuantity,
       });
 
       set({

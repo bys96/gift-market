@@ -1,3 +1,10 @@
+export type CartItemAvailability =
+  | "AVAILABLE"
+  | "SOLD_OUT"
+  | "SALE_STOPPED"
+  | "OPTION_INACTIVE"
+  | "INSUFFICIENT_STOCK";
+
 export interface CartItemOption {
   optionGroupId: number;
   optionGroupName: string;
@@ -28,6 +35,9 @@ export interface CartItem {
   representativeImageKey: string | null;
 
   options: CartItemOption[];
+
+  purchasable: boolean;
+  availability: CartItemAvailability;
 }
 
 export interface Cart {
@@ -46,4 +56,8 @@ export interface CartItemCreateRequest {
 
 export interface CartItemQuantityUpdateRequest {
   quantity: number;
+}
+
+export interface CartItemBulkDeleteRequest {
+  cartItemIds: number[];
 }

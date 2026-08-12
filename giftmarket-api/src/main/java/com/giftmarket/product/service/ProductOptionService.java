@@ -410,7 +410,7 @@ public class ProductOptionService {
             Long sellerId
     ) {
         return productRepository
-                .findByIdAndSellerId(
+                .findByIdAndSellerIdAndDeletedAtIsNull(
                         productId,
                         sellerId
                 )

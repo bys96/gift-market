@@ -666,7 +666,7 @@ public class ProductVariantService {
             Long sellerId
     ) {
         return productRepository
-                .findByIdAndSellerId(
+                .findByIdAndSellerIdAndDeletedAtIsNull(
                         productId,
                         sellerId
                 )

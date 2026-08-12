@@ -23,6 +23,7 @@ import com.giftmarket.product.service.ProductModificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -184,6 +185,19 @@ public class SellerProductController {
                         request
                 )
         );
+    }
+
+    @DeleteMapping("/{productId}")
+    public ApiResponse<Void> deleteProduct(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long productId
+    ) {
+        productService.deleteProduct(
+                userId,
+                productId
+        );
+
+        return ApiResponse.success(null);
     }
 
     @PatchMapping("/{productId}/status")

@@ -1,7 +1,9 @@
 package com.giftmarket.cart.dto.response;
 
 import com.giftmarket.cart.entity.CartItem;
+import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductOptionValue;
+import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.entity.ProductVariant;
 import com.giftmarket.product.entity.ProductVariantOptionValue;
 import lombok.Builder;
@@ -29,15 +31,22 @@ public class CartItemResponse {
     private String brandName;
 
     /**
-     * 실제 구매 단가.
+     * 현재 실제 구매 단가.
      * 옵션 상품이면 상품 기본가 + Variant 추가금.
      */
     private Long price;
 
     private Long additionalPrice;
 
+    /**
+     * 현재 실제 구매 가능 재고.
+     * 옵션 상품이면 Variant 재고.
+     */
     private Integer stockQuantity;
 
+    /**
+     * 장바구니에 저장된 수량.
+     */
     private Integer quantity;
 
     private boolean freeShipping;
@@ -48,10 +57,22 @@ public class CartItemResponse {
 
     private List<CartItemOptionResponse> options;
 
+    /**
+     * 현재 시점에 이 CartItem을 구매할 수 있는지 여부.
+     */
+    private boolean purchasable;
+
+    /**
+     * 구매 불가 사유.
+     * 구매 가능하면 AVAILABLE.
+     */
+    private CartItemAvailability availability;
+
     public static CartItemResponse from(
             CartItem cartItem,
             List<ProductVariantOptionValue> variantOptionValues
     ) {
+        Product product = cartItem.getProduct();
         ProductVariant variant = cartItem.getVariant();
 
         long additionalPrice =
@@ -60,12 +81,12 @@ public class CartItemResponse {
                         : variant.getAdditionalPrice();
 
         long price =
-                cartItem.getProduct().getPrice()
+                product.getPrice()
                         + additionalPrice;
 
         int stockQuantity =
                 variant == null
-                        ? cartItem.getProduct().getStockQuantity()
+                        ? product.getStockQuantity()
                         : variant.getStockQuantity();
 
         List<CartItemOptionResponse> options =
@@ -87,47 +108,75 @@ public class CartItemResponse {
                         .map(CartItemOptionResponse::from)
                         .toList();
 
+        CartItemAvailability availability =
+                resolveAvailability(
+                        product,
+                        variant,
+                        cartItem.getQuantity(),
+                        stockQuantity
+                );
+
         return CartItemResponse.builder()
                 .cartItemId(cartItem.getId())
-                .productId(
-                        cartItem.getProduct().getId()
-                )
+                .productId(product.getId())
                 .variantId(
                         variant == null
                                 ? null
                                 : variant.getId()
                 )
                 .sellerId(
-                        cartItem.getProduct()
-                                .getSeller()
-                                .getId()
+                        product.getSeller().getId()
                 )
                 .storeName(
-                        cartItem.getProduct()
-                                .getSeller()
-                                .getStoreName()
+                        product.getSeller().getStoreName()
                 )
-                .productName(
-                        cartItem.getProduct().getName()
-                )
-                .brandName(
-                        cartItem.getProduct().getBrandName()
-                )
+                .productName(product.getName())
+                .brandName(product.getBrandName())
                 .price(price)
                 .additionalPrice(additionalPrice)
                 .stockQuantity(stockQuantity)
                 .quantity(cartItem.getQuantity())
-                .freeShipping(
-                        cartItem.getProduct().isFreeShipping()
-                )
-                .shippingFee(
-                        cartItem.getProduct().getShippingFee()
-                )
+                .freeShipping(product.isFreeShipping())
+                .shippingFee(product.getShippingFee())
                 .representativeImageKey(
-                        cartItem.getProduct()
-                                .getRepresentativeImageKey()
+                        product.getRepresentativeImageKey()
                 )
                 .options(options)
+                .purchasable(
+                        availability
+                                == CartItemAvailability.AVAILABLE
+                )
+                .availability(availability)
                 .build();
+    }
+
+    private static CartItemAvailability resolveAvailability(
+            Product product,
+            ProductVariant variant,
+            int quantity,
+            int stockQuantity
+    ) {
+        if (product.getStatus() == ProductStatus.HIDDEN) {
+            return CartItemAvailability.SALE_STOPPED;
+        }
+
+        if (product.getStatus() == ProductStatus.SOLD_OUT
+                || stockQuantity <= 0) {
+            return CartItemAvailability.SOLD_OUT;
+        }
+
+        if (product.getStatus() != ProductStatus.ON_SALE) {
+            return CartItemAvailability.SALE_STOPPED;
+        }
+
+        if (variant != null && !variant.isActive()) {
+            return CartItemAvailability.OPTION_INACTIVE;
+        }
+
+        if (quantity > stockQuantity) {
+            return CartItemAvailability.INSUFFICIENT_STOCK;
+        }
+
+        return CartItemAvailability.AVAILABLE;
     }
 }

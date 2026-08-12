@@ -1,5 +1,6 @@
 package com.giftmarket.cart.controller;
 
+import com.giftmarket.cart.dto.request.CartItemBulkDeleteRequest;
 import com.giftmarket.cart.dto.request.CartItemCreateRequest;
 import com.giftmarket.cart.dto.request.CartItemQuantityUpdateRequest;
 import com.giftmarket.cart.dto.response.CartResponse;
@@ -70,6 +71,19 @@ public class CartController {
                 cartService.deleteCartItem(
                         userId,
                         cartItemId
+                )
+        );
+    }
+
+    @DeleteMapping("/items")
+    public ApiResponse<CartResponse> deleteCartItems(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody CartItemBulkDeleteRequest request
+    ) {
+        return ApiResponse.success(
+                cartService.deleteCartItems(
+                        userId,
+                        request.cartItemIds()
                 )
         );
     }

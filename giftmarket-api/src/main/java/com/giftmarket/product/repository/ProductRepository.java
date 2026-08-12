@@ -15,50 +15,50 @@ public interface ProductRepository extends
         JpaRepository<Product, Long>,
         JpaSpecificationExecutor<Product> {
 
-    Optional<Product> findByIdAndSellerId(
+    Optional<Product> findByIdAndSellerIdAndDeletedAtIsNull(
             Long productId,
             Long sellerId
     );
 
-    Optional<Product> findByIdAndStatusIn(
+    Optional<Product> findByIdAndStatusInAndDeletedAtIsNull(
             Long productId,
             Collection<ProductStatus> statuses
     );
 
-    Page<Product> findAllBySellerId(
+    Page<Product> findAllBySellerIdAndDeletedAtIsNull(
             Long sellerId,
             Pageable pageable
     );
 
-    Page<Product> findAllBySellerIdAndStatus(
+    Page<Product> findAllBySellerIdAndStatusAndDeletedAtIsNull(
             Long sellerId,
             ProductStatus status,
             Pageable pageable
     );
 
-    Page<Product> findAllByStatus(
+    Page<Product> findAllByStatusAndDeletedAtIsNull(
             ProductStatus status,
             Pageable pageable
     );
 
-    Page<Product> findByStatusIn(
+    Page<Product> findByStatusInAndDeletedAtIsNull(
             List<ProductStatus> statuses,
             Pageable pageable
     );
 
-    Page<Product> findByStatusInAndCategory_Id(
+    Page<Product> findByStatusInAndCategory_IdAndDeletedAtIsNull(
             List<ProductStatus> statuses,
             Long categoryId,
             Pageable pageable
     );
 
-    Page<Product> findByStatusInAndNameContainingIgnoreCase(
+    Page<Product> findByStatusInAndNameContainingIgnoreCaseAndDeletedAtIsNull(
             List<ProductStatus> statuses,
             String keyword,
             Pageable pageable
     );
 
-    Page<Product> findByStatusInAndCategory_IdAndNameContainingIgnoreCase(
+    Page<Product> findByStatusInAndCategory_IdAndNameContainingIgnoreCaseAndDeletedAtIsNull(
             List<ProductStatus> statuses,
             Long categoryId,
             String keyword,

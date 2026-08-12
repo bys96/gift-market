@@ -29,6 +29,7 @@ import com.giftmarket.product.repository.ProductOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantRepository;
 import com.giftmarket.product.repository.ProductSpecifications;
+import com.giftmarket.product.draft.repository.ProductDraftRepository;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.repository.SellerRepository;
@@ -54,6 +55,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
+    private final ProductDraftRepository productDraftRepository;
 
     private final ProductOptionGroupRepository
             productOptionGroupRepository;
@@ -184,6 +186,9 @@ public class ProductService {
         Specification<Product> specification =
                 Specification
                         .where(
+                                ProductSpecifications.notDeleted()
+                        )
+                        .and(
                                 ProductSpecifications.statusIn(
                                         statuses
                                 )
@@ -215,7 +220,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public ProductDetailResponse getProduct(Long productId) {
         Product product = productRepository
-                .findByIdAndStatusIn(
+                .findByIdAndStatusInAndDeletedAtIsNull(
                         productId,
                         List.of(
                                 ProductStatus.ON_SALE,
@@ -302,16 +307,20 @@ public class ProductService {
         Page<Product> productPage;
 
         if (status == null) {
-            productPage = productRepository.findAllBySellerId(
-                    seller.getId(),
-                    pageable
-            );
+            productPage =
+                    productRepository
+                            .findAllBySellerIdAndDeletedAtIsNull(
+                                    seller.getId(),
+                                    pageable
+                            );
         } else {
-            productPage = productRepository.findAllBySellerIdAndStatus(
-                    seller.getId(),
-                    status,
-                    pageable
-            );
+            productPage =
+                    productRepository
+                            .findAllBySellerIdAndStatusAndDeletedAtIsNull(
+                                    seller.getId(),
+                                    status,
+                                    pageable
+                            );
         }
 
         Page<ProductListResponse> responsePage =
@@ -457,6 +466,33 @@ public class ProductService {
     }
 
     @Transactional
+    public void deleteProduct(
+            Long userId,
+            Long productId
+    ) {
+        Seller seller = getActiveSeller(userId);
+
+        Product product = getSellerProduct(
+                productId,
+                seller.getId()
+        );
+
+        /*
+         * 기존 상품 수정 중 생성된 Draft는
+         * 삭제된 Product를 계속 참조할 이유가 없으므로 함께 제거합니다.
+         *
+         * 신규 상품 Draft(product_id = null)는 영향을 받지 않습니다.
+         */
+        productDraftRepository
+                .deleteBySellerIdAndProductId(
+                        seller.getId(),
+                        product.getId()
+                );
+
+        product.softDelete();
+    }
+
+    @Transactional
     public ProductResponse updateProductStock(
             Long userId,
             Long productId,
@@ -516,7 +552,8 @@ public class ProductService {
             Long productId,
             Long sellerId
     ) {
-        return productRepository.findByIdAndSellerId(
+        return productRepository
+                .findByIdAndSellerIdAndDeletedAtIsNull(
                         productId,
                         sellerId
                 )

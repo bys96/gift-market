@@ -193,7 +193,7 @@ public class ProductDraftService {
             Long sellerId
     ) {
         return productRepository
-                .findByIdAndSellerId(
+                .findByIdAndSellerIdAndDeletedAtIsNull(
                         productId,
                         sellerId
                 )

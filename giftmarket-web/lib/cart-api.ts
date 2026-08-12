@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import type {
   Cart,
+  CartItemBulkDeleteRequest,
   CartItemCreateRequest,
   CartItemQuantityUpdateRequest,
 } from "@/types/cart";
@@ -68,6 +69,26 @@ export async function deleteCartItem(cartItemId: number): Promise<Cart> {
 
   if (!result.success || !result.data) {
     throw new Error(result.message || "장바구니 상품을 삭제하지 못했습니다.");
+  }
+
+  return result.data;
+}
+
+export async function deleteCartItems(
+  request: CartItemBulkDeleteRequest,
+): Promise<Cart> {
+  const result = await apiFetch<ApiResponse<Cart>>("/api/cart/items", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!result.success || !result.data) {
+    throw new Error(
+      result.message || "선택한 장바구니 상품을 삭제하지 못했습니다.",
+    );
   }
 
   return result.data;

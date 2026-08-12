@@ -11,6 +11,13 @@ public final class ProductSpecifications {
     private ProductSpecifications() {
     }
 
+    public static Specification<Product> notDeleted() {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.isNull(
+                        root.get("deletedAt")
+                );
+    }
+
     public static Specification<Product> statusIn(
             List<ProductStatus> statuses
     ) {

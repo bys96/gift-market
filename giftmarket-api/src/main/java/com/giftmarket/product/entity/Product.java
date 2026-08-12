@@ -19,6 +19,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
 
 @Getter
 @Entity
@@ -131,6 +132,9 @@ public class Product extends BaseEntity {
 
     @Column(name = "exchange_shipping_fee")
     private Long exchangeShippingFee;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @Builder
     private Product(
@@ -283,6 +287,18 @@ public class Product extends BaseEntity {
         }
 
         this.status = ProductStatus.SOLD_OUT;
+    }
+
+    public void softDelete() {
+        if (deletedAt != null) {
+            return;
+        }
+
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public void changeStockQuantity(Integer stockQuantity) {

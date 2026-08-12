@@ -46,4 +46,9 @@ public interface ProductDraftRepository
             Long sellerId,
             Long productId
     );
+
+    void deleteBySellerIdAndProductId(
+            Long sellerId,
+            Long productId
+    );
 }
