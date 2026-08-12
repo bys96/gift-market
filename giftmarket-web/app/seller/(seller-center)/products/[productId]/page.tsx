@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  deleteSellerProduct,
   getProductOptions,
   getProductVariants,
   getSellerProduct,
@@ -57,6 +58,7 @@ export default function SellerProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [statusErrorMessage, setStatusErrorMessage] = useState("");
 
   const productId = Number(params.productId);
@@ -181,6 +183,36 @@ export default function SellerProductDetailPage() {
       );
     } finally {
       setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!product || isDeleting || isUpdatingStatus) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "이 상품을 삭제하시겠습니까?\n\n삭제한 상품은 구매자와 판매자 상품 목록에서 더 이상 노출되지 않습니다.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      setStatusErrorMessage("");
+
+      await deleteSellerProduct(product.id);
+
+      router.replace("/seller/products");
+      router.refresh();
+    } catch (error) {
+      setStatusErrorMessage(
+        error instanceof Error ? error.message : "상품을 삭제하지 못했습니다.",
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -615,7 +647,7 @@ export default function SellerProductDetailPage() {
               type="button"
               className="seller-product-detail-list-button"
               onClick={() => router.push("/seller/products")}
-              disabled={isUpdatingStatus}
+              disabled={isUpdatingStatus || isDeleting}
             >
               목록
             </button>
@@ -624,7 +656,7 @@ export default function SellerProductDetailPage() {
               type="button"
               className="seller-product-detail-edit-button"
               onClick={() => router.push(`/seller/products/${product.id}/edit`)}
-              disabled={isUpdatingStatus}
+              disabled={isUpdatingStatus || isDeleting}
             >
               수정
             </button>
@@ -639,7 +671,7 @@ export default function SellerProductDetailPage() {
                     : "seller-product-detail-status-button-stop",
                 ].join(" ")}
                 onClick={() => void handleToggleSaleStatus()}
-                disabled={isUpdatingStatus}
+                disabled={isUpdatingStatus || isDeleting}
               >
                 {isUpdatingStatus
                   ? "처리 중..."
@@ -648,6 +680,15 @@ export default function SellerProductDetailPage() {
                     : "판매중단"}
               </button>
             )}
+
+            <button
+              type="button"
+              className="seller-product-detail-delete-button"
+              onClick={() => void handleDeleteProduct()}
+              disabled={isDeleting || isUpdatingStatus}
+            >
+              {isDeleting ? "삭제 중..." : "삭제"}
+            </button>
           </div>
         </div>
       </div>

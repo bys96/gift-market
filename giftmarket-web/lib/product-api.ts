@@ -236,6 +236,12 @@ export async function updateProductStatus(
   return response.data;
 }
 
+export async function deleteSellerProduct(productId: number): Promise<void> {
+  await apiFetch<ApiResponse<null>>(`/api/seller/products/${productId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function updateProductStock(
   productId: number,
   request: ProductStockUpdateRequest,
