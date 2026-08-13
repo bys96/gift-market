@@ -3,6 +3,7 @@ package com.giftmarket.global.exception;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
+import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.seller.exception.SellerException;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CartException.class)
     public ResponseEntity<ApiResponse<?>> handleCartException(
             CartException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(OrderException.class)
+    public ResponseEntity<ApiResponse<?>> handleOrderException(
+            OrderException exception
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)

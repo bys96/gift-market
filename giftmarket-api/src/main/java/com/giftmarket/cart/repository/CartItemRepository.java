@@ -49,4 +49,14 @@ public interface CartItemRepository
             List<Long> cartItemIds,
             Long userId
     );
+
+    @EntityGraph(attributePaths = {
+            "product",
+            "product.seller",
+            "variant"
+    })
+    List<CartItem> findAllByIdInAndUserId(
+            List<Long> cartItemIds,
+            Long userId
+    );
 }

@@ -2,10 +2,12 @@ package com.giftmarket.product.repository;
 
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.util.Collection;
 import java.util.List;
@@ -63,5 +65,10 @@ public interface ProductRepository extends
             Long categoryId,
             String keyword,
             Pageable pageable
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Product> findWithLockByIdAndDeletedAtIsNull(
+            Long productId
     );
 }

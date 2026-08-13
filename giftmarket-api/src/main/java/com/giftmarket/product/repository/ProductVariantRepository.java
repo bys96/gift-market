@@ -1,7 +1,9 @@
 package com.giftmarket.product.repository;
 
 import com.giftmarket.product.entity.ProductVariant;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,4 +39,10 @@ public interface ProductVariantRepository
     );
 
     void deleteAllByProductId(Long productId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<ProductVariant> findWithLockByIdAndProductId(
+            Long variantId,
+            Long productId
+    );
 }
