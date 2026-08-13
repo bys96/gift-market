@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -54,6 +55,19 @@ public class OrderController {
     ) {
         return ApiResponse.success(
                 orderService.getMyOrder(
+                        userId,
+                        orderId
+                )
+        );
+    }
+
+    @PatchMapping("/{orderId}/cancel")
+    public ApiResponse<OrderDetailResponse> cancelOrder(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId
+    ) {
+        return ApiResponse.success(
+                orderService.cancelOrder(
                         userId,
                         orderId
                 )

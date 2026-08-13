@@ -1,9 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { OrderDetailItem } from "@/types/order";
+
+import type { OrderHistoryItem } from "@/types/order";
+import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderDetailProductListProps {
-  items: OrderDetailItem[];
+  items: OrderHistoryItem[];
 }
 
 function formatPrice(price: number) {
@@ -18,39 +20,59 @@ export default function OrderDetailProductList({
       <h2 className="order-detail-section-title">주문 상품</h2>
 
       <div className="order-detail-product-list">
-        {items.map((item) => (
-          <article key={item.id} className="order-detail-product-item">
-            <Link
-              href={`/products/${item.productId}`}
-              className="order-detail-product-image-wrapper"
-            >
-              <Image
-                src={item.productImageUrl}
-                alt={item.productName}
-                fill
-                sizes="96px"
-                className="order-detail-product-image"
-              />
-            </Link>
+        {items.map((item) => {
+          const imageUrl = resolveImageUrl(item.representativeImageKey);
 
-            <div className="order-detail-product-info">
+          return (
+            <article key={item.id} className="order-detail-product-item">
               <Link
                 href={`/products/${item.productId}`}
-                className="order-detail-product-name"
+                className="order-detail-product-image-wrapper"
               >
-                {item.productName}
+                {imageUrl ? (
+                  <Image
+                    src={imageUrl}
+                    alt={item.productName}
+                    fill
+                    sizes="96px"
+                    className="order-detail-product-image"
+                  />
+                ) : (
+                  <div className="order-detail-product-image-empty">
+                    이미지 없음
+                  </div>
+                )}
               </Link>
 
-              <p className="order-detail-product-quantity">
-                수량 {item.quantity}개
-              </p>
+              <div className="order-detail-product-info">
+                <p className="order-detail-product-brand">
+                  {item.brandName ?? "브랜드 정보 없음"}
+                </p>
 
-              <strong className="order-detail-product-price">
-                {formatPrice(item.price * item.quantity)}
-              </strong>
-            </div>
-          </article>
-        ))}
+                <Link
+                  href={`/products/${item.productId}`}
+                  className="order-detail-product-name"
+                >
+                  {item.productName}
+                </Link>
+
+                {item.optionSnapshot && (
+                  <p className="order-detail-product-option">
+                    {item.optionSnapshot}
+                  </p>
+                )}
+
+                <p className="order-detail-product-quantity">
+                  {formatPrice(item.unitPrice)} · 수량 {item.quantity}개
+                </p>
+
+                <strong className="order-detail-product-price">
+                  {formatPrice(item.totalPrice)}
+                </strong>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

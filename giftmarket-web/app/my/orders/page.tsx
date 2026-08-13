@@ -1,70 +1,83 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
 import OrderHistoryCard from "@/components/order/OrderHistoryCard";
+import { getMyOrders } from "@/lib/order-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { OrderSummary } from "@/types/order";
-
-const MOCK_ORDERS: OrderSummary[] = [
-  {
-    id: 1,
-    orderNumber: "202607250001",
-    orderedAt: "2026-07-25T11:30:00+09:00",
-    status: "DELIVERED",
-    totalPrice: 36500,
-    items: [
-      {
-        id: 1,
-        productId: 1,
-        productName: "스타벅스 카페 아메리카노 T",
-        productImageUrl: "/images/products/product-1.jpg",
-        quantity: 1,
-        price: 4500,
-      },
-      {
-        id: 2,
-        productId: 2,
-        productName: "프리미엄 디저트 세트",
-        productImageUrl: "/images/products/product-2.jpg",
-        quantity: 1,
-        price: 32000,
-      },
-    ],
-  },
-  {
-    id: 2,
-    orderNumber: "202607200003",
-    orderedAt: "2026-07-20T14:20:00+09:00",
-    status: "SHIPPING",
-    totalPrice: 27900,
-    items: [
-      {
-        id: 3,
-        productId: 3,
-        productName: "센트럴파크 향수 기프트 세트",
-        productImageUrl: "/images/products/product-3.jpg",
-        quantity: 1,
-        price: 27900,
-      },
-    ],
-  },
-];
 
 export default function MyOrdersPage() {
   const router = useRouter();
 
+  const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
   useEffect(() => {
+    if (!initialized) {
+      return;
+    }
+
     if (!isAuthenticated || !user) {
       router.replace("/login");
     }
-  }, [isAuthenticated, user, router]);
+  }, [initialized, isAuthenticated, user, router]);
 
-  if (!user) {
+  useEffect(() => {
+    if (!initialized || !isAuthenticated || !user) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOrders = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMessage("");
+
+        const response = await getMyOrders();
+
+        if (cancelled) {
+          return;
+        }
+
+        setOrders(response);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "주문 내역을 불러오지 못했습니다.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialized, isAuthenticated, user]);
+
+  if (!initialized) {
+    return null;
+  }
+
+  if (!isAuthenticated || !user) {
     return null;
   }
 
@@ -73,6 +86,7 @@ export default function MyOrdersPage() {
       <div className="my-orders-header">
         <div>
           <p className="my-orders-eyebrow">나의 쇼핑</p>
+
           <h1 className="my-orders-title">주문 내역</h1>
         </div>
 
@@ -81,9 +95,29 @@ export default function MyOrdersPage() {
         </Link>
       </div>
 
-      {MOCK_ORDERS.length > 0 ? (
+      {isLoading ? (
+        <section className="order-history-empty">
+          <h2>주문 내역을 불러오고 있습니다.</h2>
+
+          <p>잠시 후 주문 정보를 확인할 수 있습니다.</p>
+        </section>
+      ) : errorMessage ? (
+        <section className="order-history-empty">
+          <h2>주문 내역을 불러오지 못했습니다.</h2>
+
+          <p>{errorMessage}</p>
+
+          <button
+            type="button"
+            className="order-history-empty-link"
+            onClick={() => window.location.reload()}
+          >
+            다시 시도
+          </button>
+        </section>
+      ) : orders.length > 0 ? (
         <div className="order-history-list">
-          {MOCK_ORDERS.map((order) => (
+          {orders.map((order) => (
             <OrderHistoryCard key={order.id} order={order} />
           ))}
         </div>

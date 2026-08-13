@@ -9,6 +9,7 @@ import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
+import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
@@ -290,6 +291,149 @@ public class OrderService {
         );
     }
 
+    @Transactional
+    public OrderDetailResponse cancelOrder(
+            Long userId,
+            Long orderId
+    ) {
+        getAuthenticatedUser(userId);
+
+        Order order =
+                orderRepository
+                        .findByIdAndUserIdForUpdate(
+                                orderId,
+                                userId
+                        )
+                        .orElseThrow(() ->
+                                new OrderException(
+                                        "주문 정보를 찾을 수 없습니다."
+                                )
+                        );
+
+        if (order.getStatus()
+                == OrderStatus.CANCELLED) {
+            throw new OrderException(
+                    "이미 취소된 주문입니다."
+            );
+        }
+
+        if (order.getStatus()
+                != OrderStatus.ORDERED) {
+            throw new OrderException(
+                    "현재 상태에서는 주문을 취소할 수 없습니다."
+            );
+        }
+
+        List<OrderItem> orderItems =
+                orderItemRepository
+                        .findAllByOrderIdOrderByIdAsc(
+                                order.getId()
+                        );
+
+        if (orderItems.isEmpty()) {
+            throw new OrderException(
+                    "주문 상품 정보를 확인할 수 없습니다."
+            );
+        }
+
+        /*
+         * 주문 생성과 동일한 순서로 Product / Variant Lock을 획득해서
+         * 동시 주문/취소 간 deadlock 가능성을 줄입니다.
+         */
+        List<OrderItem> sortedOrderItems =
+                orderItems.stream()
+                        .sorted(
+                                Comparator
+                                        .comparing(
+                                                (OrderItem item) ->
+                                                        item.getProduct()
+                                                                .getId()
+                                        )
+                                        .thenComparing(
+                                                item -> {
+                                                    ProductVariant variant =
+                                                            item.getVariant();
+
+                                                    return variant == null
+                                                            ? Long.MIN_VALUE
+                                                            : variant.getId();
+                                                }
+                                        )
+                        )
+                        .toList();
+
+        Map<Long, Product> lockedProducts =
+                new HashMap<>();
+
+        Map<Long, ProductVariant> lockedVariants =
+                new HashMap<>();
+
+        Set<Long> variantProductIds =
+                new LinkedHashSet<>();
+
+        for (OrderItem orderItem : sortedOrderItems) {
+            Long productId =
+                    orderItem.getProduct().getId();
+
+            Product product =
+                    lockedProducts.computeIfAbsent(
+                            productId,
+                            this::getLockedProductForCancellation
+                    );
+
+            ProductVariant orderVariant =
+                    orderItem.getVariant();
+
+            if (orderVariant == null) {
+                product.increaseStock(
+                        orderItem.getQuantity()
+                );
+
+                continue;
+            }
+
+            Long variantId =
+                    orderVariant.getId();
+
+            ProductVariant variant =
+                    lockedVariants.computeIfAbsent(
+                            variantId,
+                            id ->
+                                    getLockedVariant(
+                                            id,
+                                            productId
+                                    )
+                    );
+
+            variant.increaseStock(
+                    orderItem.getQuantity()
+            );
+
+            variantProductIds.add(productId);
+        }
+
+        /*
+         * 옵션상품은 Variant 재고가 원장이므로
+         * 모든 Variant 복구 후 Product 총재고를 다시 동기화합니다.
+         */
+        for (Long productId : variantProductIds) {
+            Product product =
+                    lockedProducts.get(productId);
+
+            synchronizeVariantProductStock(
+                    product,
+                    productId
+            );
+        }
+
+        order.cancel();
+
+        return OrderDetailResponse.from(
+                order,
+                orderItems
+        );
+    }
+
     private PreparedOrderItem prepareOrderItem(
             CartItem cartItem,
             Map<Long, Product> lockedProducts,
@@ -441,6 +585,20 @@ public class OrderService {
                 .orElseThrow(() ->
                         new OrderException(
                                 "현재 구매할 수 없는 상품이 포함되어 있습니다."
+                        )
+                );
+    }
+
+    private Product getLockedProductForCancellation(
+            Long productId
+    ) {
+        return productRepository
+                .findByIdForUpdate(
+                        productId
+                )
+                .orElseThrow(() ->
+                        new OrderException(
+                                "주문 상품 정보를 확인할 수 없습니다."
                         )
                 );
     }

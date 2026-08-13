@@ -1,106 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+
 import OrderDetailInfo from "@/components/order/OrderDetailInfo";
 import OrderDetailProductList from "@/components/order/OrderDetailProductList";
 import OrderDetailSummary from "@/components/order/OrderDetailSummary";
+import { cancelOrder, getMyOrder } from "@/lib/order-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { OrderDetail, OrderStatus } from "@/types/order";
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  PAYMENT_COMPLETED: "결제 완료",
-  PREPARING: "상품 준비 중",
-  SHIPPING: "배송 중",
-  DELIVERED: "배송 완료",
-  CANCELED: "주문 취소",
+  ORDERED: "주문 완료",
+  CANCELLED: "주문 취소",
 };
-
-const MOCK_ORDERS: OrderDetail[] = [
-  {
-    id: 1,
-    orderNumber: "202607250001",
-    orderedAt: "2026-07-25T11:30:00+09:00",
-    status: "DELIVERED",
-    items: [
-      {
-        id: 1,
-        productId: 1,
-        productName: "스타벅스 카페 아메리카노 T",
-        productImageUrl: "/images/products/product-1.jpg",
-        quantity: 1,
-        price: 4500,
-      },
-      {
-        id: 2,
-        productId: 2,
-        productName: "프리미엄 디저트 세트",
-        productImageUrl: "/images/products/product-2.jpg",
-        quantity: 1,
-        price: 29000,
-      },
-    ],
-    customer: {
-      name: "홍길동",
-      email: "hong@example.com",
-      phoneNumber: "010-1234-5678",
-    },
-    recipient: {
-      name: "김선물",
-      phoneNumber: "010-9876-5432",
-      zipCode: "06236",
-      address: "서울특별시 강남구 테헤란로 123",
-      addressDetail: "101동 1203호",
-      deliveryMessage: "문 앞에 놓아주세요.",
-    },
-    payment: {
-      productAmount: 33500,
-      deliveryFee: 3000,
-      discountAmount: 0,
-      totalAmount: 36500,
-      paymentMethod: "카카오페이",
-      paidAt: "2026-07-25T11:31:00+09:00",
-    },
-  },
-  {
-    id: 2,
-    orderNumber: "202607200003",
-    orderedAt: "2026-07-20T14:20:00+09:00",
-    status: "SHIPPING",
-    items: [
-      {
-        id: 3,
-        productId: 3,
-        productName: "센트럴파크 향수 기프트 세트",
-        productImageUrl: "/images/products/product-3.jpg",
-        quantity: 1,
-        price: 24900,
-      },
-    ],
-    customer: {
-      name: "홍길동",
-      email: "hong@example.com",
-      phoneNumber: "010-1234-5678",
-    },
-    recipient: {
-      name: "이마음",
-      phoneNumber: "010-1111-2222",
-      zipCode: "04524",
-      address: "서울특별시 중구 세종대로 110",
-      addressDetail: "5층",
-      deliveryMessage: "도착 전에 연락해주세요.",
-    },
-    payment: {
-      productAmount: 24900,
-      deliveryFee: 3000,
-      discountAmount: 0,
-      totalAmount: 27900,
-      paymentMethod: "신용카드",
-      paidAt: "2026-07-20T14:21:00+09:00",
-    },
-  },
-];
 
 function formatDateTime(date: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -114,36 +28,150 @@ function formatDateTime(date: string) {
 }
 
 export default function MyOrderDetailPage() {
-  const params = useParams<{ orderId: string }>();
+  const params = useParams<{
+    orderId: string;
+  }>();
+
   const router = useRouter();
 
+  const authInitialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const orderId = useMemo(() => Number(params.orderId), [params.orderId]);
+
   useEffect(() => {
+    if (!authInitialized) {
+      return;
+    }
+
     if (!isAuthenticated || !user) {
       router.replace("/login");
     }
-  }, [isAuthenticated, user, router]);
+  }, [authInitialized, isAuthenticated, user, router]);
 
-  if (!user) {
+  useEffect(() => {
+    if (!authInitialized || !isAuthenticated || !user) {
+      return;
+    }
+
+    if (!Number.isInteger(orderId) || orderId < 1) {
+      setErrorMessage("올바르지 않은 주문 번호입니다.");
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOrder = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMessage("");
+
+        const response = await getMyOrder(orderId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setOrder(response);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "주문 정보를 불러오지 못했습니다.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadOrder();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authInitialized, isAuthenticated, user, orderId]);
+
+  const handleCancelOrder = async () => {
+    if (!order || order.status !== "ORDERED" || isCancelling) {
+      return;
+    }
+
+    const confirmed = window.confirm("이 주문을 취소하시겠습니까?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      setErrorMessage("");
+
+      await cancelOrder(order.id);
+
+      router.replace("/my/orders");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "주문을 취소하지 못했습니다.",
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  if (!authInitialized) {
     return null;
   }
 
-  const orderId = Number(params.orderId);
-
-  if (!Number.isInteger(orderId) || orderId < 1) {
-    notFound();
+  if (!isAuthenticated || !user) {
+    return null;
   }
 
-  const order = MOCK_ORDERS.find((mockOrder) => mockOrder.id === orderId);
-
-  if (!order) {
-    notFound();
+  if (isLoading) {
+    return (
+      <div className="order-detail-page">
+        <section className="order-history-empty">
+          <h2>주문 정보를 불러오고 있습니다.</h2>
+        </section>
+      </div>
+    );
   }
 
-  const canCancel =
-    order.status === "PAYMENT_COMPLETED" || order.status === "PREPARING";
+  if (errorMessage || !order) {
+    return (
+      <div className="order-detail-page">
+        <section className="order-history-empty">
+          <h2>주문 정보를 확인할 수 없습니다.</h2>
+
+          <p>{errorMessage || "주문 정보를 찾을 수 없습니다."}</p>
+
+          <Link href="/my/orders" className="order-history-empty-link">
+            주문 내역으로
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
+  const statusChangedAt =
+    order.status === "CANCELLED" && order.cancelledAt
+      ? order.cancelledAt
+      : order.orderedAt;
 
   return (
     <div className="order-detail-page">
@@ -167,29 +195,34 @@ export default function MyOrderDetailPage() {
         <div>
           <p className="order-detail-status-label">현재 주문 상태</p>
 
-          <strong className="order-detail-status">
-            {ORDER_STATUS_LABELS[order.status]}
-          </strong>
+          <div className="order-detail-status-row">
+            <strong className="order-detail-status">
+              {ORDER_STATUS_LABELS[order.status]}
+            </strong>
+
+            <span className="order-detail-status-at">
+              {formatDateTime(statusChangedAt)}
+            </span>
+          </div>
         </div>
 
-        {canCancel && (
+        {order.status === "ORDERED" && (
           <button
             type="button"
             className="order-detail-cancel-button"
-            onClick={() => {
-              window.alert("주문 취소 API 연결 후 동작할 예정입니다.");
-            }}
+            onClick={() => void handleCancelOrder()}
+            disabled={isCancelling}
           >
-            주문 취소
+            {isCancelling ? "취소 중..." : "주문 취소"}
           </button>
         )}
       </section>
 
       <OrderDetailProductList items={order.items} />
 
-      <OrderDetailInfo customer={order.customer} recipient={order.recipient} />
+      <OrderDetailInfo order={order} />
 
-      <OrderDetailSummary payment={order.payment} />
+      <OrderDetailSummary order={order} />
     </div>
   );
 }
