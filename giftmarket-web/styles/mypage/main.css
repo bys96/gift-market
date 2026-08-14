@@ -1,0 +1,277 @@
+.my-page {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.my-page-header {
+  margin-bottom: 32px;
+}
+
+.my-page-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.my-page-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.my-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.my-profile-image-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #f4f4f4;
+}
+
+.my-profile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.my-profile-placeholder {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary);
+  font-size: 30px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.my-profile-info {
+  min-width: 0;
+}
+
+.my-profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.my-profile-name {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.my-profile-role {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f5f5f5;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.my-profile-email {
+  margin: 8px 0 0;
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-quick-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.my-quick-stat {
+  position: relative;
+  display: flex;
+  min-height: 120px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.my-quick-stat:not(:last-child)::after {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  width: 1px;
+  height: calc(100% - 48px);
+  background: var(--color-border);
+  content: "";
+}
+
+.my-quick-stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.my-quick-stat-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.my-menu-section {
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.my-section-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.my-menu-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.my-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.my-menu-item:last-child {
+  border-bottom: 0;
+}
+
+.my-menu-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.my-menu-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.my-menu-description {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.my-menu-arrow {
+  flex-shrink: 0;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+}
+
+.my-menu-logout .my-menu-label {
+  color: #e5484d;
+}
+
+.my-menu-logout:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (hover: hover) {
+  .my-quick-stat:hover {
+    background: #fafafa;
+  }
+
+  .my-menu-item:hover {
+    background: #fafafa;
+  }
+}
+
+@media (max-width: 640px) {
+  .my-page {
+    padding: 24px 16px 60px;
+  }
+
+  .my-page-title {
+    font-size: 26px;
+  }
+
+  .my-profile-card {
+    padding: 20px;
+    border-radius: 12px;
+  }
+
+  .my-profile-image-wrapper {
+    width: 64px;
+    height: 64px;
+  }
+
+  .my-profile-placeholder {
+    font-size: 24px;
+  }
+
+  .my-profile-name {
+    font-size: 20px;
+  }
+
+  .my-quick-stats {
+    border-radius: 12px;
+  }
+
+  .my-quick-stat {
+    min-height: 100px;
+  }
+
+  .my-quick-stat-value {
+    font-size: 22px;
+  }
+
+  .my-menu-section {
+    padding: 20px;
+    border-radius: 12px;
+  }
+
+  .my-menu-description {
+    display: none;
+  }
+
+  .my-menu-item {
+    min-height: 62px;
+  }
+}

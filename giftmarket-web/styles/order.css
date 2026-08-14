@@ -56,6 +56,42 @@
   color: var(--color-text-secondary);
 }
 
+.order-error-message {
+  margin: 0 0 20px;
+  padding: 13px 15px;
+  border: 1px solid #f0caca;
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #c83c3c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.order-product-image-empty {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  text-align: center;
+}
+
+.order-product-options {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-postal-code-input {
+  max-width: 180px;
+}
+
 .order-product-list {
   display: flex;
   flex-direction: column;
@@ -192,6 +228,97 @@
   font-weight: 600;
   color: var(--color-text-primary);
   cursor: pointer;
+}
+
+.order-address-search-row {
+  display: grid;
+  grid-template-columns: 180px 120px;
+  gap: 10px;
+}
+
+.order-form-input-readonly {
+  background: #f7f7f7;
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.order-address-search-button {
+  height: 46px;
+  padding: 0 16px;
+  border: 1px solid #222222;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #222222;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-address-search-button:hover {
+  background: #f7f7f7;
+}
+
+/* ========================================
+   Address Search Layer
+======================================== */
+
+.order-address-layer-overlay {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 45%);
+}
+
+.order-address-layer {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  max-width: 520px;
+  height: min(620px, calc(100vh - 40px));
+  flex-direction: column;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 18%);
+}
+
+.order-address-layer-header {
+  display: flex;
+  min-height: 56px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.order-address-layer-header strong {
+  color: var(--color-text-primary);
+  font-size: 16px;
+}
+
+.order-address-layer-close {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #555555;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.order-address-layer-content {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
 }
 
 .order-summary {
@@ -406,5 +533,36 @@
   .order-complete-primary-button,
   .order-complete-secondary-button {
     width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .order-address-search-row {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
+
+  .order-postal-code-input {
+    max-width: none;
+  }
+
+  .order-address-search-button {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .order-address-layer-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .order-address-layer {
+    max-width: none;
+    height: 82vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .order-address-layer-header {
+    min-height: 52px;
+    padding: 0 16px;
   }
 }

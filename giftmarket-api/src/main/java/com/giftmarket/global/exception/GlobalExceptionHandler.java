@@ -1,5 +1,6 @@
 package com.giftmarket.global.exception;
 
+import com.giftmarket.address.exception.AddressException;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
@@ -21,7 +22,11 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail(exception.getMessage()));
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
     }
 
     @ExceptionHandler(SellerException.class)
@@ -30,7 +35,11 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(exception.getMessage()));
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
     }
 
     @ExceptionHandler(ProductException.class)
@@ -39,7 +48,11 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(exception.getMessage()));
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
     }
 
     @ExceptionHandler(CartException.class)
@@ -48,7 +61,11 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(exception.getMessage()));
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
     }
 
     @ExceptionHandler(OrderException.class)
@@ -57,29 +74,62 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(exception.getMessage()));
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
+    }
+
+    @ExceptionHandler(AddressException.class)
+    public ResponseEntity<ApiResponse<?>> handleAddressException(
+            AddressException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<?>> handleMethodArgumentNotValidException(
             MethodArgumentNotValidException exception
     ) {
-        String message = exception.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .findFirst()
-                .map(fieldError -> fieldError.getDefaultMessage())
-                .orElse("요청 값을 확인해 주세요.");
+        String message =
+                exception.getBindingResult()
+                        .getFieldErrors()
+                        .stream()
+                        .findFirst()
+                        .map(
+                                fieldError ->
+                                        fieldError.getDefaultMessage()
+                        )
+                        .orElse(
+                                "요청 값을 확인해 주세요."
+                        );
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(message));
+                .body(
+                        ApiResponse.fail(message)
+                );
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<?>> handle(Exception exception) {
+    public ResponseEntity<ApiResponse<?>> handle(
+            Exception exception
+    ) {
         return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.fail(exception.getMessage()));
+                .status(
+                        HttpStatus.INTERNAL_SERVER_ERROR
+                )
+                .body(
+                        ApiResponse.fail(
+                                exception.getMessage()
+                        )
+                );
     }
 }

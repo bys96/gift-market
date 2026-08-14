@@ -1,6 +1,6 @@
 interface OrderSummaryProps {
   productAmount: number;
-  deliveryFee: number;
+  shippingFee: number;
   totalAmount: number;
   isSubmitting: boolean;
   onSubmit: () => void;
@@ -8,38 +8,43 @@ interface OrderSummaryProps {
 
 export default function OrderSummary({
   productAmount,
-  deliveryFee,
+  shippingFee,
   totalAmount,
   isSubmitting,
   onSubmit,
 }: OrderSummaryProps) {
   return (
     <aside className="order-summary">
-      <h2 className="order-summary-title">결제 금액</h2>
+      <h2 className="order-summary-title">주문 금액</h2>
 
       <div className="order-summary-content">
         <div className="order-summary-row">
           <span>상품 금액</span>
-          <span>{productAmount.toLocaleString()}원</span>
+
+          <span>{productAmount.toLocaleString("ko-KR")}원</span>
         </div>
 
         <div className="order-summary-row">
           <span>배송비</span>
+
           <span>
-            {deliveryFee === 0 ? "무료" : `${deliveryFee.toLocaleString()}원`}
+            {shippingFee === 0
+              ? "무료"
+              : `${shippingFee.toLocaleString("ko-KR")}원`}
           </span>
         </div>
 
         <div className="order-summary-divider" />
 
         <div className="order-summary-total">
-          <span>총 결제 금액</span>
-          <strong>{totalAmount.toLocaleString()}원</strong>
+          <span>총 주문 금액</span>
+
+          <strong>{totalAmount.toLocaleString("ko-KR")}원</strong>
         </div>
       </div>
 
       <div className="order-summary-agreement">
-        주문 내용을 확인했으며 결제에 동의합니다.
+        주문 상품과 배송지 정보를 확인했습니다.
       </div>
 
       <button
@@ -50,7 +55,7 @@ export default function OrderSummary({
       >
         {isSubmitting
           ? "주문 처리 중..."
-          : `${totalAmount.toLocaleString()}원 주문하기`}
+          : `${totalAmount.toLocaleString("ko-KR")}원 주문하기`}
       </button>
     </aside>
   );

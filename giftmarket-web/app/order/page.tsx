@@ -1,90 +1,138 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import OrderCustomerForm from "@/components/order/OrderCustomerForm";
-import OrderRecipientForm from "@/components/order/OrderRecipientForm";
+import { useRouter, useSearchParams } from "next/navigation";
+
 import OrderProductList from "@/components/order/OrderProductList";
+import OrderRecipientForm from "@/components/order/OrderRecipientForm";
 import OrderSummary from "@/components/order/OrderSummary";
+import { createOrder } from "@/lib/order-api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
-
-const DELIVERY_FEE = 3000;
-
-interface CustomerForm {
-  name: string;
-  email: string;
-  phone: string;
-}
 
 interface RecipientForm {
   name: string;
   phone: string;
+  postalCode: string;
   address: string;
-  detailAddress: string;
-  deliveryMessage: string;
+  addressDetail: string;
+}
+
+function parseCartItemIds(value: string | null): number[] {
+  if (!value) {
+    return [];
+  }
+
+  const ids = value
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  return Array.from(new Set(ids));
 }
 
 export default function OrderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  const authInitialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
+  const cartInitialized = useCartStore((state) => state.initialized);
   const items = useCartStore((state) => state.items);
-  const clearCart = useCartStore((state) => state.clearCart);
-
-  const [customer, setCustomer] = useState<CustomerForm>({
-    name: "",
-    email: "",
-    phone: "",
-  });
+  const loadCart = useCartStore((state) => state.loadCart);
 
   const [recipient, setRecipient] = useState<RecipientForm>({
     name: "",
     phone: "",
+    postalCode: "",
     address: "",
-    detailAddress: "",
-    deliveryMessage: "",
+    addressDetail: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const requestedCartItemIds = useMemo(
+    () => parseCartItemIds(searchParams.get("cartItemIds")),
+    [searchParams],
+  );
+
+  useEffect(() => {
+    if (!authInitialized) {
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
+      router.replace(
+        `/login?redirect=${encodeURIComponent(
+          `/order?cartItemIds=${requestedCartItemIds.join(",")}`,
+        )}`,
+      );
+      return;
+    }
+
+    void loadCart();
+  }, [
+    authInitialized,
+    isAuthenticated,
+    user,
+    loadCart,
+    router,
+    requestedCartItemIds,
+  ]);
 
   useEffect(() => {
     if (!user) {
       return;
     }
 
-    setCustomer((current) => ({
+    setRecipient((current) => ({
       ...current,
       name: current.name || user.name,
-      email: current.email || user.email,
     }));
   }, [user]);
 
-  const productAmount = useMemo(
-    () => items.reduce((total, item) => total + item.price * item.quantity, 0),
-    [items],
+  const orderItems = useMemo(
+    () =>
+      items.filter((item) => requestedCartItemIds.includes(item.cartItemId)),
+    [items, requestedCartItemIds],
   );
 
-  const deliveryFee = useMemo(() => {
-    if (items.length === 0) {
-      return 0;
-    }
+  /*
+   * URL로 요청한 CartItem 중 하나라도
+   * 없어졌거나 현재 구매불가가 되었으면
+   * 일부 상품만 조용히 주문하지 않고
+   * 주문서 자체를 막습니다.
+   */
+  const hasInvalidOrderItems =
+    cartInitialized &&
+    (requestedCartItemIds.length === 0 ||
+      orderItems.length !== requestedCartItemIds.length ||
+      orderItems.some((item) => !item.purchasable));
 
-    const hasPaidShippingItem = items.some((item) => !item.isFreeShipping);
+  const productAmount = useMemo(
+    () =>
+      orderItems.reduce((total, item) => total + item.price * item.quantity, 0),
+    [orderItems],
+  );
 
-    return hasPaidShippingItem ? DELIVERY_FEE : 0;
-  }, [items]);
+  /*
+   * Backend OrderService와 동일한 정책.
+   * CartItem별 현재 배송비 합계를 사용합니다.
+   */
+  const shippingFee = useMemo(
+    () =>
+      orderItems.reduce(
+        (total, item) => total + (item.freeShipping ? 0 : item.shippingFee),
+        0,
+      ),
+    [orderItems],
+  );
 
-  const totalAmount = productAmount + deliveryFee;
-
-  const handleCustomerChange = (field: keyof CustomerForm, value: string) => {
-    setCustomer((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
+  const totalAmount = productAmount + shippingFee;
 
   const handleRecipientChange = (field: keyof RecipientForm, value: string) => {
     setRecipient((current) => ({
@@ -94,111 +142,117 @@ export default function OrderPage() {
   };
 
   const validateOrder = () => {
-    if (!isAuthenticated) {
-      alert("로그인이 필요합니다.");
+    if (!isAuthenticated || !user) {
+      setErrorMessage("로그인이 필요합니다.");
       return false;
     }
 
-    if (items.length === 0) {
-      alert("장바구니에 상품이 없습니다.");
+    if (requestedCartItemIds.length === 0 || orderItems.length === 0) {
+      setErrorMessage("주문할 상품을 확인할 수 없습니다.");
       return false;
     }
 
-    if (!customer.name.trim()) {
-      alert("주문자 이름을 입력해주세요.");
-      return false;
-    }
-
-    if (!customer.email.trim()) {
-      alert("주문자 이메일을 입력해주세요.");
-      return false;
-    }
-
-    if (!customer.phone.trim()) {
-      alert("주문자 휴대폰 번호를 입력해주세요.");
+    if (hasInvalidOrderItems) {
+      setErrorMessage(
+        "상품 상태 또는 재고가 변경되었습니다. 장바구니를 다시 확인해주세요.",
+      );
       return false;
     }
 
     if (!recipient.name.trim()) {
-      alert("받는 사람 이름을 입력해주세요.");
+      setErrorMessage("받는 분 이름을 입력해주세요.");
       return false;
     }
 
     if (!recipient.phone.trim()) {
-      alert("받는 사람 휴대폰 번호를 입력해주세요.");
+      setErrorMessage("받는 분 휴대폰 번호를 입력해주세요.");
       return false;
     }
 
-    if (!recipient.address.trim()) {
-      alert("배송 주소를 입력해주세요.");
+    if (!/^[0-9-]{9,20}$/.test(recipient.phone.trim())) {
+      setErrorMessage("올바른 휴대폰 번호를 입력해주세요.");
       return false;
     }
 
-    if (!recipient.detailAddress.trim()) {
-      alert("상세 주소를 입력해주세요.");
+    if (!recipient.postalCode.trim() || !recipient.address.trim()) {
+      setErrorMessage("주소를 입력해주세요.");
       return false;
     }
+
+    setErrorMessage("");
 
     return true;
   };
 
   const handleSubmit = async () => {
-    if (!validateOrder()) {
+    if (isSubmitting || !validateOrder()) {
       return;
     }
 
     try {
       setIsSubmitting(true);
+      setErrorMessage("");
 
-      const orderRequest = {
-        customer,
-        recipient: {
-          ...recipient,
-          deliveryMessage: recipient.deliveryMessage.trim(),
-        },
-        items: items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
-      };
+      const createdOrder = await createOrder({
+        cartItemIds: requestedCartItemIds,
+        recipientName: recipient.name.trim(),
+        recipientPhone: recipient.phone.trim(),
+        postalCode: recipient.postalCode.trim(),
+        address: recipient.address.trim(),
+        addressDetail: recipient.addressDetail.trim() || null,
+      });
 
-      console.log("orderRequest", orderRequest);
+      /*
+       * Backend가 주문된 CartItem을 삭제했으므로
+       * Header / Cart count도 즉시 최신화합니다.
+       */
+      await loadCart();
 
-      // TODO: 주문 API 구현 후 교체
-      // await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //     Authorization: `Bearer ${accessToken}`,
-      //   },
-      //   body: JSON.stringify(orderRequest),
-      // });
-
-      clearCart();
-      router.push("/order/complete");
+      router.replace(`/my/orders/${createdOrder.orderId}`);
     } catch (error) {
-      console.error(error);
-      alert("주문 처리 중 오류가 발생했습니다.");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "주문 처리 중 오류가 발생했습니다.",
+      );
+
+      /*
+       * 주문 시점에 재고/상품상태가 바뀌었을 수 있으므로
+       * 실패 후 Cart도 최신 상태로 다시 동기화합니다.
+       */
+      await loadCart();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (items.length === 0) {
+  if (!authInitialized || (isAuthenticated && !cartInitialized)) {
     return (
       <div className="order-empty">
-        <h1 className="order-empty-title">주문할 상품이 없습니다</h1>
+        <h1 className="order-empty-title">주문 정보를 불러오는 중입니다.</h1>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  if (hasInvalidOrderItems) {
+    return (
+      <div className="order-empty">
+        <h1 className="order-empty-title">주문 상품을 다시 확인해주세요.</h1>
 
         <p className="order-empty-description">
-          장바구니에 상품을 담은 후 주문해주세요.
+          상품의 판매 상태 또는 재고가 변경되었을 수 있습니다.
         </p>
 
         <button
           className="order-empty-button"
           type="button"
-          onClick={() => router.push("/products")}
+          onClick={() => router.replace("/cart")}
         >
-          상품 보러 가기
+          장바구니로 돌아가기
         </button>
       </div>
     );
@@ -207,36 +261,31 @@ export default function OrderPage() {
   return (
     <div className="order-page">
       <div className="order-page-header">
-        <h1 className="order-page-title">주문 / 결제</h1>
+        <h1 className="order-page-title">주문서</h1>
       </div>
+
+      {errorMessage && <p className="order-error-message">{errorMessage}</p>}
 
       <div className="order-layout">
         <div className="order-content">
-          <OrderProductList items={items} />
-
-          <OrderCustomerForm
-            name={customer.name}
-            email={customer.email}
-            phone={customer.phone}
-            onChange={handleCustomerChange}
-          />
+          <OrderProductList items={orderItems} />
 
           <OrderRecipientForm
             name={recipient.name}
             phone={recipient.phone}
+            postalCode={recipient.postalCode}
             address={recipient.address}
-            detailAddress={recipient.detailAddress}
-            deliveryMessage={recipient.deliveryMessage}
+            addressDetail={recipient.addressDetail}
             onChange={handleRecipientChange}
           />
         </div>
 
         <OrderSummary
           productAmount={productAmount}
-          deliveryFee={deliveryFee}
+          shippingFee={shippingFee}
           totalAmount={totalAmount}
           isSubmitting={isSubmitting}
-          onSubmit={handleSubmit}
+          onSubmit={() => void handleSubmit()}
         />
       </div>
     </div>

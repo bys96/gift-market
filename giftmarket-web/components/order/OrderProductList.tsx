@@ -1,5 +1,7 @@
 import Image from "next/image";
-import type { CartItem } from "@/stores/cart-store";
+
+import type { CartItem } from "@/types/cart";
+import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderProductListProps {
   items: CartItem[];
@@ -15,35 +17,58 @@ export default function OrderProductList({ items }: OrderProductListProps) {
       </div>
 
       <div className="order-product-list">
-        {items.map((item) => (
-          <article key={item.productId} className="order-product-item">
-            <div className="order-product-image-wrapper">
-              <Image
-                className="order-product-image"
-                src={item.imageUrl}
-                alt={item.name}
-                fill
-                sizes="96px"
-              />
-            </div>
+        {items.map((item) => {
+          const imageUrl = resolveImageUrl(item.representativeImageKey);
 
-            <div className="order-product-info">
-              <p className="order-product-brand">{item.brandName}</p>
+          return (
+            <article key={item.cartItemId} className="order-product-item">
+              <div className="order-product-image-wrapper">
+                {imageUrl ? (
+                  <Image
+                    className="order-product-image"
+                    src={imageUrl}
+                    alt={item.productName}
+                    fill
+                    sizes="96px"
+                  />
+                ) : (
+                  <div className="order-product-image-empty">이미지 없음</div>
+                )}
+              </div>
 
-              <h3 className="order-product-name">{item.name}</h3>
+              <div className="order-product-info">
+                <p className="order-product-brand">
+                  {item.brandName ?? item.storeName}
+                </p>
 
-              <p className="order-product-quantity">수량 {item.quantity}개</p>
+                <h3 className="order-product-name">{item.productName}</h3>
 
-              <p className="order-product-shipping">
-                {item.isFreeShipping ? "무료배송" : "배송비 3,000원"}
-              </p>
-            </div>
+                {item.options.length > 0 && (
+                  <p className="order-product-options">
+                    {item.options
+                      .map(
+                        (option) =>
+                          `${option.optionGroupName}: ${option.optionValue}`,
+                      )
+                      .join(" / ")}
+                  </p>
+                )}
 
-            <strong className="order-product-price">
-              {(item.price * item.quantity).toLocaleString()}원
-            </strong>
-          </article>
-        ))}
+                <p className="order-product-quantity">수량 {item.quantity}개</p>
+
+                <p className="order-product-shipping">
+                  {item.freeShipping
+                    ? "무료배송"
+                    : `배송비 ${item.shippingFee.toLocaleString("ko-KR")}원`}
+                </p>
+              </div>
+
+              <strong className="order-product-price">
+                {(item.price * item.quantity).toLocaleString("ko-KR")}원
+              </strong>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
