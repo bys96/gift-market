@@ -1,10 +1,10 @@
 import Image from "next/image";
 
-import type { CartItem } from "@/types/cart";
+import type { OrderProductItem } from "@/types/order";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderProductListProps {
-  items: CartItem[];
+  items: OrderProductItem[];
 }
 
 export default function OrderProductList({ items }: OrderProductListProps) {
@@ -21,7 +21,7 @@ export default function OrderProductList({ items }: OrderProductListProps) {
           const imageUrl = resolveImageUrl(item.representativeImageKey);
 
           return (
-            <article key={item.cartItemId} className="order-product-item">
+            <article key={item.key} className="order-product-item">
               <div className="order-product-image-wrapper">
                 {imageUrl ? (
                   <Image
@@ -43,14 +43,9 @@ export default function OrderProductList({ items }: OrderProductListProps) {
 
                 <h3 className="order-product-name">{item.productName}</h3>
 
-                {item.options.length > 0 && (
+                {item.optionText && (
                   <p className="order-product-options">
-                    {item.options
-                      .map(
-                        (option) =>
-                          `${option.optionGroupName}: ${option.optionValue}`,
-                      )
-                      .join(" / ")}
+                    {item.optionText}
                   </p>
                 )}
 

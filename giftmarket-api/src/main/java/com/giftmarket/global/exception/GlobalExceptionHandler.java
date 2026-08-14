@@ -7,6 +7,7 @@ import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.seller.exception.SellerException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
@@ -122,13 +124,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handle(
             Exception exception
     ) {
+        log.error(
+                "처리되지 않은 서버 예외가 발생했습니다.",
+                exception
+        );
+
         return ResponseEntity
                 .status(
                         HttpStatus.INTERNAL_SERVER_ERROR
                 )
                 .body(
                         ApiResponse.fail(
-                                exception.getMessage()
+                                "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
                         )
                 );
     }

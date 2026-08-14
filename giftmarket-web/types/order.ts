@@ -59,6 +59,30 @@ export interface OrderCreateRequest {
   addressDetail: string | null;
 }
 
+export interface DirectOrderCreateRequest {
+  productId: number;
+  variantId: number | null;
+  quantity: number;
+  recipientName: string;
+  recipientPhone: string;
+  postalCode: string;
+  address: string;
+  addressDetail: string | null;
+}
+
+export interface OrderProductItem {
+  key: string;
+  productName: string;
+  brandName: string | null;
+  storeName: string;
+  representativeImageKey: string | null;
+  optionText: string | null;
+  quantity: number;
+  price: number;
+  freeShipping: boolean;
+  shippingFee: number;
+}
+
 export interface OrderCreateResponse {
   orderId: number;
   orderNumber: string;

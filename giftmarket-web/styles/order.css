@@ -321,6 +321,197 @@
   flex: 1;
 }
 
+.order-address-search-row.is-readonly {
+  grid-template-columns: 130px;
+}
+
+.order-address-selector {
+  margin-bottom: 24px;
+}
+
+.order-address-selector-message,
+.order-address-current {
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.order-address-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.order-address-current strong,
+.order-address-option strong {
+  color: var(--color-text-primary);
+  font-size: 15px;
+}
+
+.order-address-current em,
+.order-address-option em {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fff1f4;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.order-address-current p {
+  margin: 7px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.order-address-current button {
+  height: 38px;
+  flex-shrink: 0;
+  padding: 0 14px;
+  border: 1px solid #999999;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #333333;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-address-select-overlay {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 48%);
+}
+
+.order-address-select-modal {
+  overflow: hidden;
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(100dvh - 48px);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.order-address-select-header {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 0 24px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.order-address-select-header > strong {
+  font-size: 18px;
+}
+
+.order-address-select-header button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: #777777;
+  font-size: 26px;
+  cursor: pointer;
+}
+
+.order-address-options {
+  display: flex;
+  overflow-y: auto;
+  max-height: calc(100dvh - 132px);
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 24px 24px;
+}
+
+.order-address-option {
+  display: flex;
+  gap: 11px;
+  padding: 16px;
+  border: 1px solid #e3e3e3;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.order-address-option.is-selected {
+  border-color: var(--color-primary);
+  background: #fff8fa;
+}
+
+.order-address-option input {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  accent-color: var(--color-primary);
+}
+
+.order-address-option span {
+  min-width: 0;
+}
+
+.order-address-option small {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.order-form-input:read-only {
+  border-color: #e4e4e4;
+  background: #f8f8f8;
+  color: #555555;
+}
+
+.order-save-address-box {
+  padding: 18px;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.order-save-address-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #444444;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.order-save-address-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.order-save-address-box > p {
+  margin: 8px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.order-save-address-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e5e5;
+}
+
 .order-summary {
   position: sticky;
   top: 100px;
@@ -537,6 +728,27 @@
 }
 
 @media (max-width: 600px) {
+  .order-address-current {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .order-address-select-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .order-address-select-modal {
+    max-width: none;
+    max-height: 86dvh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .order-address-options {
+    max-height: calc(86dvh - 60px);
+    padding: 16px;
+  }
+
   .order-address-search-row {
     grid-template-columns: minmax(0, 1fr) 100px;
   }

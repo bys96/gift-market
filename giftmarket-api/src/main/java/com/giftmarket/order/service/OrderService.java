@@ -4,6 +4,7 @@ import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.entity.CartItem;
 import com.giftmarket.cart.repository.CartItemRepository;
 import com.giftmarket.order.dto.request.OrderCreateRequest;
+import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
@@ -234,6 +235,118 @@ public class OrderService {
         return OrderCreateResponse.from(order);
     }
 
+    /**
+     * 장바구니를 거치지 않는 단일 상품 바로구매 주문 생성.
+     * Product / Variant를 직접 잠그고 서버의 현재 값으로 주문 Snapshot을 만듭니다.
+     */
+    @Transactional
+    public OrderCreateResponse createDirectOrder(
+            Long userId,
+            DirectOrderCreateRequest request
+    ) {
+        User user = getAuthenticatedUser(userId);
+
+        Product product = getLockedDirectProduct(request.productId());
+
+        validateProductPurchasable(product, true);
+
+        boolean hasOptions = hasProductOptions(product.getId());
+
+        if (hasOptions && request.variantId() == null) {
+            throw new OrderException("상품 옵션을 선택해주세요.");
+        }
+
+        if (!hasOptions && request.variantId() != null) {
+            throw new OrderException("옵션이 없는 상품에는 상품 옵션을 지정할 수 없습니다.");
+        }
+
+        ProductVariant variant = null;
+
+        if (request.variantId() != null) {
+            variant = getLockedDirectVariant(
+                    request.variantId(),
+                    product.getId()
+            );
+
+            validateVariantPurchasable(
+                    variant,
+                    request.quantity(),
+                    true
+            );
+
+            variant.decreaseStock(request.quantity());
+        } else {
+            validateProductStock(
+                    product,
+                    request.quantity(),
+                    true
+            );
+
+            product.decreaseStock(request.quantity());
+        }
+
+        long additionalPrice =
+                variant == null
+                        ? 0L
+                        : variant.getAdditionalPrice();
+
+        String optionSnapshot =
+                variant == null
+                        ? null
+                        : createOptionSnapshot(variant.getId());
+
+        Seller seller = product.getSeller();
+
+        PreparedOrderItem preparedItem =
+                new PreparedOrderItem(
+                        product,
+                        variant,
+                        seller,
+                        product.getName(),
+                        product.getBrandName(),
+                        seller.getStoreName(),
+                        product.getRepresentativeImageKey(),
+                        optionSnapshot,
+                        product.getPrice(),
+                        additionalPrice,
+                        product.getPrice() + additionalPrice,
+                        request.quantity(),
+                        (product.getPrice() + additionalPrice)
+                                * request.quantity(),
+                        product.isFreeShipping(),
+                        product.isFreeShipping()
+                                ? 0L
+                                : product.getShippingFee()
+                );
+
+        Order order =
+                Order.create(
+                        generateOrderNumber(),
+                        user,
+                        preparedItem.totalPrice(),
+                        preparedItem.shippingFee(),
+                        request.recipientName().trim(),
+                        request.recipientPhone().trim(),
+                        request.postalCode().trim(),
+                        request.address().trim(),
+                        normalizeNullableText(request.addressDetail())
+                );
+
+        orderRepository.save(order);
+        orderItemRepository.save(
+                createOrderItem(order, preparedItem)
+        );
+
+        if (variant != null) {
+            synchronizeVariantProductStock(
+                    product,
+                    product.getId()
+            );
+        }
+
+        return OrderCreateResponse.from(order);
+    }
+
     @Transactional(readOnly = true)
     public List<OrderSummaryResponse> getMyOrders(
             Long userId
@@ -449,7 +562,7 @@ public class OrderService {
                         this::getLockedProduct
                 );
 
-        validateProductPurchasable(product);
+        validateProductPurchasable(product, false);
 
         ProductVariant cartVariant =
                 cartItem.getVariant();
@@ -487,7 +600,8 @@ public class OrderService {
 
             validateVariantPurchasable(
                     variant,
-                    cartItem.getQuantity()
+                    cartItem.getQuantity(),
+                    false
             );
 
             variant.decreaseStock(
@@ -498,7 +612,8 @@ public class OrderService {
         } else {
             validateProductStock(
                     product,
-                    cartItem.getQuantity()
+                    cartItem.getQuantity(),
+                    false
             );
 
             product.decreaseStock(
@@ -589,6 +704,18 @@ public class OrderService {
                 );
     }
 
+    private Product getLockedDirectProduct(
+            Long productId
+    ) {
+        return productRepository
+                .findWithLockByIdAndDeletedAtIsNull(productId)
+                .orElseThrow(() ->
+                        new OrderException(
+                                "현재 구매할 수 없는 상품입니다."
+                        )
+                );
+    }
+
     private Product getLockedProductForCancellation(
             Long productId
     ) {
@@ -619,58 +746,89 @@ public class OrderService {
                 );
     }
 
+    private ProductVariant getLockedDirectVariant(
+            Long variantId,
+            Long productId
+    ) {
+        return productVariantRepository
+                .findWithLockByIdAndProductId(
+                        variantId,
+                        productId
+                )
+                .orElseThrow(() ->
+                        new OrderException(
+                                "선택한 옵션 정보를 확인할 수 없습니다."
+                        )
+                );
+    }
+
     private void validateProductPurchasable(
-            Product product
+            Product product,
+            boolean directPurchase
     ) {
         if (product.isDeleted()) {
             throw new OrderException(
-                    "삭제된 상품은 주문할 수 없습니다."
+                    directPurchase
+                            ? "현재 구매할 수 없는 상품입니다."
+                            : "현재 구매할 수 없는 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요."
             );
         }
 
         if (product.getStatus()
                 == ProductStatus.SOLD_OUT) {
             throw new OrderException(
-                    "품절된 상품이 포함되어 있습니다."
+                    directPurchase
+                            ? "상품 재고가 부족합니다. 상품 정보를 다시 확인해주세요."
+                            : "품절된 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요."
             );
         }
 
         if (product.getStatus()
                 != ProductStatus.ON_SALE) {
             throw new OrderException(
-                    "현재 판매하지 않는 상품이 포함되어 있습니다."
+                    directPurchase
+                            ? "현재 판매가 중지된 상품입니다."
+                            : "현재 판매가 중지된 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요."
             );
         }
     }
 
     private void validateProductStock(
             Product product,
-            Integer quantity
+            Integer quantity,
+            boolean directPurchase
     ) {
         validateOrderQuantity(quantity);
 
         if (product.getStockQuantity() < quantity) {
             throw new OrderException(
-                    "상품 재고가 부족합니다. 장바구니를 다시 확인해주세요."
+                    directPurchase
+                            ? "상품 재고가 부족합니다. 상품 정보를 다시 확인해주세요."
+                            : "상품 재고가 부족합니다. 장바구니를 다시 확인해주세요."
             );
         }
     }
 
     private void validateVariantPurchasable(
             ProductVariant variant,
-            Integer quantity
+            Integer quantity,
+            boolean directPurchase
     ) {
         validateOrderQuantity(quantity);
 
         if (!variant.isActive()) {
             throw new OrderException(
-                    "현재 판매하지 않는 상품 옵션이 포함되어 있습니다."
+                    directPurchase
+                            ? "선택한 옵션은 현재 구매할 수 없습니다."
+                            : "현재 구매할 수 없는 옵션이 포함되어 있습니다. 장바구니를 다시 확인해주세요."
             );
         }
 
         if (variant.getStockQuantity() < quantity) {
             throw new OrderException(
-                    "선택한 상품 옵션의 재고가 부족합니다. 장바구니를 다시 확인해주세요."
+                    directPurchase
+                            ? "선택한 옵션의 재고가 부족합니다."
+                            : "선택한 상품 옵션의 재고가 부족합니다. 장바구니를 다시 확인해주세요."
             );
         }
     }
@@ -681,7 +839,7 @@ public class OrderService {
         if (quantity == null
                 || quantity <= 0) {
             throw new OrderException(
-                    "올바르지 않은 주문 수량입니다."
+                    "구매 수량을 다시 확인해주세요."
             );
         }
     }

@@ -2,6 +2,7 @@ package com.giftmarket.order.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.dto.request.OrderCreateRequest;
+import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
@@ -33,6 +34,19 @@ public class OrderController {
     ) {
         return ApiResponse.success(
                 orderService.createOrder(
+                        userId,
+                        request
+                )
+        );
+    }
+
+    @PostMapping("/direct")
+    public ApiResponse<OrderCreateResponse> createDirectOrder(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody DirectOrderCreateRequest request
+    ) {
+        return ApiResponse.success(
+                orderService.createDirectOrder(
                         userId,
                         request
                 )

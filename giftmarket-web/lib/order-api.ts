@@ -3,6 +3,7 @@ import type { ApiResponse } from "@/types/api";
 import type {
   OrderCreateRequest,
   OrderCreateResponse,
+  DirectOrderCreateRequest,
   OrderDetail,
   OrderSummary,
 } from "@/types/order";
@@ -23,6 +24,27 @@ export async function createOrder(
 
   if (!result.success || !result.data) {
     throw new Error(result.message || "주문을 생성하지 못했습니다.");
+  }
+
+  return result.data;
+}
+
+export async function createDirectOrder(
+  request: DirectOrderCreateRequest,
+): Promise<OrderCreateResponse> {
+  const result = await apiFetch<ApiResponse<OrderCreateResponse>>(
+    "/api/orders/direct",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!result.success || !result.data) {
+    throw new Error(result.message || "바로구매 주문을 생성하지 못했습니다.");
   }
 
   return result.data;
