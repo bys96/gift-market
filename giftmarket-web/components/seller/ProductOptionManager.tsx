@@ -848,7 +848,7 @@ export default function ProductOptionManager({
                           <div className="seller-product-variant-number-input">
                             <input
                               type="text"
-                              inputMode="numeric"
+                              inputMode="text"
                               value={variant.additionalPrice}
                               disabled={disabled}
                               data-variant-field="true"
@@ -862,10 +862,11 @@ export default function ProductOptionManager({
                                 }
                               }}
                               onChange={(event) => {
-                                const value = event.target.value.replace(
-                                  /\D/g,
-                                  "",
-                                );
+                                const inputValue = event.target.value;
+                                const digits = inputValue.replace(/\D/g, "");
+                                const value = inputValue.startsWith("-")
+                                  ? `-${digits}`
+                                  : digits;
 
                                 handleVariantChange(
                                   variant.clientId,
@@ -877,7 +878,8 @@ export default function ProductOptionManager({
                                 handleVariantChange(
                                   variant.clientId,
                                   "additionalPrice",
-                                  variant.additionalPrice.trim() === ""
+                                  variant.additionalPrice.trim() === "" ||
+                                    variant.additionalPrice.trim() === "-"
                                     ? "0"
                                     : String(Number(variant.additionalPrice)),
                                 );

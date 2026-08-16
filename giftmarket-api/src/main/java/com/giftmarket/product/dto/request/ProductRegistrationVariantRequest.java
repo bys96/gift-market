@@ -26,7 +26,6 @@ public record ProductRegistrationVariantRequest(
         List<@Valid ProductOptionReferenceRequest> options,
 
         @NotNull(message = "옵션 추가 금액을 입력해주세요.")
-        @PositiveOrZero(message = "옵션 추가 금액은 0원 이상이어야 합니다.")
         Long additionalPrice,
 
         @NotNull(message = "옵션 재고 수량을 입력해주세요.")

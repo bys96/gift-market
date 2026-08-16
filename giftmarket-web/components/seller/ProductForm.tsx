@@ -713,6 +713,7 @@ export default function ProductForm({
 
     const skuCodes = new Set<string>();
     let totalStockQuantity = 0;
+    const productPrice = parseRequiredNumber(form.price, "판매가");
 
     optionEditorState.variants.forEach((variant, variantIndex) => {
       const skuCode = variant.skuCode.trim();
@@ -738,8 +739,16 @@ export default function ProductForm({
         `${skuCode} 재고`,
       );
 
-      if (additionalPrice < 0) {
-        throw new Error("옵션 추가 금액은 0원 이상이어야 합니다.");
+      const finalVariantPrice = productPrice + additionalPrice;
+
+      if (!Number.isSafeInteger(finalVariantPrice)) {
+        throw new Error(`${skuCode} 옵션 적용 후 최종 판매가격을 확인해주세요.`);
+      }
+
+      if (finalVariantPrice <= 0) {
+        throw new Error(
+          `${skuCode} 옵션 적용 후 최종 판매가격은 1원 이상이어야 합니다.`,
+        );
       }
 
       if (stockQuantity < 0) {

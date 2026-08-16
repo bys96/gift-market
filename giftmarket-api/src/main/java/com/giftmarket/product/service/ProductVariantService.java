@@ -295,6 +295,11 @@ public class ProductVariantService {
                 new HashSet<>();
 
         for (ProductVariantRequest variantRequest : variantRequests) {
+            validateFinalVariantPrice(
+                    product.getPrice(),
+                    variantRequest.additionalPrice()
+            );
+
             if (variantRequest.id() != null
                     && !requestVariantIds.add(
                     variantRequest.id()
@@ -395,6 +400,29 @@ public class ProductVariantService {
                     );
                 }
             }
+        }
+    }
+
+    static void validateFinalVariantPrice(
+            Long productPrice,
+            Long additionalPrice
+    ) {
+        if (additionalPrice == null) {
+            throw new ProductException(
+                    "옵션 추가 금액을 입력해주세요."
+            );
+        }
+
+        try {
+            if (Math.addExact(productPrice, additionalPrice) <= 0) {
+                throw new ProductException(
+                        "옵션 적용 후 최종 판매가격은 1원 이상이어야 합니다."
+                );
+            }
+        } catch (ArithmeticException exception) {
+            throw new ProductException(
+                    "옵션 적용 후 최종 판매가격을 확인해주세요."
+            );
         }
     }
 

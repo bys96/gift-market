@@ -27,7 +27,6 @@ public record ProductVariantRequest(
         List<@NotNull(message = "옵션 값을 선택해주세요.") Long> optionValueIds,
 
         @NotNull(message = "옵션 추가 금액을 입력해주세요.")
-        @PositiveOrZero(message = "옵션 추가 금액은 0원 이상이어야 합니다.")
         Long additionalPrice,
 
         @NotNull(message = "옵션 재고 수량을 입력해주세요.")
