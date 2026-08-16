@@ -91,7 +91,11 @@ class PaymentServiceTest {
                         null, null, "IN_PROGRESS", null
                 )
         );
-        given(transactionService.getPayment(1L, 2L)).willReturn(confirming);
+        given(transactionService.complete(
+                any(),
+                any(),
+                any(GatewayPaymentQueryResult.class)
+        )).willReturn(confirming);
 
         service.confirm(1L, 2L, request());
 
@@ -172,7 +176,7 @@ class PaymentServiceTest {
     ) {
         return new PaymentConfirmStart(
                 action, PaymentProvider.TOSS, "provider-key", "GM-PAY",
-                10_000L, "KRW", "same-confirm-key", response
+                10_000L, "KRW", "same-confirm-key", null, response
         );
     }
 

@@ -7,6 +7,7 @@ import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
+import com.giftmarket.order.service.OrderInventoryService;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.entity.Payment;
@@ -18,6 +19,7 @@ import com.giftmarket.payment.gateway.GatewayPaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -31,6 +33,7 @@ public class PaymentTransactionService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
+    private final OrderInventoryService orderInventoryService;
 
     @Transactional
     public PaymentConfirmStart startConfirm(
@@ -112,20 +115,19 @@ public class PaymentTransactionService {
             Long paymentId,
             GatewayPaymentQueryResult result
     ) {
-        return complete(
-                userId,
-                paymentId,
-                result.status(),
-                result.providerPaymentKey(),
-                result.providerTransactionId(),
-                result.merchantPaymentId(),
-                result.amount(),
-                result.currency(),
-                result.method(),
-                result.easyPayProvider(),
-                result.providerStatus(),
-                result.approvedAt()
-        );
+        Payment payment = getPaymentForUpdate(userId, paymentId);
+        Order order = getOrderForUpdate(userId, payment.getOrder().getId());
+        return applyQueryResult(payment, order, result);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PaymentResponse reconcile(
+            Long paymentId,
+            GatewayPaymentQueryResult result
+    ) {
+        Payment payment = getPaymentForUpdate(paymentId);
+        Order order = getOrderForUpdate(payment.getOrder().getId());
+        return applyQueryResult(payment, order, result);
     }
 
     @Transactional
@@ -137,18 +139,14 @@ public class PaymentTransactionService {
             String providerStatus
     ) {
         Payment payment = getPaymentForUpdate(userId, paymentId);
-        if (payment.getStatus() == PaymentStatus.PAID
-                || payment.getStatus() == PaymentStatus.FAILED) {
-            return;
-        }
-        if (payment.getStatus() != PaymentStatus.CONFIRMING) {
-            throw new PaymentException("결제 상태를 변경할 수 없습니다.");
-        }
-        payment.fail(
+        Order order = getOrderForUpdate(userId, payment.getOrder().getId());
+        finishFailure(
+                payment,
+                order,
+                GatewayPaymentStatus.FAILED,
                 failureCode,
-                safeFailureMessage(failureMessage),
-                providerStatus,
-                LocalDateTime.now()
+                failureMessage,
+                providerStatus
         );
     }
 
@@ -181,6 +179,31 @@ public class PaymentTransactionService {
         return start(payment, PaymentConfirmStart.Action.QUERY);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PaymentConfirmStart startReconciliation(
+            Long paymentId,
+            LocalDateTime confirmingBefore
+    ) {
+        Payment payment = getPaymentForUpdate(paymentId);
+
+        if (payment.getStatus() != PaymentStatus.CONFIRMING
+                || payment.getConfirmingAt() == null
+                || payment.getConfirmingAt().isAfter(confirmingBefore)) {
+            return completed(payment);
+        }
+
+        Order order = getOrderForUpdate(payment.getOrder().getId());
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            return completed(payment);
+        }
+        if (payment.getProviderPaymentKey() == null
+                || payment.getProviderPaymentKey().isBlank()) {
+            throw new PaymentException("결제 정보를 확인할 수 없습니다.");
+        }
+
+        return start(payment, PaymentConfirmStart.Action.QUERY);
+    }
+
     private PaymentResponse complete(
             Long userId,
             Long paymentId,
@@ -198,6 +221,94 @@ public class PaymentTransactionService {
         Payment payment = getPaymentForUpdate(userId, paymentId);
         Order order = getOrderForUpdate(userId, payment.getOrder().getId());
 
+        return completeLocked(
+                payment,
+                order,
+                gatewayStatus,
+                providerPaymentKey,
+                providerTransactionId,
+                merchantPaymentId,
+                amount,
+                currency,
+                method,
+                easyPayProvider,
+                providerStatus,
+                approvedAt
+        );
+    }
+
+    private PaymentResponse applyQueryResult(
+            Payment payment,
+            Order order,
+            GatewayPaymentQueryResult result
+    ) {
+        if (payment.getStatus() == PaymentStatus.PAID
+                && order.getStatus() == OrderStatus.PAID) {
+            return PaymentResponse.from(payment);
+        }
+        if ((payment.getStatus() == PaymentStatus.FAILED
+                || payment.getStatus() == PaymentStatus.CANCELED)
+                && order.getStatus() == OrderStatus.PAYMENT_FAILED) {
+            return PaymentResponse.from(payment);
+        }
+        if (payment.getStatus() != PaymentStatus.CONFIRMING
+                || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new PaymentException("결제 결과를 반영할 수 없는 상태입니다.");
+        }
+
+        validateGatewayResult(
+                payment,
+                result.providerPaymentKey(),
+                result.merchantPaymentId(),
+                result.amount(),
+                result.currency()
+        );
+
+        if (result.status() == GatewayPaymentStatus.PAID) {
+            return completeLocked(
+                    payment,
+                    order,
+                    result.status(),
+                    result.providerPaymentKey(),
+                    result.providerTransactionId(),
+                    result.merchantPaymentId(),
+                    result.amount(),
+                    result.currency(),
+                    result.method(),
+                    result.easyPayProvider(),
+                    result.providerStatus(),
+                    result.approvedAt()
+            );
+        }
+        if (result.status() == GatewayPaymentStatus.FAILED
+                || result.status() == GatewayPaymentStatus.CANCELED) {
+            finishFailure(
+                    payment,
+                    order,
+                    result.status(),
+                    "PAYMENT_NOT_COMPLETED",
+                    "결제가 완료되지 않았습니다.",
+                    result.providerStatus()
+            );
+        }
+        return PaymentResponse.from(payment);
+    }
+
+    private PaymentResponse completeLocked(
+            Payment payment,
+            Order order,
+            GatewayPaymentStatus gatewayStatus,
+            String providerPaymentKey,
+            String providerTransactionId,
+            String merchantPaymentId,
+            Long amount,
+            String currency,
+            com.giftmarket.payment.entity.PaymentMethod method,
+            com.giftmarket.payment.entity.EasyPayProvider easyPayProvider,
+            String providerStatus,
+            LocalDateTime approvedAt
+    ) {
+
         if (payment.getStatus() == PaymentStatus.PAID
                 && order.getStatus() == OrderStatus.PAID) {
             return PaymentResponse.from(payment);
@@ -206,13 +317,16 @@ public class PaymentTransactionService {
                 || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new PaymentException("결제를 확정할 수 없는 상태입니다.");
         }
-        if (gatewayStatus != GatewayPaymentStatus.PAID
-                || !Objects.equals(payment.getProviderPaymentKey(), providerPaymentKey)
-                || !Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)
-                || !Objects.equals(payment.getAmount(), amount)
-                || !Objects.equals(payment.getCurrency(), currency)) {
+        if (gatewayStatus != GatewayPaymentStatus.PAID) {
             throw new PaymentException("결제 결과를 확인 중입니다.");
         }
+        validateGatewayResult(
+                payment,
+                providerPaymentKey,
+                merchantPaymentId,
+                amount,
+                currency
+        );
 
         LocalDateTime paidAt = approvedAt == null
                 ? LocalDateTime.now()
@@ -226,8 +340,56 @@ public class PaymentTransactionService {
                 paidAt
         );
         order.markPaid(paidAt);
-        removeUnchangedCartItems(userId, order.getId());
+        removeUnchangedCartItems(order.getUser().getId(), order.getId());
         return PaymentResponse.from(payment);
+    }
+
+    private void finishFailure(
+            Payment payment,
+            Order order,
+            GatewayPaymentStatus gatewayStatus,
+            String failureCode,
+            String failureMessage,
+            String providerStatus
+    ) {
+        if ((payment.getStatus() == PaymentStatus.FAILED
+                || payment.getStatus() == PaymentStatus.CANCELED)
+                && order.getStatus() == OrderStatus.PAYMENT_FAILED) {
+            return;
+        }
+        if (payment.getStatus() != PaymentStatus.CONFIRMING
+                || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new PaymentException("결제 상태를 변경할 수 없습니다.");
+        }
+
+        orderInventoryService.restore(order.getId());
+        LocalDateTime now = LocalDateTime.now();
+        if (gatewayStatus == GatewayPaymentStatus.CANCELED) {
+            payment.cancelFromProvider(providerStatus, now);
+        } else {
+            payment.fail(
+                    failureCode,
+                    safeFailureMessage(failureMessage),
+                    providerStatus,
+                    now
+            );
+        }
+        order.markPaymentFailed();
+    }
+
+    private void validateGatewayResult(
+            Payment payment,
+            String providerPaymentKey,
+            String merchantPaymentId,
+            Long amount,
+            String currency
+    ) {
+        if (!Objects.equals(payment.getProviderPaymentKey(), providerPaymentKey)
+                || !Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)
+                || !Objects.equals(payment.getAmount(), amount)
+                || !Objects.equals(payment.getCurrency(), currency)) {
+            throw new PaymentException("결제 결과를 확인 중입니다.");
+        }
     }
 
     private void removeUnchangedCartItems(Long userId, Long orderId) {
@@ -286,6 +448,20 @@ public class PaymentTransactionService {
                 ));
     }
 
+    private Payment getPaymentForUpdate(Long paymentId) {
+        return paymentRepository.findByIdForUpdate(paymentId)
+                .orElseThrow(() -> new PaymentException(
+                        "결제 정보를 찾을 수 없습니다."
+                ));
+    }
+
+    private Order getOrderForUpdate(Long orderId) {
+        return orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new PaymentException(
+                        "주문 정보를 찾을 수 없습니다."
+                ));
+    }
+
     private PaymentConfirmStart start(
             Payment payment,
             PaymentConfirmStart.Action action
@@ -298,6 +474,7 @@ public class PaymentTransactionService {
                 payment.getAmount(),
                 payment.getCurrency(),
                 payment.getConfirmIdempotencyKey(),
+                payment.getConfirmingAt(),
                 null
         );
     }
@@ -311,6 +488,7 @@ public class PaymentTransactionService {
                 payment.getAmount(),
                 payment.getCurrency(),
                 payment.getConfirmIdempotencyKey(),
+                payment.getConfirmingAt(),
                 PaymentResponse.from(payment)
         );
     }

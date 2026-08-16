@@ -7,6 +7,7 @@ import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
+import com.giftmarket.order.service.OrderInventoryService;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentMethod;
@@ -14,6 +15,7 @@ import com.giftmarket.payment.entity.PaymentProvider;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.gateway.GatewayConfirmResult;
+import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
 import com.giftmarket.product.entity.Product;
@@ -33,6 +35,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -48,6 +51,7 @@ class PaymentTransactionServiceTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderItemRepository orderItemRepository;
     @Mock CartItemRepository cartItemRepository;
+    @Mock OrderInventoryService orderInventoryService;
     @Mock User user;
     @Mock Product product;
     @Mock Seller seller;
@@ -62,7 +66,8 @@ class PaymentTransactionServiceTest {
                 paymentRepository,
                 orderRepository,
                 orderItemRepository,
-                cartItemRepository
+                cartItemRepository,
+                orderInventoryService
         );
         order = Order.createPendingPayment(
                 "GM-ORDER", user, 10_000L, 0L,
@@ -75,12 +80,17 @@ class PaymentTransactionServiceTest {
                 LocalDateTime.now().plusMinutes(30)
         );
         ReflectionTestUtils.setField(payment, "id", PAYMENT_ID);
+        lenient().when(user.getId()).thenReturn(USER_ID);
         lenient().when(paymentRepository.findByIdAndOrderUserIdForUpdate(
                 PAYMENT_ID, USER_ID
         )).thenReturn(Optional.of(payment));
         lenient().when(orderRepository.findByIdAndUserIdForUpdate(
                 ORDER_ID, USER_ID
         )).thenReturn(Optional.of(order));
+        lenient().when(paymentRepository.findByIdForUpdate(PAYMENT_ID))
+                .thenReturn(Optional.of(payment));
+        lenient().when(orderRepository.findByIdForUpdate(ORDER_ID))
+                .thenReturn(Optional.of(order));
     }
 
     @Test
@@ -171,6 +181,126 @@ class PaymentTransactionServiceTest {
         verify(cartItemRepository, never()).delete(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void schedulerQueryPaidCompletesWithoutAdditionalInventoryChange() {
+        payment.startConfirm("provider-key", LocalDateTime.now().minusMinutes(1));
+        LocalDateTime approvedAt = LocalDateTime.now();
+
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.PAID,
+                "DONE",
+                approvedAt
+        ));
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(order.getOrderedAt()).isEqualTo(approvedAt);
+        verify(orderInventoryService, never()).restore(ORDER_ID);
+    }
+
+    @Test
+    void definitiveFailureRestoresInventoryAndEndsPaymentOnce() {
+        payment.startConfirm("provider-key", LocalDateTime.now().minusMinutes(1));
+
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.FAILED,
+                "ABORTED",
+                null
+        ));
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.FAILED,
+                "ABORTED",
+                null
+        ));
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
+        verify(orderInventoryService).restore(ORDER_ID);
+        verify(cartItemRepository, never()).delete(any());
+    }
+
+    @Test
+    void canceledResultUsesCanceledPaymentAndRestoresInventory() {
+        payment.startConfirm("provider-key", LocalDateTime.now().minusMinutes(1));
+
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.CANCELED,
+                "CANCELED",
+                null
+        ));
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
+        verify(orderInventoryService).restore(ORDER_ID);
+    }
+
+    @Test
+    void pendingOrUnknownQueryKeepsConfirmingAndInventory() {
+        payment.startConfirm("provider-key", LocalDateTime.now().minusMinutes(1));
+
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.PENDING,
+                "IN_PROGRESS",
+                null
+        ));
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.UNKNOWN,
+                "PARTIAL_CANCELED",
+                null
+        ));
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CONFIRMING);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        verify(orderInventoryService, never()).restore(ORDER_ID);
+    }
+
+    @Test
+    void reconciliationBeforeDelayOrAfterAnotherFlowFinishedDoesNotQuery() {
+        LocalDateTime confirmingAt = LocalDateTime.now().minusSeconds(10);
+        payment.startConfirm("provider-key", confirmingAt);
+
+        PaymentConfirmStart tooEarly = service.startReconciliation(
+                PAYMENT_ID,
+                confirmingAt.minusSeconds(1)
+        );
+        assertThat(tooEarly.action()).isEqualTo(
+                PaymentConfirmStart.Action.COMPLETED
+        );
+
+        ReflectionTestUtils.setField(payment, "status", PaymentStatus.PAID);
+        ReflectionTestUtils.setField(order, "status", OrderStatus.PAID);
+        PaymentConfirmStart alreadyPaid = service.startReconciliation(
+                PAYMENT_ID,
+                confirmingAt.plusSeconds(1)
+        );
+        assertThat(alreadyPaid.action()).isEqualTo(
+                PaymentConfirmStart.Action.COMPLETED
+        );
+    }
+
+    @Test
+    void schedulerAndPollingResultsApplyCartCleanupOnlyOnce() {
+        given(product.getId()).willReturn(10L);
+        OrderItem item = orderItem(100L, 2);
+        CartItem cartItem = CartItem.create(user, product, null, 2);
+        given(orderItemRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID))
+                .willReturn(List.of(item));
+        given(cartItemRepository.findByIdAndUserId(100L, USER_ID))
+                .willReturn(Optional.of(cartItem));
+        payment.startConfirm("provider-key", LocalDateTime.now().minusMinutes(1));
+        GatewayPaymentQueryResult result = queryResult(
+                GatewayPaymentStatus.PAID,
+                "DONE",
+                LocalDateTime.now()
+        );
+
+        service.reconcile(PAYMENT_ID, result);
+        service.complete(USER_ID, PAYMENT_ID, result);
+
+        verify(cartItemRepository).delete(cartItem);
+        verify(orderInventoryService, never()).restore(ORDER_ID);
+    }
+
     private PaymentConfirmRequest request(Long amount, String merchantId) {
         return new PaymentConfirmRequest("provider-key", merchantId, amount);
     }
@@ -180,6 +310,25 @@ class PaymentTransactionServiceTest {
                 GatewayPaymentStatus.PAID, "provider-key", "transaction-key",
                 "GM-PAY", 10_000L, "KRW", PaymentMethod.CARD, null,
                 "DONE", approvedAt
+        );
+    }
+
+    private GatewayPaymentQueryResult queryResult(
+            GatewayPaymentStatus status,
+            String providerStatus,
+            LocalDateTime approvedAt
+    ) {
+        return new GatewayPaymentQueryResult(
+                status,
+                "provider-key",
+                "transaction-key",
+                "GM-PAY",
+                10_000L,
+                "KRW",
+                PaymentMethod.CARD,
+                null,
+                providerStatus,
+                approvedAt
         );
     }
 

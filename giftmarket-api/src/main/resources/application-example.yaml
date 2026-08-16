@@ -79,6 +79,9 @@ payment:
   reservation-minutes: 30
   expiration-check-interval-millis: 60000
   expiration-batch-size: 100
+  reconciliation-delay-seconds: 30
+  reconciliation-check-interval-millis: 60000
+  reconciliation-batch-size: 100
   toss:
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com

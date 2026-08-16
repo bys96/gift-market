@@ -56,6 +56,10 @@ import java.time.LocalDateTime;
                 @Index(
                         name = "idx_payments_status_expires_at",
                         columnList = "status, expires_at"
+                ),
+                @Index(
+                        name = "idx_payments_status_confirming_at",
+                        columnList = "status, confirming_at"
                 )
         }
 )
@@ -276,5 +280,16 @@ public class Payment extends BaseEntity {
 
     public void expire() {
         this.status = PaymentStatus.EXPIRED;
+    }
+
+    public void cancelFromProvider(
+            String providerStatus,
+            LocalDateTime cancelledAt
+    ) {
+        this.status = PaymentStatus.CANCELED;
+        this.providerStatus = providerStatus;
+        this.cancelledAt = cancelledAt;
+        this.failureCode = null;
+        this.failureMessage = null;
     }
 }

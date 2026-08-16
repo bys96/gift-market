@@ -22,4 +22,13 @@ public class PaymentProperties {
 
     @Positive
     private int expirationBatchSize = 100;
+
+    @Positive
+    private long reconciliationDelaySeconds = 30;
+
+    @Positive
+    private long reconciliationCheckIntervalMillis = 60_000;
+
+    @Positive
+    private int reconciliationBatchSize = 100;
 }

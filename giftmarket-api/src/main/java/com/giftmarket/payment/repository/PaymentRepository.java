@@ -83,4 +83,19 @@ public interface PaymentRepository
     Optional<Payment> findByIdForUpdate(
             @Param("paymentId") Long paymentId
     );
+
+    @Query("""
+            select p.id
+            from Payment p
+            where p.status = :paymentStatus
+              and p.confirmingAt <= :confirmingBefore
+              and p.order.status = :orderStatus
+            order by p.confirmingAt asc, p.id asc
+            """)
+    List<Long> findReconciliationCandidateIds(
+            @Param("paymentStatus") PaymentStatus paymentStatus,
+            @Param("orderStatus") OrderStatus orderStatus,
+            @Param("confirmingBefore") LocalDateTime confirmingBefore,
+            Pageable pageable
+    );
 }

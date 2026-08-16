@@ -112,22 +112,17 @@ public class PaymentService {
             Long paymentId,
             GatewayPaymentQueryResult result
     ) {
-        if (result.status() == GatewayPaymentStatus.PAID) {
-            return transactionService.complete(userId, paymentId, result);
-        }
+        PaymentResponse response = transactionService.complete(
+                userId,
+                paymentId,
+                result
+        );
         if (isDefinitiveFailure(result.status())) {
-            fail(
-                    userId,
-                    paymentId,
-                    "PAYMENT_DECLINED",
-                    "결제 승인이 완료되지 않았습니다.",
-                    result.providerStatus()
-            );
             throw new PaymentException(
                     "결제가 완료되지 않았습니다. 결제 정보를 다시 확인해주세요."
             );
         }
-        return transactionService.getPayment(userId, paymentId);
+        return response;
     }
 
     private boolean isDefinitiveFailure(GatewayPaymentStatus status) {

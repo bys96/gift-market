@@ -230,4 +230,8 @@ public class Order extends BaseEntity {
     public void markPaymentExpired() {
         this.status = OrderStatus.PAYMENT_EXPIRED;
     }
+
+    public void markPaymentFailed() {
+        this.status = OrderStatus.PAYMENT_FAILED;
+    }
 }
