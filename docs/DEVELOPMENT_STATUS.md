@@ -1,67 +1,32 @@
 # Gift Market 개발 현황
 
-> 기준: 2026-08-14 현재 실제 소스 확인 결과
+> 기준: 2026-08-16 실제 소스 및 Payment 1~4단계 브라우저 테스트 결과
+>
+> 문서와 코드가 다르면 실제 코드를 현재 상태의 기준으로 사용한다. Payment의
+> 상세 설계 배경은 `docs/PAYMENT_ARCHITECTURE_DESIGN.md`를 참고한다.
 
-> Payment 1~4단계는 이후 실제 코드에 구현되었다. 아래 초기 현황 중
-> `Payment domain이 아직 없다`는 설명은 과거 기록이며, 현재 상태 판단은
-> `com.giftmarket.payment`와 주문 준비/승인 코드를 우선한다.
-
-## Payment DB 스키마 주의사항
-
-결제 준비 주문은 `PENDING_PAYMENT` 상태에서 아직 결제가 확정되지 않았으므로
-`orders.ordered_at = NULL`이 정상이다. 결제 승인이 확정되어 `PAID`로 전환될
-때 PG 승인 시각을 `ordered_at`에 기록하며, 기존 `ORDERED` 주문의 값은 유지한다.
-
-기존 개발 DB에서 `orders.ordered_at`이 `NOT NULL`로 생성되어 있었다면
-Hibernate `ddl-auto: update`만으로 nullable 변경이 반영되지 않을 수 있다.
-Payment 주문 준비 기능을 실행하기 전에 다음 스키마 변경이 적용되어 있어야 한다.
-
-```sql
-ALTER TABLE gift_market.orders
-MODIFY ordered_at DATETIME(6) NULL;
-```
-
-확인:
-
-```sql
-SHOW COLUMNS FROM gift_market.orders LIKE 'ordered_at';
-```
-
-`Null = YES`여야 한다. 이 문제를 우회하기 위해 `PENDING_PAYMENT` 생성 시
-임의의 `ordered_at` 값을 넣으면 안 된다.
-
-현재 로컬 개발은 `ddl-auto: update`를 사용하지만, 운영 배포 전에는 Flyway나
-Liquibase 같은 명시적 migration 도구를 도입하고 위 변경을 versioned migration과
-배포 전 검증 항목으로 관리해야 한다. 기존 데이터에 대한 일괄 상태/시각 변경은
-별도 검증된 migration 없이는 실행하지 않는다.
-
-## 1. 현재 기술 기준
+## 1. 기술 및 프로젝트 기준
 
 ### Backend
 
-- Java 21
-- Spring Boot 4.1.0
-- Spring Security / OAuth2 / OIDC / JWT
-- Spring Data JPA / MySQL
-- MinIO / jsoup / Gradle
+- Java 21, Spring Boot 4.1.0
+- Spring Security, OAuth2/OIDC, JWT
+- Spring Data JPA, MySQL
+- MinIO, jsoup, Gradle
 
 ### Frontend
 
-- Next.js 16.2.11 App Router
-- React 19.2.4 / TypeScript
-- Zustand
-- 일반 CSS
-- Tiptap
-- TanStack Query dependency 존재
+- Next.js 16.2.11 App Router, React 19.2.4, TypeScript
+- Zustand, TanStack Query dependency, Tiptap
+- 일반 CSS 기반 UI
+- Tailwind dependency/import는 존재하지만 새 UI에서는 utility class를 사용하지 않음
 
-Tailwind dependency와 `globals.css` import는 존재하지만 새 UI는 프로젝트
-컨벤션에 따라 일반 CSS로 구현한다.
-
-------------------------------------------------------------------------
+주문·결제 금액과 재고의 최종 권위는 Backend에 있다. Frontend에서 계산하거나
+PG redirect로 전달된 금액만으로 주문 또는 결제를 확정하지 않는다.
 
 ## 2. 현재 Backend domain
 
-``` text
+```text
 com.giftmarket
 ├─ address
 ├─ admin
@@ -69,321 +34,332 @@ com.giftmarket
 ├─ cart
 ├─ global
 ├─ order
+├─ payment
 ├─ product
 ├─ seller
 └─ user
 ```
 
-구현된 주요 기능:
+주요 구현 기능:
 
-- 구매자 상품 목록/상세, 상품 옵션/Variant/재고/상태
-- 판매자 상품 등록·수정 및 Seller Center
-- 판매자 신청과 관리자 승인 처리
-- JWT Access Token + Refresh Token cookie 인증
-- Google/Kakao OAuth2/OIDC
+- 구매자 상품 목록/상세, 옵션/Variant, 재고 및 판매 상태
+- 판매자 상품 등록·수정, Seller Center, 판매자 신청/관리자 승인
+- JWT Access Token + Refresh Token cookie, Google/Kakao OAuth2/OIDC
 - MinIO presigned URL 기반 storage
-- 장바구니 등록·수량 변경·단건/복수 삭제·구매 가능 여부 조회
-- 주문 생성·목록·상세·취소 및 재고 복원
-- 배송지 CRUD와 기본 배송지 정책
+- 장바구니 등록·수량 변경·삭제·구매 가능 여부 조회
+- 저장 배송지 CRUD, 기본 배송지 정책, 주문서 배송지 연동
+- 장바구니 선택 주문과 상품 상세 바로구매
+- Payment 준비·Toss 테스트 결제·Backend 승인·상태 조회
 
-------------------------------------------------------------------------
+## 3. 주문 및 배송지
 
-## 3. 주문 현재 상태
+### 주문 API
 
-### Backend API
-
-``` text
-POST  /api/orders                 # 장바구니 선택 주문
-POST  /api/orders/direct          # 상품 상세 바로구매
+```text
+POST  /api/orders                 # 장바구니 주문/결제 준비
+POST  /api/orders/direct          # 바로구매 주문/결제 준비
 GET   /api/orders
 GET   /api/orders/{orderId}
 PATCH /api/orders/{orderId}/cancel
 ```
 
-### 장바구니 주문
+공통 정합성:
 
-- 기존 `OrderCreateRequest`와 CartItem 기반 주문 유지
-- 요청 CartItem의 사용자 소유권 검증
-- 중복/누락 CartItem 및 구매불가 상태 검증
-- 주문 성공 시 선택 CartItem 삭제
-- 실패 시 transaction rollback
+- 사용자 및 CartItem 소유권 검증
+- Product/Variant pessimistic row lock
+- 판매 상태, 옵션 상태, 수량, 재고를 Backend에서 재검증
+- 가격과 배송비를 Backend 현재 값으로 계산
+- `Order`/`OrderItem`에 상품·옵션·가격·배송지 snapshot 저장
+- 장바구니 주문과 바로구매의 사용자 오류 메시지 분리
+- 주문/배송지 API는 SecurityConfig에서 authenticated 처리
 
-### 바로구매 주문
+장바구니 주문:
 
-`DirectOrderCreateRequest`:
+- 선택한 CartItem만 주문 원본으로 사용
+- 결제 준비 시 CartItem을 삭제하지 않음
+- `OrderItem.sourceCartItemId`에 원본 CartItem ID snapshot 저장
+- 결제 성공 후 product/variant/quantity가 결제 당시와 같은 CartItem만 삭제
+- 결제 대기 중 변경되었거나 이미 삭제된 CartItem은 결제 성공을 방해하지 않음
 
-``` text
-productId
-variantId (nullable)
-quantity
-recipientName
-recipientPhone
-postalCode
-address
-addressDetail
-```
+바로구매:
 
 - 임시 CartItem을 만들지 않음
-- 옵션 상품은 유효한 `variantId` 필수
-- 옵션 없는 상품은 `variantId=null`
-- 다른 상품의 Variant, 비활성 Variant, Variant 재고를 Backend에서 검증
-- 성공·실패 시 기존 장바구니를 변경하지 않음
+- 옵션 상품은 유효한 `variantId` 필수, 옵션 없는 상품은 `variantId=null`
+- `OrderItem.sourceCartItemId=null`
+- 준비·성공·실패 모든 과정에서 Cart 불변
 
-### 공통 주문 정합성
+### 배송지
 
-- Product/Variant pessimistic row lock
-- 상품 판매 상태, 수량 및 재고 Backend 재검증
-- 가격과 배송비는 Backend 현재 값으로 계산
-- 클라이언트 계산 금액을 신뢰하지 않음
-- 기존 `Order` / `OrderItem` 상품 및 배송정보 snapshot 구조 유지
-- 옵션 주문 후 Product 총재고 동기화
-- 취소 시 Product/Variant 재고 복원
-
-현재 Payment domain과 PG 결제는 아직 없다.
-
-------------------------------------------------------------------------
-
-## 4. Frontend 주문 흐름
-
-현재 화면:
-
-``` text
-/order
-/my/orders
-/my/orders/[orderId]
-```
-
-`/order`는 query 형태로 주문 원본을 구분한다.
-
-- `cartItemIds=...`: Cart store 기반 장바구니 주문
-- `productId=...&variantId=...&quantity=...`: 상품 API 기반 바로구매
-- 장바구니 주문은 기존 CartItem 불일치/구매불가 검증 유지
-- 장바구니 주문 성공·실패 후 `loadCart()` 재동기화
-- 바로구매는 Cart store를 주문 원본으로 사용하지 않음
-- 두 흐름 모두 주문 완료 후 `/my/orders/{orderId}`로 이동
-
-상품상세 `바로 구매` 버튼은 선택한 Product/Variant/수량을 `/order`로
-전달한다. 주문 확정 시 금액은 전달하지 않고 Backend에서 다시 계산한다.
-
-------------------------------------------------------------------------
-
-## 5. 배송지 관리 및 주문서 연동 현재 상태
-
-### Backend API
-
-``` text
-GET    /api/addresses
-POST   /api/addresses
-PUT    /api/addresses/{addressId}
-PATCH  /api/addresses/{addressId}/default
-DELETE /api/addresses/{addressId}
-```
-
-정책:
-
-- 회원당 최대 10개
-- 첫 배송지 자동 기본배송지
-- 기본배송지 변경·수정·삭제
-- 기본배송지 삭제 후 남은 배송지 자동 승격
+- 회원당 최대 10개, 첫 배송지 자동 기본 배송지
+- 기본 배송지 변경·수정·삭제와 삭제 후 자동 승격
 - 사용자 소유권 검증
-- 입력 normalize와 transaction 적용
+- 주문서에서 저장 배송지 선택 또는 새 배송지 입력
+- Daum Postcode 주소 검색
+- 새 배송지 저장 시 Address DTO의 엄격한 validation 적용
+- 배송지 저장 실패 시 주문 준비를 실행하지 않고 입력과 오류 유지
+- Order는 Address FK 대신 주문 시점 배송정보 snapshot 유지
 
-### Frontend 배송지 관리
+## 4. Payment 1단계: Domain 및 DB 구조
 
-- `/my/addresses` 목록·등록·수정·삭제·기본배송지 설정
-- `N/10` 표시 및 10개 도달 시 추가 비활성화
-- 전화번호 formatting
-- `daum.Postcode` 주소 검색 layer
-- Desktop/Mobile modal UI
+`com.giftmarket.payment`에 다음 구조가 구현되어 있다.
 
-### 주문서 연동
-
-- 주문서 진입 시 `GET /api/addresses` 조회
-- 기본 배송지 우선, 없으면 첫 배송지 자동 선택
-- `배송지 변경` modal에서 저장 배송지 또는 새 배송지 선택
-- 새 배송지 입력 시 기존 `daum.Postcode` 방식 사용
-- `배송지에 저장`, 배송지명, 기본 배송지 설정 옵션
-- 주소록 저장 시 `AddressRequest`의 더 엄격한 validation 적용
-- 주소록 저장 실패 시 주문을 생성하지 않고 입력값과 오류 유지
-- 저장 배송지 수정/삭제 책임은 `/my/addresses`에 유지
-- Order는 Address FK가 아니라 주문 시점 배송정보 snapshot 유지
-
-------------------------------------------------------------------------
-
-## 6. Security 현재 상태
-
-`SecurityConfig`에서 기존 공개 API, admin, seller, 공통 인증 matcher 순서를
-유지하며 다음 경로가 명시적으로 `.authenticated()` 처리되어 있다.
-
-``` text
-/api/orders/**
-/api/addresses/**
+```text
+payment/
+├─ controller
+├─ dto
+├─ entity
+├─ exception
+├─ gateway
+├─ infrastructure/toss
+├─ repository
+└─ service
 ```
 
-- 비로그인 접근은 Spring Security에서 `401 Unauthorized`로 차단
-- 유효 JWT는 기존 `JwtAuthenticationFilter`가 user ID와 역할 설정
-- 기존 admin/seller/auth/user/storage/cart 정책 유지
-- Order/Address Service의 인증 및 소유권 검증 유지
+주요 domain:
 
-------------------------------------------------------------------------
+- `Payment`: Order와 N:1, 같은 주문에서 결제 재시도 확장 가능
+- `PaymentStatus`: `READY`, `CONFIRMING`, `PAID`, `FAILED`, `EXPIRED`, `CANCELED`
+- `PaymentProvider`: PG 중립 provider 구분
+- `PaymentMethod`, `EasyPayProvider`: 카드/이체/간편결제 의미를 PG와 분리
+- merchant 결제 ID, client 요청 키, confirm 멱등 키에 unique 제약
+- provider payment/transaction 식별자, 금액, 통화, 승인/실패 시각 저장
+- 카드번호, CVC, Secret, PG 원본 전체 JSON은 저장하지 않음
 
-## 7. 주문 실패 메시지 및 예외 처리
+Order 상태는 기존 데이터 호환을 위한 `ORDERED`, `CANCELLED`와 결제 흐름의
+`PENDING_PAYMENT`, `PAID`, `PAYMENT_FAILED`, `PAYMENT_EXPIRED`를 함께 지원한다.
 
-`OrderException`은 `GlobalExceptionHandler`의 `ApiResponse.message`를 통해
-Frontend `apiFetch`와 주문서에 전달된다.
+### orderedAt 및 개발 DB 주의사항
 
-장바구니 주문과 바로구매 메시지는 Backend 검증 문맥에서 구분한다.
+- `PENDING_PAYMENT`: `orderedAt=null`
+- `PAID`: PG 승인 확정 시각 기록
+- 기존 `ORDERED`: 기존 `orderedAt` 유지
 
-| 상황 | 바로구매 | 장바구니 주문 |
-|---|---|---|
-| 구매할 수 없는 상품 | 현재 구매할 수 없는 상품입니다. | 현재 구매할 수 없는 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요. |
-| 판매 중지 | 현재 판매가 중지된 상품입니다. | 현재 판매가 중지된 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요. |
-| 상품 재고 부족 | 상품 재고가 부족합니다. 상품 정보를 다시 확인해주세요. | 상품 재고가 부족합니다. 장바구니를 다시 확인해주세요. |
-| 잘못된 옵션 정보 | 선택한 옵션 정보를 확인할 수 없습니다. | 선택한 상품 옵션을 찾을 수 없습니다. |
-| 비활성 옵션 | 선택한 옵션은 현재 구매할 수 없습니다. | 현재 구매할 수 없는 옵션이 포함되어 있습니다. 장바구니를 다시 확인해주세요. |
-| 옵션 재고 부족 | 선택한 옵션의 재고가 부족합니다. | 선택한 상품 옵션의 재고가 부족합니다. 장바구니를 다시 확인해주세요. |
-| 잘못된 수량 | 구매 수량을 다시 확인해주세요. | 구매 수량을 다시 확인해주세요. |
+기존 개발 DB의 `orders.ordered_at`이 `NOT NULL`이면 Hibernate
+`ddl-auto: update`만으로 nullable 변경이 반영되지 않을 수 있다.
 
-처리되지 않은 500 예외는 서버에 stack trace를 기록하고 사용자에게는
-`서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.`만 반환한다.
-SQL, 내부 ID, stack trace 같은 내부 정보는 사용자 응답에 노출하지 않는다.
-
-------------------------------------------------------------------------
-
-## 8. 검증 상태
-
-- Backend `gradlew test`: 성공
-- Backend 컴파일 및 ApplicationContext: 성공
-- 변경 Frontend 파일 ESLint: 성공
-- `npx tsc --noEmit`: 성공
-- `git diff --check`: 성공
-- 비로그인 `/api/orders`, `/api/addresses`: `401` 확인
-
-Frontend 전체 build는 번들 컴파일과 TypeScript 검사까지 성공하지만 기존
-`/login` 페이지의 `useSearchParams()` Suspense boundary 누락으로 정적 페이지
-생성 단계에서 실패한다.
-
-Domain별 service/integration 자동화 테스트는 아직 충분하지 않다. Payment
-도입 전에 주문 생성, 재고 차감·복원, 배송지, 인증 실패 케이스 테스트를
-확충해야 한다.
-
-------------------------------------------------------------------------
-
-# 9. 바로 다음 작업: Payment 도메인 설계 및 실제 결제 연동 준비
-
-이 작업이 현재 최우선이다.
-
-## 목표
-
-현재 주문 생성과 결제 완료가 사실상 같은 단계인 구조를 분리하고, PG 연동
-전에 Payment domain과 상태 전이, 금액 검증, 멱등성 기준을 확정한다.
-
-우선 검토할 항목:
-
-1. Payment entity/table 및 Order 연관관계
-2. 결제 준비·승인·실패·취소 API contract
-3. `OrderStatus`와 Payment 상태의 역할 및 전이
-4. PG 결제금액과 Backend 주문금액 일치 검증
-5. 결제 승인 callback/webhook 신뢰 및 검증 방식
-6. 결제 준비·승인·취소 요청 idempotency
-7. 주문 생성 후 결제 실패/이탈 시 재고와 CartItem 처리
-8. 장바구니 주문과 바로구매의 결제 진입 공통화 범위
-9. 결제 성공 이후에만 주문 완료로 확정하는 흐름
-10. 운영 secret, callback URL, 로그의 민감정보 보호
-
-## 반드시 보존할 현재 구조
-
-- 장바구니 `POST /api/orders`와 바로구매 `POST /api/orders/direct`의 구분
-- Product/Variant row lock과 Backend 재고 검증
-- Backend 가격·배송비 계산 권위
-- `Order` / `OrderItem` snapshot
-- CartItem 및 Address 소유권 검증
-- 저장 배송지 선택 UX
-- cart/direct 사용자 오류 메시지 분리
-
-Payment 설계 시 현재 주문 생성 시점의 재고 차감과 CartItem 삭제를 언제
-확정할지 반드시 명시적으로 재검토한다.
-
-------------------------------------------------------------------------
-
-# 10. Payment 작업 시 먼저 읽을 파일
-
-Backend:
-
-``` text
-giftmarket-api/src/main/java/com/giftmarket/order/controller/OrderController.java
-giftmarket-api/src/main/java/com/giftmarket/order/service/OrderService.java
-giftmarket-api/src/main/java/com/giftmarket/order/entity/Order.java
-giftmarket-api/src/main/java/com/giftmarket/order/entity/OrderItem.java
-giftmarket-api/src/main/java/com/giftmarket/order/entity/OrderStatus.java
-giftmarket-api/src/main/java/com/giftmarket/order/dto/request/OrderCreateRequest.java
-giftmarket-api/src/main/java/com/giftmarket/order/dto/request/DirectOrderCreateRequest.java
-giftmarket-api/src/main/java/com/giftmarket/cart/service/CartService.java
-giftmarket-api/src/main/java/com/giftmarket/global/config/SecurityConfig.java
-giftmarket-api/src/main/java/com/giftmarket/global/exception/GlobalExceptionHandler.java
+```sql
+ALTER TABLE gift_market.orders
+MODIFY ordered_at DATETIME(6) NULL;
 ```
 
-Frontend:
-
-``` text
-giftmarket-web/app/order/page.tsx
-giftmarket-web/components/order/OrderSummary.tsx
-giftmarket-web/components/order/OrderRecipientForm.tsx
-giftmarket-web/lib/order-api.ts
-giftmarket-web/types/order.ts
-giftmarket-web/stores/cart-store.ts
+```sql
+SHOW COLUMNS FROM gift_market.orders LIKE 'ordered_at';
 ```
 
-------------------------------------------------------------------------
+`Null = YES`인지 확인한다. 이를 우회하기 위해 PENDING_PAYMENT에 임의 시각을
+넣지 않는다. 운영 전 Flyway/Liquibase 같은 versioned migration 도입이 필요하다.
 
-# 11. 이후 로드맵
+## 5. Payment 2단계: 주문/결제 준비
 
-1. Payment domain 및 상태 전이 설계
-2. PG 제공사 선정과 결제 준비/승인 API 연동
-3. 결제 성공/실패/취소와 OrderStatus 정합성
-4. 주문·결제 idempotency
-5. 결제 실패/이탈 주문 및 재고 복구 정책
-6. webhook 검증과 운영 로그/모니터링
-7. 주문/재고/배송지/결제 자동화 테스트 확충
-8. 판매자 주문 관리
-9. 관리자 주문/결제 운영 기능
-10. 운영 환경 설정/배포/모니터링
+현재 주문 생성 API는 실제 주문 완료가 아니라 결제 준비를 수행한다.
 
-------------------------------------------------------------------------
+```text
+사용자·상품·배송지 검증
+→ Product/Variant row lock
+→ Backend 금액 계산
+→ 재고 예약 차감
+→ Order PENDING_PAYMENT
+→ OrderItem snapshot
+→ Payment READY
+→ CartItem 유지
+→ commit
+```
 
-# 12. 현재 확인된 TODO / 주의사항
+- 장바구니/바로구매의 기존 검증·금액·snapshot 로직을 재사용
+- 재고는 결제 준비 transaction에서 한 번 예약 차감
+- `payment.reservation-minutes` 설정으로 Payment `expiresAt` 생성
+- 자동 만료/복원은 아직 구현하지 않았음
 
-## Payment
+### 주문 준비 멱등성
 
-아직 Payment entity/table, PG 연동, 승인·실패·취소 callback, 결제 멱등성이
-구현되어 있지 않다. 현재 주문 생성 흐름을 최종 결제 완료 구조로 확정하지 않는다.
+- Frontend가 주문 입력 fingerprint의 SHA-256 hash와 UUID
+  `clientOrderRequestKey`를 sessionStorage에 저장
+- 배송지 개인정보 원문은 fingerprint storage에 저장하지 않음
+- 같은 사용자와 같은 key 재요청은 기존 PENDING_PAYMENT Order/READY Payment 반환
+- Order/Payment 추가 생성 및 재고 추가 차감 방지
+- key는 최초 요청 내용에 귀속됨
 
-## 테스트
+준비 응답에는 `orderId`, `orderNumber`, `paymentId`, `merchantPaymentId`,
+Backend 확정 `amount`, `orderName`, 상태, 만료 시각이 포함된다.
 
-주문/재고/배송지/인증/결제의 service 및 integration test 확충이 필요하다.
+## 6. Payment 3단계: Gateway 및 Backend 승인
 
-## Frontend build
+PG 교체 경계:
 
-기존 `/login` 페이지의 Suspense boundary 문제를 별도 수정해야 한다.
+```text
+PaymentService
+→ PaymentGatewayRegistry
+→ PaymentGateway
+→ TossPaymentGateway
+→ TossPaymentClient / TossPaymentMapper
+```
 
-## Tailwind
+- Order/Payment service는 Toss DTO를 직접 사용하지 않음
+- `PaymentGateway`는 현재 `confirm`, `getPayment`만 제공
+- Toss 상태·수단·간편결제 값은 mapper에서 내부 enum/result로 변환
+- Secret은 `TOSS_SECRET_KEY` 환경변수로만 주입
+- connect/read timeout 명시
+- Basic Authorization은 `Base64(TOSS_SECRET_KEY + ":")`
+- confirm에 DB의 고정 `confirmIdempotencyKey`를 Toss `Idempotency-Key`로 사용
 
-새 UI에 Tailwind utility class를 도입하지 않는다. dependency 정리는 별도
-리팩토링으로 처리한다.
+### Payment API
 
-------------------------------------------------------------------------
+```text
+POST /api/payments/{paymentId}/confirm
+GET  /api/payments/{paymentId}
+```
 
-# 13. Codex 새 세션 시작 프롬프트
+두 API 모두 로그인 사용자만 접근할 수 있고 Payment/Order 소유권을 검증한다.
+Frontend의 paymentKey/orderId/amount는 DB 값과 비교하며 그대로 신뢰하지 않는다.
 
-``` text
-AGENTS.md와 docs/DEVELOPMENT_STATUS.md를 먼저 읽고, 문서만 믿지 말고 현재 실제 코드도 확인해.
+### 승인 상태 전이 및 transaction 경계
 
-현재 최우선 작업은 Payment 도메인 설계 및 실제 결제 연동 준비야.
+```text
+Transaction A
+Payment/Order lock 및 소유권·금액·merchantPaymentId·만료 검증
+→ READY에서 CONFIRMING 전환
+→ commit
 
-장바구니 주문, 바로구매, 저장 배송지 선택, 주문/배송지 Security, Backend 가격·재고 검증과 Order/OrderItem snapshot은 구현되어 있으므로 깨뜨리지 마.
+Transaction 밖
+→ Toss confirm
 
-먼저 현재 Order/OrderItem/OrderStatus, 장바구니 및 바로구매 생성 흐름, 재고 차감과 CartItem 삭제 시점을 확인해.
+Transaction B
+→ Toss 결과와 DB 금액·통화·식별자 재검증
+→ Payment PAID
+→ Order PAID
+→ orderedAt 승인 시각 기록
+→ 안전한 CartItem 후처리
+→ commit
+```
 
-그 다음 PG 연동 전 필요한 Payment entity, 상태 전이, API contract, 멱등성, 결제 실패 시 재고/Cart 처리 정책을 설계해줘.
-아직 코드는 수정하지 마.
+- 이미 PAID면 PG를 다시 호출하지 않고 기존 성공 결과 반환
+- CONFIRMING 재요청은 새 멱등 키를 만들거나 무조건 재승인하지 않고 Toss 조회
+- timeout, connection reset, Toss 5xx 등 결과 불명은 CONFIRMING/PENDING_PAYMENT 유지
+- 결과 불명 시 재고를 복원하거나 임의로 FAILED/PAID 처리하지 않음
+- `GET /api/payments/{paymentId}` polling도 CONFIRMING이면 Toss 단건 조회
+- Toss 조회가 `DONE`이면 동일 완료 검증을 거쳐 PAID로 복구
+
+## 7. Payment 4단계: Toss 테스트 결제 Frontend
+
+구현 파일:
+
+```text
+giftmarket-web/components/payment/TossPaymentWidget.tsx
+giftmarket-web/lib/toss-payment.ts
+giftmarket-web/lib/payment-api.ts
+giftmarket-web/lib/payment-session.ts
+giftmarket-web/app/payment/success/page.tsx
+giftmarket-web/app/payment/fail/page.tsx
+```
+
+- 공식 Toss Payments v2 결제위젯 SDK loader 사용
+- 공개 Client Key는 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로만 주입
+- Toss UI/launcher를 주문서에서 별도 component/lib로 격리
+- 주문서에 배송지 → 주문 상품 → 결제수단 → 결제금액 → 결제 버튼 순서 제공
+- 개발용 `결제 준비 완료`, 주문번호 안내, 별도 준비 버튼 제거
+- `N원 결제하기` 한 번으로 validation → prepare → Backend amount 동기화 → 결제 요청
+- 버튼 처리 상태와 더블클릭 방지
+- 결제창 취소/닫기 후 READY 주문과 주문서 입력을 유지하고 재시도 가능
+- 재시도 시 기존 clientOrderRequestKey로 중복 Order/Payment/재고 예약 방지
+
+### success/fail
+
+- `/payment/success`: query 검증 후 Backend confirm, CONFIRMING 제한 polling
+- PAID 또는 이미 PAID이면 주문 상세로 이동하고 완료 session 정리
+- success 새로고침에도 Backend confirm 멱등성으로 중복 승인 방지
+- `/payment/fail`: Toss raw message를 노출하지 않고 code를 안전한 사용자 문구로 매핑
+- fail 후 비민감 payment session의 `returnPath`로 주문서 재진입 가능
+- 모바일 외부 TossPay 취소 복귀 시 SSR에서 `window/sessionStorage`를 읽지 않도록
+  hydration 이후 조회
+- payment-session utility도 서버에서는 빈 결과/no-op으로 동작
+- sessionStorage에는 결제 복구용 비민감 식별자만 저장하며 배송지·카드정보는 저장하지 않음
+
+## 8. 실제 검증 완료 상태
+
+브라우저에서 Toss 테스트 환경으로 다음을 확인했다.
+
+- 바로구매 카드 결제 성공
+- 장바구니 주문 카드 결제 성공
+- 간편결제 테스트 성공
+- Toss confirm HTTP `200`, provider status `DONE`
+- Payment `PAID`, Order `PAID`
+- PG 승인 시각이 `orderedAt`에 기록됨
+- 재고가 준비 시 한 번만 차감되고 승인 시 추가 차감되지 않음
+- 장바구니 결제 성공 후 조건이 같은 CartItem 삭제
+- 바로구매 후 Cart 불변
+- 결제창 취소/닫기 후 주문서 유지 및 재시도
+- 재시도 시 중복 주문·Payment·재고 차감 없음
+- success 새로고침 시 중복 승인 없음
+- 모바일 TossPay failUrl 복귀 시 SSR 오류 없이 취소 안내 및 재시도
+
+자동 검증:
+
+- Backend `gradlew test` 성공
+- Backend 컴파일/ApplicationContext 성공
+- Payment service 멱등·timeout·조회 복구·CartItem 후처리 테스트 포함
+- Frontend `npx tsc --noEmit` 성공
+- 변경 Frontend 파일 ESLint 성공
+- `git diff --check` 성공
+
+Frontend 전체 build는 번들 컴파일과 TypeScript까지 성공하지만 기존 `/login`
+페이지의 `useSearchParams()` Suspense boundary 누락으로 정적 생성 단계에서 실패한다.
+
+## 9. 아직 구현하지 않은 Payment 운영 기능
+
+다음 항목은 완료 기능이 아니며 Payment 운영 안정성 5단계 범위다.
+
+- provider webhook 및 중복 event 처리
+- PENDING_PAYMENT 자동 만료
+- 만료/실패 예약 재고의 정확히 한 번 복원
+- 장기 CONFIRMING reconciliation scheduler/batch
+- Toss 조회 기반 정기 대사와 운영 알림
+- 실제 결제 전체 취소/환불
+- `PaymentCancellation` domain/table
+- 부분 취소/부분 환불
+- 관리자 결제 조회·재동기화·취소 관리
+- 운영 키, 계약 결제수단 및 실결제 전환
+- 운영 secret manager와 명시적 DB migration 도입
+
+PAID 주문은 PG 취소 성공 전에 Order를 CANCELLED로 확정하거나 재고를 복원하면
+안 된다. 현재 기존 ORDERED 주문 취소 호환 로직을 실제 PAID 환불 흐름으로
+간주하지 않는다.
+
+## 10. 다음 작업 후보
+
+### 1순위: 상품 상세 옵션 선택 UI 개선
+
+- 옵션 그룹/값 선택 흐름과 선택 상태 정보 위계 개선
+- 구매 가능 Variant 조합, 품절/비활성 옵션 안내
+- 가격·재고·수량·바로구매/장바구니 버튼 UX 정리
+- Desktop/Mobile 반응형 및 기존 Product/Variant 검증 보존
+
+### 이후: Payment 운영 안정성 5단계
+
+- webhook event 검증과 멱등 처리
+- PENDING_PAYMENT 만료 및 예약 재고 복원
+- CONFIRMING reconciliation과 운영 대사
+- 전체 취소/환불 domain 및 PG adapter 확장
+- 관리자 결제 운영 기능
+- 테스트 키에서 운영 계약·운영 키로 전환하기 위한 체크리스트
+
+## 11. 기타 TODO / 주의사항
+
+- `/login`의 `useSearchParams` Suspense boundary build 오류 별도 수정
+- 주문/재고/배송지/결제 integration test 지속 확충
+- 운영 전 `ddl-auto:update` 의존 제거 및 migration 도구 도입
+- 새 UI에 Tailwind utility class를 도입하지 않음
+- 실제 Secret/API Key를 코드·문서·로그에 기록하지 않음
+
+## 12. 새 세션 시작 인계
+
+```text
+AGENTS.md와 docs/DEVELOPMENT_STATUS.md를 먼저 읽고 실제 코드도 확인해.
+
+Payment 1~4단계와 Toss 테스트 카드/간편결제 성공은 완료되었다.
+주문 준비 멱등성, 재고 예약, READY → CONFIRMING → PAID,
+CONFIRMING Toss 조회 복구, CartItem 안전 삭제 및 바로구매 Cart 불변을 깨뜨리지 마.
+
+다음 작업 후보는 상품 상세 옵션 선택 UI 개선이며,
+그 이후 Payment 운영 안정성 5단계(webhook, 만료/재고 복원,
+reconciliation, 실제 취소/환불, 관리자 운영)를 진행한다.
 ```
