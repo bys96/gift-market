@@ -74,3 +74,11 @@ minio:
   access-key: giftmarket
   secret-key: giftmarket123!
   bucket: gift-market
+
+payment:
+  reservation-minutes: 30
+  toss:
+    secret-key: ${TOSS_SECRET_KEY}
+    base-url: https://api.tosspayments.com
+    connect-timeout-millis: 3000
+    read-timeout-millis: 10000

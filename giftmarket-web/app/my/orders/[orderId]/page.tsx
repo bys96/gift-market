@@ -13,6 +13,10 @@ import type { OrderDetail, OrderStatus } from "@/types/order";
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   ORDERED: "주문 완료",
+  PENDING_PAYMENT: "결제 대기",
+  PAID: "결제 완료",
+  PAYMENT_FAILED: "결제 실패",
+  PAYMENT_EXPIRED: "결제 만료",
   CANCELLED: "주문 취소",
 };
 
@@ -47,6 +51,7 @@ export default function MyOrderDetailPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const orderId = useMemo(() => Number(params.orderId), [params.orderId]);
+  const isValidOrderId = Number.isInteger(orderId) && orderId > 0;
 
   useEffect(() => {
     if (!authInitialized) {
@@ -63,9 +68,7 @@ export default function MyOrderDetailPage() {
       return;
     }
 
-    if (!Number.isInteger(orderId) || orderId < 1) {
-      setErrorMessage("올바르지 않은 주문 번호입니다.");
-      setIsLoading(false);
+    if (!isValidOrderId) {
       return;
     }
 
@@ -105,7 +108,7 @@ export default function MyOrderDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [authInitialized, isAuthenticated, user, orderId]);
+  }, [authInitialized, isAuthenticated, user, orderId, isValidOrderId]);
 
   const handleCancelOrder = async () => {
     if (!order || order.status !== "ORDERED" || isCancelling) {
@@ -140,6 +143,22 @@ export default function MyOrderDetailPage() {
 
   if (!isAuthenticated || !user) {
     return null;
+  }
+
+  if (!isValidOrderId) {
+    return (
+      <div className="order-detail-page">
+        <section className="order-history-empty">
+          <h2>주문 정보를 확인할 수 없습니다.</h2>
+
+          <p>올바르지 않은 주문 번호입니다.</p>
+
+          <Link href="/my/orders" className="order-history-empty-link">
+            주문 내역으로
+          </Link>
+        </section>
+      </div>
+    );
   }
 
   if (isLoading) {
@@ -181,9 +200,11 @@ export default function MyOrderDetailPage() {
 
           <h1 className="order-detail-title">주문 상세</h1>
 
-          <p className="order-detail-ordered-at">
-            {formatDateTime(order.orderedAt)}
-          </p>
+          {order.orderedAt && (
+            <p className="order-detail-ordered-at">
+              {formatDateTime(order.orderedAt)}
+            </p>
+          )}
         </div>
 
         <Link href="/my/orders" className="order-detail-back-link">
@@ -200,9 +221,11 @@ export default function MyOrderDetailPage() {
               {ORDER_STATUS_LABELS[order.status]}
             </strong>
 
-            <span className="order-detail-status-at">
-              {formatDateTime(statusChangedAt)}
-            </span>
+            {statusChangedAt && (
+              <span className="order-detail-status-at">
+                {formatDateTime(statusChangedAt)}
+              </span>
+            )}
           </div>
         </div>
 

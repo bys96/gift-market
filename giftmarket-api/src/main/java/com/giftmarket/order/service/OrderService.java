@@ -14,6 +14,11 @@ import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
+import com.giftmarket.payment.config.PaymentProperties;
+import com.giftmarket.payment.entity.Payment;
+import com.giftmarket.payment.entity.PaymentProvider;
+import com.giftmarket.payment.entity.PaymentStatus;
+import com.giftmarket.payment.repository.PaymentRepository;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductOptionValue;
 import com.giftmarket.product.entity.ProductStatus;
@@ -31,6 +36,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -38,6 +44,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -50,8 +57,12 @@ public class OrderService {
             ORDER_NUMBER_DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMdd");
 
+    private static final String PAYMENT_CURRENCY = "KRW";
+
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentProperties paymentProperties;
 
     private final CartItemRepository cartItemRepository;
 
@@ -64,7 +75,7 @@ public class OrderService {
     private final UserRepository userRepository;
 
     /**
-     * 장바구니 선택 주문 생성.
+     * 장바구니 선택 주문 결제 준비.
      *
      * 하나의 트랜잭션 안에서:
      *
@@ -72,10 +83,10 @@ public class OrderService {
      * 2. Product / Variant 재고 row lock
      * 3. 현재 판매 상태 / 옵션 상태 / 재고 재검증
      * 4. 서버 가격 기준 주문 Snapshot 생성
-     * 5. 재고 차감
+     * 5. 결제 대기 중 사용할 재고 예약 차감
      * 6. 옵션상품 Product 총재고 동기화
-     * 7. Order / OrderItem 저장
-     * 8. 주문 성공한 CartItem 삭제
+     * 7. PENDING_PAYMENT Order / OrderItem 저장
+     * 8. READY Payment 저장
      *
      * 중간에 하나라도 실패하면 전체 rollback 됩니다.
      */
@@ -84,7 +95,17 @@ public class OrderService {
             Long userId,
             OrderCreateRequest request
     ) {
-        User user = getAuthenticatedUser(userId);
+        User user = getAuthenticatedUserForUpdate(userId);
+
+        Optional<OrderCreateResponse> existingPreparation =
+                findExistingPreparation(
+                        userId,
+                        request.clientOrderRequestKey()
+                );
+
+        if (existingPreparation.isPresent()) {
+            return existingPreparation.get();
+        }
 
         List<Long> cartItemIds =
                 normalizeCartItemIds(
@@ -175,7 +196,7 @@ public class OrderService {
                         .sum();
 
         Order order =
-                Order.create(
+                Order.createPendingPayment(
                         generateOrderNumber(),
                         user,
                         totalProductAmount,
@@ -220,23 +241,19 @@ public class OrderService {
             );
         }
 
-        /*
-         * 주문 생성이 여기까지 성공했을 때만
-         * 주문한 장바구니 항목을 제거합니다.
-         *
-         * 이후 과정에서 예외가 발생하면 Transaction rollback으로
-         * 재고 / 주문 / CartItem 삭제가 전부 되돌아갑니다.
-         */
-        cartItemRepository.deleteAllByIdInAndUserId(
-                cartItemIds,
-                userId
+        String orderName = createOrderNameFromPreparedItems(
+                preparedItems
         );
 
-        return OrderCreateResponse.from(order);
+        return createPaymentPreparation(
+                order,
+                request.clientOrderRequestKey(),
+                orderName
+        );
     }
 
     /**
-     * 장바구니를 거치지 않는 단일 상품 바로구매 주문 생성.
+     * 장바구니를 거치지 않는 단일 상품 바로구매 결제 준비.
      * Product / Variant를 직접 잠그고 서버의 현재 값으로 주문 Snapshot을 만듭니다.
      */
     @Transactional
@@ -244,7 +261,17 @@ public class OrderService {
             Long userId,
             DirectOrderCreateRequest request
     ) {
-        User user = getAuthenticatedUser(userId);
+        User user = getAuthenticatedUserForUpdate(userId);
+
+        Optional<OrderCreateResponse> existingPreparation =
+                findExistingPreparation(
+                        userId,
+                        request.clientOrderRequestKey()
+                );
+
+        if (existingPreparation.isPresent()) {
+            return existingPreparation.get();
+        }
 
         Product product = getLockedDirectProduct(request.productId());
 
@@ -302,6 +329,7 @@ public class OrderService {
                         product,
                         variant,
                         seller,
+                        null,
                         product.getName(),
                         product.getBrandName(),
                         seller.getStoreName(),
@@ -320,7 +348,7 @@ public class OrderService {
                 );
 
         Order order =
-                Order.create(
+                Order.createPendingPayment(
                         generateOrderNumber(),
                         user,
                         preparedItem.totalPrice(),
@@ -344,7 +372,11 @@ public class OrderService {
             );
         }
 
-        return OrderCreateResponse.from(order);
+        return createPaymentPreparation(
+                order,
+                request.clientOrderRequestKey(),
+                preparedItem.productName()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -354,7 +386,7 @@ public class OrderService {
         getAuthenticatedUser(userId);
 
         return orderRepository
-                .findAllByUserIdOrderByOrderedAtDesc(
+                .findAllByUserIdOrderByCreatedAtDesc(
                         userId
                 )
                 .stream()
@@ -653,6 +685,7 @@ public class OrderService {
                 product,
                 variant,
                 seller,
+                cartItem.getId(),
                 product.getName(),
                 product.getBrandName(),
                 seller.getStoreName(),
@@ -677,6 +710,7 @@ public class OrderService {
                 prepared.product(),
                 prepared.variant(),
                 prepared.seller(),
+                prepared.sourceCartItemId(),
                 prepared.productName(),
                 prepared.brandName(),
                 prepared.storeName(),
@@ -986,6 +1020,133 @@ public class OrderService {
                 );
     }
 
+    private User getAuthenticatedUserForUpdate(
+            Long userId
+    ) {
+        if (userId == null) {
+            throw new AuthenticationException(
+                    "인증이 필요합니다."
+            );
+        }
+
+        return userRepository
+                .findByIdForUpdate(userId)
+                .orElseThrow(() ->
+                        new AuthenticationException(
+                                "사용자 정보를 찾을 수 없습니다."
+                        )
+                );
+    }
+
+    private Optional<OrderCreateResponse> findExistingPreparation(
+            Long userId,
+            String clientOrderRequestKey
+    ) {
+        return paymentRepository
+                .findByClientRequestKeyAndOrderUserId(
+                        clientOrderRequestKey,
+                        userId
+                )
+                .map(payment -> {
+                    Order order = payment.getOrder();
+
+                    if (order.getStatus()
+                            != OrderStatus.PENDING_PAYMENT
+                            || payment.getStatus()
+                            != PaymentStatus.READY) {
+                        throw new OrderException(
+                                "현재 결제 준비 상태를 다시 사용할 수 없습니다."
+                        );
+                    }
+
+                    List<OrderItem> orderItems =
+                            orderItemRepository
+                                    .findAllByOrderIdOrderByIdAsc(
+                                            order.getId()
+                                    );
+
+                    if (orderItems.isEmpty()) {
+                        throw new OrderException(
+                                "주문 상품 정보를 확인할 수 없습니다."
+                        );
+                    }
+
+                    return OrderCreateResponse.from(
+                            order,
+                            payment,
+                            createOrderNameFromOrderItems(
+                                    orderItems
+                            )
+                    );
+                });
+    }
+
+    private OrderCreateResponse createPaymentPreparation(
+            Order order,
+            String clientOrderRequestKey,
+            String orderName
+    ) {
+        LocalDateTime requestedAt = LocalDateTime.now();
+
+        Payment payment = Payment.createReady(
+                order,
+                PaymentProvider.TOSS,
+                generateMerchantPaymentId(order.getOrderNumber()),
+                clientOrderRequestKey,
+                UUID.randomUUID().toString(),
+                order.getTotalAmount(),
+                PAYMENT_CURRENCY,
+                requestedAt,
+                requestedAt.plusMinutes(
+                        paymentProperties.getReservationMinutes()
+                )
+        );
+
+        paymentRepository.save(payment);
+
+        return OrderCreateResponse.from(
+                order,
+                payment,
+                orderName
+        );
+    }
+
+    private String createOrderNameFromPreparedItems(
+            List<PreparedOrderItem> preparedItems
+    ) {
+        PreparedOrderItem firstItem = preparedItems.getFirst();
+
+        return createOrderName(
+                firstItem.productName(),
+                preparedItems.size()
+        );
+    }
+
+    private String createOrderNameFromOrderItems(
+            List<OrderItem> orderItems
+    ) {
+        OrderItem firstItem = orderItems.getFirst();
+
+        return createOrderName(
+                firstItem.getProductName(),
+                orderItems.size()
+        );
+    }
+
+    private String createOrderName(
+            String firstProductName,
+            int itemCount
+    ) {
+        if (itemCount <= 1) {
+            return firstProductName;
+        }
+
+        return firstProductName
+                + " 외 "
+                + (itemCount - 1)
+                + "건";
+    }
+
     /**
      * DB PK를 주문번호로 노출하지 않습니다.
      *
@@ -1012,6 +1173,21 @@ public class OrderService {
                 + random;
     }
 
+    private String generateMerchantPaymentId(
+            String orderNumber
+    ) {
+        String random = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .substring(0, 12)
+                .toUpperCase();
+
+        return "PAY-"
+                + orderNumber
+                + "-"
+                + random;
+    }
+
     private String normalizeNullableText(
             String value
     ) {
@@ -1034,6 +1210,8 @@ public class OrderService {
             ProductVariant variant,
 
             Seller seller,
+
+            Long sourceCartItemId,
 
             String productName,
 

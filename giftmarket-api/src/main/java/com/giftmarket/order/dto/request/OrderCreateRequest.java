@@ -11,6 +11,13 @@ import java.util.List;
 
 public record OrderCreateRequest(
 
+        @NotBlank(message = "주문 준비 요청 키가 필요합니다.")
+        @Pattern(
+                regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+                message = "올바르지 않은 주문 준비 요청 키입니다."
+        )
+        String clientOrderRequestKey,
+
         @NotEmpty(message = "주문할 상품을 선택해주세요.")
         List<
                 @NotNull(message = "장바구니 상품 번호가 필요합니다.")

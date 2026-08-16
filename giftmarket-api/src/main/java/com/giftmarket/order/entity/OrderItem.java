@@ -70,6 +70,16 @@ public class OrderItem extends BaseEntity {
     )
     private Seller seller;
 
+    /*
+     * 장바구니 주문의 원본 CartItem ID Snapshot.
+     *
+     * 결제 완료 후 정확한 장바구니 항목만 제거하기 위한 값이며
+     * CartItem 생명주기와 분리하기 위해 FK로 연결하지 않습니다.
+     * 장바구니 주문 준비에서는 원본 ID를 저장하고 바로구매는 null입니다.
+     */
+    @Column(name = "source_cart_item_id")
+    private Long sourceCartItemId;
+
     @Column(
             name = "product_name",
             nullable = false,
@@ -153,6 +163,7 @@ public class OrderItem extends BaseEntity {
             Product product,
             ProductVariant variant,
             Seller seller,
+            Long sourceCartItemId,
             String productName,
             String brandName,
             String storeName,
@@ -168,6 +179,7 @@ public class OrderItem extends BaseEntity {
         this.product = product;
         this.variant = variant;
         this.seller = seller;
+        this.sourceCartItemId = sourceCartItemId;
         this.productName = productName;
         this.brandName = brandName;
         this.storeName = storeName;
@@ -189,6 +201,7 @@ public class OrderItem extends BaseEntity {
             Product product,
             ProductVariant variant,
             Seller seller,
+            Long sourceCartItemId,
             String productName,
             String brandName,
             String storeName,
@@ -205,6 +218,7 @@ public class OrderItem extends BaseEntity {
                 .product(product)
                 .variant(variant)
                 .seller(seller)
+                .sourceCartItemId(sourceCartItemId)
                 .productName(productName)
                 .brandName(brandName)
                 .storeName(storeName)

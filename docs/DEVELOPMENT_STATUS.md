@@ -2,6 +2,39 @@
 
 > 기준: 2026-08-14 현재 실제 소스 확인 결과
 
+> Payment 1~4단계는 이후 실제 코드에 구현되었다. 아래 초기 현황 중
+> `Payment domain이 아직 없다`는 설명은 과거 기록이며, 현재 상태 판단은
+> `com.giftmarket.payment`와 주문 준비/승인 코드를 우선한다.
+
+## Payment DB 스키마 주의사항
+
+결제 준비 주문은 `PENDING_PAYMENT` 상태에서 아직 결제가 확정되지 않았으므로
+`orders.ordered_at = NULL`이 정상이다. 결제 승인이 확정되어 `PAID`로 전환될
+때 PG 승인 시각을 `ordered_at`에 기록하며, 기존 `ORDERED` 주문의 값은 유지한다.
+
+기존 개발 DB에서 `orders.ordered_at`이 `NOT NULL`로 생성되어 있었다면
+Hibernate `ddl-auto: update`만으로 nullable 변경이 반영되지 않을 수 있다.
+Payment 주문 준비 기능을 실행하기 전에 다음 스키마 변경이 적용되어 있어야 한다.
+
+```sql
+ALTER TABLE gift_market.orders
+MODIFY ordered_at DATETIME(6) NULL;
+```
+
+확인:
+
+```sql
+SHOW COLUMNS FROM gift_market.orders LIKE 'ordered_at';
+```
+
+`Null = YES`여야 한다. 이 문제를 우회하기 위해 `PENDING_PAYMENT` 생성 시
+임의의 `ordered_at` 값을 넣으면 안 된다.
+
+현재 로컬 개발은 `ddl-auto: update`를 사용하지만, 운영 배포 전에는 Flyway나
+Liquibase 같은 명시적 migration 도구를 도입하고 위 변경을 versioned migration과
+배포 전 검증 항목으로 관리해야 한다. 기존 데이터에 대한 일괄 상태/시각 변경은
+별도 검증된 migration 없이는 실행하지 않는다.
+
 ## 1. 현재 기술 기준
 
 ### Backend

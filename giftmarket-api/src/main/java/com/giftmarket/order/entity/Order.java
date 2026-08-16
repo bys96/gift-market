@@ -123,8 +123,7 @@ public class Order extends BaseEntity {
     private String addressDetail;
 
     @Column(
-            name = "ordered_at",
-            nullable = false
+            name = "ordered_at"
     )
     private LocalDateTime orderedAt;
 
@@ -135,6 +134,7 @@ public class Order extends BaseEntity {
     private Order(
             String orderNumber,
             User user,
+            OrderStatus status,
             Long totalProductAmount,
             Long totalShippingFee,
             Long totalAmount,
@@ -142,11 +142,12 @@ public class Order extends BaseEntity {
             String recipientPhone,
             String postalCode,
             String address,
-            String addressDetail
+            String addressDetail,
+            LocalDateTime orderedAt
     ) {
         this.orderNumber = orderNumber;
         this.user = user;
-        this.status = OrderStatus.ORDERED;
+        this.status = status;
         this.totalProductAmount = totalProductAmount;
         this.totalShippingFee = totalShippingFee;
         this.totalAmount = totalAmount;
@@ -155,7 +156,7 @@ public class Order extends BaseEntity {
         this.postalCode = postalCode;
         this.address = address;
         this.addressDetail = addressDetail;
-        this.orderedAt = LocalDateTime.now();
+        this.orderedAt = orderedAt;
     }
 
     public static Order create(
@@ -172,6 +173,7 @@ public class Order extends BaseEntity {
         return Order.builder()
                 .orderNumber(orderNumber)
                 .user(user)
+                .status(OrderStatus.ORDERED)
                 .totalProductAmount(totalProductAmount)
                 .totalShippingFee(totalShippingFee)
                 .totalAmount(
@@ -182,11 +184,46 @@ public class Order extends BaseEntity {
                 .postalCode(postalCode)
                 .address(address)
                 .addressDetail(addressDetail)
+                .orderedAt(LocalDateTime.now())
+                .build();
+    }
+
+    public static Order createPendingPayment(
+            String orderNumber,
+            User user,
+            Long totalProductAmount,
+            Long totalShippingFee,
+            String recipientName,
+            String recipientPhone,
+            String postalCode,
+            String address,
+            String addressDetail
+    ) {
+        return Order.builder()
+                .orderNumber(orderNumber)
+                .user(user)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .totalProductAmount(totalProductAmount)
+                .totalShippingFee(totalShippingFee)
+                .totalAmount(
+                        totalProductAmount + totalShippingFee
+                )
+                .recipientName(recipientName)
+                .recipientPhone(recipientPhone)
+                .postalCode(postalCode)
+                .address(address)
+                .addressDetail(addressDetail)
+                .orderedAt(null)
                 .build();
     }
 
     public void cancel() {
         this.status = OrderStatus.CANCELLED;
         this.cancelledAt = LocalDateTime.now();
+    }
+
+    public void markPaid(LocalDateTime approvedAt) {
+        this.status = OrderStatus.PAID;
+        this.orderedAt = approvedAt;
     }
 }

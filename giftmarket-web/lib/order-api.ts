@@ -23,7 +23,7 @@ export async function createOrder(
   );
 
   if (!result.success || !result.data) {
-    throw new Error(result.message || "주문을 생성하지 못했습니다.");
+    throw new Error(result.message || "결제 준비를 완료하지 못했습니다.");
   }
 
   return result.data;
@@ -44,7 +44,7 @@ export async function createDirectOrder(
   );
 
   if (!result.success || !result.data) {
-    throw new Error(result.message || "바로구매 주문을 생성하지 못했습니다.");
+    throw new Error(result.message || "바로구매 결제 준비를 완료하지 못했습니다.");
   }
 
   return result.data;

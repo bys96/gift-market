@@ -1,0 +1,116 @@
+.payment-widget-section {
+  overflow: hidden;
+  padding-bottom: 18px;
+}
+
+.payment-widget-methods,
+.payment-widget-agreement {
+  min-height: 80px;
+}
+
+.payment-widget-methods {
+  margin: -12px -12px 0;
+}
+
+.payment-widget-agreement {
+  margin: 0 -12px;
+}
+
+@media (max-width: 640px) {
+  .payment-widget-section {
+    padding-bottom: 14px;
+  }
+
+  .payment-widget-methods,
+  .payment-widget-agreement {
+    margin-right: -16px;
+    margin-left: -16px;
+  }
+}
+
+.payment-result-page {
+  display: flex;
+  min-height: 560px;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px 80px;
+}
+
+.payment-result-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.payment-result-icon {
+  display: flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 22px;
+  border-radius: 50%;
+  background: #fff1f4;
+  color: var(--color-primary);
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.payment-result-title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 26px;
+}
+
+.payment-result-description {
+  margin: 14px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.payment-result-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.payment-result-button {
+  min-width: 140px;
+  height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.payment-result-button.is-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .payment-result-card {
+    padding: 32px 22px;
+    border-radius: 14px;
+  }
+
+  .payment-result-actions {
+    flex-direction: column;
+  }
+
+  .payment-result-button {
+    width: 100%;
+  }
+}

@@ -8,6 +8,13 @@ import jakarta.validation.constraints.Size;
 
 public record DirectOrderCreateRequest(
 
+        @NotBlank(message = "주문 준비 요청 키가 필요합니다.")
+        @Pattern(
+                regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+                message = "올바르지 않은 주문 준비 요청 키입니다."
+        )
+        String clientOrderRequestKey,
+
         @NotNull(message = "상품 번호가 필요합니다.")
         @Positive(message = "올바르지 않은 상품 번호입니다.")
         Long productId,

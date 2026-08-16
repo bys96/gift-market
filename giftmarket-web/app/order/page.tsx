@@ -1,19 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import OrderProductList from "@/components/order/OrderProductList";
 import OrderRecipientForm from "@/components/order/OrderRecipientForm";
 import OrderSummary from "@/components/order/OrderSummary";
+import TossPaymentWidget from "@/components/payment/TossPaymentWidget";
 import { createAddress, getMyAddresses } from "@/lib/address-api";
 import { createDirectOrder, createOrder } from "@/lib/order-api";
 import { getProduct } from "@/lib/product-api";
+import { getPayment } from "@/lib/payment-api";
+import {
+  clearCompletedPaymentSession,
+  createCustomerKey,
+  getPaymentSession,
+  savePaymentSession,
+} from "@/lib/payment-session";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
 import type { Address } from "@/types/address";
-import type { OrderProductItem } from "@/types/order";
+import type { OrderCreateResponse, OrderProductItem } from "@/types/order";
 import type { ProductDetail } from "@/types/product";
+import type { PaymentSession } from "@/types/payment";
 
 interface RecipientForm {
   name: string;
@@ -34,6 +43,58 @@ function parseCartItemIds(value: string | null): number[] {
     .filter((id) => Number.isInteger(id) && id > 0);
 
   return Array.from(new Set(ids));
+}
+
+interface StoredOrderPreparation {
+  fingerprintHash: string;
+  clientOrderRequestKey: string;
+}
+
+const LEGACY_ORDER_PREPARATION_STORAGE_KEY = "gift-market-order-preparation";
+const ORDER_PREPARATION_STORAGE_KEY = "gift-market-order-preparation-v2";
+
+async function hashOrderRequestFingerprint(value: string) {
+  const encoded = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function resolveClientOrderRequestKey(fingerprint: string) {
+  const fingerprintHash = await hashOrderRequestFingerprint(fingerprint);
+
+  try {
+    const storedValue = window.sessionStorage.getItem(
+      ORDER_PREPARATION_STORAGE_KEY,
+    );
+
+    if (storedValue) {
+      const stored = JSON.parse(storedValue) as StoredOrderPreparation;
+
+      if (
+        stored.fingerprintHash === fingerprintHash &&
+        typeof stored.clientOrderRequestKey === "string"
+      ) {
+        return stored.clientOrderRequestKey;
+      }
+    }
+  } catch {
+    window.sessionStorage.removeItem(ORDER_PREPARATION_STORAGE_KEY);
+  }
+
+  const clientOrderRequestKey = crypto.randomUUID();
+
+  window.sessionStorage.setItem(
+    ORDER_PREPARATION_STORAGE_KEY,
+    JSON.stringify({
+      fingerprintHash,
+      clientOrderRequestKey,
+    } satisfies StoredOrderPreparation),
+  );
+
+  return clientOrderRequestKey;
 }
 
 function parsePositiveInteger(value: string | null): number | null {
@@ -75,6 +136,30 @@ export default function OrderPage() {
   const [isDirectProductLoading, setIsDirectProductLoading] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [preparedOrder, setPreparedOrder] =
+    useState<OrderCreateResponse | null>(null);
+  const [paymentSession, setPaymentSession] =
+    useState<PaymentSession | null>(null);
+  const [widgetCustomerKey] = useState(() => createCustomerKey());
+  const [isWidgetLoading, setIsWidgetLoading] = useState(false);
+  const [submitStage, setSubmitStage] = useState<"idle" | "preparing" | "opening">("idle");
+  const [paymentLauncher, setPaymentLauncher] =
+    useState<((session: PaymentSession) => Promise<void>) | null>(null);
+
+  const handlePaymentReady = useCallback(
+    (launcher: ((session: PaymentSession) => Promise<void>) | null) => {
+      setPaymentLauncher(() => launcher);
+    },
+    [],
+  );
+  const handleWidgetLoadingChange = useCallback(
+    (loading: boolean) => setIsWidgetLoading(loading),
+    [],
+  );
+  const handleWidgetError = useCallback(
+    (message: string) => setErrorMessage(message),
+    [],
+  );
 
   const requestedCartItemIds = useMemo(
     () => parseCartItemIds(searchParams.get("cartItemIds")),
@@ -94,6 +179,10 @@ export default function OrderPage() {
     [searchParams],
   );
   const isDirectOrder = directProductId !== null;
+
+  useEffect(() => {
+    window.sessionStorage.removeItem(LEGACY_ORDER_PREPARATION_STORAGE_KEY);
+  }, []);
 
   useEffect(() => {
     if (!authInitialized) {
@@ -446,9 +535,50 @@ export default function OrderPage() {
       return;
     }
 
+    if (!process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY) {
+      setErrorMessage("결제 테스트 Client Key가 설정되지 않았습니다.");
+      return;
+    }
+
+    let hasPreparedPayment = preparedOrder !== null;
+
     try {
       setIsSubmitting(true);
+      setSubmitStage(preparedOrder ? "opening" : "preparing");
       setErrorMessage("");
+
+      if (preparedOrder) {
+        const currentPayment = await getPayment(preparedOrder.paymentId);
+
+        if (currentPayment.status === "PAID") {
+          clearCompletedPaymentSession(preparedOrder.merchantPaymentId);
+          router.replace(`/my/orders/${preparedOrder.orderId}`);
+          return;
+        }
+        if (currentPayment.status === "CONFIRMING") {
+          setErrorMessage(
+            "결제 결과를 확인하고 있습니다. 잠시 후 주문 내역에서 확인해주세요.",
+          );
+          return;
+        }
+        if (currentPayment.status !== "READY") {
+          setErrorMessage(currentPayment.userMessage);
+          return;
+        }
+        if (!paymentLauncher) {
+          setErrorMessage("결제창을 준비하고 있습니다. 잠시 후 다시 시도해주세요.");
+          return;
+        }
+
+        if (!paymentSession) {
+          setErrorMessage("결제 정보를 확인할 수 없습니다. 다시 시도해주세요.");
+          return;
+        }
+
+        setSubmitStage("opening");
+        await paymentLauncher(paymentSession);
+        return;
+      }
 
       if (addressMode === "new" && saveAddress) {
         const savedAddress = await createAddress({
@@ -480,30 +610,55 @@ export default function OrderPage() {
         addressDetail: recipient.addressDetail.trim() || null,
       };
 
+      const requestFingerprint = JSON.stringify({
+        mode: isDirectOrder ? "direct" : "cart",
+        cartItemIds: isDirectOrder ? null : requestedCartItemIds,
+        productId: isDirectOrder ? directProductId : null,
+        variantId: isDirectOrder ? directVariantId : null,
+        quantity: isDirectOrder ? directQuantity : null,
+        delivery,
+      });
+
+      const clientOrderRequestKey =
+        await resolveClientOrderRequestKey(requestFingerprint);
+
       const createdOrder = isDirectOrder
         ? await createDirectOrder({
+            clientOrderRequestKey,
             productId: directProductId,
             variantId: directVariantId,
             quantity: directQuantity!,
             ...delivery,
           })
         : await createOrder({
+            clientOrderRequestKey,
             cartItemIds: requestedCartItemIds,
             ...delivery,
           });
 
-      /*
-       * Backend가 주문된 CartItem을 삭제했으므로
-       * Header / Cart count도 즉시 최신화합니다.
-       */
-      if (!isDirectOrder) {
-        await loadCart();
+      const returnPath = `/order?${searchParams.toString()}`;
+      savePaymentSession(createdOrder, widgetCustomerKey, returnPath);
+      const createdPaymentSession = getPaymentSession(
+        createdOrder.merchantPaymentId,
+      );
+      setPreparedOrder(createdOrder);
+      setPaymentSession(createdPaymentSession);
+      hasPreparedPayment = true;
+
+      if (!createdPaymentSession) {
+        throw new Error("결제 정보를 저장하지 못했습니다. 다시 시도해주세요.");
+      }
+      if (!paymentLauncher) {
+        throw new Error("결제수단을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
       }
 
-      router.replace(`/my/orders/${createdOrder.orderId}`);
+      setSubmitStage("opening");
+      await paymentLauncher(createdPaymentSession);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
+        hasPreparedPayment
+          ? "결제가 취소되었거나 결제창이 닫혔습니다. 다시 시도할 수 있습니다."
+          : error instanceof Error
           ? error.message
           : "주문 처리 중 오류가 발생했습니다.",
       );
@@ -512,11 +667,12 @@ export default function OrderPage() {
        * 주문 시점에 재고/상품상태가 바뀌었을 수 있으므로
        * 실패 후 Cart도 최신 상태로 다시 동기화합니다.
        */
-      if (!isDirectOrder) {
+      if (!preparedOrder && !isDirectOrder) {
         await loadCart();
       }
     } finally {
       setIsSubmitting(false);
+      setSubmitStage("idle");
     }
   };
 
@@ -568,8 +724,6 @@ export default function OrderPage() {
 
       <div className="order-layout">
         <div className="order-content">
-          <OrderProductList items={orderItems} />
-
           <OrderRecipientForm
             addresses={addresses}
             addressMode={addressMode}
@@ -591,13 +745,32 @@ export default function OrderPage() {
             onSetAsDefaultChange={setSetAsDefault}
             canSaveAddress={addresses.length < 10}
           />
+
+          <OrderProductList items={orderItems} />
+
+          <TossPaymentWidget
+            amount={totalAmount}
+            customerKey={widgetCustomerKey}
+            onReady={handlePaymentReady}
+            onLoadingChange={handleWidgetLoadingChange}
+            onError={handleWidgetError}
+          />
         </div>
 
         <OrderSummary
           productAmount={productAmount}
           shippingFee={shippingFee}
-          totalAmount={totalAmount}
-          isSubmitting={isSubmitting}
+          totalAmount={preparedOrder?.amount ?? totalAmount}
+          disabled={isSubmitting || isWidgetLoading}
+          submitLabel={
+            isSubmitting
+              ? submitStage === "opening"
+                ? "결제창을 여는 중..."
+                : "결제 준비 중..."
+              : isWidgetLoading
+                ? "결제수단을 불러오는 중..."
+                : `${(preparedOrder?.amount ?? totalAmount).toLocaleString("ko-KR")}원 결제하기`
+          }
           onSubmit={() => void handleSubmit()}
         />
       </div>

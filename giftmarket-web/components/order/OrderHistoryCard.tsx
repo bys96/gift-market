@@ -10,6 +10,10 @@ interface OrderHistoryCardProps {
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   ORDERED: "주문 완료",
+  PENDING_PAYMENT: "결제 대기",
+  PAID: "결제 완료",
+  PAYMENT_FAILED: "결제 실패",
+  PAYMENT_EXPIRED: "결제 만료",
   CANCELLED: "주문 취소",
 };
 
@@ -41,9 +45,13 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
     <article className="order-history-card">
       <div className="order-history-header">
         <div>
-          <time className="order-history-date" dateTime={order.orderedAt}>
-            {formatDateTime(order.orderedAt)}
-          </time>
+          {order.orderedAt ? (
+            <time className="order-history-date" dateTime={order.orderedAt}>
+              {formatDateTime(order.orderedAt)}
+            </time>
+          ) : (
+            <span className="order-history-date">결제 준비</span>
+          )}
 
           <p className="order-history-number">주문번호 {order.orderNumber}</p>
         </div>

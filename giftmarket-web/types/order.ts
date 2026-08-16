@@ -1,4 +1,19 @@
-export type OrderStatus = "ORDERED" | "CANCELLED";
+export type OrderStatus =
+  | "ORDERED"
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "PAYMENT_FAILED"
+  | "PAYMENT_EXPIRED"
+  | "CANCELLED";
+
+export type PaymentStatus =
+  | "READY"
+  | "CONFIRMING"
+  | "PAID"
+  | "FAILED"
+  | "EXPIRED"
+  | "CANCELING"
+  | "CANCELED";
 
 export interface OrderHistoryItem {
   id: number;
@@ -19,7 +34,7 @@ export interface OrderSummary {
   id: number;
   orderNumber: string;
   status: OrderStatus;
-  orderedAt: string;
+  orderedAt: string | null;
 
   totalProductAmount: number;
   totalShippingFee: number;
@@ -43,13 +58,14 @@ export interface OrderDetail {
   address: string;
   addressDetail: string | null;
 
-  orderedAt: string;
+  orderedAt: string | null;
   cancelledAt: string | null;
 
   items: OrderHistoryItem[];
 }
 
 export interface OrderCreateRequest {
+  clientOrderRequestKey: string;
   cartItemIds: number[];
 
   recipientName: string;
@@ -60,6 +76,7 @@ export interface OrderCreateRequest {
 }
 
 export interface DirectOrderCreateRequest {
+  clientOrderRequestKey: string;
   productId: number;
   variantId: number | null;
   quantity: number;
@@ -88,9 +105,16 @@ export interface OrderCreateResponse {
   orderNumber: string;
   status: OrderStatus;
 
+  paymentId: number;
+  merchantPaymentId: string;
+  paymentStatus: PaymentStatus;
+  orderName: string;
+  amount: number;
+
   totalProductAmount: number;
   totalShippingFee: number;
   totalAmount: number;
 
-  orderedAt: string;
+  orderedAt: string | null;
+  expiresAt: string;
 }

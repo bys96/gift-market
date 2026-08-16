@@ -2,7 +2,8 @@ interface OrderSummaryProps {
   productAmount: number;
   shippingFee: number;
   totalAmount: number;
-  isSubmitting: boolean;
+  disabled: boolean;
+  submitLabel: string;
   onSubmit: () => void;
 }
 
@@ -10,7 +11,8 @@ export default function OrderSummary({
   productAmount,
   shippingFee,
   totalAmount,
-  isSubmitting,
+  disabled,
+  submitLabel,
   onSubmit,
 }: OrderSummaryProps) {
   return (
@@ -50,12 +52,10 @@ export default function OrderSummary({
       <button
         className="order-submit-button"
         type="button"
-        disabled={isSubmitting}
+        disabled={disabled}
         onClick={onSubmit}
       >
-        {isSubmitting
-          ? "주문 처리 중..."
-          : `${totalAmount.toLocaleString("ko-KR")}원 주문하기`}
+        {submitLabel}
       </button>
     </aside>
   );
