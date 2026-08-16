@@ -6,12 +6,15 @@ import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.payment.exception.PaymentException;
+import com.giftmarket.payment.exception.PaymentWebhookRetryableException;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.seller.exception.SellerException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -106,6 +109,15 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(exception.getMessage()));
     }
 
+    @ExceptionHandler(PaymentWebhookRetryableException.class)
+    public ResponseEntity<ApiResponse<?>> handlePaymentWebhookRetryableException(
+            PaymentWebhookRetryableException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.fail("결제 웹훅 처리를 재시도해주세요."));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<?>> handleMethodArgumentNotValidException(
             MethodArgumentNotValidException exception
@@ -128,6 +140,16 @@ public class GlobalExceptionHandler {
                 .body(
                         ApiResponse.fail(message)
                 );
+    }
+
+    @ExceptionHandler({
+            ServletRequestBindingException.class,
+            ConstraintViolationException.class
+    })
+    public ResponseEntity<ApiResponse<?>> handleInvalidRequest(Exception exception) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail("요청 값을 확인해 주세요."));
     }
 
     @ExceptionHandler(Exception.class)

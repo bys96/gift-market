@@ -62,6 +62,12 @@ public class SecurityConfig {
                         )
                         .permitAll()
 
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/payments/webhooks/toss"
+                        )
+                        .permitAll()
+
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 

@@ -301,6 +301,27 @@ class PaymentTransactionServiceTest {
         verify(orderInventoryService, never()).restore(ORDER_ID);
     }
 
+    @Test
+    void webhookCanVerifyReadyPaymentBeforeApplyingDefinitiveFailure() {
+        PaymentConfirmStart start = service.startWebhookQuery(
+                PAYMENT_ID,
+                PaymentProvider.TOSS,
+                "provider-key",
+                "GM-PAY"
+        );
+        assertThat(start.action()).isEqualTo(PaymentConfirmStart.Action.QUERY);
+
+        service.reconcileWebhook(
+                PAYMENT_ID,
+                "provider-key",
+                queryResult(GatewayPaymentStatus.FAILED, "EXPIRED", null)
+        );
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
+        verify(orderInventoryService).restore(ORDER_ID);
+    }
+
     private PaymentConfirmRequest request(Long amount, String merchantId) {
         return new PaymentConfirmRequest("provider-key", merchantId, amount);
     }

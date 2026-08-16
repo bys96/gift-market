@@ -12,6 +12,7 @@ import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
+import com.giftmarket.payment.entity.PaymentProvider;
 import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.gateway.GatewayConfirmResult;
 import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
@@ -204,6 +205,76 @@ public class PaymentTransactionService {
         return start(payment, PaymentConfirmStart.Action.QUERY);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PaymentConfirmStart startWebhookQuery(
+            Long paymentId,
+            PaymentProvider provider,
+            String providerPaymentKey,
+            String merchantPaymentId
+    ) {
+        Payment payment = getPaymentForUpdate(paymentId);
+        Order order = getOrderForUpdate(payment.getOrder().getId());
+
+        if (payment.getProvider() != provider
+                || !Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)
+                || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            return completed(payment);
+        }
+        if (payment.getStatus() != PaymentStatus.READY
+                && payment.getStatus() != PaymentStatus.CONFIRMING) {
+            return completed(payment);
+        }
+        if (payment.getStatus() == PaymentStatus.CONFIRMING
+                && !Objects.equals(
+                payment.getProviderPaymentKey(),
+                providerPaymentKey
+        )) {
+            throw new PaymentException("결제 식별정보가 일치하지 않습니다.");
+        }
+
+        return new PaymentConfirmStart(
+                PaymentConfirmStart.Action.QUERY,
+                payment.getProvider(),
+                providerPaymentKey,
+                payment.getMerchantPaymentId(),
+                payment.getAmount(),
+                payment.getCurrency(),
+                payment.getConfirmIdempotencyKey(),
+                payment.getConfirmingAt(),
+                null
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PaymentResponse reconcileWebhook(
+            Long paymentId,
+            String providerPaymentKey,
+            GatewayPaymentQueryResult result
+    ) {
+        Payment payment = getPaymentForUpdate(paymentId);
+        Order order = getOrderForUpdate(payment.getOrder().getId());
+
+        if (payment.getStatus() == PaymentStatus.READY
+                && order.getStatus() == OrderStatus.PENDING_PAYMENT) {
+            validateGatewayBusinessResult(
+                    payment,
+                    result.merchantPaymentId(),
+                    result.amount(),
+                    result.currency()
+            );
+            if (!Objects.equals(providerPaymentKey, result.providerPaymentKey())) {
+                throw new PaymentException("결제 식별정보가 일치하지 않습니다.");
+            }
+            if (result.status() == GatewayPaymentStatus.PENDING
+                    || result.status() == GatewayPaymentStatus.UNKNOWN) {
+                return PaymentResponse.from(payment);
+            }
+            payment.startConfirm(providerPaymentKey, LocalDateTime.now());
+        }
+
+        return applyQueryResult(payment, order, result);
+    }
+
     private PaymentResponse complete(
             Long userId,
             Long paymentId,
@@ -384,8 +455,24 @@ public class PaymentTransactionService {
             Long amount,
             String currency
     ) {
-        if (!Objects.equals(payment.getProviderPaymentKey(), providerPaymentKey)
-                || !Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)
+        if (!Objects.equals(payment.getProviderPaymentKey(), providerPaymentKey)) {
+            throw new PaymentException("결제 결과를 확인 중입니다.");
+        }
+        validateGatewayBusinessResult(
+                payment,
+                merchantPaymentId,
+                amount,
+                currency
+        );
+    }
+
+    private void validateGatewayBusinessResult(
+            Payment payment,
+            String merchantPaymentId,
+            Long amount,
+            String currency
+    ) {
+        if (!Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)
                 || !Objects.equals(payment.getAmount(), amount)
                 || !Objects.equals(payment.getCurrency(), currency)) {
             throw new PaymentException("결제 결과를 확인 중입니다.");
