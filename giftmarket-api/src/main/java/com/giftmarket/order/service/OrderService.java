@@ -63,6 +63,7 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentProperties paymentProperties;
+    private final OrderInventoryService orderInventoryService;
 
     private final CartItemRepository cartItemRepository;
 
@@ -470,106 +471,7 @@ public class OrderService {
         }
 
         List<OrderItem> orderItems =
-                orderItemRepository
-                        .findAllByOrderIdOrderByIdAsc(
-                                order.getId()
-                        );
-
-        if (orderItems.isEmpty()) {
-            throw new OrderException(
-                    "주문 상품 정보를 확인할 수 없습니다."
-            );
-        }
-
-        /*
-         * 주문 생성과 동일한 순서로 Product / Variant Lock을 획득해서
-         * 동시 주문/취소 간 deadlock 가능성을 줄입니다.
-         */
-        List<OrderItem> sortedOrderItems =
-                orderItems.stream()
-                        .sorted(
-                                Comparator
-                                        .comparing(
-                                                (OrderItem item) ->
-                                                        item.getProduct()
-                                                                .getId()
-                                        )
-                                        .thenComparing(
-                                                item -> {
-                                                    ProductVariant variant =
-                                                            item.getVariant();
-
-                                                    return variant == null
-                                                            ? Long.MIN_VALUE
-                                                            : variant.getId();
-                                                }
-                                        )
-                        )
-                        .toList();
-
-        Map<Long, Product> lockedProducts =
-                new HashMap<>();
-
-        Map<Long, ProductVariant> lockedVariants =
-                new HashMap<>();
-
-        Set<Long> variantProductIds =
-                new LinkedHashSet<>();
-
-        for (OrderItem orderItem : sortedOrderItems) {
-            Long productId =
-                    orderItem.getProduct().getId();
-
-            Product product =
-                    lockedProducts.computeIfAbsent(
-                            productId,
-                            this::getLockedProductForCancellation
-                    );
-
-            ProductVariant orderVariant =
-                    orderItem.getVariant();
-
-            if (orderVariant == null) {
-                product.increaseStock(
-                        orderItem.getQuantity()
-                );
-
-                continue;
-            }
-
-            Long variantId =
-                    orderVariant.getId();
-
-            ProductVariant variant =
-                    lockedVariants.computeIfAbsent(
-                            variantId,
-                            id ->
-                                    getLockedVariant(
-                                            id,
-                                            productId
-                                    )
-                    );
-
-            variant.increaseStock(
-                    orderItem.getQuantity()
-            );
-
-            variantProductIds.add(productId);
-        }
-
-        /*
-         * 옵션상품은 Variant 재고가 원장이므로
-         * 모든 Variant 복구 후 Product 총재고를 다시 동기화합니다.
-         */
-        for (Long productId : variantProductIds) {
-            Product product =
-                    lockedProducts.get(productId);
-
-            synchronizeVariantProductStock(
-                    product,
-                    productId
-            );
-        }
+                orderInventoryService.restore(order.getId());
 
         order.cancel();
 
@@ -746,20 +648,6 @@ public class OrderService {
                 .orElseThrow(() ->
                         new OrderException(
                                 "현재 구매할 수 없는 상품입니다."
-                        )
-                );
-    }
-
-    private Product getLockedProductForCancellation(
-            Long productId
-    ) {
-        return productRepository
-                .findByIdForUpdate(
-                        productId
-                )
-                .orElseThrow(() ->
-                        new OrderException(
-                                "주문 상품 정보를 확인할 수 없습니다."
                         )
                 );
     }

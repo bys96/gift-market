@@ -7,6 +7,12 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
+
+import com.giftmarket.order.entity.OrderStatus;
+import com.giftmarket.payment.entity.PaymentStatus;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,5 +57,30 @@ public interface PaymentRepository
     Optional<Payment> findByIdAndOrderUserIdForUpdate(
             @Param("paymentId") Long paymentId,
             @Param("userId") Long userId
+    );
+
+    @Query("""
+            select p.id
+            from Payment p
+            where p.status = :paymentStatus
+              and p.expiresAt <= :now
+              and p.order.status = :orderStatus
+            order by p.expiresAt asc, p.id asc
+            """)
+    List<Long> findExpirationCandidateIds(
+            @Param("paymentStatus") PaymentStatus paymentStatus,
+            @Param("orderStatus") OrderStatus orderStatus,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Payment p
+            where p.id = :paymentId
+            """)
+    Optional<Payment> findByIdForUpdate(
+            @Param("paymentId") Long paymentId
     );
 }

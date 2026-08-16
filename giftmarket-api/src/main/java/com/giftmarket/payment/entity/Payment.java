@@ -273,4 +273,8 @@ public class Payment extends BaseEntity {
         this.providerStatus = providerStatus;
         this.failedAt = failedAt;
     }
+
+    public void expire() {
+        this.status = PaymentStatus.EXPIRED;
+    }
 }

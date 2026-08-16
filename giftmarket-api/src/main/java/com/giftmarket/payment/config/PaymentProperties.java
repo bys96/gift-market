@@ -16,4 +16,10 @@ public class PaymentProperties {
 
     @Positive
     private long reservationMinutes = 30;
+
+    @Positive
+    private long expirationCheckIntervalMillis = 60_000;
+
+    @Positive
+    private int expirationBatchSize = 100;
 }
