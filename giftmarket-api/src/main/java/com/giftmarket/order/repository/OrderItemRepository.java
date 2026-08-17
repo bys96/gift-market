@@ -37,6 +37,17 @@ public interface OrderItemRepository
     @Query("""
             select oi
             from OrderItem oi
+            where oi.sellerOrder.id = :sellerOrderId
+            order by oi.id asc
+            """)
+    List<OrderItem> findAllBySellerOrderIdForUpdate(
+            @Param("sellerOrderId") Long sellerOrderId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select oi
+            from OrderItem oi
             join fetch oi.sellerOrder
             where oi.id in :orderItemIds
             order by oi.id asc

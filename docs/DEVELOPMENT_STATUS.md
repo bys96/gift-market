@@ -1,5 +1,19 @@
 # Gift Market 개발 현황
 
+## Cancellation 4-1단계: 부분취소 환불 금액 계산 기반
+
+- `OrderCancellationRefundCalculator`가 주문 당시 `OrderItem.unitPrice`, 수량, 배송비 snapshot만 사용해 상품·배송비·총 환불 예정액을 계산한다.
+- SellerOrder에 남는 상품 수량이 없을 때만 해당 SellerOrder의 OrderItem별 원 배송비 합계를 환불하며, 다른 REQUESTED/PROCESSING 요청 수량은 확정 취소로 간주하지 않는다.
+- 계산 결과는 item별 요청 수량·단가·환불액·취소 후 잔여수량을 포함하는 immutable DTO로 반환하고 DB에는 저장하지 않는다.
+- Payment → Order → SellerOrder → OrderCancellation → OrderItem 비관적 잠금 순서와 상태 재검증으로 향후 PG 호출 직전에도 같은 계산기를 재사용할 수 있게 했다.
+- 이번 단계에서는 Toss 부분취소, PaymentCancellation 생성, 상태 전이, `canceledQuantity` 증가 및 부분 재고 복원을 수행하지 않는다.
+
+### 다음 단계: Cancellation 4-2 — 부분취소 확정 및 부분 재고 복원 기반
+
+- 확정된 취소 수량만 `OrderItem.canceledQuantity`에 반영하고 동일 수량의 Product/Variant 재고를 한 번만 복원한다.
+- SellerOrder 잔여수량에 따라 PREPARING 유지 또는 CANCELLED 전환을 원자적으로 처리한다.
+- 실제 Toss 부분취소는 아직 미구현이며, PaymentCancellation 부분환불 기록 및 PG 연동 단계에서 별도로 추가한다.
+
 ## Cancellation 1~3단계: 상품/수량 취소 요청 및 판매자 승인
 
 - `OrderCancellation`과 `OrderCancellationItem`으로 PG 거래 기록인 기존 `PaymentCancellation`과 주문 취소 업무를 분리했다.
