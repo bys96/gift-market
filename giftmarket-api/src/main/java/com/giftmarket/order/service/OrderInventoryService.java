@@ -1,6 +1,7 @@
 package com.giftmarket.order.service;
 
 import com.giftmarket.order.entity.OrderItem;
+import com.giftmarket.order.entity.OrderCancellationItem;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.product.entity.Product;
@@ -40,13 +41,31 @@ public class OrderInventoryService {
             throw new OrderException("주문 상품 정보를 확인할 수 없습니다.");
         }
 
-        List<OrderItem> sortedOrderItems = orderItems.stream()
+        restoreQuantities(orderItems.stream()
+                .map(item -> new InventoryRestoreItem(item, item.getQuantity()))
+                .toList());
+
+        return orderItems;
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void restoreCancellationItems(List<OrderCancellationItem> cancellationItems) {
+        if (cancellationItems == null || cancellationItems.isEmpty()) {
+            throw new OrderException("Cancellation items are required for stock restoration.");
+        }
+        restoreQuantities(cancellationItems.stream()
+                .map(item -> new InventoryRestoreItem(item.getOrderItem(), item.getQuantity()))
+                .toList());
+    }
+
+    private void restoreQuantities(List<InventoryRestoreItem> restoreItems) {
+        List<InventoryRestoreItem> sortedRestoreItems = restoreItems.stream()
                 .sorted(
                         Comparator
-                                .comparing((OrderItem item) -> item.getProduct().getId())
-                                .thenComparing(item -> item.getVariant() == null
+                                .comparing((InventoryRestoreItem item) -> item.orderItem().getProduct().getId())
+                                .thenComparing(item -> item.orderItem().getVariant() == null
                                         ? Long.MIN_VALUE
-                                        : item.getVariant().getId())
+                                        : item.orderItem().getVariant().getId())
                 )
                 .toList();
 
@@ -54,7 +73,12 @@ public class OrderInventoryService {
         Map<Long, ProductVariant> lockedVariants = new HashMap<>();
         Set<Long> variantProductIds = new LinkedHashSet<>();
 
-        for (OrderItem orderItem : sortedOrderItems) {
+        for (InventoryRestoreItem restoreItem : sortedRestoreItems) {
+            OrderItem orderItem = restoreItem.orderItem();
+            int restoreQuantity = restoreItem.quantity();
+            if (restoreQuantity <= 0 || restoreQuantity > orderItem.getQuantity()) {
+                throw new OrderException("Invalid stock restoration quantity.");
+            }
             Long productId = orderItem.getProduct().getId();
             Product product = lockedProducts.computeIfAbsent(
                     productId,
@@ -63,7 +87,7 @@ public class OrderInventoryService {
 
             ProductVariant orderVariant = orderItem.getVariant();
             if (orderVariant == null) {
-                product.increaseStock(orderItem.getQuantity());
+                product.increaseStock(restoreQuantity);
                 continue;
             }
 
@@ -72,7 +96,7 @@ public class OrderInventoryService {
                     variantId,
                     id -> getLockedVariant(id, productId)
             );
-            variant.increaseStock(orderItem.getQuantity());
+            variant.increaseStock(restoreQuantity);
             variantProductIds.add(productId);
         }
 
@@ -86,7 +110,9 @@ public class OrderInventoryService {
             product.changeStockQuantity(totalStockQuantity);
         }
 
-        return orderItems;
+    }
+
+    private record InventoryRestoreItem(OrderItem orderItem, int quantity) {
     }
 
     private Product getLockedProduct(Long productId) {

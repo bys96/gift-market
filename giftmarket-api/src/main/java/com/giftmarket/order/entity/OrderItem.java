@@ -269,12 +269,29 @@ public class OrderItem extends BaseEntity {
     }
 
     public void increaseCanceledQuantity(int cancelQuantity) {
+        confirmCancellation(cancelQuantity);
+    }
+
+    public void confirmCancellation(int cancelQuantity) {
         if (cancelQuantity <= 0) {
             throw new IllegalArgumentException("취소 수량은 1개 이상이어야 합니다.");
         }
-        if (cancelQuantity > getRemainingQuantity()) {
+        if (canceledQuantity < 0 || canceledQuantity > quantity) {
+            throw new IllegalStateException("Invalid canceled quantity state.");
+        }
+        int confirmedQuantity;
+        try {
+            confirmedQuantity = Math.addExact(canceledQuantity, cancelQuantity);
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("Cancellation quantity overflow.", exception);
+        }
+        if (confirmedQuantity > quantity) {
             throw new IllegalArgumentException("취소 수량이 주문 상품의 잔여 수량을 초과합니다.");
         }
-        canceledQuantity += cancelQuantity;
+        canceledQuantity = confirmedQuantity;
+    }
+
+    public boolean isFullyCanceled() {
+        return canceledQuantity == quantity;
     }
 }

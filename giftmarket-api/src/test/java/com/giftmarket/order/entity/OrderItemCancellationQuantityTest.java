@@ -38,6 +38,30 @@ class OrderItemCancellationQuantityTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void confirmsPartialAndRemainingCancellationWithoutChangingOriginalQuantity() {
+        OrderItem orderItem = createOrderItem(2);
+
+        orderItem.confirmCancellation(1);
+        assertThat(orderItem.getCanceledQuantity()).isEqualTo(1);
+        assertThat(orderItem.isFullyCanceled()).isFalse();
+
+        orderItem.confirmCancellation(1);
+        assertThat(orderItem.getQuantity()).isEqualTo(2);
+        assertThat(orderItem.getCanceledQuantity()).isEqualTo(2);
+        assertThat(orderItem.isFullyCanceled()).isTrue();
+    }
+
+    @Test
+    void rejectsNonPositiveConfirmedQuantity() {
+        OrderItem orderItem = createOrderItem(2);
+
+        assertThatThrownBy(() -> orderItem.confirmCancellation(0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> orderItem.confirmCancellation(-1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private OrderItem createOrderItem(int quantity) {
         return OrderItem.create(
                 mock(Order.class),

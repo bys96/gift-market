@@ -8,11 +8,20 @@
 - Payment → Order → SellerOrder → OrderCancellation → OrderItem 비관적 잠금 순서와 상태 재검증으로 향후 PG 호출 직전에도 같은 계산기를 재사용할 수 있게 했다.
 - 이번 단계에서는 Toss 부분취소, PaymentCancellation 생성, 상태 전이, `canceledQuantity` 증가 및 부분 재고 복원을 수행하지 않는다.
 
-### 다음 단계: Cancellation 4-2 — 부분취소 확정 및 부분 재고 복원 기반
+## Cancellation 4-2단계: 부분취소 확정 transaction 기반
 
-- 확정된 취소 수량만 `OrderItem.canceledQuantity`에 반영하고 동일 수량의 Product/Variant 재고를 한 번만 복원한다.
-- SellerOrder 잔여수량에 따라 PREPARING 유지 또는 CANCELLED 전환을 원자적으로 처리한다.
-- 실제 Toss 부분취소는 아직 미구현이며, PaymentCancellation 부분환불 기록 및 PG 연동 단계에서 별도로 추가한다.
+- PG 부분환불 성공 이후 사용할 내부 `OrderCancellationCompletionService`를 추가했으며 외부 Controller나 기존 구매자/판매자 API에는 연결하지 않았다.
+- PROCESSING 취소요청의 DB 수량만 사용해 `OrderItem.canceledQuantity`를 증가시키고 동일 수량의 Product/Variant 재고를 복원한다.
+- 기존 전체 재고복원과 Product/Variant 잠금 및 Product 총재고 동기화 primitive를 공유하며, Payment부터 OrderItem까지 기존 잠금 순서를 유지한다.
+- 모든 SellerOrder 상품의 잔여수량이 0일 때만 SellerOrder를 CANCELLED로 전환하고 Order/Payment 상태는 변경하지 않는다.
+- COMPLETED 상태를 멱등성 장벽으로 사용해 중복 확정 시 재고와 취소수량이 다시 반영되지 않게 했다.
+- 실제 Toss 부분취소와 연결되지 않았으므로 현재 사용자 요청만으로 completion이 실행되지는 않는다.
+
+### 다음 단계: Cancellation 4-3 — Toss 부분환불 실행 연결
+
+- Toss `cancelAmount`, PaymentCancellation 부분환불 거래 기록과 PG 멱등성 키를 구현한다.
+- Payment 부분취소 상태 및 누적 환불 잔액을 추가하고 Transaction A → 외부 PG → Transaction B completion 흐름을 연결한다.
+- timeout/5xx/webhook/reconciliation에서 동일 부분환불 거래를 안전하게 복구한다.
 
 ## Cancellation 1~3단계: 상품/수량 취소 요청 및 판매자 승인
 
