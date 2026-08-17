@@ -160,6 +160,13 @@ public class OrderItem extends BaseEntity {
     private Integer quantity;
 
     @Column(
+            name = "canceled_quantity",
+            nullable = false,
+            columnDefinition = "int default 0"
+    )
+    private int canceledQuantity;
+
+    @Column(
             name = "total_price",
             nullable = false
     )
@@ -211,6 +218,7 @@ public class OrderItem extends BaseEntity {
         this.additionalPrice = additionalPrice;
         this.unitPrice = productPrice + additionalPrice;
         this.quantity = quantity;
+        this.canceledQuantity = 0;
         this.totalPrice = this.unitPrice * quantity;
         this.freeShipping = freeShipping;
         this.shippingFee = freeShipping
@@ -254,5 +262,19 @@ public class OrderItem extends BaseEntity {
                 .freeShipping(freeShipping)
                 .shippingFee(shippingFee)
                 .build();
+    }
+
+    public int getRemainingQuantity() {
+        return quantity - canceledQuantity;
+    }
+
+    public void increaseCanceledQuantity(int cancelQuantity) {
+        if (cancelQuantity <= 0) {
+            throw new IllegalArgumentException("취소 수량은 1개 이상이어야 합니다.");
+        }
+        if (cancelQuantity > getRemainingQuantity()) {
+            throw new IllegalArgumentException("취소 수량이 주문 상품의 잔여 수량을 초과합니다.");
+        }
+        canceledQuantity += cancelQuantity;
     }
 }
