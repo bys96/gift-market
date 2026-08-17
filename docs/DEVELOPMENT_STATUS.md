@@ -9,6 +9,16 @@
 - timeout/5xx 등 결과 불명은 `CANCELING`을 유지하고 재고를 복원하지 않는다. 사용자 재시도와 `PAYMENT_STATUS_CHANGED` webhook의 Toss 단건 조회로 복구한다.
 - `PaymentCancellation`에 요청 키, PG 멱등 키, 금액, 사유, 처리 상태와 정제된 결과만 저장한다. 부분취소/부분환불은 아직 지원하지 않는다.
 
+## Payment 5-5: 장기 CANCELING 자동 reconciliation
+
+- `PaymentCancellation REQUESTED`, `Payment CANCELING`, `Order PAID`이며 취소 요청 후 설정된 지연시간이 지난 건만 오래된 순서로 제한 조회한다.
+- 후보별로 Payment → Order → PaymentCancellation 순서로 짧게 잠그고 상태를 재확인한 뒤 transaction 밖에서 PG 단건 조회를 수행한다.
+- Toss 조회가 전체 `CANCELED`이고 `balanceAmount=0`이면 5-4의 공통 취소 완료 transaction으로 Payment/Order/취소 이력과 재고를 한 번만 확정한다.
+- Toss 조회가 `DONE`이면 새 취소 이력이나 멱등키를 만들지 않고 저장된 동일 취소 요청과 PG 멱등키로만 취소를 재시도한다.
+- Toss 멱등키 공식 유효기간인 15일이 지난 요청은 새 키로 자동 재시도하지 않고 장기 체류 warning을 남긴다.
+- timeout, 5xx, 알 수 없는 상태, `PARTIAL_CANCELED`는 `CANCELING`과 재고를 그대로 유지한다. 명확한 취소 거절만 기존 5-4 실패 전이로 `Payment PAID`, 취소 이력 `FAILED` 처리한다.
+- READY 만료, CONFIRMING reconciliation, CANCELING reconciliation scheduler는 각각 자신의 상태만 처리한다.
+
 ## 운영 전 필수 검증 TODO
 
 아래 항목은 localhost 자동화 테스트로 완료 처리하지 않는다. 정식 사용 및 운영 배포 전에 공개 테스트 환경에서 반드시 수행한다.

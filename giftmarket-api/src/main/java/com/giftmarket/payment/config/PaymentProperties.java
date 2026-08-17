@@ -31,4 +31,13 @@ public class PaymentProperties {
 
     @Positive
     private int reconciliationBatchSize = 100;
+
+    @Positive
+    private long cancelReconciliationDelaySeconds = 30;
+
+    @Positive
+    private long cancelReconciliationCheckIntervalMillis = 60_000;
+
+    @Positive
+    private int cancelReconciliationBatchSize = 100;
 }

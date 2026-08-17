@@ -82,6 +82,9 @@ payment:
   reconciliation-delay-seconds: 30
   reconciliation-check-interval-millis: 60000
   reconciliation-batch-size: 100
+  cancel-reconciliation-delay-seconds: 30
+  cancel-reconciliation-check-interval-millis: 60000
+  cancel-reconciliation-batch-size: 100
   toss:
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com

@@ -13,7 +13,10 @@ import java.time.LocalDateTime;
 @Table(name = "payment_cancellations", uniqueConstraints = {
         @UniqueConstraint(name = "uk_payment_cancellations_client_key", columnNames = "client_request_key"),
         @UniqueConstraint(name = "uk_payment_cancellations_idempotency_key", columnNames = "idempotency_key")
-}, indexes = @Index(name = "idx_payment_cancellations_payment_status", columnList = "payment_id, status"))
+}, indexes = {
+        @Index(name = "idx_payment_cancellations_payment_status", columnList = "payment_id, status"),
+        @Index(name = "idx_payment_cancellations_status_requested_at", columnList = "status, requested_at")
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentCancellation extends BaseEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)

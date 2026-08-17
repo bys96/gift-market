@@ -13,6 +13,7 @@ import com.giftmarket.payment.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -31,6 +32,54 @@ public class PaymentCancellationTransactionService {
         return paymentRepository.findById(paymentId)
                 .map(payment -> payment.getStatus() == PaymentStatus.CANCELING)
                 .orElse(false);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PaymentCancellationReconciliationStart startReconciliation(
+            Long paymentId,
+            LocalDateTime requestedBefore
+    ) {
+        Payment payment = getPayment(paymentId);
+        if (payment.getStatus() != PaymentStatus.CANCELING) {
+            return completedReconciliation(payment);
+        }
+
+        Order order = getOrder(payment.getOrder().getId());
+        if (order.getStatus() != OrderStatus.PAID) {
+            return completedReconciliation(payment);
+        }
+
+        PaymentCancellation cancellation = cancellationRepository
+                .findFirstByPaymentIdAndStatusOrderByIdDesc(
+                        paymentId,
+                        PaymentCancellationStatus.REQUESTED
+                )
+                .map(value -> getCancellation(value.getId()))
+                .orElseThrow(() -> new PaymentException(
+                        "진행 중인 결제 취소 요청을 찾을 수 없습니다."
+                ));
+
+        if (cancellation.getRequestedAt().isAfter(requestedBefore)) {
+            return completedReconciliation(payment);
+        }
+        if (payment.getProviderPaymentKey() == null
+                || payment.getProviderPaymentKey().isBlank()) {
+            throw new PaymentException("결제 취소 식별정보를 확인할 수 없습니다.");
+        }
+
+        return new PaymentCancellationReconciliationStart(
+                PaymentCancellationReconciliationStart.Action.QUERY,
+                payment.getId(),
+                cancellation.getId(),
+                payment.getProvider(),
+                payment.getProviderPaymentKey(),
+                payment.getMerchantPaymentId(),
+                payment.getAmount(),
+                payment.getCurrency(),
+                cancellation.getReason(),
+                cancellation.getIdempotencyKey(),
+                cancellation.getRequestedAt()
+        );
     }
 
     @Transactional
@@ -122,16 +171,72 @@ public class PaymentCancellationTransactionService {
                 result.remainingAmount(), result.currency(), result.providerStatus(), result.canceledAt());
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public OrderCancelResponse completeFromReconciliationQuery(
+            Long paymentId,
+            Long cancellationId,
+            GatewayPaymentQueryResult result
+    ) {
+        Payment payment = getPayment(paymentId);
+        return completeLocked(
+                payment,
+                getOrder(payment.getOrder().getId()),
+                getCancellation(cancellationId),
+                result.status(),
+                result.providerPaymentKey(),
+                result.providerTransactionId(),
+                result.merchantPaymentId(),
+                result.amount(),
+                result.remainingAmount(),
+                result.currency(),
+                result.providerStatus(),
+                result.canceledAt()
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public OrderCancelResponse completeFromReconciliationCancel(
+            Long paymentId,
+            Long cancellationId,
+            GatewayCancelResult result
+    ) {
+        Payment payment = getPayment(paymentId);
+        return completeLocked(
+                payment,
+                getOrder(payment.getOrder().getId()),
+                getCancellation(cancellationId),
+                result.status(),
+                result.providerPaymentKey(),
+                result.providerTransactionId(),
+                result.merchantPaymentId(),
+                result.amount(),
+                result.remainingAmount(),
+                result.currency(),
+                result.providerStatus(),
+                result.canceledAt()
+        );
+    }
+
     @Transactional
     public void explicitFailure(Long userId, Long paymentId, Long cancellationId, String code, String message) {
         Payment payment = getPayment(paymentId);
         if (!Objects.equals(payment.getOrder().getUser().getId(), userId)) throw new PaymentException("결제 정보를 찾을 수 없습니다.");
         Order order = getOrder(payment.getOrder().getId());
         PaymentCancellation cancellation = getCancellation(cancellationId);
-        if (payment.getStatus() == PaymentStatus.CANCELING && order.getStatus() == OrderStatus.PAID) {
-            cancellation.fail(code, message, LocalDateTime.now());
-            payment.cancelFailed();
-        }
+        finishExplicitFailure(payment, order, cancellation, code, message);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void explicitReconciliationFailure(
+            Long paymentId,
+            Long cancellationId,
+            String code,
+            String message
+    ) {
+        Payment payment = getPayment(paymentId);
+        Order order = getOrder(payment.getOrder().getId());
+        PaymentCancellation cancellation = getCancellation(cancellationId);
+        finishExplicitFailure(payment, order, cancellation, code, message);
     }
 
     private OrderCancelResponse completeLocked(Payment payment, Order order, PaymentCancellation cancellation,
@@ -155,6 +260,39 @@ public class PaymentCancellationTransactionService {
         cancellation.succeed(transactionId, now);
         order.cancel();
         return response(order, payment, "결제가 취소되었습니다.");
+    }
+
+    private void finishExplicitFailure(
+            Payment payment,
+            Order order,
+            PaymentCancellation cancellation,
+            String code,
+            String message
+    ) {
+        if (payment.getStatus() == PaymentStatus.CANCELING
+                && order.getStatus() == OrderStatus.PAID
+                && cancellation.getStatus() == PaymentCancellationStatus.REQUESTED) {
+            cancellation.fail(code, message, LocalDateTime.now());
+            payment.cancelFailed();
+        }
+    }
+
+    private PaymentCancellationReconciliationStart completedReconciliation(
+            Payment payment
+    ) {
+        return new PaymentCancellationReconciliationStart(
+                PaymentCancellationReconciliationStart.Action.COMPLETED,
+                payment.getId(),
+                null,
+                payment.getProvider(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     private PaymentCancelStart start(PaymentCancelStart.Action action, Payment p, PaymentCancellation c) {
