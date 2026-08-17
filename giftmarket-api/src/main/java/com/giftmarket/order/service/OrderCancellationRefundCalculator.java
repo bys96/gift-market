@@ -158,7 +158,7 @@ public class OrderCancellationRefundCalculator {
             Long orderId,
             Long sellerOrderId
     ) {
-        if (payment.getStatus() != PaymentStatus.PAID
+        if (!payment.isRefundableState()
                 || order.getStatus() != OrderStatus.PAID
                 || !cancellation.getOrder().getId().equals(orderId)
                 || !cancellation.getSellerOrder().getId().equals(sellerOrderId)

@@ -41,6 +41,7 @@ public record PaymentResponse(
             case EXPIRED -> "결제 가능 시간이 만료되었습니다.";
             case CANCELING -> "결제 취소를 처리 중입니다.";
             case CANCELED -> "결제가 취소되었습니다.";
+            case PARTIALLY_CANCELED -> "결제 금액의 일부가 취소되었습니다.";
         };
     }
 }

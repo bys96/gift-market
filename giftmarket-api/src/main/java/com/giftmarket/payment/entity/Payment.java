@@ -297,6 +297,26 @@ public class Payment extends BaseEntity {
         this.status = PaymentStatus.CANCELING;
     }
 
+    public boolean isRefundableState() {
+        return status == PaymentStatus.PAID
+                || status == PaymentStatus.PARTIALLY_CANCELED;
+    }
+
+    public void markPartiallyCanceled(String providerStatus) {
+        if (!isRefundableState()) {
+            throw new IllegalStateException("현재 결제 상태에서는 부분취소할 수 없습니다.");
+        }
+        this.status = PaymentStatus.PARTIALLY_CANCELED;
+        this.providerStatus = providerStatus;
+    }
+
+    public void markFullyCanceled(String providerStatus, LocalDateTime canceledAt) {
+        if (!isRefundableState()) {
+            throw new IllegalStateException("현재 결제 상태에서는 전체취소할 수 없습니다.");
+        }
+        cancelFromProvider(providerStatus, canceledAt);
+    }
+
     public void cancelFailed() {
         this.status = PaymentStatus.PAID;
     }

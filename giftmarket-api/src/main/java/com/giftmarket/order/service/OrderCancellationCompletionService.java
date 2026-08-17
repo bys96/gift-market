@@ -96,7 +96,7 @@ public class OrderCancellationCompletionService {
             SellerOrder sellerOrder,
             OrderCancellation cancellation
     ) {
-        if (payment.getStatus() != PaymentStatus.PAID
+        if (!payment.isRefundableState()
                 || order.getStatus() != OrderStatus.PAID
                 || cancellation.getStatus() != OrderCancellationStatus.PROCESSING
                 || (sellerOrder.getStatus() != SellerOrderStatus.PAID

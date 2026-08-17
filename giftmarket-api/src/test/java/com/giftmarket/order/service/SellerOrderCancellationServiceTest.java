@@ -113,6 +113,7 @@ class SellerOrderCancellationServiceTest {
         payment = mock(Payment.class);
         given(payment.getId()).willReturn(PAYMENT_ID);
         given(payment.getStatus()).willReturn(PaymentStatus.PAID);
+        given(payment.isRefundableState()).willReturn(true);
 
         ownership = mock(OrderCancellationOwnershipProjection.class);
         given(ownership.getOrderId()).willReturn(ORDER_ID);

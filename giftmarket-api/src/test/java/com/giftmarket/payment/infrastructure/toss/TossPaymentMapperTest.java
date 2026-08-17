@@ -18,7 +18,7 @@ class TossPaymentMapperTest {
         assertThat(map("EXPIRED")).isEqualTo(GatewayPaymentStatus.FAILED);
         assertThat(map("CANCELED")).isEqualTo(GatewayPaymentStatus.CANCELED);
         assertThat(map("PARTIAL_CANCELED")).isEqualTo(
-                GatewayPaymentStatus.UNKNOWN
+                GatewayPaymentStatus.PARTIALLY_CANCELED
         );
         assertThat(map("IN_PROGRESS")).isEqualTo(GatewayPaymentStatus.PENDING);
     }

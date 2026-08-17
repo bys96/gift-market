@@ -1,5 +1,20 @@
 # Gift Market 개발 현황
 
+## Cancellation 4-3A단계: 부분환불 Payment 도메인 기반
+
+- `PaymentStatus.PARTIALLY_CANCELED`와 환불 가능 상태 predicate를 추가해 일부 환불 후에도 추가 취소가 가능한 상태를 표현한다.
+- 기존 `PaymentCancellation` factory/API는 FULL 전체취소로 유지하고, PARTIAL 거래는 nullable `OrderCancellation` 연결과 거래별 amount·PG 멱등키를 별도로 기록한다.
+- 동일 OrderCancellation에는 하나의 PaymentCancellation만 연결되도록 unique 제약과 Payment 잠금 기반 준비 서비스를 추가했다.
+- SUCCEEDED 금액과 REQUESTED 예약금액을 Repository에서 각각 집계해 원 결제금액에서 차감한 `PaymentRefundBalance`를 계산한다.
+- Toss `PARTIAL_CANCELED`를 provider-neutral `PARTIALLY_CANCELED`로 매핑하며 전체 CANCELED로 처리하지 않는다.
+- 아직 Toss 부분취소 HTTP 호출, cancelAmount 전송, completion 연결, 부분환불 reconciliation/webhook은 구현하지 않았다.
+
+### 다음 단계: Cancellation 4-3B — 실제 Toss 부분환불 실행 연결
+
+- Transaction A에서 환불금 계산·잔액 검증·PaymentCancellation 준비를 확정하고 동일 PG 멱등키로 Toss `cancelAmount`를 호출한다.
+- Transaction B에서 provider 거래·잔액을 검증한 뒤 Payment 상태와 PaymentCancellation을 확정하고 4-2 completion을 호출한다.
+- timeout/5xx 응답 유실은 단건 조회, webhook 및 reconciliation으로 동일 부분환불 거래를 복구한다.
+
 ## Cancellation 4-1단계: 부분취소 환불 금액 계산 기반
 
 - `OrderCancellationRefundCalculator`가 주문 당시 `OrderItem.unitPrice`, 수량, 배송비 snapshot만 사용해 상품·배송비·총 환불 예정액을 계산한다.

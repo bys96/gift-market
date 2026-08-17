@@ -76,6 +76,7 @@ class OrderCancellationCompletionServiceTest {
         payment = mock(Payment.class);
         given(payment.getId()).willReturn(5L);
         given(payment.getStatus()).willReturn(PaymentStatus.PAID);
+        given(payment.isRefundableState()).willReturn(true);
         given(paymentRepository.findFirstByOrderIdOrderByIdDesc(ORDER_ID))
                 .willReturn(Optional.of(payment));
         given(paymentRepository.findByIdForUpdate(5L)).willReturn(Optional.of(payment));
@@ -165,6 +166,7 @@ class OrderCancellationCompletionServiceTest {
     @Test
     void blocksCompletionWhileFullPaymentCancellationIsInProgress() {
         given(payment.getStatus()).willReturn(PaymentStatus.CANCELING);
+        given(payment.isRefundableState()).willReturn(false);
         OrderItem item = item(sellerOrder, 101L, 1);
         OrderCancellation cancellation = processing(item, 1);
         stub(cancellation, List.of(item), 1);

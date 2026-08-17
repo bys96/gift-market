@@ -86,7 +86,7 @@ public class OrderCancellationService {
                         userId
                 ))
                 .orElseThrow(this::orderNotFound);
-        if (payment.getStatus() != PaymentStatus.PAID) {
+        if (!payment.isRefundableState()) {
             throw new OrderException("결제가 완료된 주문만 상품 취소를 요청할 수 있습니다.");
         }
 

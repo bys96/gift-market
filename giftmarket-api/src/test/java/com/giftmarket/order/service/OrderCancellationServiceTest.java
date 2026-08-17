@@ -93,6 +93,7 @@ class OrderCancellationServiceTest {
         payment = mock(Payment.class);
         given(payment.getId()).willReturn(5L);
         given(payment.getStatus()).willReturn(PaymentStatus.PAID);
+        given(payment.isRefundableState()).willReturn(true);
         sellerOrder = paidSellerOrder(order);
         orderItem = orderItem(order, sellerOrder, ORDER_ITEM_ID, 3);
 
@@ -200,6 +201,7 @@ class OrderCancellationServiceTest {
     @Test
     void rejectsOrderWhosePaymentIsAlreadyCanceling() {
         given(payment.getStatus()).willReturn(PaymentStatus.CANCELING);
+        given(payment.isRefundableState()).willReturn(false);
 
         assertThatThrownBy(() -> service.create(
                 USER_ID, ORDER_ID, request(SELLER_ORDER_ID, item(ORDER_ITEM_ID, 1))

@@ -87,7 +87,7 @@ public class TossPaymentMapper {
                     GatewayPaymentStatus.FAILED;
             case "CANCELED" -> GatewayPaymentStatus.CANCELED;
             // 부분 취소는 전체 실패/재고 전체 복원으로 처리할 수 없습니다.
-            case "PARTIAL_CANCELED" -> GatewayPaymentStatus.UNKNOWN;
+            case "PARTIAL_CANCELED" -> GatewayPaymentStatus.PARTIALLY_CANCELED;
             case "READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT" ->
                     GatewayPaymentStatus.PENDING;
             default -> GatewayPaymentStatus.UNKNOWN;

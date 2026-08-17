@@ -73,6 +73,7 @@ class OrderCancellationRefundCalculatorTest {
         payment = mock(Payment.class);
         given(payment.getId()).willReturn(5L);
         given(payment.getStatus()).willReturn(PaymentStatus.PAID);
+        given(payment.isRefundableState()).willReturn(true);
         given(payment.getAmount()).willReturn(1_000_000L);
         given(paymentRepository.findFirstByOrderIdOrderByIdDesc(ORDER_ID))
                 .willReturn(Optional.of(payment));

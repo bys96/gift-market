@@ -176,7 +176,7 @@ public class SellerOrderCancellationService {
         if (!cancellation.isRequiresSellerApproval()) {
             throw new SellerException("판매자 승인이 필요한 취소 요청이 아닙니다.");
         }
-        if (payment.getStatus() != PaymentStatus.PAID
+        if (!payment.isRefundableState()
                 || order.getStatus() != OrderStatus.PAID
                 || sellerOrder.getStatus() != SellerOrderStatus.PREPARING) {
             throw new SellerException("현재 주문 상태에서는 취소 요청을 처리할 수 없습니다.");

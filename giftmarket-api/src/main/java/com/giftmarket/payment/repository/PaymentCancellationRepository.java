@@ -24,6 +24,19 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
 
     Optional<PaymentCancellation> findFirstByPaymentIdAndStatusOrderByIdDesc(Long paymentId, PaymentCancellationStatus status);
 
+    Optional<PaymentCancellation> findByOrderCancellationId(Long orderCancellationId);
+
+    @Query("""
+            select coalesce(sum(c.amount), 0)
+            from PaymentCancellation c
+            where c.payment.id = :paymentId
+              and c.status = :status
+            """)
+    Long sumAmountByPaymentIdAndStatus(
+            @Param("paymentId") Long paymentId,
+            @Param("status") PaymentCancellationStatus status
+    );
+
     @Query("""
             select c.payment.id
             from PaymentCancellation c
