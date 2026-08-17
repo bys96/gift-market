@@ -3,6 +3,7 @@ package com.giftmarket.payment.infrastructure.toss;
 import com.giftmarket.payment.entity.EasyPayProvider;
 import com.giftmarket.payment.entity.PaymentMethod;
 import com.giftmarket.payment.gateway.GatewayConfirmResult;
+import com.giftmarket.payment.gateway.GatewayCancelCommand;
 import com.giftmarket.payment.gateway.GatewayCancelResult;
 import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
@@ -38,13 +39,43 @@ public class TossPaymentMapper {
     }
 
     public GatewayCancelResult toCancelResult(TossPaymentResponse response) {
-        TossPaymentResponse.TossCancelResponse cancellation = latestCancellation(response);
+        return toCancelResult(response, null);
+    }
+
+    public GatewayCancelResult toCancelResult(
+            TossPaymentResponse response,
+            GatewayCancelCommand command
+    ) {
+        TossPaymentResponse.TossCancelResponse cancellation = currentCancellation(response, command);
         return new GatewayCancelResult(
                 mapStatus(response.status()), response.paymentKey(),
                 cancellation == null ? response.lastTransactionKey() : cancellation.transactionKey(),
                 response.orderId(), response.totalAmount(), response.balanceAmount(), response.currency(),
-                response.status(), parseCanceledAt(response)
+                response.status(), parseCanceledAt(cancellation),
+                cancellation == null ? null : cancellation.cancelAmount(),
+                cancellation == null ? null : cancellation.cancelStatus()
         );
+    }
+
+    private TossPaymentResponse.TossCancelResponse currentCancellation(
+            TossPaymentResponse response,
+            GatewayCancelCommand command
+    ) {
+        if (response.cancels() == null || response.cancels().isEmpty()) return null;
+        if (response.lastTransactionKey() != null) {
+            TossPaymentResponse.TossCancelResponse matched = response.cancels().stream()
+                    .filter(value -> response.lastTransactionKey().equals(value.transactionKey()))
+                    .findFirst()
+                    .orElse(null);
+            if (matched != null) return matched;
+        }
+        if (command != null && command.cancelAmount() != null) {
+            java.util.List<TossPaymentResponse.TossCancelResponse> matches = response.cancels().stream()
+                    .filter(value -> command.cancelAmount().equals(value.cancelAmount()))
+                    .toList();
+            return matches.size() == 1 ? matches.getFirst() : null;
+        }
+        return response.cancels().size() == 1 ? response.cancels().getFirst() : null;
     }
 
     private TossPaymentResponse.TossCancelResponse latestCancellation(TossPaymentResponse response) {
@@ -54,6 +85,10 @@ public class TossPaymentMapper {
 
     private LocalDateTime parseCanceledAt(TossPaymentResponse response) {
         TossPaymentResponse.TossCancelResponse value = latestCancellation(response);
+        return parseCanceledAt(value);
+    }
+
+    private LocalDateTime parseCanceledAt(TossPaymentResponse.TossCancelResponse value) {
         return value == null || value.canceledAt() == null ? null : parseDateTime(value.canceledAt());
     }
 
@@ -72,7 +107,8 @@ public class TossPaymentMapper {
                 response.status(),
                 parseApprovedAt(response.approvedAt()),
                 response.balanceAmount(),
-                parseCanceledAt(response)
+                parseCanceledAt(response),
+                response.isPartialCancelable()
         );
     }
 

@@ -12,7 +12,7 @@ import com.giftmarket.order.dto.response.OrderCancelResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
-import com.giftmarket.order.service.OrderCancellationService;
+import com.giftmarket.order.service.OrderCancellationWorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,7 +33,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final PaymentCancellationService paymentCancellationService;
-    private final OrderCancellationService orderCancellationService;
+    private final OrderCancellationWorkflowService orderCancellationWorkflowService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -101,7 +101,7 @@ public class OrderController {
             @Valid @RequestBody OrderCancellationCreateRequest request
     ) {
         return ApiResponse.success(
-                orderCancellationService.create(userId, orderId, request)
+                orderCancellationWorkflowService.create(userId, orderId, request)
         );
     }
 }

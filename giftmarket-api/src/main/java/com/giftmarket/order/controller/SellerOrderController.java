@@ -11,6 +11,7 @@ import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.service.SellerOrderManagementService;
 import com.giftmarket.order.service.SellerOrderCancellationService;
+import com.giftmarket.order.service.SellerOrderCancellationWorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,6 +30,7 @@ public class SellerOrderController {
 
     private final SellerOrderManagementService sellerOrderManagementService;
     private final SellerOrderCancellationService sellerOrderCancellationService;
+    private final SellerOrderCancellationWorkflowService sellerOrderCancellationWorkflowService;
 
     @GetMapping("/cancellations")
     public ApiResponse<SellerOrderCancellationPageResponse> getCancellations(
@@ -60,7 +62,7 @@ public class SellerOrderController {
             @PathVariable Long cancellationId
     ) {
         return ApiResponse.success(
-                sellerOrderCancellationService.approve(userId, cancellationId)
+                sellerOrderCancellationWorkflowService.approve(userId, cancellationId)
         );
     }
 

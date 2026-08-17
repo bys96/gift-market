@@ -18,7 +18,8 @@ public record GatewayPaymentQueryResult(
         String providerStatus,
         LocalDateTime approvedAt,
         Long remainingAmount,
-        LocalDateTime canceledAt
+        LocalDateTime canceledAt,
+        Boolean partialCancelable
 
 ) {
     public GatewayPaymentQueryResult(
@@ -30,6 +31,18 @@ public record GatewayPaymentQueryResult(
     ) {
         this(status, providerPaymentKey, providerTransactionId,
                 merchantPaymentId, amount, currency, method,
-                easyPayProvider, providerStatus, approvedAt, null, null);
+                easyPayProvider, providerStatus, approvedAt, null, null, null);
+    }
+
+    public GatewayPaymentQueryResult(
+            GatewayPaymentStatus status, String providerPaymentKey,
+            String providerTransactionId, String merchantPaymentId,
+            Long amount, String currency, PaymentMethod method,
+            EasyPayProvider easyPayProvider, String providerStatus,
+            LocalDateTime approvedAt, Long remainingAmount, LocalDateTime canceledAt
+    ) {
+        this(status, providerPaymentKey, providerTransactionId, merchantPaymentId,
+                amount, currency, method, easyPayProvider, providerStatus,
+                approvedAt, remainingAmount, canceledAt, null);
     }
 }

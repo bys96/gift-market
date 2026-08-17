@@ -1,5 +1,20 @@
 # Gift Market 개발 현황
 
+## Cancellation 4-3B단계: Toss 부분환불 정상 실행 경로
+
+- 구매자의 PAID 즉시취소 요청은 요청 생성 transaction commit 후 공통 환불 executor로 이어지고, PREPARING 승인형 요청은 판매자 승인 transaction commit 후 같은 executor를 사용한다.
+- Transaction A에서 Payment/Order/SellerOrder/OrderCancellation을 잠그고 환불액을 다시 계산하며, PARTIAL PaymentCancellation과 동일 PG idempotency key를 확정한 뒤 DB transaction 밖에서 Toss 최신 결제를 조회한다.
+- Toss 최신 응답의 결제 식별정보와 `isPartialCancelable`을 검증한 후 기존 cancel endpoint에 부분환불일 때만 `cancelAmount`를 전송한다. 기존 FULL 전액취소 body에는 `cancelAmount`가 포함되지 않는다.
+- Toss 성공 응답은 원 결제금액, 잔액, 이번 취소금액과 transactionKey를 검증한 뒤 Transaction B에서 PaymentCancellation SUCCEEDED, Payment PARTIALLY_CANCELED/CANCELED 및 기존 OrderCancellation completion을 원자적으로 반영한다.
+- 명확한 PG 4xx/부분취소 불가 응답은 PaymentCancellation과 OrderCancellation을 FAILED로 종료하고, timeout/connection reset/5xx/empty 응답은 REQUESTED/PROCESSING을 유지한다.
+- Cancellation 4-3C의 결과 불명 자동 reconciliation, 부분취소 webhook completion 및 장기 PROCESSING 관측은 아직 미구현이다.
+
+### 다음 단계: Cancellation 4-3C — 부분환불 결과 불명 복구
+
+- REQUESTED 부분환불 거래를 기준으로 Toss 최신 Payment/cancels를 조회하여 동일 transactionKey와 취소금액을 식별하고 completion을 복구한다.
+- scheduler/webhook/HTTP 응답 경합에서도 재고와 canceledQuantity가 한 번만 반영되게 하며 장기 PROCESSING 운영 로그를 추가한다.
+- 운영 전 실제 Toss staging/webhook 통합 테스트 TODO는 계속 미완료 상태로 유지한다.
+
 ## Cancellation 4-3A단계: 부분환불 Payment 도메인 기반
 
 - `PaymentStatus.PARTIALLY_CANCELED`와 환불 가능 상태 predicate를 추가해 일부 환불 후에도 추가 취소가 가능한 상태를 표현한다.

@@ -12,7 +12,8 @@ public record TossPaymentResponse(
         String lastTransactionKey,
         String approvedAt,
         Long balanceAmount,
-        java.util.List<TossCancelResponse> cancels
+        java.util.List<TossCancelResponse> cancels,
+        Boolean isPartialCancelable
 
 ) {
 
@@ -21,7 +22,16 @@ public record TossPaymentResponse(
                                TossEasyPayResponse easyPay, String lastTransactionKey,
                                String approvedAt) {
         this(paymentKey, orderId, status, totalAmount, currency, method, easyPay,
-                lastTransactionKey, approvedAt, null, null);
+                lastTransactionKey, approvedAt, null, null, null);
+    }
+
+    public TossPaymentResponse(String paymentKey, String orderId, String status,
+                               Long totalAmount, String currency, String method,
+                               TossEasyPayResponse easyPay, String lastTransactionKey,
+                               String approvedAt, Long balanceAmount,
+                               java.util.List<TossCancelResponse> cancels) {
+        this(paymentKey, orderId, status, totalAmount, currency, method, easyPay,
+                lastTransactionKey, approvedAt, balanceAmount, cancels, null);
     }
 
     public record TossEasyPayResponse(

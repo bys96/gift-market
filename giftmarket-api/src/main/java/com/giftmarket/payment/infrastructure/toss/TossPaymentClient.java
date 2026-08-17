@@ -253,7 +253,7 @@ public class TossPaymentClient {
                     .header("Idempotency-Key", command.idempotencyKey())
                     .accept(MediaType.APPLICATION_JSON)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(new TossCancelRequest(command.reason()))
+                    .body(new TossCancelRequest(command.reason(), command.cancelAmount()))
                     .retrieve().toEntity(TossPaymentResponse.class);
             if (entity.getBody() == null) {
                 throw new PaymentGatewayUncertainException("결제 취소 결과를 확인 중입니다.", null);

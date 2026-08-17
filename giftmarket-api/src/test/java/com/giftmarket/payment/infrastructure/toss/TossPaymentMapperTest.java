@@ -1,6 +1,7 @@
 package com.giftmarket.payment.infrastructure.toss;
 
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
+import com.giftmarket.payment.gateway.GatewayCancelCommand;
 import com.giftmarket.payment.infrastructure.toss.dto.TossPaymentResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -36,6 +37,26 @@ class TossPaymentMapperTest {
         assertThat(result.status()).isEqualTo(GatewayPaymentStatus.CANCELED);
         assertThat(result.remainingAmount()).isZero();
         assertThat(result.providerTransactionId()).isEqualTo("cancel-transaction");
+    }
+
+    @Test
+    void mapsPartialCancellationByLastTransactionKey() {
+        TossPaymentResponse response = new TossPaymentResponse(
+                "payment-key", "order-id", "PARTIAL_CANCELED", 10_000L,
+                "KRW", "카드", null, "new-transaction", null, 7_000L,
+                java.util.List.of(
+                        new TossPaymentResponse.TossCancelResponse(1_000L,
+                                "2026-08-17T12:00:00+09:00", "old-transaction", "DONE"),
+                        new TossPaymentResponse.TossCancelResponse(3_000L,
+                                "2026-08-17T13:00:00+09:00", "new-transaction", "DONE")
+                ), true
+        );
+        var result = mapper.toCancelResult(response, GatewayCancelCommand.partial(
+                "payment-key", "order-id", 10_000L, "KRW", "사유", "key", 3_000L));
+        assertThat(result.status()).isEqualTo(GatewayPaymentStatus.PARTIALLY_CANCELED);
+        assertThat(result.providerTransactionId()).isEqualTo("new-transaction");
+        assertThat(result.canceledAmount()).isEqualTo(3_000L);
+        assertThat(result.remainingAmount()).isEqualTo(7_000L);
     }
 
     private GatewayPaymentStatus map(String providerStatus) {

@@ -56,6 +56,19 @@ public class OrderCancellationService {
     private final OrderCancellationRepository orderCancellationRepository;
     private final OrderCancellationItemRepository orderCancellationItemRepository;
 
+    @Transactional(readOnly = true)
+    public OrderCancellationResponse getOwned(Long userId, Long orderId, Long cancellationId) {
+        validateAuthenticated(userId);
+        OrderCancellation cancellation = orderCancellationRepository.findById(cancellationId)
+                .orElseThrow(this::orderNotFound);
+        if (!cancellation.getOrder().getId().equals(orderId)
+                || !cancellation.getOrder().getUser().getId().equals(userId)) {
+            throw orderNotFound();
+        }
+        return OrderCancellationResponse.from(cancellation,
+                orderCancellationItemRepository.findAllByOrderCancellationIdOrderByIdAsc(cancellationId));
+    }
+
     @Transactional
     public OrderCancellationResponse create(
             Long userId,

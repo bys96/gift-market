@@ -59,6 +59,6 @@ public class TossPaymentGateway implements PaymentGateway {
 
     @Override
     public GatewayCancelResult cancel(GatewayCancelCommand command) {
-        return tossPaymentMapper.toCancelResult(tossPaymentClient.cancel(command));
+        return tossPaymentMapper.toCancelResult(tossPaymentClient.cancel(command), command);
     }
 }
