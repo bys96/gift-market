@@ -2,10 +2,15 @@ package com.giftmarket.order.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
+import com.giftmarket.order.dto.request.SellerOrderCancellationRejectRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
+import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
+import com.giftmarket.order.dto.response.SellerOrderCancellationResponse;
+import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.service.SellerOrderManagementService;
+import com.giftmarket.order.service.SellerOrderCancellationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +28,56 @@ import org.springframework.web.bind.annotation.RestController;
 public class SellerOrderController {
 
     private final SellerOrderManagementService sellerOrderManagementService;
+    private final SellerOrderCancellationService sellerOrderCancellationService;
+
+    @GetMapping("/cancellations")
+    public ApiResponse<SellerOrderCancellationPageResponse> getCancellations(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(required = false) OrderCancellationStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ApiResponse.success(
+                sellerOrderCancellationService.getCancellations(
+                        userId, status, page, size
+                )
+        );
+    }
+
+    @GetMapping("/cancellations/{cancellationId}")
+    public ApiResponse<SellerOrderCancellationResponse> getCancellation(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long cancellationId
+    ) {
+        return ApiResponse.success(
+                sellerOrderCancellationService.getCancellation(userId, cancellationId)
+        );
+    }
+
+    @PatchMapping("/cancellations/{cancellationId}/approve")
+    public ApiResponse<SellerOrderCancellationResponse> approveCancellation(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long cancellationId
+    ) {
+        return ApiResponse.success(
+                sellerOrderCancellationService.approve(userId, cancellationId)
+        );
+    }
+
+    @PatchMapping("/cancellations/{cancellationId}/reject")
+    public ApiResponse<SellerOrderCancellationResponse> rejectCancellation(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long cancellationId,
+            @Valid @RequestBody SellerOrderCancellationRejectRequest request
+    ) {
+        return ApiResponse.success(
+                sellerOrderCancellationService.reject(
+                        userId,
+                        cancellationId,
+                        request.reason()
+                )
+        );
+    }
 
     @GetMapping
     public ApiResponse<SellerOrderPageResponse> getSellerOrders(

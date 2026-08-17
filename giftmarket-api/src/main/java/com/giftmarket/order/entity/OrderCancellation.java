@@ -71,6 +71,13 @@ public class OrderCancellation extends BaseEntity {
     @Column(nullable = false, length = 500)
     private String reason;
 
+    @Column(
+            name = "requires_seller_approval",
+            nullable = false,
+            columnDefinition = "boolean default false"
+    )
+    private boolean requiresSellerApproval;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderCancellationStatus status;
@@ -98,6 +105,7 @@ public class OrderCancellation extends BaseEntity {
             SellerOrder sellerOrder,
             String clientRequestKey,
             String reason,
+            boolean requiresSellerApproval,
             OrderCancellationStatus status,
             LocalDateTime requestedAt
     ) {
@@ -106,6 +114,7 @@ public class OrderCancellation extends BaseEntity {
         this.sellerOrder = sellerOrder;
         this.clientRequestKey = requireText(clientRequestKey, "취소 요청 키가 필요합니다.");
         this.reason = requireText(reason, "취소 사유가 필요합니다.");
+        this.requiresSellerApproval = requiresSellerApproval;
         this.status = status;
         this.requestedAt = requestedAt;
     }
@@ -122,6 +131,26 @@ public class OrderCancellation extends BaseEntity {
                 sellerOrder,
                 clientRequestKey,
                 reason,
+                false,
+                OrderCancellationStatus.REQUESTED,
+                requestedAt
+        );
+    }
+
+    public static OrderCancellation createRequested(
+            Order order,
+            SellerOrder sellerOrder,
+            String clientRequestKey,
+            String reason,
+            boolean requiresSellerApproval,
+            LocalDateTime requestedAt
+    ) {
+        return new OrderCancellation(
+                order,
+                sellerOrder,
+                clientRequestKey,
+                reason,
+                requiresSellerApproval,
                 OrderCancellationStatus.REQUESTED,
                 requestedAt
         );
@@ -139,6 +168,7 @@ public class OrderCancellation extends BaseEntity {
                 sellerOrder,
                 clientRequestKey,
                 reason,
+                false,
                 OrderCancellationStatus.PROCESSING,
                 requestedAt
         );

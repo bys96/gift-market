@@ -6,9 +6,11 @@ import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderListItemResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.entity.OrderItem;
+import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.repository.OrderItemRepository;
+import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
 import com.giftmarket.order.repository.SellerOrderRepository;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -40,6 +43,13 @@ public class SellerOrderManagementService {
     private final SellerOrderRepository sellerOrderRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderCancellationRepository orderCancellationRepository;
+
+    private static final Set<OrderCancellationStatus> SHIPPING_BLOCKING_CANCELLATION_STATUSES =
+            Set.of(
+                    OrderCancellationStatus.REQUESTED,
+                    OrderCancellationStatus.PROCESSING
+            );
 
     @Transactional(readOnly = true)
     public SellerOrderPageResponse getSellerOrders(
@@ -137,11 +147,22 @@ public class SellerOrderManagementService {
         return transition(
                 userId,
                 sellerOrderId,
-                sellerOrder -> sellerOrder.ship(
-                        shippingCompany,
-                        trackingNumber,
-                        LocalDateTime.now()
-                )
+                sellerOrder -> {
+                    if (orderCancellationRepository
+                            .existsBySellerOrderIdAndStatusIn(
+                                    sellerOrder.getId(),
+                                    SHIPPING_BLOCKING_CANCELLATION_STATUSES
+                            )) {
+                        throw new SellerException(
+                                "처리 중인 취소 요청이 있어 배송을 시작할 수 없습니다."
+                        );
+                    }
+                    sellerOrder.ship(
+                            shippingCompany,
+                            trackingNumber,
+                            LocalDateTime.now()
+                    );
+                }
         );
     }
 

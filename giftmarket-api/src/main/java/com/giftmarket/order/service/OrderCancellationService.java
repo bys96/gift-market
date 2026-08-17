@@ -128,6 +128,7 @@ public class OrderCancellationService {
                             sellerOrder,
                             clientRequestKey,
                             reason,
+                            sellerOrder.getStatus() == SellerOrderStatus.PREPARING,
                             LocalDateTime.now()
                     )
             );

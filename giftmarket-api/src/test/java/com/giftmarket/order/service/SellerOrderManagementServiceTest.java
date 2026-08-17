@@ -8,6 +8,7 @@ import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.repository.OrderItemRepository;
+import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
 import com.giftmarket.order.repository.SellerOrderRepository;
@@ -51,6 +52,7 @@ class SellerOrderManagementServiceTest {
     @Mock SellerOrderRepository sellerOrderRepository;
     @Mock OrderRepository orderRepository;
     @Mock OrderItemRepository orderItemRepository;
+    @Mock OrderCancellationRepository orderCancellationRepository;
     @Mock Seller seller;
     @Mock User user;
 
@@ -65,7 +67,8 @@ class SellerOrderManagementServiceTest {
                 sellerRepository,
                 sellerOrderRepository,
                 orderRepository,
-                orderItemRepository
+                orderItemRepository,
+                orderCancellationRepository
         );
         lenient().when(sellerRepository.findByUserId(USER_ID))
                 .thenReturn(Optional.of(seller));
@@ -206,6 +209,46 @@ class SellerOrderManagementServiceTest {
         assertThatThrownBy(() -> service.prepare(USER_ID, SELLER_ORDER_ID))
                 .isInstanceOf(SellerException.class);
         assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.CANCELLED);
+    }
+
+    @Test
+    void activeCancellationBlocksShippingAfterSellerOrderLock() {
+        sellerOrder.prepare(java.time.LocalDateTime.now());
+        givenLockedSellerOrder();
+        given(orderCancellationRepository
+                .existsBySellerOrderIdAndStatusIn(
+                        eq(SELLER_ORDER_ID),
+                        any()
+                ))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> service.ship(
+                USER_ID,
+                SELLER_ORDER_ID,
+                new SellerOrderShipRequest("택배사", "1234")
+        )).isInstanceOf(SellerException.class);
+
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PREPARING);
+    }
+
+    @Test
+    void shippingContinuesWhenNoActiveCancellationExists() {
+        sellerOrder.prepare(java.time.LocalDateTime.now());
+        givenLockedSellerOrder();
+        given(orderCancellationRepository
+                .existsBySellerOrderIdAndStatusIn(
+                        eq(SELLER_ORDER_ID),
+                        any()
+                ))
+                .willReturn(false);
+
+        SellerOrderDetailResponse response = service.ship(
+                USER_ID,
+                SELLER_ORDER_ID,
+                new SellerOrderShipRequest("택배사", "1234")
+        );
+
+        assertThat(response.status()).isEqualTo(SellerOrderStatus.SHIPPED);
     }
 
     private void givenLockedSellerOrder() {

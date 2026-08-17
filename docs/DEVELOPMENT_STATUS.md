@@ -1,5 +1,25 @@
 # Gift Market 개발 현황
 
+## Cancellation 1~3단계: 상품/수량 취소 요청 및 판매자 승인
+
+- `OrderCancellation`과 `OrderCancellationItem`으로 PG 거래 기록인 기존 `PaymentCancellation`과 주문 취소 업무를 분리했다.
+- `OrderItem.quantity`는 유지하고 `canceledQuantity`로 확정 취소 누계를 관리하며, REQUESTED/PROCESSING 요청 수량까지 차감해 중복 수량 점유를 막는다.
+- 구매자는 `POST /api/orders/{orderId}/cancellations`로 PAID/PREPARING SellerOrder의 상품과 수량을 취소 요청할 수 있다. 소유권·Order/SellerOrder/OrderItem 관계와 UUID 요청 키 멱등성을 Backend에서 검증한다.
+- 요청 당시 SellerOrder가 PREPARING이면 `requiresSellerApproval=true`, PAID이면 `false`로 저장해 판매자 승인형과 향후 즉시 환불형을 구분한다.
+- 판매자는 `/api/seller/orders/cancellations`에서 자기 승인형 요청만 pageable 조회하고 상세를 확인할 수 있다.
+- PREPARING 승인형 REQUESTED는 판매자 승인 시 PROCESSING, 거절 시 REJECTED로 전환하며 처리 시각과 거절 사유를 기록한다. PAID 즉시 환불형은 판매자 API에서 조회·처리할 수 없다.
+- REQUESTED 또는 PROCESSING 요청이 존재하는 PREPARING SellerOrder는 즉시형/승인형 구분 없이 배송 시작을 차단한다. 거절되거나 명확히 실패한 요청은 배송을 막지 않는다.
+- 승인/거절과 배송 시작은 Payment → Order → SellerOrder → OrderCancellation 잠금 순서 및 SellerOrder 잠금 재검증으로 경합을 방어한다.
+- 이번 단계에서는 Toss 부분취소, 환불금 계산, PaymentCancellation 생성, `canceledQuantity` 증가, 부분 재고 복원을 수행하지 않는다.
+- `docs/sql/order-cancellation-stage3-approval-flow.sql`에 승인형 구분 컬럼의 수동 DDL과 기존 row 점검 SQL을 기록했다. 기존 row는 현재 SellerOrder 상태만으로 자동 추측하지 않는다.
+
+### 다음 단계: Cancellation 4단계 — 부분환불 실행 기반
+
+- 환불 금액 및 배송비 환불 금액을 OrderItem snapshot 기준으로 계산한다.
+- PAID 즉시형 요청과 판매자 승인 완료 PROCESSING 요청을 공통 부분환불 실행 흐름으로 연결한다.
+- Payment row lock과 PG 멱등키로 Toss 부분취소 시작을 직렬화하고 결과 불명 복구 기반을 마련한다.
+- PG 취소 성공 확정 후에만 canceledQuantity 증가와 요청 수량만큼의 재고 복원을 같은 transaction에서 처리한다.
+
 ## SellerOrder 1~5단계: 판매자별 주문 처리 및 구매자 배송조회
 
 - 전체 결제 단위인 `Order`/`Payment`는 그대로 유지하고, 같은 주문 안의 판매자별 처리 단위인 `SellerOrder`를 추가했다.

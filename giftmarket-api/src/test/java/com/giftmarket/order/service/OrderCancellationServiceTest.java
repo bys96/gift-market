@@ -147,6 +147,22 @@ class OrderCancellationServiceTest {
         );
 
         assertThat(response.status()).isEqualTo(OrderCancellationStatus.REQUESTED);
+        org.mockito.ArgumentCaptor<OrderCancellation> cancellation =
+                org.mockito.ArgumentCaptor.forClass(OrderCancellation.class);
+        verify(cancellationRepository).saveAndFlush(cancellation.capture());
+        assertThat(cancellation.getValue().isRequiresSellerApproval()).isTrue();
+    }
+
+    @Test
+    void paidSellerOrderCreatesImmediateFlowCancellation() {
+        service.create(
+                USER_ID, ORDER_ID, request(SELLER_ORDER_ID, item(ORDER_ITEM_ID, 1))
+        );
+
+        org.mockito.ArgumentCaptor<OrderCancellation> cancellation =
+                org.mockito.ArgumentCaptor.forClass(OrderCancellation.class);
+        verify(cancellationRepository).saveAndFlush(cancellation.capture());
+        assertThat(cancellation.getValue().isRequiresSellerApproval()).isFalse();
     }
 
     @Test
