@@ -33,6 +33,40 @@ export type PaymentStatus =
   | "CANCELING"
   | "CANCELED";
 
+export type OrderCancellationStatus =
+  | "REQUESTED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "FAILED";
+
+export interface OrderCancellationItem {
+  orderItemId: number;
+  requestedQuantity: number;
+}
+
+export interface OrderCancellation {
+  cancellationId: number;
+  orderId: number;
+  sellerOrderId: number;
+  status: OrderCancellationStatus;
+  reason: string;
+  requestedAt: string;
+  processingAt: string | null;
+  completedAt: string | null;
+  rejectedAt: string | null;
+  rejectedReason: string | null;
+  failedAt: string | null;
+  items: OrderCancellationItem[];
+}
+
+export interface OrderCancellationCreateRequest {
+  clientRequestKey: string;
+  sellerOrderId: number;
+  reason: string;
+  items: Array<{ orderItemId: number; quantity: number }>;
+}
+
 export interface OrderHistoryItem {
   id: number;
   productId: number;
@@ -44,6 +78,8 @@ export interface OrderHistoryItem {
   representativeImageKey: string | null;
 
   quantity: number;
+  canceledQuantity: number;
+  availableCancellationQuantity: number;
   unitPrice: number;
   totalPrice: number;
 }

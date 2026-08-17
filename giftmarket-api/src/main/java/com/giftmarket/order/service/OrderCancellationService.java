@@ -69,6 +69,24 @@ public class OrderCancellationService {
                 orderCancellationItemRepository.findAllByOrderCancellationIdOrderByIdAsc(cancellationId));
     }
 
+    @Transactional(readOnly = true)
+    public List<OrderCancellationResponse> getAllOwned(Long userId, Long orderId) {
+        validateAuthenticated(userId);
+        orderRepository.findByIdAndUserId(orderId, userId).orElseThrow(this::orderNotFound);
+        List<OrderCancellation> cancellations = orderCancellationRepository
+                .findAllByOrderIdOrderByRequestedAtDescIdDesc(orderId);
+        if (cancellations.isEmpty()) return List.of();
+        Map<Long, List<OrderCancellationItem>> itemsByCancellationId = orderCancellationItemRepository
+                .findAllByOrderCancellationIdInOrderByOrderCancellationIdAscOrderItemIdAsc(
+                        cancellations.stream().map(OrderCancellation::getId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(item -> item.getOrderCancellation().getId()));
+        return cancellations.stream()
+                .map(cancellation -> OrderCancellationResponse.from(cancellation,
+                        itemsByCancellationId.getOrDefault(cancellation.getId(), List.of())))
+                .toList();
+    }
+
     @Transactional
     public OrderCancellationResponse create(
             Long userId,

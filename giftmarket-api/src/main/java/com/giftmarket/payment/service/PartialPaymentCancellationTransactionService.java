@@ -8,6 +8,7 @@ import com.giftmarket.order.service.OrderCancellationCompletionService;
 import com.giftmarket.order.service.OrderCancellationRefundCalculator;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.exception.PaymentException;
+import com.giftmarket.payment.exception.PartialCancellationValidationException;
 import com.giftmarket.payment.gateway.GatewayCancelResult;
 import com.giftmarket.payment.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -146,27 +147,45 @@ public class PartialPaymentCancellationTransactionService {
     private void validateCompletion(Payment payment, Order order, OrderCancellation cancellation,
                                     PaymentCancellation pgCancellation, PartialCancellationStart start,
                                     GatewayCancelResult result) {
-        boolean partial = result.remainingAmount() != null && result.remainingAmount() > 0L
-                && result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.PARTIALLY_CANCELED;
-        boolean full = Objects.equals(result.remainingAmount(), 0L)
-                && result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.CANCELED;
         if (!payment.isRefundableState() || order.getStatus() != OrderStatus.PAID
                 || cancellation.getStatus() != OrderCancellationStatus.PROCESSING
                 || pgCancellation.getStatus() != PaymentCancellationStatus.REQUESTED
                 || pgCancellation.getType() != PaymentCancellationType.PARTIAL
-                || pgCancellation.getOrderCancellation() != cancellation
-                || !Objects.equals(pgCancellation.getAmount(), start.cancelAmount())
-                || !Objects.equals(result.canceledAmount(), pgCancellation.getAmount())
-                || !Objects.equals(result.providerPaymentKey(), payment.getProviderPaymentKey())
+                || pgCancellation.getOrderCancellation() != cancellation) {
+            throw validationFailure("INTERNAL_STATE");
+        }
+        if (!Objects.equals(pgCancellation.getAmount(), start.cancelAmount())
+                || !Objects.equals(result.canceledAmount(), pgCancellation.getAmount())) {
+            throw validationFailure("CANCEL_AMOUNT");
+        }
+        if (!Objects.equals(result.providerPaymentKey(), payment.getProviderPaymentKey())
                 || !Objects.equals(result.merchantPaymentId(), payment.getMerchantPaymentId())
                 || !Objects.equals(result.amount(), payment.getAmount())
-                || !Objects.equals(result.currency(), payment.getCurrency())
-                || result.providerTransactionId() == null || result.providerTransactionId().isBlank()
-                || !"DONE".equalsIgnoreCase(result.cancellationStatus())
-                || result.remainingAmount() == null || result.remainingAmount() < 0L
-                || result.remainingAmount() > payment.getAmount() || (!partial && !full)) {
-            throw new PaymentException("부분환불 결과가 결제 정보와 일치하지 않습니다.");
+                || !Objects.equals(result.currency(), payment.getCurrency())) {
+            throw validationFailure("PAYMENT_IDENTITY");
         }
+        if (result.providerTransactionId() == null || result.providerTransactionId().isBlank()
+                || !"DONE".equalsIgnoreCase(result.cancellationStatus())) {
+            throw validationFailure("CANCELLATION_TRANSACTION");
+        }
+        if (result.remainingAmount() == null || result.transactionRemainingAmount() == null
+                || result.remainingAmount() < 0L
+                || result.remainingAmount() > payment.getAmount()
+                || !Objects.equals(result.remainingAmount(), result.transactionRemainingAmount())) {
+            throw validationFailure("REFUND_BALANCE");
+        }
+        boolean partial = result.remainingAmount() > 0L
+                && result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.PARTIALLY_CANCELED;
+        boolean economicallyFull = result.remainingAmount() == 0L
+                && (result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.CANCELED
+                    || result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.PARTIALLY_CANCELED);
+        if (!partial && !economicallyFull) {
+            throw validationFailure("PAYMENT_STATUS_BALANCE");
+        }
+    }
+
+    private PartialCancellationValidationException validationFailure(String type) {
+        return new PartialCancellationValidationException(type);
     }
 
     private void validateSameSuccessfulResult(PaymentCancellation cancellation, GatewayCancelResult result) {

@@ -1,5 +1,18 @@
 # Gift Market 개발 현황
 
+## Cancellation 5-1 단계: 구매자 상품·수량 취소 UI 완료
+
+- 구매자 주문 상세의 각 SellerOrder 카드에서 취소 가능한 상품을 여러 개 선택하고 수량별로 PAID 즉시취소 또는 PREPARING 취소요청을 제출할 수 있다.
+- 주문 상세 응답은 `canceledQuantity`와 REQUESTED/PROCESSING 점유량을 차감한 `availableCancellationQuantity`를 Backend 계산값으로 제공한다.
+- 구매자 cancellation 목록 조회 API를 추가해 REQUESTED/PROCESSING/REJECTED/FAILED/COMPLETED 상태와 안전한 거절 사유를 배송 상태와 별도로 표시한다.
+- SHIPPED/DELIVERED/CANCELLED SellerOrder에는 취소 액션을 노출하지 않으며, 기존 Order 상태 기반 전체취소 버튼의 잘못된 노출을 제거했다. 기존 FULL 취소 API는 유지한다.
+- SellerOrder별 submit/loading/request key를 독립 관리하고 처리 후 주문 상세과 cancellation 목록을 다시 조회한다.
+
+### 다음 단계: Cancellation 5-2 — 판매자 취소요청 UI
+
+- 판매자센터 취소요청 목록/상세, 승인/거절 UI와 승인 이후 환불 결과 표시를 구현한다.
+- 운영 전 실제 Toss staging 부분취소/webhook 통합 테스트 TODO는 계속 유지한다.
+
 ## Cancellation 4-3C 단계: 부분환불 결과 불명 자동 복구 완료
 
 - PARTIAL `PaymentCancellation`의 REQUESTED/PROCESSING 장기 체류 건을 제한 조회하는 전용 scheduler reconciliation을 추가했다.

@@ -190,6 +190,23 @@
   color: var(--color-text-secondary);
 }
 
+.order-detail-product-cancellation-quantity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: #b04a4a;
+  font-size: 12px;
+}
+
+.order-detail-product-cancelled-badge {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #fff0f0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .order-detail-product-price {
   margin-top: auto;
   padding-top: 12px;
@@ -386,6 +403,178 @@
   word-break: break-all;
 }
 
+.order-cancellation-area {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.order-cancellation-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.order-cancellation-status-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f7f8fa;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.order-cancellation-status-row small {
+  grid-column: 1 / -1;
+  color: #9a5555;
+}
+
+.order-cancellation-status {
+  font-weight: 700;
+  color: #8b6400;
+}
+
+.order-cancellation-status-completed { color: #28794c; }
+.order-cancellation-status-rejected,
+.order-cancellation-status-failed { color: #b23b3b; }
+
+.order-cancellation-message {
+  margin: 0 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.order-cancellation-open-button,
+.order-cancellation-submit-button,
+.order-cancellation-close-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-cancellation-open-button,
+.order-cancellation-close-button {
+  border: 1px solid #d7d9de;
+  background: #fff;
+  color: var(--color-text-primary);
+}
+
+.order-cancellation-submit-button {
+  border: 1px solid #ca4242;
+  background: #ca4242;
+  color: #fff;
+}
+
+.order-cancellation-form {
+  padding: 16px;
+  border-radius: 12px;
+  background: #f7f8fa;
+}
+
+.order-cancellation-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-cancellation-select-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.order-cancellation-select-item label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.order-cancellation-available {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.order-cancellation-stepper {
+  display: grid;
+  grid-template-columns: 30px 34px 30px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #d7d9de;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.order-cancellation-stepper button {
+  height: 30px;
+  border: 0;
+  background: #fff;
+  cursor: pointer;
+}
+
+.order-cancellation-stepper output {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-cancellation-reason {
+  display: block;
+  margin-top: 14px;
+}
+
+.order-cancellation-reason > span {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-cancellation-reason textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 11px 12px;
+  border: 1px solid #d7d9de;
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.order-cancellation-reason small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  text-align: right;
+}
+
+.order-cancellation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.order-cancellation-area button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
 @media (hover: hover) {
   .order-detail-back-link:hover,
   .order-detail-product-name:hover {
@@ -464,5 +653,18 @@
 
   .order-detail-seller-shipping dl {
     grid-template-columns: 1fr;
+  }
+
+  .order-cancellation-select-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .order-cancellation-stepper {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .order-cancellation-actions button {
+    flex: 1;
   }
 }

@@ -85,6 +85,29 @@ class PartialPaymentCancellationReconciliationServiceTest {
         verify(cancellationTransactions).complete(any(), any());
     }
 
+    @Test
+    void completesFinalCancellationFromMatchedPartialCanceledZeroBalanceQuery() {
+        PartialCancellationReconciliationStart start = new PartialCancellationReconciliationStart(
+                PartialCancellationReconciliationStart.Action.QUERY, 1L, 10L, 20L,
+                PaymentProvider.TOSS, "provider-key", "merchant-id", 2_000L, 1_000L,
+                0L, "KRW", "reason", "same-key", null, requestedAt);
+        given(reconciliationTransactions.start(10L, requestedAt.plusMinutes(1))).willReturn(start);
+        given(gatewayRegistry.get(PaymentProvider.TOSS)).willReturn(gateway);
+        given(gateway.getPayment("provider-key")).willReturn(new GatewayPaymentQueryResult(
+                GatewayPaymentStatus.PARTIALLY_CANCELED, "provider-key", "tx-2", "merchant-id",
+                2_000L, "KRW", null, null, "PARTIAL_CANCELED", null, 0L,
+                requestedAt.plusSeconds(2), false, List.of(new GatewayCancellationTransaction(
+                        "tx-2", 1_000L, "reason", "DONE", requestedAt.plusSeconds(2), 0L))));
+
+        service.reconcileOne(10L, requestedAt.plusMinutes(1), requestedAt.plusMinutes(2));
+
+        ArgumentCaptor<GatewayCancelResult> result = ArgumentCaptor.forClass(GatewayCancelResult.class);
+        verify(cancellationTransactions).complete(any(), result.capture());
+        assertThat(result.getValue().remainingAmount()).isZero();
+        assertThat(result.getValue().transactionRemainingAmount()).isZero();
+        verify(gateway, never()).cancel(any());
+    }
+
     private PartialCancellationReconciliationStart start(String transactionKey) {
         return new PartialCancellationReconciliationStart(
                 PartialCancellationReconciliationStart.Action.QUERY, 1L, 10L, 20L,

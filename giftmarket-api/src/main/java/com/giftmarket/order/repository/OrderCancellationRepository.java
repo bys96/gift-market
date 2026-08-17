@@ -18,6 +18,8 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
 
     Optional<OrderCancellation> findByClientRequestKey(String clientRequestKey);
 
+    List<OrderCancellation> findAllByOrderIdOrderByRequestedAtDescIdDesc(Long orderId);
+
     @Query(
             value = """
                     select c

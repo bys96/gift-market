@@ -14,6 +14,11 @@ public record OrderCancellationResponse(
         OrderCancellationStatus status,
         String reason,
         LocalDateTime requestedAt,
+        LocalDateTime processingAt,
+        LocalDateTime completedAt,
+        LocalDateTime rejectedAt,
+        String rejectedReason,
+        LocalDateTime failedAt,
         List<OrderCancellationItemResponse> items
 ) {
     public static OrderCancellationResponse from(
@@ -27,6 +32,11 @@ public record OrderCancellationResponse(
                 cancellation.getStatus(),
                 cancellation.getReason(),
                 cancellation.getRequestedAt(),
+                cancellation.getProcessingAt(),
+                cancellation.getCompletedAt(),
+                cancellation.getRejectedAt(),
+                cancellation.getRejectedReason(),
+                cancellation.getFailedAt(),
                 items.stream()
                         .map(OrderCancellationItemResponse::from)
                         .toList()

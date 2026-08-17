@@ -54,7 +54,8 @@ public class TossPaymentMapper {
                 response.orderId(), response.totalAmount(), response.balanceAmount(), response.currency(),
                 response.status(), parseCanceledAt(cancellation),
                 cancellation == null ? null : cancellation.cancelAmount(),
-                cancellation == null ? null : cancellation.cancelStatus()
+                cancellation == null ? null : cancellation.cancelStatus(),
+                cancellation == null ? null : cancellation.refundableAmount()
         );
     }
 

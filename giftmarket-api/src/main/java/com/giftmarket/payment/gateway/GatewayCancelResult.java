@@ -6,13 +6,14 @@ public record GatewayCancelResult(GatewayPaymentStatus status, String providerPa
                                   String providerTransactionId, String merchantPaymentId,
                                   Long amount, Long remainingAmount, String currency,
                                   String providerStatus, LocalDateTime canceledAt,
-                                  Long canceledAmount, String cancellationStatus) {
+                                  Long canceledAmount, String cancellationStatus,
+                                  Long transactionRemainingAmount) {
     public GatewayCancelResult(GatewayPaymentStatus status, String providerPaymentKey,
                                String providerTransactionId, String merchantPaymentId,
                                Long amount, Long remainingAmount, String currency,
                                String providerStatus, LocalDateTime canceledAt) {
         this(status, providerPaymentKey, providerTransactionId, merchantPaymentId,
-                amount, remainingAmount, currency, providerStatus, canceledAt, null, null);
+                amount, remainingAmount, currency, providerStatus, canceledAt, null, null, null);
     }
 
     public GatewayCancelResult(GatewayPaymentStatus status, String providerPaymentKey,
@@ -22,6 +23,16 @@ public record GatewayCancelResult(GatewayPaymentStatus status, String providerPa
                                Long canceledAmount) {
         this(status, providerPaymentKey, providerTransactionId, merchantPaymentId,
                 amount, remainingAmount, currency, providerStatus, canceledAt,
-                canceledAmount, null);
+                canceledAmount, null, null);
+    }
+
+    public GatewayCancelResult(GatewayPaymentStatus status, String providerPaymentKey,
+                               String providerTransactionId, String merchantPaymentId,
+                               Long amount, Long remainingAmount, String currency,
+                               String providerStatus, LocalDateTime canceledAt,
+                               Long canceledAmount, String cancellationStatus) {
+        this(status, providerPaymentKey, providerTransactionId, merchantPaymentId,
+                amount, remainingAmount, currency, providerStatus, canceledAt,
+                canceledAmount, cancellationStatus, remainingAmount);
     }
 }

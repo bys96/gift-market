@@ -131,6 +131,21 @@ class OrderCancellationCompletionServiceTest {
     }
 
     @Test
+    void secondCancellationMovesCanceledQuantityFromOneToTwoAndRestoresOnce() {
+        OrderItem item = item(sellerOrder, 101L, 2);
+        item.confirmCancellation(1);
+        OrderCancellation cancellation = processing(item, 1);
+        List<OrderCancellationItem> cancellationItems = stub(cancellation, List.of(item), 1);
+
+        service.complete(CANCELLATION_ID);
+        service.complete(CANCELLATION_ID);
+
+        assertThat(item.getCanceledQuantity()).isEqualTo(2);
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.CANCELLED);
+        verify(inventoryService).restoreCancellationItems(cancellationItems);
+    }
+
+    @Test
     void completionIsIdempotentAfterCompletedBarrier() {
         OrderItem item = item(sellerOrder, 101L, 2);
         OrderCancellation cancellation = processing(item, 1);

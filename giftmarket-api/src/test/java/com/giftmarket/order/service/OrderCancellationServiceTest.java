@@ -140,6 +140,28 @@ class OrderCancellationServiceTest {
     }
 
     @Test
+    void listsOnlyOwnedOrderCancellationsWithStatusDetails() {
+        OrderCancellation cancellation = OrderCancellation.createRequested(
+                order, sellerOrder, UUID.randomUUID().toString(), "고객 요청", java.time.LocalDateTime.now());
+        ReflectionTestUtils.setField(cancellation, "id", 100L);
+        OrderCancellationItem cancellationItem = OrderCancellationItem.create(cancellation, orderItem, 1);
+        given(orderRepository.findByIdAndUserId(ORDER_ID, USER_ID)).willReturn(Optional.of(order));
+        given(cancellationRepository.findAllByOrderIdOrderByRequestedAtDescIdDesc(ORDER_ID))
+                .willReturn(List.of(cancellation));
+        given(cancellationItemRepository.findAllByOrderCancellationIdInOrderByOrderCancellationIdAscOrderItemIdAsc(
+                List.of(100L))).willReturn(List.of(cancellationItem));
+
+        List<OrderCancellationResponse> responses = service.getAllOwned(USER_ID, ORDER_ID);
+
+        assertThat(responses).singleElement().satisfies(response -> {
+            assertThat(response.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
+            assertThat(response.status()).isEqualTo(OrderCancellationStatus.REQUESTED);
+            assertThat(response.items()).singleElement()
+                    .extracting(item -> item.requestedQuantity()).isEqualTo(1);
+        });
+    }
+
+    @Test
     void preparingSellerOrderAlsoCreatesRequestedCancellation() {
         sellerOrder.prepare(java.time.LocalDateTime.now());
 

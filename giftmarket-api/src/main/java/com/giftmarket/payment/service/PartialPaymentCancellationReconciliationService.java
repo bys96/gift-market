@@ -6,6 +6,7 @@ import com.giftmarket.payment.config.PaymentProperties;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.gateway.*;
 import com.giftmarket.payment.repository.PaymentCancellationRepository;
+import com.giftmarket.payment.exception.PartialCancellationValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -44,8 +45,8 @@ public class PartialPaymentCancellationReconciliationService {
             try {
                 reconcileOne(id, requestedBefore, now);
             } catch (RuntimeException exception) {
-                log.error("Partial cancellation reconciliation failed. paymentCancellationId={}, exceptionType={}",
-                        id, exception.getClass().getSimpleName());
+                log.error("Partial cancellation reconciliation failed. paymentCancellationId={}, exceptionType={}, validationType={}",
+                        id, exception.getClass().getSimpleName(), validationType(exception));
             }
         }
     }
@@ -117,10 +118,13 @@ public class PartialPaymentCancellationReconciliationService {
                     || !consistentStatus(query.status(), query.remainingAmount()))
                 return ReconciliationResult.UNRESOLVED;
             GatewayCancellationTransaction tx = match.transaction;
+            if (!Objects.equals(tx.remainingAmount(), query.remainingAmount())) {
+                return ReconciliationResult.UNRESOLVED;
+            }
             cancellationTransactions.complete(toCompletionStart(start), new GatewayCancelResult(
                     query.status(), query.providerPaymentKey(), tx.providerTransactionId(),
                     query.merchantPaymentId(), query.amount(), query.remainingAmount(), query.currency(),
-                    query.providerStatus(), tx.canceledAt(), tx.amount(), tx.status()));
+                    query.providerStatus(), tx.canceledAt(), tx.amount(), tx.status(), tx.remainingAmount()));
             return ReconciliationResult.COMPLETED;
         }
         boolean retryableState = query.status() == GatewayPaymentStatus.PAID
@@ -157,8 +161,14 @@ public class PartialPaymentCancellationReconciliationService {
     }
 
     private boolean consistentStatus(GatewayPaymentStatus status, Long remaining) {
-        return remaining != null && ((remaining == 0L && status == GatewayPaymentStatus.CANCELED)
+        return remaining != null && ((remaining == 0L && (status == GatewayPaymentStatus.CANCELED
+                        || status == GatewayPaymentStatus.PARTIALLY_CANCELED))
                 || (remaining > 0L && status == GatewayPaymentStatus.PARTIALLY_CANCELED));
+    }
+
+    private String validationType(RuntimeException exception) {
+        return exception instanceof PartialCancellationValidationException validation
+                ? validation.getValidationType() : "UNCLASSIFIED";
     }
 
     private PartialCancellationStart toCompletionStart(PartialCancellationReconciliationStart start) {

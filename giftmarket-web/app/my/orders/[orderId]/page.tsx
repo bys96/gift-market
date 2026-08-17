@@ -8,10 +8,10 @@ import OrderDetailInfo from "@/components/order/OrderDetailInfo";
 import OrderDetailProductList from "@/components/order/OrderDetailProductList";
 import OrderDetailSellerGroups from "@/components/order/OrderDetailSellerGroups";
 import OrderDetailSummary from "@/components/order/OrderDetailSummary";
-import { cancelOrder, getMyOrder } from "@/lib/order-api";
+import { getMyOrder, getOrderCancellations } from "@/lib/order-api";
 import { BUYER_DELIVERY_STATUS_LABELS } from "@/lib/order-status";
 import { useAuthStore } from "@/stores/auth-store";
-import type { OrderDetail } from "@/types/order";
+import type { OrderCancellation, OrderDetail } from "@/types/order";
 
 function formatDateTime(date: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -36,8 +36,7 @@ export default function MyOrderDetailPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
-
-  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancellations, setCancellations] = useState<OrderCancellation[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -72,13 +71,17 @@ export default function MyOrderDetailPage() {
         setIsLoading(true);
         setErrorMessage("");
 
-        const response = await getMyOrder(orderId);
+        const [response, cancellationResponse] = await Promise.all([
+          getMyOrder(orderId),
+          getOrderCancellations(orderId),
+        ]);
 
         if (cancelled) {
           return;
         }
 
         setOrder(response);
+        setCancellations(cancellationResponse);
       } catch (error) {
         if (cancelled) {
           return;
@@ -103,34 +106,12 @@ export default function MyOrderDetailPage() {
     };
   }, [authInitialized, isAuthenticated, user, orderId, isValidOrderId]);
 
-  const handleCancelOrder = async () => {
-    if (!order || !["ORDERED", "PAID"].includes(order.status) || isCancelling) {
-      return;
-    }
-
-    const cancelReason = window.prompt("취소 사유를 입력해주세요.", "고객 요청");
-
-    if (!cancelReason?.trim()) {
-      return;
-    }
-
-    try {
-      setIsCancelling(true);
-      setErrorMessage("");
-
-      await cancelOrder(order.id, {
-        clientCancelRequestKey: crypto.randomUUID(),
-        cancelReason: cancelReason.trim(),
-      });
-
-      router.replace("/my/orders");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "주문을 취소하지 못했습니다.",
-      );
-    } finally {
-      setIsCancelling(false);
-    }
+  const refreshOrder = async () => {
+    const [latestOrder, latestCancellations] = await Promise.all([
+      getMyOrder(orderId), getOrderCancellations(orderId),
+    ]);
+    setOrder(latestOrder);
+    setCancellations(latestCancellations);
   };
 
   if (!authInitialized) {
@@ -225,20 +206,15 @@ export default function MyOrderDetailPage() {
           </div>
         </div>
 
-        {["ORDERED", "PAID"].includes(order.status) && (
-          <button
-            type="button"
-            className="order-detail-cancel-button"
-            onClick={() => void handleCancelOrder()}
-            disabled={isCancelling}
-          >
-            {isCancelling ? "취소 중..." : "주문 취소"}
-          </button>
-        )}
       </section>
 
       {order.sellerOrders.length > 0 ? (
-        <OrderDetailSellerGroups sellerOrders={order.sellerOrders} />
+        <OrderDetailSellerGroups
+          sellerOrders={order.sellerOrders}
+          orderId={order.id}
+          cancellations={cancellations}
+          onChanged={refreshOrder}
+        />
       ) : (
         <OrderDetailProductList items={order.items} />
       )}

@@ -104,4 +104,14 @@ public class OrderController {
                 orderCancellationWorkflowService.create(userId, orderId, request)
         );
     }
+
+    @GetMapping("/{orderId}/cancellations")
+    public ApiResponse<List<OrderCancellationResponse>> getCancellations(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId
+    ) {
+        return ApiResponse.success(
+                orderCancellationWorkflowService.getAllOwned(userId, orderId)
+        );
+    }
 }

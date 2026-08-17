@@ -5,6 +5,7 @@ import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.payment.service.OrderCancellationRefundExecutionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,5 +22,9 @@ public class OrderCancellationWorkflowService {
         OrderCancellationResponse created = cancellationService.create(userId, orderId, request);
         refundExecutionService.execute(created.cancellationId());
         return cancellationService.getOwned(userId, orderId, created.cancellationId());
+    }
+
+    public List<OrderCancellationResponse> getAllOwned(Long userId, Long orderId) {
+        return cancellationService.getAllOwned(userId, orderId);
     }
 }

@@ -14,6 +14,7 @@ import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
+import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.payment.config.PaymentProperties;
@@ -68,6 +69,7 @@ public class OrderService {
     private final OrderInventoryService orderInventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
     private final SellerOrderRepository sellerOrderRepository;
+    private final OrderCancellationRepository orderCancellationRepository;
 
     private final CartItemRepository cartItemRepository;
 
@@ -474,10 +476,21 @@ public class OrderService {
         List<SellerOrder> sellerOrders = sellerOrderRepository
                 .findAllByOrderIdOrderByIdAsc(order.getId());
 
+        Map<Long, Long> pendingCancellationQuantities = orderCancellationRepository
+                .sumItemQuantitiesByStatuses(
+                        orderItems.stream().map(OrderItem::getId).toList(),
+                        Set.of(com.giftmarket.order.entity.OrderCancellationStatus.REQUESTED,
+                                com.giftmarket.order.entity.OrderCancellationStatus.PROCESSING))
+                .stream()
+                .collect(Collectors.toMap(
+                        com.giftmarket.order.repository.PendingCancellationQuantityProjection::getOrderItemId,
+                        com.giftmarket.order.repository.PendingCancellationQuantityProjection::getPendingQuantity));
+
         return OrderDetailResponse.from(
                 order,
                 orderItems,
-                sellerOrders
+                sellerOrders,
+                pendingCancellationQuantities
         );
     }
 
@@ -523,7 +536,8 @@ public class OrderService {
         return OrderDetailResponse.from(
                 order,
                 orderItems,
-                sellerOrderRepository.findAllByOrderIdOrderByIdAsc(order.getId())
+                sellerOrderRepository.findAllByOrderIdOrderByIdAsc(order.getId()),
+                Map.of()
         );
     }
 

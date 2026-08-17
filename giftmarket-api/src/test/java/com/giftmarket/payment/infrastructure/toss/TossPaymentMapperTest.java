@@ -59,6 +59,26 @@ class TossPaymentMapperTest {
         assertThat(result.remainingAmount()).isEqualTo(7_000L);
     }
 
+    @Test
+    void mapsFinalPartialCancellationTransactionRefundableAmount() {
+        TossPaymentResponse response = new TossPaymentResponse(
+                "payment-key", "order-id", "PARTIAL_CANCELED", 2_000L,
+                "KRW", "카드", null, "second-transaction", null, 0L,
+                java.util.List.of(new TossPaymentResponse.TossCancelResponse(
+                        1_000L, "고객 요청", "2026-08-18T10:00:00+09:00",
+                        "second-transaction", "DONE", 0L)), false);
+
+        var result = mapper.toCancelResult(response, GatewayCancelCommand.partial(
+                "payment-key", "order-id", 2_000L, "KRW", "고객 요청", "key", 1_000L));
+
+        assertThat(result.status()).isEqualTo(GatewayPaymentStatus.PARTIALLY_CANCELED);
+        assertThat(result.remainingAmount()).isZero();
+        assertThat(result.transactionRemainingAmount()).isZero();
+        assertThat(result.canceledAmount()).isEqualTo(1_000L);
+        assertThat(result.cancellationStatus()).isEqualTo("DONE");
+        assertThat(result.providerTransactionId()).isEqualTo("second-transaction");
+    }
+
     private GatewayPaymentStatus map(String providerStatus) {
         return ReflectionTestUtils.invokeMethod(
                 mapper,

@@ -15,6 +15,8 @@ import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
+import com.giftmarket.order.repository.OrderCancellationRepository;
+import com.giftmarket.order.repository.PendingCancellationQuantityProjection;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.payment.config.PaymentProperties;
@@ -69,6 +71,9 @@ class OrderServicePaymentPreparationTest {
 
     @Mock
     private OrderItemRepository orderItemRepository;
+
+    @Mock
+    private OrderCancellationRepository orderCancellationRepository;
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -474,6 +479,11 @@ class OrderServicePaymentPreparationTest {
                 .willReturn(List.of(firstItem, secondItem));
         given(sellerOrderRepository.findAllByOrderIdOrderByIdAsc(orderId))
                 .willReturn(List.of(firstSellerOrder, secondSellerOrder));
+        PendingCancellationQuantityProjection pending = mock(PendingCancellationQuantityProjection.class);
+        given(pending.getOrderItemId()).willReturn(2001L);
+        given(pending.getPendingQuantity()).willReturn(1L);
+        given(orderCancellationRepository.sumItemQuantitiesByStatuses(any(), any()))
+                .willReturn(List.of(pending));
 
         OrderDetailResponse response = orderService.getMyOrder(USER_ID, orderId);
 
@@ -484,6 +494,8 @@ class OrderServicePaymentPreparationTest {
         assertThat(response.sellerOrders().get(1).items())
                 .extracting(item -> item.id())
                 .containsExactly(2002L);
+        assertThat(response.sellerOrders().get(0).items().getFirst().availableCancellationQuantity())
+                .isEqualTo(0);
     }
 
     private void prepareOrderSummary(

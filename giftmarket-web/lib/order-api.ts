@@ -7,6 +7,8 @@ import type {
   OrderDetail,
   OrderSummary,
   OrderCancelResponse,
+  OrderCancellation,
+  OrderCancellationCreateRequest,
 } from "@/types/order";
 
 export async function createOrder(
@@ -95,5 +97,25 @@ export async function cancelOrder(
     throw new Error(result.message || "주문을 취소하지 못했습니다.");
   }
 
+  return result.data;
+}
+
+export async function getOrderCancellations(orderId: number): Promise<OrderCancellation[]> {
+  const result = await apiFetch<ApiResponse<OrderCancellation[]>>(
+    `/api/orders/${orderId}/cancellations`, { method: "GET" },
+  );
+  if (!result.success || !result.data) throw new Error(result.message || "취소 내역을 불러오지 못했습니다.");
+  return result.data;
+}
+
+export async function createOrderCancellation(
+  orderId: number,
+  request: OrderCancellationCreateRequest,
+): Promise<OrderCancellation> {
+  const result = await apiFetch<ApiResponse<OrderCancellation>>(
+    `/api/orders/${orderId}/cancellations`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) },
+  );
+  if (!result.success || !result.data) throw new Error(result.message || "취소 요청을 처리하지 못했습니다.");
   return result.data;
 }

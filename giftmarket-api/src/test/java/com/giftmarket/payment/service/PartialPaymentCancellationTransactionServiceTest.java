@@ -21,8 +21,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -92,6 +94,57 @@ class PartialPaymentCancellationTransactionServiceTest {
         verify(pgCancellation).succeed(org.mockito.ArgumentMatchers.eq("cancel-tx"),
                 org.mockito.ArgumentMatchers.any());
         verify(payment).markPartiallyCanceled("PARTIAL_CANCELED");
+    }
+
+    @Test
+    void finalPartialCancelWithProviderPartialStatusAndZeroBalancesCompletesOnce() {
+        stubLockedGraph();
+        given(paymentCancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(pgCancellation));
+        given(pgCancellation.getStatus()).willReturn(
+                PaymentCancellationStatus.REQUESTED, PaymentCancellationStatus.REQUESTED,
+                PaymentCancellationStatus.SUCCEEDED);
+        given(pgCancellation.getType()).willReturn(PaymentCancellationType.PARTIAL);
+        given(pgCancellation.getOrderCancellation()).willReturn(cancellation);
+        given(pgCancellation.getAmount()).willReturn(3_000L);
+        given(pgCancellation.getProviderTransactionKey()).willReturn("final-cancel-tx");
+        given(cancellation.getStatus()).willReturn(
+                OrderCancellationStatus.PROCESSING, OrderCancellationStatus.COMPLETED);
+        given(sellerOrder.getStatus()).willReturn(SellerOrderStatus.CANCELLED);
+        given(sellerOrderRepository.findAllByOrderIdOrderByIdAsc(10L)).willReturn(List.of(sellerOrder));
+        GatewayCancelResult result = new GatewayCancelResult(
+                GatewayPaymentStatus.PARTIALLY_CANCELED, "payment-key", "final-cancel-tx", "order-id",
+                10_000L, 0L, "KRW", "PARTIAL_CANCELED", LocalDateTime.now(),
+                3_000L, "DONE", 0L);
+
+        service.complete(start(), result);
+        service.complete(start(), result);
+
+        verify(completionService, times(1)).complete(1L);
+        verify(pgCancellation, times(1)).succeed(org.mockito.ArgumentMatchers.eq("final-cancel-tx"),
+                org.mockito.ArgumentMatchers.any());
+        verify(payment).markFullyCanceled(org.mockito.ArgumentMatchers.eq("PARTIAL_CANCELED"),
+                org.mockito.ArgumentMatchers.any());
+        verify(order).cancel();
+    }
+
+    @Test
+    void finalCancelStillRejectsNonDoneOrMismatchedTransactionBalance() {
+        stubLockedGraph();
+        given(paymentCancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(pgCancellation));
+        given(pgCancellation.getStatus()).willReturn(PaymentCancellationStatus.REQUESTED);
+        given(pgCancellation.getType()).willReturn(PaymentCancellationType.PARTIAL);
+        given(pgCancellation.getOrderCancellation()).willReturn(cancellation);
+        given(pgCancellation.getAmount()).willReturn(3_000L);
+        given(cancellation.getStatus()).willReturn(OrderCancellationStatus.PROCESSING);
+
+        assertThatThrownBy(() -> service.complete(start(), new GatewayCancelResult(
+                GatewayPaymentStatus.PARTIALLY_CANCELED, "payment-key", "cancel-tx", "order-id",
+                10_000L, 0L, "KRW", "PARTIAL_CANCELED", LocalDateTime.now(),
+                3_000L, "IN_PROGRESS", 0L))).isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThatThrownBy(() -> service.complete(start(), new GatewayCancelResult(
+                GatewayPaymentStatus.PARTIALLY_CANCELED, "payment-key", "cancel-tx", "order-id",
+                10_000L, 0L, "KRW", "PARTIAL_CANCELED", LocalDateTime.now(),
+                3_000L, "DONE", 1_000L))).isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
     }
 
     private void stubLockedGraph() {

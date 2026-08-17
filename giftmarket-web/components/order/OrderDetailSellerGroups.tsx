@@ -1,12 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
+import OrderCancellationPanel from "@/components/order/OrderCancellationPanel";
 
 import { BUYER_SELLER_ORDER_STATUS_LABELS } from "@/lib/order-status";
-import type { BuyerSellerOrder } from "@/types/order";
+import type { BuyerSellerOrder, OrderCancellation } from "@/types/order";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderDetailSellerGroupsProps {
   sellerOrders: BuyerSellerOrder[];
+  orderId: number;
+  cancellations: OrderCancellation[];
+  onChanged: () => Promise<void>;
 }
 
 function formatPrice(price: number) {
@@ -15,6 +19,9 @@ function formatPrice(price: number) {
 
 export default function OrderDetailSellerGroups({
   sellerOrders,
+  orderId,
+  cancellations,
+  onChanged,
 }: OrderDetailSellerGroupsProps) {
   return (
     <div className="order-detail-seller-groups">
@@ -82,6 +89,14 @@ export default function OrderDetailSellerGroups({
                       <p className="order-detail-product-quantity">
                         {formatPrice(item.unitPrice)} · 수량 {item.quantity}개
                       </p>
+                      {item.canceledQuantity > 0 && (
+                        <p className="order-detail-product-cancellation-quantity">
+                          취소 {item.canceledQuantity}개 · 남은 수량 {item.quantity - item.canceledQuantity}개
+                          {item.availableCancellationQuantity === 0 && item.canceledQuantity === item.quantity && (
+                            <span className="order-detail-product-cancelled-badge">취소완료</span>
+                          )}
+                        </p>
+                      )}
                       <strong className="order-detail-product-price">
                         {formatPrice(item.totalPrice)}
                       </strong>
@@ -109,6 +124,13 @@ export default function OrderDetailSellerGroups({
                 </dl>
               )}
             </div>
+
+            <OrderCancellationPanel
+              orderId={orderId}
+              sellerOrder={sellerOrder}
+              cancellations={cancellations.filter((value) => value.sellerOrderId === sellerOrder.sellerOrderId)}
+              onChanged={onChanged}
+            />
           </section>
         );
       })}

@@ -6,6 +6,7 @@ import com.giftmarket.order.entity.SellerOrderStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record BuyerSellerOrderResponse(
         Long sellerOrderId,
@@ -20,7 +21,8 @@ public record BuyerSellerOrderResponse(
 ) {
     public static BuyerSellerOrderResponse from(
             SellerOrder sellerOrder,
-            List<OrderItem> orderItems
+            List<OrderItem> orderItems,
+            Map<Long, Long> pendingCancellationQuantities
     ) {
         return new BuyerSellerOrderResponse(
                 sellerOrder.getId(),
@@ -32,7 +34,8 @@ public record BuyerSellerOrderResponse(
                 sellerOrder.getShippedAt(),
                 sellerOrder.getDeliveredAt(),
                 orderItems.stream()
-                        .map(OrderHistoryItemResponse::from)
+                        .map(item -> OrderHistoryItemResponse.from(
+                                item, pendingCancellationQuantities.getOrDefault(item.getId(), 0L)))
                         .toList()
         );
     }
