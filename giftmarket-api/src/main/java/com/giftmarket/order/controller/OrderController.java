@@ -2,10 +2,13 @@ package com.giftmarket.order.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.dto.request.OrderCreateRequest;
+import com.giftmarket.order.dto.request.OrderCancelRequest;
 import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
+import com.giftmarket.order.dto.response.OrderCancelResponse;
+import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +29,7 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService orderService;
+    private final PaymentCancellationService paymentCancellationService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -76,15 +80,13 @@ public class OrderController {
     }
 
     @PatchMapping("/{orderId}/cancel")
-    public ApiResponse<OrderDetailResponse> cancelOrder(
+    public ApiResponse<OrderCancelResponse> cancelOrder(
             @AuthenticationPrincipal Long userId,
-            @PathVariable Long orderId
+            @PathVariable Long orderId,
+            @Valid @RequestBody OrderCancelRequest request
     ) {
         return ApiResponse.success(
-                orderService.cancelOrder(
-                        userId,
-                        orderId
-                )
+                paymentCancellationService.cancel(userId, orderId, request)
         );
     }
 }

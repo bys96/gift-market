@@ -4,6 +4,8 @@ import com.giftmarket.payment.gateway.GatewayConfirmCommand;
 import com.giftmarket.payment.gateway.PaymentGatewayDeclinedException;
 import com.giftmarket.payment.gateway.PaymentGatewayUncertainException;
 import com.giftmarket.payment.infrastructure.toss.dto.TossConfirmRequest;
+import com.giftmarket.payment.infrastructure.toss.dto.TossCancelRequest;
+import com.giftmarket.payment.gateway.GatewayCancelCommand;
 import com.giftmarket.payment.infrastructure.toss.dto.TossPaymentResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -238,6 +240,41 @@ public class TossPaymentClient {
                     "결제 결과를 확인 중입니다.",
                     exception
             );
+        }
+    }
+
+    public TossPaymentResponse cancel(GatewayCancelCommand command) {
+        log.info("Toss request started. method=POST, target={}/v1/payments/{{paymentKey}}/cancel, paymentKeyLength={}",
+                properties.getBaseUrl(), command.providerPaymentKey().length());
+        try {
+            ResponseEntity<TossPaymentResponse> entity = restClient.post()
+                    .uri("/v1/payments/{paymentKey}/cancel", command.providerPaymentKey())
+                    .header(HttpHeaders.AUTHORIZATION, createAuthorizationHeader())
+                    .header("Idempotency-Key", command.idempotencyKey())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new TossCancelRequest(command.reason()))
+                    .retrieve().toEntity(TossPaymentResponse.class);
+            if (entity.getBody() == null) {
+                throw new PaymentGatewayUncertainException("결제 취소 결과를 확인 중입니다.", null);
+            }
+            log.info("Toss cancel response received. httpStatus={}, providerStatus={}",
+                    entity.getStatusCode().value(), entity.getBody().status());
+            return entity.getBody();
+        } catch (RestClientResponseException exception) {
+            TossErrorDetails error = extractErrorDetails(exception);
+            log.warn("Toss cancel response failed. responseReceived=true, exceptionType={}, httpStatus={}, errorCode={}, message={}",
+                    exception.getClass().getSimpleName(), exception.getStatusCode().value(), error.code(), error.message());
+            if (exception.getStatusCode().is4xxClientError()) {
+                throw new PaymentGatewayDeclinedException(error.code(), "결제 취소를 완료하지 못했습니다.");
+            }
+            throw new PaymentGatewayUncertainException("결제 취소 결과를 확인 중입니다.", exception);
+        } catch (ResourceAccessException exception) {
+            throw new PaymentGatewayUncertainException("결제 취소 결과를 확인 중입니다.", exception);
+        } catch (PaymentGatewayDeclinedException | PaymentGatewayUncertainException exception) {
+            throw exception;
+        } catch (RestClientException exception) {
+            throw new PaymentGatewayUncertainException("결제 취소 결과를 확인 중입니다.", exception);
         }
     }
 

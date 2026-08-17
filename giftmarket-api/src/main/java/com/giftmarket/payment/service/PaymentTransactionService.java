@@ -216,10 +216,15 @@ public class PaymentTransactionService {
         Order order = getOrderForUpdate(payment.getOrder().getId());
 
         if (payment.getProvider() != provider
-                || !Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)
-                || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+                || !Objects.equals(payment.getMerchantPaymentId(), merchantPaymentId)) {
             return completed(payment);
         }
+        if (payment.getStatus() == PaymentStatus.CANCELING
+                && order.getStatus() == OrderStatus.PAID
+                && Objects.equals(payment.getProviderPaymentKey(), providerPaymentKey)) {
+            return start(payment, PaymentConfirmStart.Action.QUERY);
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) return completed(payment);
         if (payment.getStatus() != PaymentStatus.READY
                 && payment.getStatus() != PaymentStatus.CONFIRMING) {
             return completed(payment);

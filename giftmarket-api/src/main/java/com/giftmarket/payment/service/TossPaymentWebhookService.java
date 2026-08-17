@@ -24,6 +24,7 @@ public class TossPaymentWebhookService {
     private final PaymentWebhookEventService eventService;
     private final PaymentTransactionService transactionService;
     private final PaymentGatewayRegistry gatewayRegistry;
+    private final PaymentCancellationTransactionService cancellationTransactionService;
 
     public void process(
             String transmissionId,
@@ -112,11 +113,26 @@ public class TossPaymentWebhookService {
             GatewayPaymentQueryResult result = gateway.getPayment(
                     request.data().paymentKey()
             );
-            transactionService.reconcileWebhook(
-                    paymentId,
-                    request.data().paymentKey(),
-                    result
-            );
+            if (cancellationTransactionService.isCanceling(paymentId)) {
+                if (result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.CANCELED
+                        && result.remainingAmount() != null
+                        && result.remainingAmount() == 0L) {
+                    cancellationTransactionService.completeFromWebhook(paymentId, result);
+                } else {
+                    log.warn(
+                            "Toss cancellation webhook remains unresolved. transmissionId={}, paymentId={}, providerStatus={}",
+                            transmissionId,
+                            paymentId,
+                            result.providerStatus()
+                    );
+                }
+            } else {
+                transactionService.reconcileWebhook(
+                        paymentId,
+                        request.data().paymentKey(),
+                        result
+                );
+            }
             eventService.processed(provider, transmissionId, paymentId);
             log.info(
                     "Toss webhook processed. eventType={}, transmissionId={}, paymentId={}, result={}",

@@ -40,7 +40,8 @@ class TossPaymentWebhookServiceTest {
         service = new TossPaymentWebhookService(
                 eventService,
                 transactionService,
-                gatewayRegistry
+                gatewayRegistry,
+                org.mockito.Mockito.mock(PaymentCancellationTransactionService.class)
         );
     }
 

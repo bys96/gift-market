@@ -292,4 +292,17 @@ public class Payment extends BaseEntity {
         this.failureCode = null;
         this.failureMessage = null;
     }
+
+    public void startCancel() {
+        this.status = PaymentStatus.CANCELING;
+    }
+
+    public void cancelFailed() {
+        this.status = PaymentStatus.PAID;
+    }
+
+    public void cancelBeforeApproval(LocalDateTime cancelledAt) {
+        this.status = PaymentStatus.CANCELED;
+        this.cancelledAt = cancelledAt;
+    }
 }

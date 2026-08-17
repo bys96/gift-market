@@ -1,5 +1,33 @@
 # Gift Market 개발 현황
 
+## Payment 5-4: PAID 결제 전체 취소
+
+- 기존 `PATCH /api/orders/{orderId}/cancel`을 유지하고 취소 사유와 클라이언트 취소 요청 키를 받는다.
+- `PAID` 결제는 `CANCELING`으로 먼저 전환한 뒤 DB transaction 밖에서 Toss 전체 취소 API를 호출한다.
+- Toss 응답의 결제 식별정보, 원 결제금액, 통화, `CANCELED`, 취소 가능 잔액 `0`을 모두 확인한 경우에만 `Payment CANCELED` / `Order CANCELLED`로 확정한다.
+- 취소 확정 transaction에서 기존 `OrderInventoryService`로 재고를 정확히 한 번 복원하며 CartItem은 재생성하지 않는다.
+- timeout/5xx 등 결과 불명은 `CANCELING`을 유지하고 재고를 복원하지 않는다. 사용자 재시도와 `PAYMENT_STATUS_CHANGED` webhook의 Toss 단건 조회로 복구한다.
+- `PaymentCancellation`에 요청 키, PG 멱등 키, 금액, 사유, 처리 상태와 정제된 결과만 저장한다. 부분취소/부분환불은 아직 지원하지 않는다.
+
+## 운영 전 필수 검증 TODO
+
+아래 항목은 localhost 자동화 테스트로 완료 처리하지 않는다. 정식 사용 및 운영 배포 전에 공개 테스트 환경에서 반드시 수행한다.
+
+- [ ] 공개 HTTPS dev/staging URL 준비
+- [ ] Toss `PAYMENT_STATUS_CHANGED` webhook 등록
+- [ ] 실제 Toss 테스트 결제
+- [ ] webhook HTTP 200 수신 확인
+- [ ] `payment_webhook_events`가 `PROCESSED`인지 확인
+- [ ] 동일 webhook 재전송 멱등성 확인
+- [ ] Payment / Order `PAID` 확인
+- [ ] 전체 결제 취소 테스트
+- [ ] 취소 webhook 확인
+- [ ] Payment `CANCELED` / Order `CANCELLED` 확인
+- [ ] 재고가 정확히 한 번 복원되는지 확인
+- [ ] Cart 정합성 확인
+- [ ] timeout / 재시도 시나리오를 가능한 범위에서 확인
+- [ ] 운영 키 전환 전에 Payment 전체 회귀 테스트
+
 > 기준: 2026-08-16 실제 소스 및 Payment 1~4단계 브라우저 테스트 결과
 >
 > 문서와 코드가 다르면 실제 코드를 현재 상태의 기준으로 사용한다. Payment의

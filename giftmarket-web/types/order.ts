@@ -75,6 +75,13 @@ export interface OrderCreateRequest {
   addressDetail: string | null;
 }
 
+export interface OrderCancelResponse {
+  orderId: number;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus | null;
+  message: string;
+}
+
 export interface DirectOrderCreateRequest {
   clientOrderRequestKey: string;
   productId: number;

@@ -2,6 +2,8 @@ package com.giftmarket.payment.infrastructure.toss;
 
 import com.giftmarket.payment.entity.PaymentProvider;
 import com.giftmarket.payment.gateway.GatewayConfirmCommand;
+import com.giftmarket.payment.gateway.GatewayCancelCommand;
+import com.giftmarket.payment.gateway.GatewayCancelResult;
 import com.giftmarket.payment.gateway.GatewayConfirmResult;
 import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
@@ -48,8 +50,15 @@ public class TossPaymentGateway implements PaymentGateway {
                                 null,
                                 null,
                                 null,
+                                null,
+                                null,
                                 null
                         )
                 );
+    }
+
+    @Override
+    public GatewayCancelResult cancel(GatewayCancelCommand command) {
+        return tossPaymentMapper.toCancelResult(tossPaymentClient.cancel(command));
     }
 }

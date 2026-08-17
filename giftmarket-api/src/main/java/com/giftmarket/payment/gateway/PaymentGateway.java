@@ -13,4 +13,6 @@ public interface PaymentGateway {
     GatewayPaymentQueryResult getPayment(
             String providerPaymentKey
     );
+
+    GatewayCancelResult cancel(GatewayCancelCommand command);
 }

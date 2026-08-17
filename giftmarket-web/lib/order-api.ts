@@ -6,6 +6,7 @@ import type {
   DirectOrderCreateRequest,
   OrderDetail,
   OrderSummary,
+  OrderCancelResponse,
 } from "@/types/order";
 
 export async function createOrder(
@@ -77,11 +78,16 @@ export async function getMyOrder(orderId: number): Promise<OrderDetail> {
   return result.data;
 }
 
-export async function cancelOrder(orderId: number): Promise<OrderDetail> {
-  const result = await apiFetch<ApiResponse<OrderDetail>>(
+export async function cancelOrder(
+  orderId: number,
+  request: { clientCancelRequestKey: string; cancelReason: string },
+): Promise<OrderCancelResponse> {
+  const result = await apiFetch<ApiResponse<OrderCancelResponse>>(
     `/api/orders/${orderId}/cancel`,
     {
       method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
     },
   );
 

@@ -3,6 +3,7 @@ package com.giftmarket.payment.infrastructure.toss;
 import com.giftmarket.payment.entity.EasyPayProvider;
 import com.giftmarket.payment.entity.PaymentMethod;
 import com.giftmarket.payment.gateway.GatewayConfirmResult;
+import com.giftmarket.payment.gateway.GatewayCancelResult;
 import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
 import com.giftmarket.payment.infrastructure.toss.dto.TossPaymentResponse;
@@ -36,6 +37,26 @@ public class TossPaymentMapper {
         );
     }
 
+    public GatewayCancelResult toCancelResult(TossPaymentResponse response) {
+        TossPaymentResponse.TossCancelResponse cancellation = latestCancellation(response);
+        return new GatewayCancelResult(
+                mapStatus(response.status()), response.paymentKey(),
+                cancellation == null ? response.lastTransactionKey() : cancellation.transactionKey(),
+                response.orderId(), response.totalAmount(), response.balanceAmount(), response.currency(),
+                response.status(), parseCanceledAt(response)
+        );
+    }
+
+    private TossPaymentResponse.TossCancelResponse latestCancellation(TossPaymentResponse response) {
+        if (response.cancels() == null || response.cancels().isEmpty()) return null;
+        return response.cancels().get(response.cancels().size() - 1);
+    }
+
+    private LocalDateTime parseCanceledAt(TossPaymentResponse response) {
+        TossPaymentResponse.TossCancelResponse value = latestCancellation(response);
+        return value == null || value.canceledAt() == null ? null : parseDateTime(value.canceledAt());
+    }
+
     public GatewayPaymentQueryResult toQueryResult(
             TossPaymentResponse response
     ) {
@@ -49,7 +70,9 @@ public class TossPaymentMapper {
                 mapMethod(response.method()),
                 mapEasyPayProvider(response.easyPay()),
                 response.status(),
-                parseApprovedAt(response.approvedAt())
+                parseApprovedAt(response.approvedAt()),
+                response.balanceAmount(),
+                parseCanceledAt(response)
         );
     }
 
@@ -120,7 +143,11 @@ public class TossPaymentMapper {
             return null;
         }
 
-        return OffsetDateTime.parse(approvedAt)
+        return parseDateTime(approvedAt);
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        return OffsetDateTime.parse(value)
                 .atZoneSameInstant(SEOUL_ZONE)
                 .toLocalDateTime();
     }

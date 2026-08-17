@@ -111,13 +111,13 @@ export default function MyOrderDetailPage() {
   }, [authInitialized, isAuthenticated, user, orderId, isValidOrderId]);
 
   const handleCancelOrder = async () => {
-    if (!order || order.status !== "ORDERED" || isCancelling) {
+    if (!order || !["ORDERED", "PAID"].includes(order.status) || isCancelling) {
       return;
     }
 
-    const confirmed = window.confirm("이 주문을 취소하시겠습니까?");
+    const cancelReason = window.prompt("취소 사유를 입력해주세요.", "고객 요청");
 
-    if (!confirmed) {
+    if (!cancelReason?.trim()) {
       return;
     }
 
@@ -125,7 +125,10 @@ export default function MyOrderDetailPage() {
       setIsCancelling(true);
       setErrorMessage("");
 
-      await cancelOrder(order.id);
+      await cancelOrder(order.id, {
+        clientCancelRequestKey: crypto.randomUUID(),
+        cancelReason: cancelReason.trim(),
+      });
 
       router.replace("/my/orders");
     } catch (error) {
@@ -229,7 +232,7 @@ export default function MyOrderDetailPage() {
           </div>
         </div>
 
-        {order.status === "ORDERED" && (
+        {["ORDERED", "PAID"].includes(order.status) && (
           <button
             type="button"
             className="order-detail-cancel-button"

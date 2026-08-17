@@ -24,6 +24,9 @@ public interface PaymentRepository
             Long orderId
     );
 
+    Optional<Payment> findFirstByOrderIdOrderByIdDesc(Long orderId);
+    Optional<Payment> findFirstByOrderIdAndOrderUserIdOrderByIdDesc(Long orderId, Long userId);
+
     Optional<Payment> findByMerchantPaymentId(
             String merchantPaymentId
     );

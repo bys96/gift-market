@@ -16,7 +16,20 @@ public record GatewayPaymentQueryResult(
         PaymentMethod method,
         EasyPayProvider easyPayProvider,
         String providerStatus,
-        LocalDateTime approvedAt
+        LocalDateTime approvedAt,
+        Long remainingAmount,
+        LocalDateTime canceledAt
 
 ) {
+    public GatewayPaymentQueryResult(
+            GatewayPaymentStatus status, String providerPaymentKey,
+            String providerTransactionId, String merchantPaymentId,
+            Long amount, String currency, PaymentMethod method,
+            EasyPayProvider easyPayProvider, String providerStatus,
+            LocalDateTime approvedAt
+    ) {
+        this(status, providerPaymentKey, providerTransactionId,
+                merchantPaymentId, amount, currency, method,
+                easyPayProvider, providerStatus, approvedAt, null, null);
+    }
 }
