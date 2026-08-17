@@ -1,21 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import type { OrderStatus, OrderSummary } from "@/types/order";
+import { BUYER_DELIVERY_STATUS_LABELS } from "@/lib/order-status";
+import type { OrderSummary } from "@/types/order";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderHistoryCardProps {
   order: OrderSummary;
 }
-
-const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  ORDERED: "주문 완료",
-  PENDING_PAYMENT: "결제 대기",
-  PAID: "결제 완료",
-  PAYMENT_FAILED: "결제 실패",
-  PAYMENT_EXPIRED: "결제 만료",
-  CANCELLED: "주문 취소",
-};
 
 function formatPrice(price: number) {
   return `${price.toLocaleString("ko-KR")}원`;
@@ -84,10 +76,10 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
           <span
             className={[
               "order-history-status",
-              `order-history-status-${order.status.toLowerCase()}`,
+              `order-history-status-${order.deliveryStatus.toLowerCase()}`,
             ].join(" ")}
           >
-            {ORDER_STATUS_LABELS[order.status]}
+            {BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
           </span>
 
           <h2 className="order-history-product-name">

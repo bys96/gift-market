@@ -1,0 +1,117 @@
+import Image from "next/image";
+import Link from "next/link";
+
+import { BUYER_SELLER_ORDER_STATUS_LABELS } from "@/lib/order-status";
+import type { BuyerSellerOrder } from "@/types/order";
+import { resolveImageUrl } from "@/utils/image-url";
+
+interface OrderDetailSellerGroupsProps {
+  sellerOrders: BuyerSellerOrder[];
+}
+
+function formatPrice(price: number) {
+  return `${price.toLocaleString("ko-KR")}원`;
+}
+
+export default function OrderDetailSellerGroups({
+  sellerOrders,
+}: OrderDetailSellerGroupsProps) {
+  return (
+    <div className="order-detail-seller-groups">
+      {sellerOrders.map((sellerOrder) => {
+        const showsTracking =
+          ["SHIPPED", "DELIVERED"].includes(sellerOrder.status) &&
+          sellerOrder.shippingCompany &&
+          sellerOrder.trackingNumber;
+
+        return (
+          <section
+            key={sellerOrder.sellerOrderId}
+            className="order-detail-section order-detail-seller-group"
+          >
+            <header className="order-detail-seller-header">
+              <div>
+                <span>판매자</span>
+                <h2>{sellerOrder.sellerName}</h2>
+              </div>
+              <strong
+                className={`order-detail-delivery-badge order-detail-delivery-${sellerOrder.status.toLowerCase()}`}
+              >
+                {BUYER_SELLER_ORDER_STATUS_LABELS[sellerOrder.status]}
+              </strong>
+            </header>
+
+            <div className="order-detail-product-list">
+              {sellerOrder.items.map((item) => {
+                const imageUrl = resolveImageUrl(item.representativeImageKey);
+                return (
+                  <article key={item.id} className="order-detail-product-item">
+                    <Link
+                      href={`/products/${item.productId}`}
+                      className="order-detail-product-image-wrapper"
+                    >
+                      {imageUrl ? (
+                        <Image
+                          src={imageUrl}
+                          alt={item.productName}
+                          fill
+                          sizes="96px"
+                          className="order-detail-product-image"
+                        />
+                      ) : (
+                        <div className="order-detail-product-image-empty">
+                          이미지 없음
+                        </div>
+                      )}
+                    </Link>
+                    <div className="order-detail-product-info">
+                      <p className="order-detail-product-brand">
+                        {item.brandName ?? "브랜드 정보 없음"}
+                      </p>
+                      <Link
+                        href={`/products/${item.productId}`}
+                        className="order-detail-product-name"
+                      >
+                        {item.productName}
+                      </Link>
+                      {item.optionSnapshot && (
+                        <p className="order-detail-product-option">
+                          {item.optionSnapshot}
+                        </p>
+                      )}
+                      <p className="order-detail-product-quantity">
+                        {formatPrice(item.unitPrice)} · 수량 {item.quantity}개
+                      </p>
+                      <strong className="order-detail-product-price">
+                        {formatPrice(item.totalPrice)}
+                      </strong>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="order-detail-seller-shipping">
+              <span>배송 상태</span>
+              <strong>
+                {BUYER_SELLER_ORDER_STATUS_LABELS[sellerOrder.status]}
+              </strong>
+              {showsTracking && (
+                <dl>
+                  <div>
+                    <dt>배송사</dt>
+                    <dd>{sellerOrder.shippingCompany}</dd>
+                  </div>
+                  <div>
+                    <dt>운송장번호</dt>
+                    <dd>{sellerOrder.trackingNumber}</dd>
+                  </div>
+                </dl>
+              )}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}

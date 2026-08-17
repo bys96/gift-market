@@ -6,19 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import OrderDetailInfo from "@/components/order/OrderDetailInfo";
 import OrderDetailProductList from "@/components/order/OrderDetailProductList";
+import OrderDetailSellerGroups from "@/components/order/OrderDetailSellerGroups";
 import OrderDetailSummary from "@/components/order/OrderDetailSummary";
 import { cancelOrder, getMyOrder } from "@/lib/order-api";
+import { BUYER_DELIVERY_STATUS_LABELS } from "@/lib/order-status";
 import { useAuthStore } from "@/stores/auth-store";
-import type { OrderDetail, OrderStatus } from "@/types/order";
-
-const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  ORDERED: "주문 완료",
-  PENDING_PAYMENT: "결제 대기",
-  PAID: "결제 완료",
-  PAYMENT_FAILED: "결제 실패",
-  PAYMENT_EXPIRED: "결제 만료",
-  CANCELLED: "주문 취소",
-};
+import type { OrderDetail } from "@/types/order";
 
 function formatDateTime(date: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -221,7 +214,7 @@ export default function MyOrderDetailPage() {
 
           <div className="order-detail-status-row">
             <strong className="order-detail-status">
-              {ORDER_STATUS_LABELS[order.status]}
+              {BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
             </strong>
 
             {statusChangedAt && (
@@ -244,7 +237,11 @@ export default function MyOrderDetailPage() {
         )}
       </section>
 
-      <OrderDetailProductList items={order.items} />
+      {order.sellerOrders.length > 0 ? (
+        <OrderDetailSellerGroups sellerOrders={order.sellerOrders} />
+      ) : (
+        <OrderDetailProductList items={order.items} />
+      )}
 
       <OrderDetailInfo order={order} />
 

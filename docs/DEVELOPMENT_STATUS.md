@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-## SellerOrder 1~4단계: 판매자별 주문 처리 및 판매자센터 주문관리
+## SellerOrder 1~5단계: 판매자별 주문 처리 및 구매자 배송조회
 
 - 전체 결제 단위인 `Order`/`Payment`는 그대로 유지하고, 같은 주문 안의 판매자별 처리 단위인 `SellerOrder`를 추가했다.
 - `SellerOrder`는 `(order_id, seller_id)` 조합을 유일하게 보장하며 `PENDING_PAYMENT`, `PAID`, `PREPARING`, `SHIPPED`, `DELIVERED`, `CANCELLED` 상태를 사용한다.
@@ -19,6 +19,10 @@
 - 판매자센터 `/seller/orders`에서 자기 주문만 상태별로 필터링하고 주문번호·상품명 검색 및 서버 pagination으로 조회한다. Desktop은 표, Mobile은 카드형 행으로 표시한다.
 - `/seller/orders/[sellerOrderId]`에서 해당 판매자의 상품 snapshot, 배송지, 배송사·운송장과 처리 시각을 확인하고 `PAID → PREPARING → SHIPPED → DELIVERED` 작업을 수행한다.
 - 배송 처리 중 중복 클릭을 막고, 구매자 취소 등 외부 상태 변경으로 API가 실패하면 상세를 재조회해 Backend 최신 상태를 반영한다. `CANCELLED`에는 처리 버튼을 노출하지 않는다.
+- 구매자 주문 목록 응답은 기존 `Order.status`를 유지하면서 DB에 저장하지 않는 파생 `deliveryStatus`를 추가한다. Order 결제/종료 상태를 우선하고 PAID 주문은 SellerOrder 상태를 집계해 결제완료·상품준비중·배송중·배송완료로 표시한다.
+- 구매자 주문 목록은 Order별 추가 조회 대신 현재 목록의 Order ID 전체로 OrderItem과 SellerOrder를 각각 한 번씩 일괄 조회한다.
+- 구매자 주문 상세 응답은 기존 `items` 호환 필드를 유지하면서 `sellerOrders`에 판매자명, 배송 상태, 배송사·운송장, 처리 시각과 해당 판매자의 상품만 그룹화해 제공한다.
+- `/my/orders`는 대표 배송 상태를 표시하고 `/my/orders/[orderId]`는 판매자별 상품·배송 묶음을 표시한다. 전체 주문 취소는 기존 Order 단위 API와 조건을 그대로 사용한다.
 
 ## Payment 5-4: PAID 결제 전체 취소
 
@@ -384,12 +388,18 @@ PAID 주문은 PG 취소 성공 전에 Order를 CANCELLED로 확정하거나 재
 
 ## 10. 다음 작업 후보
 
-### 1순위: SellerOrder 5단계 — 구매자 주문조회 배송 상태 반영
+### 1순위: 관리자 주문관리
 
-- 구매자 주문 목록/상세에 판매자별 배송 상태 반영
-- 여러 SellerOrder가 있는 주문의 대표 배송 상태 정의
-- 판매자별 배송사·운송장 표시
-- 기존 Order 결제 상태와 SellerOrder 배송 상태 역할 분리 유지
+- 관리자 전체 주문·결제·판매자별 처리 상태 조회
+- 주문번호/구매자/판매자/결제·배송 상태 검색과 pagination
+- 운영자가 장기 PENDING/CONFIRMING/CANCELING 상태를 확인할 최소 관측 화면
+- 상태 강제 변경보다 기존 reconciliation/취소 흐름을 재사용하는 안전한 운영 기능 우선
+
+### 운영 배포 전: Payment staging 통합 검증
+
+- 공개 HTTPS staging에서 Toss webhook 수신과 중복 이벤트 멱등성 검증
+- 결제·전체취소·timeout/재시도·재고 복원 전체 회귀 테스트
+- 아래 `운영 전 필수 검증 TODO`는 실제 검증 전까지 완료 처리하지 않음
 
 ### 이후: 상품 상세 옵션 선택 UI 개선
 
@@ -424,8 +434,8 @@ Payment 1~4단계와 Toss 테스트 카드/간편결제 성공은 완료되었�
 주문 준비 멱등성, 재고 예약, READY → CONFIRMING → PAID,
 CONFIRMING Toss 조회 복구, CartItem 안전 삭제 및 바로구매 Cart 불변을 깨뜨리지 마.
 
-SellerOrder 1~4단계와 기존 데이터 backfill/NOT NULL 전환,
-판매자 주문관리 Backend·배송 상태 전이 및 판매자센터 주문관리 Frontend가 완료되었다.
-다음 작업은 SellerOrder 5단계 구매자 주문 목록/상세의 판매자별 배송 상태 반영이다.
+SellerOrder 1~5단계와 기존 데이터 backfill/NOT NULL 전환,
+판매자 주문관리·배송 상태 전이와 구매자 판매자별 배송조회가 완료되었다.
+다음 개발 우선순위는 관리자 주문관리이며, 운영 전에는 Payment staging 통합 검증이 필수다.
 기존 Payment 운영 전 실제 Toss 통합 테스트 TODO는 완료 처리하지 마.
 ```

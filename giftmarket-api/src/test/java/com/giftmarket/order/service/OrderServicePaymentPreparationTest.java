@@ -5,13 +5,18 @@ import com.giftmarket.cart.repository.CartItemRepository;
 import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.request.OrderCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
+import com.giftmarket.order.dto.response.BuyerOrderDeliveryStatus;
+import com.giftmarket.order.dto.response.OrderDetailResponse;
+import com.giftmarket.order.dto.response.OrderSummaryResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
+import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
+import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.payment.config.PaymentProperties;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -44,6 +49,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -72,6 +78,9 @@ class OrderServicePaymentPreparationTest {
 
     @Mock
     private SellerOrderLifecycleService sellerOrderLifecycleService;
+
+    @Mock
+    private SellerOrderRepository sellerOrderRepository;
 
     @Mock
     private CartItemRepository cartItemRepository;
@@ -398,6 +407,125 @@ class OrderServicePaymentPreparationTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isNotNull();
+    }
+
+    @Test
+    void loadsBuyerOrderListAssociationsInTwoBulkQueries() {
+        Order firstOrder = mock(Order.class);
+        Order secondOrder = mock(Order.class);
+        OrderItem firstItem = mock(OrderItem.class);
+        OrderItem secondItem = mock(OrderItem.class);
+        SellerOrder firstSellerOrder = mock(SellerOrder.class);
+        SellerOrder secondSellerOrder = mock(SellerOrder.class);
+
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+        prepareOrderSummary(firstOrder, 1L, OrderStatus.PAID);
+        prepareOrderSummary(secondOrder, 2L, OrderStatus.PAID);
+        prepareHistoryItem(firstItem, firstOrder, 1001L);
+        prepareHistoryItem(secondItem, secondOrder, 1002L);
+        given(firstSellerOrder.getOrder()).willReturn(firstOrder);
+        given(firstSellerOrder.getStatus()).willReturn(SellerOrderStatus.PREPARING);
+        given(secondSellerOrder.getOrder()).willReturn(secondOrder);
+        given(secondSellerOrder.getStatus()).willReturn(SellerOrderStatus.SHIPPED);
+        given(orderRepository.findAllByUserIdOrderByCreatedAtDesc(USER_ID))
+                .willReturn(List.of(firstOrder, secondOrder));
+        given(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(
+                List.of(1L, 2L)
+        )).willReturn(List.of(firstItem, secondItem));
+        given(sellerOrderRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(
+                List.of(1L, 2L)
+        )).willReturn(List.of(firstSellerOrder, secondSellerOrder));
+
+        List<OrderSummaryResponse> responses = orderService.getMyOrders(USER_ID);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).deliveryStatus())
+                .isEqualTo(BuyerOrderDeliveryStatus.PREPARING);
+        assertThat(responses.get(1).deliveryStatus())
+                .isEqualTo(BuyerOrderDeliveryStatus.SHIPPING);
+        verify(orderItemRepository, times(1))
+                .findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(1L, 2L));
+        verify(sellerOrderRepository, times(1))
+                .findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(1L, 2L));
+        verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+    }
+
+    @Test
+    void groupsBuyerOrderDetailItemsBySellerOrder() {
+        Long orderId = 77L;
+        Order order = mock(Order.class);
+        Seller secondSeller = mock(Seller.class);
+        SellerOrder firstSellerOrder = mock(SellerOrder.class);
+        SellerOrder secondSellerOrder = mock(SellerOrder.class);
+        OrderItem firstItem = mock(OrderItem.class);
+        OrderItem secondItem = mock(OrderItem.class);
+
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+        prepareOrderSummary(order, orderId, OrderStatus.PAID);
+        given(orderRepository.findByIdAndUserId(orderId, USER_ID))
+                .willReturn(Optional.of(order));
+        prepareSellerOrder(firstSellerOrder, 501L, order, seller, "첫 스토어");
+        prepareSellerOrder(secondSellerOrder, 502L, order, secondSeller, "둘째 스토어");
+        prepareHistoryItem(firstItem, order, 2001L);
+        prepareHistoryItem(secondItem, order, 2002L);
+        given(firstItem.getSellerOrder()).willReturn(firstSellerOrder);
+        given(secondItem.getSellerOrder()).willReturn(secondSellerOrder);
+        given(orderItemRepository.findAllByOrderIdOrderByIdAsc(orderId))
+                .willReturn(List.of(firstItem, secondItem));
+        given(sellerOrderRepository.findAllByOrderIdOrderByIdAsc(orderId))
+                .willReturn(List.of(firstSellerOrder, secondSellerOrder));
+
+        OrderDetailResponse response = orderService.getMyOrder(USER_ID, orderId);
+
+        assertThat(response.sellerOrders()).hasSize(2);
+        assertThat(response.sellerOrders().get(0).items())
+                .extracting(item -> item.id())
+                .containsExactly(2001L);
+        assertThat(response.sellerOrders().get(1).items())
+                .extracting(item -> item.id())
+                .containsExactly(2002L);
+    }
+
+    private void prepareOrderSummary(
+            Order order,
+            Long orderId,
+            OrderStatus status
+    ) {
+        given(order.getId()).willReturn(orderId);
+        given(order.getStatus()).willReturn(status);
+        given(order.getOrderNumber()).willReturn("GM-TEST-" + orderId);
+        given(order.getTotalProductAmount()).willReturn(10_000L);
+        given(order.getTotalShippingFee()).willReturn(0L);
+        given(order.getTotalAmount()).willReturn(10_000L);
+    }
+
+    private void prepareHistoryItem(
+            OrderItem item,
+            Order order,
+            Long itemId
+    ) {
+        given(item.getId()).willReturn(itemId);
+        lenient().when(item.getOrder()).thenReturn(order);
+        given(item.getProduct()).willReturn(product);
+        given(product.getId()).willReturn(PRODUCT_ID);
+        given(item.getProductName()).willReturn("테스트 상품 " + itemId);
+        given(item.getQuantity()).willReturn(1);
+        given(item.getUnitPrice()).willReturn(10_000L);
+        given(item.getTotalPrice()).willReturn(10_000L);
+    }
+
+    private void prepareSellerOrder(
+            SellerOrder sellerOrder,
+            Long sellerOrderId,
+            Order order,
+            Seller owner,
+            String storeName
+    ) {
+        given(sellerOrder.getId()).willReturn(sellerOrderId);
+        lenient().when(sellerOrder.getOrder()).thenReturn(order);
+        given(sellerOrder.getSeller()).willReturn(owner);
+        given(sellerOrder.getStatus()).willReturn(SellerOrderStatus.PAID);
+        given(owner.getStoreName()).willReturn(storeName);
     }
 
     private void preparePurchasableCartItem() {

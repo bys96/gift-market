@@ -6,6 +6,24 @@ export type OrderStatus =
   | "PAYMENT_EXPIRED"
   | "CANCELLED";
 
+export type BuyerOrderDeliveryStatus =
+  | "PAYMENT_PENDING"
+  | "PAYMENT_FAILED"
+  | "PAYMENT_EXPIRED"
+  | "PAID"
+  | "PREPARING"
+  | "SHIPPING"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export type BuyerSellerOrderStatus =
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "PREPARING"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED";
+
 export type PaymentStatus =
   | "READY"
   | "CONFIRMING"
@@ -34,6 +52,7 @@ export interface OrderSummary {
   id: number;
   orderNumber: string;
   status: OrderStatus;
+  deliveryStatus: BuyerOrderDeliveryStatus;
   orderedAt: string | null;
 
   totalProductAmount: number;
@@ -47,6 +66,7 @@ export interface OrderDetail {
   id: number;
   orderNumber: string;
   status: OrderStatus;
+  deliveryStatus: BuyerOrderDeliveryStatus;
 
   totalProductAmount: number;
   totalShippingFee: number;
@@ -61,6 +81,19 @@ export interface OrderDetail {
   orderedAt: string | null;
   cancelledAt: string | null;
 
+  items: OrderHistoryItem[];
+  sellerOrders: BuyerSellerOrder[];
+}
+
+export interface BuyerSellerOrder {
+  sellerOrderId: number;
+  sellerName: string;
+  status: BuyerSellerOrderStatus;
+  shippingCompany: string | null;
+  trackingNumber: string | null;
+  preparedAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
   items: OrderHistoryItem[];
 }
 

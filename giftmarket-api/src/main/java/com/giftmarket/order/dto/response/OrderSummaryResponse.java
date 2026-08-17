@@ -3,6 +3,7 @@ package com.giftmarket.order.dto.response;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
+import com.giftmarket.order.entity.SellerOrderStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,6 +13,7 @@ public record OrderSummaryResponse(
         Long id,
         String orderNumber,
         OrderStatus status,
+        BuyerOrderDeliveryStatus deliveryStatus,
         LocalDateTime orderedAt,
 
         Long totalProductAmount,
@@ -24,12 +26,17 @@ public record OrderSummaryResponse(
 
     public static OrderSummaryResponse from(
             Order order,
-            List<OrderItem> orderItems
+            List<OrderItem> orderItems,
+            List<SellerOrderStatus> sellerOrderStatuses
     ) {
         return new OrderSummaryResponse(
                 order.getId(),
                 order.getOrderNumber(),
                 order.getStatus(),
+                BuyerOrderDeliveryStatus.resolve(
+                        order.getStatus(),
+                        sellerOrderStatuses
+                ),
                 order.getOrderedAt(),
                 order.getTotalProductAmount(),
                 order.getTotalShippingFee(),

@@ -24,6 +24,11 @@ public interface SellerOrderRepository
 
     List<SellerOrder> findAllByOrderIdOrderByIdAsc(Long orderId);
 
+    @EntityGraph(attributePaths = {"seller"})
+    List<SellerOrder> findAllByOrderIdInOrderByOrderIdAscIdAsc(
+            List<Long> orderIds
+    );
+
     @Query(
             value = """
                     select so

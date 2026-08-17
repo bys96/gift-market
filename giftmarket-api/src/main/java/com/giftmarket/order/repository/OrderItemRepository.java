@@ -19,6 +19,15 @@ public interface OrderItemRepository
             Long orderId
     );
 
+    @EntityGraph(attributePaths = {
+            "product",
+            "variant",
+            "sellerOrder"
+    })
+    List<OrderItem> findAllByOrderIdInOrderByOrderIdAscIdAsc(
+            List<Long> orderIds
+    );
+
     @EntityGraph(attributePaths = {"product", "variant"})
     List<OrderItem> findAllBySellerOrderIdOrderByIdAsc(Long sellerOrderId);
 

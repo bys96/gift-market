@@ -274,6 +274,118 @@
   color: var(--color-text-primary);
 }
 
+.order-detail-seller-groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.order-detail-seller-group {
+  overflow: hidden;
+}
+
+.order-detail-seller-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -4px 0 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.order-detail-seller-header span {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.order-detail-seller-header h2 {
+  margin: 4px 0 0;
+  color: var(--color-text-primary);
+  font-size: 18px;
+}
+
+.order-detail-delivery-badge {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: #f1f2f4;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-detail-delivery-paid {
+  background: #eef4ff;
+  color: #315fa7;
+}
+
+.order-detail-delivery-preparing {
+  background: #fff7e7;
+  color: #9a6500;
+}
+
+.order-detail-delivery-shipped,
+.order-detail-delivery-delivered {
+  background: #edf8f2;
+  color: #28794c;
+}
+
+.order-detail-delivery-cancelled {
+  color: #8a4b4b;
+}
+
+.order-detail-seller-shipping {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 7px 16px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: #f7f8fa;
+}
+
+.order-detail-seller-shipping > span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.order-detail-seller-shipping > strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.order-detail-seller-shipping dl {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 7px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.order-detail-seller-shipping dl div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.order-detail-seller-shipping dt {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.order-detail-seller-shipping dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
 @media (hover: hover) {
   .order-detail-back-link:hover,
   .order-detail-product-name:hover {
@@ -344,5 +456,13 @@
 
   .order-detail-product-name {
     font-size: 15px;
+  }
+
+  .order-detail-seller-header {
+    align-items: flex-start;
+  }
+
+  .order-detail-seller-shipping dl {
+    grid-template-columns: 1fr;
   }
 }

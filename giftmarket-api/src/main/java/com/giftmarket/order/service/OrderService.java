@@ -15,6 +15,7 @@ import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
+import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.payment.config.PaymentProperties;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentProvider;
@@ -66,6 +67,7 @@ public class OrderService {
     private final PaymentProperties paymentProperties;
     private final OrderInventoryService orderInventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
+    private final SellerOrderRepository sellerOrderRepository;
 
     private final CartItemRepository cartItemRepository;
 
@@ -408,23 +410,40 @@ public class OrderService {
     ) {
         getAuthenticatedUser(userId);
 
-        return orderRepository
-                .findAllByUserIdOrderByCreatedAtDesc(
-                        userId
-                )
-                .stream()
-                .map(order -> {
-                    List<OrderItem> orderItems =
-                            orderItemRepository
-                                    .findAllByOrderIdOrderByIdAsc(
-                                            order.getId()
-                                    );
+        List<Order> orders = orderRepository
+                .findAllByUserIdOrderByCreatedAtDesc(userId);
 
-                    return OrderSummaryResponse.from(
-                            order,
-                            orderItems
-                    );
-                })
+        if (orders.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .toList();
+        Map<Long, List<OrderItem>> itemsByOrderId = orderItemRepository
+                .findAllByOrderIdInOrderByOrderIdAscIdAsc(orderIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        item -> item.getOrder().getId()
+                ));
+        Map<Long, List<SellerOrder>> sellerOrdersByOrderId =
+                sellerOrderRepository
+                        .findAllByOrderIdInOrderByOrderIdAscIdAsc(orderIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                sellerOrder -> sellerOrder.getOrder().getId()
+                        ));
+
+        return orders.stream()
+                .map(order -> OrderSummaryResponse.from(
+                        order,
+                        itemsByOrderId.getOrDefault(order.getId(), List.of()),
+                        sellerOrdersByOrderId
+                                .getOrDefault(order.getId(), List.of())
+                                .stream()
+                                .map(SellerOrder::getStatus)
+                                .toList()
+                ))
                 .toList();
     }
 
@@ -452,10 +471,13 @@ public class OrderService {
                         .findAllByOrderIdOrderByIdAsc(
                                 order.getId()
                         );
+        List<SellerOrder> sellerOrders = sellerOrderRepository
+                .findAllByOrderIdOrderByIdAsc(order.getId());
 
         return OrderDetailResponse.from(
                 order,
-                orderItems
+                orderItems,
+                sellerOrders
         );
     }
 
@@ -500,7 +522,8 @@ public class OrderService {
 
         return OrderDetailResponse.from(
                 order,
-                orderItems
+                orderItems,
+                sellerOrderRepository.findAllByOrderIdOrderByIdAsc(order.getId())
         );
     }
 

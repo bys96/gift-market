@@ -139,6 +139,28 @@
   color: #d13c3c;
 }
 
+.order-history-status-payment_pending,
+.order-history-status-paid {
+  color: var(--color-primary);
+}
+
+.order-history-status-preparing {
+  color: #9a6500;
+}
+
+.order-history-status-shipping {
+  color: #28794c;
+}
+
+.order-history-status-delivered {
+  color: #1f7546;
+}
+
+.order-history-status-payment_failed,
+.order-history-status-payment_expired {
+  color: #d13c3c;
+}
+
 .order-history-product-name {
   overflow: hidden;
   margin: 0;
