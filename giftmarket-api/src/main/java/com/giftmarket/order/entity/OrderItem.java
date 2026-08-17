@@ -7,6 +7,7 @@ import com.giftmarket.seller.entity.Seller;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -35,6 +36,10 @@ import lombok.NoArgsConstructor;
                 @Index(
                         name = "idx_order_items_seller_id",
                         columnList = "seller_id"
+                ),
+                @Index(
+                        name = "idx_order_items_seller_order_id",
+                        columnList = "seller_order_id"
                 )
         }
 )
@@ -69,6 +74,21 @@ public class OrderItem extends BaseEntity {
             nullable = false
     )
     private Seller seller;
+
+    /*
+     * 주문 준비 시점에 주문 당시 Seller snapshot 기준으로 생성된
+     * 판매자별 주문 처리 단위와 반드시 연결됩니다.
+     */
+    @ManyToOne(
+            fetch = FetchType.LAZY,
+            optional = false
+    )
+    @JoinColumn(
+            name = "seller_order_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_order_items_seller_order")
+    )
+    private SellerOrder sellerOrder;
 
     /*
      * 장바구니 주문의 원본 CartItem ID Snapshot.
@@ -163,6 +183,7 @@ public class OrderItem extends BaseEntity {
             Product product,
             ProductVariant variant,
             Seller seller,
+            SellerOrder sellerOrder,
             Long sourceCartItemId,
             String productName,
             String brandName,
@@ -179,6 +200,7 @@ public class OrderItem extends BaseEntity {
         this.product = product;
         this.variant = variant;
         this.seller = seller;
+        this.sellerOrder = sellerOrder;
         this.sourceCartItemId = sourceCartItemId;
         this.productName = productName;
         this.brandName = brandName;
@@ -201,6 +223,7 @@ public class OrderItem extends BaseEntity {
             Product product,
             ProductVariant variant,
             Seller seller,
+            SellerOrder sellerOrder,
             Long sourceCartItemId,
             String productName,
             String brandName,
@@ -218,6 +241,7 @@ public class OrderItem extends BaseEntity {
                 .product(product)
                 .variant(variant)
                 .seller(seller)
+                .sellerOrder(sellerOrder)
                 .sourceCartItemId(sourceCartItemId)
                 .productName(productName)
                 .brandName(brandName)

@@ -6,6 +6,7 @@ import com.giftmarket.order.entity.*;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.*;
 import com.giftmarket.order.service.OrderInventoryService;
+import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.gateway.*;
@@ -26,6 +27,7 @@ public class PaymentCancellationTransactionService {
     private final PaymentCancellationRepository cancellationRepository;
     private final OrderRepository orderRepository;
     private final OrderInventoryService inventoryService;
+    private final SellerOrderLifecycleService sellerOrderLifecycleService;
 
     @Transactional(readOnly = true)
     public boolean isCanceling(Long paymentId) {
@@ -96,6 +98,7 @@ public class PaymentCancellationTransactionService {
         if (order.getStatus() == OrderStatus.ORDERED) {
             inventoryService.restore(orderId);
             order.cancel();
+            sellerOrderLifecycleService.cancel(orderId);
             return completed(order, payment, "주문이 취소되었습니다.");
         }
         if (payment == null) throw new PaymentException("결제 정보를 찾을 수 없습니다.");
@@ -106,6 +109,7 @@ public class PaymentCancellationTransactionService {
             inventoryService.restore(orderId);
             payment.cancelBeforeApproval(LocalDateTime.now());
             order.cancel();
+            sellerOrderLifecycleService.cancel(orderId);
             return completed(order, payment, "결제 전 주문이 취소되었습니다.");
         }
         if (payment.getStatus() == PaymentStatus.CONFIRMING) {
@@ -259,6 +263,7 @@ public class PaymentCancellationTransactionService {
         payment.cancelFromProvider(providerStatus, now);
         cancellation.succeed(transactionId, now);
         order.cancel();
+        sellerOrderLifecycleService.cancel(order.getId());
         return response(order, payment, "결제가 취소되었습니다.");
     }
 

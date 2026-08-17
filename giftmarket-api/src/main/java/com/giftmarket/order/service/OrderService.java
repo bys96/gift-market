@@ -11,6 +11,7 @@ import com.giftmarket.order.dto.response.OrderSummaryResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
+import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
@@ -64,6 +65,7 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final PaymentProperties paymentProperties;
     private final OrderInventoryService orderInventoryService;
+    private final SellerOrderLifecycleService sellerOrderLifecycleService;
 
     private final CartItemRepository cartItemRepository;
 
@@ -213,12 +215,23 @@ public class OrderService {
 
         orderRepository.save(order);
 
+        Map<Long, SellerOrder> sellerOrders =
+                sellerOrderLifecycleService.createPendingPayment(
+                        order,
+                        preparedItems.stream()
+                                .map(PreparedOrderItem::seller)
+                                .toList()
+                );
+
         List<OrderItem> orderItems =
                 preparedItems.stream()
                         .map(prepared ->
                                 createOrderItem(
                                         order,
-                                        prepared
+                                        prepared,
+                                        sellerOrders.get(
+                                                prepared.seller().getId()
+                                        )
                                 )
                         )
                         .toList();
@@ -362,8 +375,17 @@ public class OrderService {
                 );
 
         orderRepository.save(order);
+        Map<Long, SellerOrder> sellerOrders =
+                sellerOrderLifecycleService.createPendingPayment(
+                        order,
+                        List.of(preparedItem.seller())
+                );
         orderItemRepository.save(
-                createOrderItem(order, preparedItem)
+                createOrderItem(
+                        order,
+                        preparedItem,
+                        sellerOrders.get(preparedItem.seller().getId())
+                )
         );
 
         if (variant != null) {
@@ -474,6 +496,7 @@ public class OrderService {
                 orderInventoryService.restore(order.getId());
 
         order.cancel();
+        sellerOrderLifecycleService.cancel(order.getId());
 
         return OrderDetailResponse.from(
                 order,
@@ -605,13 +628,20 @@ public class OrderService {
 
     private OrderItem createOrderItem(
             Order order,
-            PreparedOrderItem prepared
+            PreparedOrderItem prepared,
+            SellerOrder sellerOrder
     ) {
+        if (sellerOrder == null
+                || !sellerOrder.getSeller().getId()
+                .equals(prepared.seller().getId())) {
+            throw new OrderException("판매자 주문 연결 정보를 확인할 수 없습니다.");
+        }
         return OrderItem.create(
                 order,
                 prepared.product(),
                 prepared.variant(),
                 prepared.seller(),
+                sellerOrder,
                 prepared.sourceCartItemId(),
                 prepared.productName(),
                 prepared.brandName(),

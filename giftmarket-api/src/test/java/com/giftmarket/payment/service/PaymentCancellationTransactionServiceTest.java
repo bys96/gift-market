@@ -1,8 +1,10 @@
 package com.giftmarket.payment.service;
 
+import com.giftmarket.order.dto.request.OrderCancelRequest;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
+import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.gateway.*;
 import com.giftmarket.payment.repository.*;
@@ -28,6 +30,7 @@ class PaymentCancellationTransactionServiceTest {
     @Mock PaymentCancellationRepository cancellationRepository;
     @Mock OrderRepository orderRepository;
     @Mock OrderInventoryService inventoryService;
+    @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
     @Mock User user;
 
     private PaymentCancellationTransactionService service;
@@ -42,7 +45,8 @@ class PaymentCancellationTransactionServiceTest {
                 paymentRepository,
                 cancellationRepository,
                 orderRepository,
-                inventoryService
+                inventoryService,
+                sellerOrderLifecycleService
         );
         now = LocalDateTime.of(2026, 8, 17, 12, 0);
         order = Order.createPendingPayment(
@@ -70,8 +74,8 @@ class PaymentCancellationTransactionServiceTest {
         );
         ReflectionTestUtils.setField(cancellation, "id", 30L);
 
-        given(paymentRepository.findByIdForUpdate(20L))
-                .willReturn(Optional.of(payment));
+        lenient().when(paymentRepository.findByIdForUpdate(20L))
+                .thenReturn(Optional.of(payment));
     }
 
     @Test
@@ -122,6 +126,7 @@ class PaymentCancellationTransactionServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(cancellation.getStatus()).isEqualTo(PaymentCancellationStatus.SUCCEEDED);
         verify(inventoryService, times(1)).restore(10L);
+        verify(sellerOrderLifecycleService, times(1)).cancel(10L);
     }
 
     @Test
@@ -136,6 +141,41 @@ class PaymentCancellationTransactionServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(cancellation.getStatus()).isEqualTo(PaymentCancellationStatus.FAILED);
         verifyNoInteractions(inventoryService);
+    }
+
+    @Test
+    void cancelsPendingReadyOrderAndSellerOrdersWithoutCallingPg() {
+        Order pendingOrder = Order.createPendingPayment(
+                "GM-PENDING", user, 10_000L, 0L,
+                "받는 사람", "010-1234-5678", "12345", "서울", null
+        );
+        ReflectionTestUtils.setField(pendingOrder, "id", 11L);
+        Payment readyPayment = Payment.createReady(
+                pendingOrder, PaymentProvider.TOSS, "pending-merchant",
+                "pending-client", "pending-confirm", 10_000L, "KRW",
+                now, now.plusMinutes(30)
+        );
+        ReflectionTestUtils.setField(readyPayment, "id", 21L);
+        given(orderRepository.findByIdAndUserId(11L, 1L))
+                .willReturn(Optional.of(pendingOrder));
+        given(paymentRepository.findFirstByOrderIdAndOrderUserIdOrderByIdDesc(
+                11L, 1L
+        )).willReturn(Optional.of(readyPayment));
+        given(paymentRepository.findByIdForUpdate(21L))
+                .willReturn(Optional.of(readyPayment));
+        given(orderRepository.findByIdAndUserIdForUpdate(11L, 1L))
+                .willReturn(Optional.of(pendingOrder));
+
+        service.start(
+                1L,
+                11L,
+                new OrderCancelRequest("cancel-request", "고객 요청")
+        );
+
+        assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(readyPayment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+        verify(inventoryService).restore(11L);
+        verify(sellerOrderLifecycleService).cancel(11L);
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
+import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentProvider;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -35,6 +36,7 @@ class PaymentExpirationTransactionServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock OrderRepository orderRepository;
     @Mock OrderInventoryService orderInventoryService;
+    @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
     @Mock User user;
 
     private PaymentExpirationTransactionService service;
@@ -47,7 +49,8 @@ class PaymentExpirationTransactionServiceTest {
         service = new PaymentExpirationTransactionService(
                 paymentRepository,
                 orderRepository,
-                orderInventoryService
+                orderInventoryService,
+                sellerOrderLifecycleService
         );
         now = LocalDateTime.of(2026, 8, 16, 12, 0);
         order = Order.createPendingPayment(
@@ -69,6 +72,7 @@ class PaymentExpirationTransactionServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_EXPIRED);
         verify(orderInventoryService).restore(ORDER_ID);
+        verify(sellerOrderLifecycleService).cancel(ORDER_ID);
     }
 
     @Test

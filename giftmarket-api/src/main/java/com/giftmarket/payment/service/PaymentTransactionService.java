@@ -8,6 +8,7 @@ import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
+import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.entity.Payment;
@@ -35,6 +36,7 @@ public class PaymentTransactionService {
     private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
     private final OrderInventoryService orderInventoryService;
+    private final SellerOrderLifecycleService sellerOrderLifecycleService;
 
     @Transactional
     public PaymentConfirmStart startConfirm(
@@ -416,6 +418,7 @@ public class PaymentTransactionService {
                 paidAt
         );
         order.markPaid(paidAt);
+        sellerOrderLifecycleService.markPaid(order.getId());
         removeUnchangedCartItems(order.getUser().getId(), order.getId());
         return PaymentResponse.from(payment);
     }
@@ -451,6 +454,7 @@ public class PaymentTransactionService {
             );
         }
         order.markPaymentFailed();
+        sellerOrderLifecycleService.cancel(order.getId());
     }
 
     private void validateGatewayResult(

@@ -4,6 +4,7 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
+import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
@@ -21,6 +22,7 @@ public class PaymentExpirationTransactionService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final OrderInventoryService orderInventoryService;
+    private final SellerOrderLifecycleService sellerOrderLifecycleService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean expireReadyPayment(Long paymentId, LocalDateTime now) {
@@ -43,6 +45,7 @@ public class PaymentExpirationTransactionService {
         orderInventoryService.restore(order.getId());
         payment.expire();
         order.markPaymentExpired();
+        sellerOrderLifecycleService.cancel(order.getId());
         return true;
     }
 }

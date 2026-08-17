@@ -5,9 +5,11 @@ import com.giftmarket.cart.repository.CartItemRepository;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
+import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
+import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentMethod;
@@ -52,6 +54,7 @@ class PaymentTransactionServiceTest {
     @Mock OrderItemRepository orderItemRepository;
     @Mock CartItemRepository cartItemRepository;
     @Mock OrderInventoryService orderInventoryService;
+    @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
     @Mock User user;
     @Mock Product product;
     @Mock Seller seller;
@@ -67,7 +70,8 @@ class PaymentTransactionServiceTest {
                 orderRepository,
                 orderItemRepository,
                 cartItemRepository,
-                orderInventoryService
+                orderInventoryService,
+                sellerOrderLifecycleService
         );
         order = Order.createPendingPayment(
                 "GM-ORDER", user, 10_000L, 0L,
@@ -109,6 +113,7 @@ class PaymentTransactionServiceTest {
         assertThat(payment.getApprovedAt()).isEqualTo(approvedAt);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(order.getOrderedAt()).isEqualTo(approvedAt);
+        verify(sellerOrderLifecycleService).markPaid(ORDER_ID);
     }
 
     @Test
@@ -216,6 +221,7 @@ class PaymentTransactionServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
         verify(orderInventoryService).restore(ORDER_ID);
+        verify(sellerOrderLifecycleService).cancel(ORDER_ID);
         verify(cartItemRepository, never()).delete(any());
     }
 
@@ -232,6 +238,7 @@ class PaymentTransactionServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
         verify(orderInventoryService).restore(ORDER_ID);
+        verify(sellerOrderLifecycleService).cancel(ORDER_ID);
     }
 
     @Test
@@ -355,7 +362,8 @@ class PaymentTransactionServiceTest {
 
     private OrderItem orderItem(Long sourceCartItemId, int quantity) {
         return OrderItem.create(
-                order, product, null, seller, sourceCartItemId,
+                order, product, null, seller,
+                SellerOrder.createPendingPayment(order, seller), sourceCartItemId,
                 "상품", null, "스토어", null, null,
                 5_000L, 0L, quantity, true, 0L
         );

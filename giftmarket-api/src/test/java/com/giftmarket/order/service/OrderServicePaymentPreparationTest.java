@@ -8,6 +8,7 @@ import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
+import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
@@ -35,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +54,7 @@ class OrderServicePaymentPreparationTest {
     private static final Long USER_ID = 1L;
     private static final Long PRODUCT_ID = 10L;
     private static final Long CART_ITEM_ID = 100L;
+    private static final Long SELLER_ID = 20L;
     private static final String REQUEST_KEY =
             "123e4567-e89b-42d3-a456-426614174000";
 
@@ -66,6 +69,9 @@ class OrderServicePaymentPreparationTest {
 
     @Mock
     private PaymentProperties paymentProperties;
+
+    @Mock
+    private SellerOrderLifecycleService sellerOrderLifecycleService;
 
     @Mock
     private CartItemRepository cartItemRepository;
@@ -110,6 +116,18 @@ class OrderServicePaymentPreparationTest {
                 .thenReturn(Optional.of(user));
         lenient().when(paymentProperties.getReservationMinutes())
                 .thenReturn(30L);
+        lenient().when(seller.getId()).thenReturn(SELLER_ID);
+        lenient().when(sellerOrderLifecycleService.createPendingPayment(
+                        any(Order.class),
+                        any()
+                ))
+                .thenAnswer(invocation -> Map.of(
+                        SELLER_ID,
+                        SellerOrder.createPendingPayment(
+                                invocation.getArgument(0),
+                                seller
+                        )
+                ));
     }
 
     @Test
@@ -148,6 +166,9 @@ class OrderServicePaymentPreparationTest {
         assertThat(order.getOrderedAt()).isNull();
         assertThat(orderItem.getSourceCartItemId())
                 .isEqualTo(CART_ITEM_ID);
+        assertThat(orderItem.getSellerOrder()).isNotNull();
+        assertThat(orderItem.getSellerOrder().getStatus())
+                .isEqualTo(com.giftmarket.order.entity.SellerOrderStatus.PENDING_PAYMENT);
         assertThat(payment.getStatus())
                 .isEqualTo(PaymentStatus.READY);
         assertThat(payment.getOrder()).isSameAs(order);
@@ -210,6 +231,8 @@ class OrderServicePaymentPreparationTest {
                 .isEqualTo(firstResponse.merchantPaymentId());
         verify(orderRepository, times(1)).save(any());
         verify(paymentRepository, times(1)).save(any());
+        verify(sellerOrderLifecycleService, times(1))
+                .createPendingPayment(any(Order.class), any());
         verify(product, times(1)).decreaseStock(2);
     }
 
@@ -263,6 +286,9 @@ class OrderServicePaymentPreparationTest {
 
         assertThat(itemCaptor.getValue().getSourceCartItemId())
                 .isNull();
+        assertThat(itemCaptor.getValue().getSellerOrder()).isNotNull();
+        assertThat(itemCaptor.getValue().getSellerOrder().getSeller())
+                .isSameAs(seller);
         assertThat(response.status())
                 .isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(response.paymentStatus())

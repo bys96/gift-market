@@ -1,5 +1,25 @@
 # Gift Market 개발 현황
 
+## SellerOrder 1~4단계: 판매자별 주문 처리 및 판매자센터 주문관리
+
+- 전체 결제 단위인 `Order`/`Payment`는 그대로 유지하고, 같은 주문 안의 판매자별 처리 단위인 `SellerOrder`를 추가했다.
+- `SellerOrder`는 `(order_id, seller_id)` 조합을 유일하게 보장하며 `PENDING_PAYMENT`, `PAID`, `PREPARING`, `SHIPPED`, `DELIVERED`, `CANCELLED` 상태를 사용한다.
+- 배송사/운송장/상품준비·발송·배송완료 시각은 향후 배송 기능 연결을 위한 nullable 필드로만 준비했으며 `Shipment`와 배송 API/UI는 아직 없다.
+- 기존 OrderItem 20건의 backfill과 정합성 검증을 완료했고 개발 DB의 `order_items.seller_order_id`를 `NOT NULL`로 전환했다.
+- 신규 장바구니/바로구매 prepare transaction에서 주문 당시 `OrderItem.seller` 기준으로 판매자별 `SellerOrder PENDING_PAYMENT`를 한 건씩 만들고 모든 OrderItem을 생성 시점부터 연결한다.
+- 동일 `clientOrderRequestKey` 재요청은 기존 Order/Payment 준비 결과를 반환하므로 SellerOrder도 중복 생성하지 않는다.
+- Payment가 PAID로 확정되는 공통 transaction에서 SellerOrder를 `PAID`로 전환한다. 명확한 실패, READY 만료, 결제 전 내부 취소, PAID 전체 취소 시에는 재고·Order 처리와 같은 transaction에서 `CANCELLED`로 전환한다.
+- CONFIRMING/CANCELING처럼 PG 결과가 불명확한 동안에는 SellerOrder를 종료 상태로 바꾸지 않는다.
+- `docs/sql/seller-order-stage1-backfill.sql`에 `order_items.seller_id` 기준의 수동 backfill, 정합성 검증, 검증 완료 후 NOT NULL 전환 SQL을 준비했다. SQL은 자동 실행하지 않는다.
+- 판매자는 `GET /api/seller/orders`에서 결제 완료 이후 자기 SellerOrder만 상태·주문번호·상품명으로 필터링해 pageable 조회할 수 있다. `PENDING_PAYMENT`는 노출하지 않는다.
+- `GET /api/seller/orders/{sellerOrderId}`는 해당 판매자의 OrderItem과 출고에 필요한 배송지 snapshot만 제공한다.
+- 배송 처리 API는 `PAID → PREPARING → SHIPPED → DELIVERED` 순서만 허용하며 상품준비, 배송사/운송장 등록, 수동 배송완료 시각을 SellerOrder에 기록한다.
+- 배송 상태 변경은 Order를 먼저 잠근 뒤 SellerOrder를 잠가 Payment 전체 취소와 경합해도 취소된 주문이 배송 상태로 덮이지 않게 한다. Order/Payment 상태는 배송 처리로 변경하지 않는다.
+- SellerOrder 1건당 배송 1건·송장 1개 정책이며 `Shipment`/분리배송/다중 송장은 아직 구현하지 않았다.
+- 판매자센터 `/seller/orders`에서 자기 주문만 상태별로 필터링하고 주문번호·상품명 검색 및 서버 pagination으로 조회한다. Desktop은 표, Mobile은 카드형 행으로 표시한다.
+- `/seller/orders/[sellerOrderId]`에서 해당 판매자의 상품 snapshot, 배송지, 배송사·운송장과 처리 시각을 확인하고 `PAID → PREPARING → SHIPPED → DELIVERED` 작업을 수행한다.
+- 배송 처리 중 중복 클릭을 막고, 구매자 취소 등 외부 상태 변경으로 API가 실패하면 상세를 재조회해 Backend 최신 상태를 반영한다. `CANCELLED`에는 처리 버튼을 노출하지 않는다.
+
 ## Payment 5-4: PAID 결제 전체 취소
 
 - 기존 `PATCH /api/orders/{orderId}/cancel`을 유지하고 취소 사유와 클라이언트 취소 요청 키를 받는다.
@@ -364,7 +384,14 @@ PAID 주문은 PG 취소 성공 전에 Order를 CANCELLED로 확정하거나 재
 
 ## 10. 다음 작업 후보
 
-### 1순위: 상품 상세 옵션 선택 UI 개선
+### 1순위: SellerOrder 5단계 — 구매자 주문조회 배송 상태 반영
+
+- 구매자 주문 목록/상세에 판매자별 배송 상태 반영
+- 여러 SellerOrder가 있는 주문의 대표 배송 상태 정의
+- 판매자별 배송사·운송장 표시
+- 기존 Order 결제 상태와 SellerOrder 배송 상태 역할 분리 유지
+
+### 이후: 상품 상세 옵션 선택 UI 개선
 
 - 옵션 그룹/값 선택 흐름과 선택 상태 정보 위계 개선
 - 구매 가능 Variant 조합, 품절/비활성 옵션 안내
@@ -397,7 +424,8 @@ Payment 1~4단계와 Toss 테스트 카드/간편결제 성공은 완료되었�
 주문 준비 멱등성, 재고 예약, READY → CONFIRMING → PAID,
 CONFIRMING Toss 조회 복구, CartItem 안전 삭제 및 바로구매 Cart 불변을 깨뜨리지 마.
 
-다음 작업 후보는 상품 상세 옵션 선택 UI 개선이며,
-그 이후 Payment 운영 안정성 5단계(webhook, 만료/재고 복원,
-reconciliation, 실제 취소/환불, 관리자 운영)를 진행한다.
+SellerOrder 1~4단계와 기존 데이터 backfill/NOT NULL 전환,
+판매자 주문관리 Backend·배송 상태 전이 및 판매자센터 주문관리 Frontend가 완료되었다.
+다음 작업은 SellerOrder 5단계 구매자 주문 목록/상세의 판매자별 배송 상태 반영이다.
+기존 Payment 운영 전 실제 Toss 통합 테스트 TODO는 완료 처리하지 마.
 ```
