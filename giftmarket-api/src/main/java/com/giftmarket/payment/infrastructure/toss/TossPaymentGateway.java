@@ -52,7 +52,9 @@ public class TossPaymentGateway implements PaymentGateway {
                                 null,
                                 null,
                                 null,
-                                null
+                                null,
+                                null,
+                                java.util.List.of()
                         )
                 );
     }

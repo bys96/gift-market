@@ -3,6 +3,7 @@ package com.giftmarket.payment.repository;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.payment.entity.PaymentCancellation;
 import com.giftmarket.payment.entity.PaymentCancellationStatus;
+import com.giftmarket.payment.entity.PaymentCancellationType;
 import com.giftmarket.payment.entity.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
@@ -53,4 +54,35 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
             @Param("requestedBefore") LocalDateTime requestedBefore,
             Pageable pageable
     );
+
+    @Query("""
+            select c.id
+            from PaymentCancellation c
+            where c.type = :type
+              and c.status = :cancellationStatus
+              and c.requestedAt <= :requestedBefore
+              and c.orderCancellation.status = com.giftmarket.order.entity.OrderCancellationStatus.PROCESSING
+              and c.payment.status in :paymentStatuses
+              and c.payment.order.status = :orderStatus
+              and c.orderCancellation.sellerOrder.status in :sellerOrderStatuses
+            order by c.requestedAt asc, c.id asc
+            """)
+    List<Long> findPartialReconciliationCandidateIds(
+            @Param("type") PaymentCancellationType type,
+            @Param("cancellationStatus") PaymentCancellationStatus cancellationStatus,
+            @Param("paymentStatuses") List<PaymentStatus> paymentStatuses,
+            @Param("orderStatus") OrderStatus orderStatus,
+            @Param("sellerOrderStatuses") List<com.giftmarket.order.entity.SellerOrderStatus> sellerOrderStatuses,
+            @Param("requestedBefore") LocalDateTime requestedBefore,
+            Pageable pageable
+    );
+
+    @Query("""
+            select c.id from PaymentCancellation c
+            where c.payment.id = :paymentId
+              and c.type = com.giftmarket.payment.entity.PaymentCancellationType.PARTIAL
+              and c.status = com.giftmarket.payment.entity.PaymentCancellationStatus.REQUESTED
+            order by c.requestedAt asc, c.id asc
+            """)
+    List<Long> findRequestedPartialIdsByPaymentId(@Param("paymentId") Long paymentId);
 }

@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Locale;
+import java.util.List;
 
 @Component
 public class TossPaymentMapper {
@@ -108,8 +109,20 @@ public class TossPaymentMapper {
                 parseApprovedAt(response.approvedAt()),
                 response.balanceAmount(),
                 parseCanceledAt(response),
-                response.isPartialCancelable()
+                response.isPartialCancelable(),
+                mapCancellations(response.cancels())
         );
+    }
+
+    private List<com.giftmarket.payment.gateway.GatewayCancellationTransaction> mapCancellations(
+            List<TossPaymentResponse.TossCancelResponse> cancellations
+    ) {
+        if (cancellations == null) return List.of();
+        return cancellations.stream()
+                .map(value -> new com.giftmarket.payment.gateway.GatewayCancellationTransaction(
+                        value.transactionKey(), value.cancelAmount(), value.cancelReason(),
+                        value.cancelStatus(), parseCanceledAt(value), value.refundableAmount()))
+                .toList();
     }
 
     private GatewayPaymentStatus mapStatus(String status) {

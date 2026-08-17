@@ -41,7 +41,12 @@ public record TossPaymentResponse(
     ) {
     }
 
-    public record TossCancelResponse(Long cancelAmount, String canceledAt,
-                                     String transactionKey, String cancelStatus) {
+    public record TossCancelResponse(Long cancelAmount, String cancelReason, String canceledAt,
+                                     String transactionKey, String cancelStatus,
+                                     Long refundableAmount) {
+        public TossCancelResponse(Long cancelAmount, String canceledAt,
+                                  String transactionKey, String cancelStatus) {
+            this(cancelAmount, null, canceledAt, transactionKey, cancelStatus, null);
+        }
     }
 }

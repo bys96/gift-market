@@ -25,6 +25,7 @@ public class TossPaymentWebhookService {
     private final PaymentTransactionService transactionService;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentCancellationTransactionService cancellationTransactionService;
+    private final PartialPaymentCancellationReconciliationService partialCancellationReconciliationService;
 
     public void process(
             String transmissionId,
@@ -105,6 +106,11 @@ public class TossPaymentWebhookService {
                     request.data().orderId()
             );
             if (start.action() == PaymentConfirmStart.Action.COMPLETED) {
+                if (partialCancellationReconciliationService.hasRequestedPartialCancellation(paymentId)) {
+                    PaymentGateway gateway = gatewayRegistry.get(provider);
+                    GatewayPaymentQueryResult result = gateway.getPayment(request.data().paymentKey());
+                    partialCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
+                }
                 eventService.processed(provider, transmissionId, paymentId);
                 return;
             }
@@ -113,6 +119,7 @@ public class TossPaymentWebhookService {
             GatewayPaymentQueryResult result = gateway.getPayment(
                     request.data().paymentKey()
             );
+            partialCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
             if (cancellationTransactionService.isCanceling(paymentId)) {
                 if (result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.CANCELED
                         && result.remainingAmount() != null
