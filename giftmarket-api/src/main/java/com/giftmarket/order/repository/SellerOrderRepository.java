@@ -104,4 +104,16 @@ public interface SellerOrderRepository
             @Param("sellerOrderId") Long sellerOrderId,
             @Param("sellerId") Long sellerId
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select so
+            from SellerOrder so
+            where so.id = :sellerOrderId
+              and so.order.id = :orderId
+            """)
+    Optional<SellerOrder> findByIdAndOrderIdForUpdate(
+            @Param("sellerOrderId") Long sellerOrderId,
+            @Param("orderId") Long orderId
+    );
 }

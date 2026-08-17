@@ -3,13 +3,16 @@ package com.giftmarket.order.controller;
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.dto.request.OrderCreateRequest;
 import com.giftmarket.order.dto.request.OrderCancelRequest;
+import com.giftmarket.order.dto.request.OrderCancellationCreateRequest;
 import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
 import com.giftmarket.order.dto.response.OrderCancelResponse;
+import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
+import com.giftmarket.order.service.OrderCancellationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,6 +33,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final PaymentCancellationService paymentCancellationService;
+    private final OrderCancellationService orderCancellationService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -87,6 +91,17 @@ public class OrderController {
     ) {
         return ApiResponse.success(
                 paymentCancellationService.cancel(userId, orderId, request)
+        );
+    }
+
+    @PostMapping("/{orderId}/cancellations")
+    public ApiResponse<OrderCancellationResponse> createCancellation(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId,
+            @Valid @RequestBody OrderCancellationCreateRequest request
+    ) {
+        return ApiResponse.success(
+                orderCancellationService.create(userId, orderId, request)
         );
     }
 }

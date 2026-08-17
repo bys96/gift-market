@@ -1,9 +1,11 @@
 package com.giftmarket.order.repository;
 
 import com.giftmarket.order.entity.OrderItem;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
@@ -30,6 +32,18 @@ public interface OrderItemRepository
 
     @EntityGraph(attributePaths = {"product", "variant"})
     List<OrderItem> findAllBySellerOrderIdOrderByIdAsc(Long sellerOrderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select oi
+            from OrderItem oi
+            join fetch oi.sellerOrder
+            where oi.id in :orderItemIds
+            order by oi.id asc
+            """)
+    List<OrderItem> findAllByIdInForUpdate(
+            @Param("orderItemIds") List<Long> orderItemIds
+    );
 
     @Query("""
             select oi.sellerOrder.id as sellerOrderId,
