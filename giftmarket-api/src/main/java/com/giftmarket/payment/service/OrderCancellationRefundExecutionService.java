@@ -13,8 +13,22 @@ public class OrderCancellationRefundExecutionService {
 
     private final PartialPaymentCancellationTransactionService transactions;
     private final PaymentGatewayRegistry gatewayRegistry;
+    private final PartialPaymentCancellationOrphanRecoveryService orphanRecoveryService;
 
     public void execute(Long cancellationId) {
+        try {
+            executeInternal(cancellationId);
+        } catch (RuntimeException exception) {
+            try {
+                orphanRecoveryService.failIfPaymentCancellationWasNotCreated(cancellationId);
+            } catch (RuntimeException recoveryException) {
+                exception.addSuppressed(recoveryException);
+            }
+            throw exception;
+        }
+    }
+
+    private void executeInternal(Long cancellationId) {
         PartialCancellationStart start = transactions.start(cancellationId);
         if (start.action() != PartialCancellationStart.Action.EXECUTE) return;
 

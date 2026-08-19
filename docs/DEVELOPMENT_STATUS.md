@@ -1,5 +1,28 @@
 # Gift Market 개발 현황
 
+## Cancellation 5-3 단계: 주문 화면 취소·환불 표시 정합성 완료
+
+- PARTIAL PG 취소 사유는 구매자 업무 사유와 분리해 `구매자 주문 부분취소 요청 #{orderCancellationId}` snapshot으로 저장하며 Toss 200자 제한과 retry/reconciliation 동일성을 보장한다.
+- 판매자 승인 commit 후 PaymentCancellation 준비가 실패한 경우, PaymentCancellation이 실제로 없을 때만 별도 transaction에서 PROCESSING을 FAILED로 정리해 자동 복구 불가능한 고아 상태를 방지한다.
+- 구매자 주문 상세에서 상품 옵션 snapshot, 원 주문수량과 확정 취소수량·남은수량을 함께 표시하며 전량 취소 상품은 주문 이력에서 제거하지 않고 취소완료로 표시한다.
+- 구매자 주문 상세는 기존 원 결제금액을 유지하고 `PaymentRefundBalanceService`가 집계한 SUCCEEDED 환불 누적액과 현재 결제잔액을 별도 표시한다. REQUESTED/FAILED 금액은 완료 환불액에 포함하지 않는다.
+- 판매자 기존 주문 상세는 상품별 취소완료수량·처리 예정수량과 해당 SellerOrder의 승인형 취소요청 상태 및 상세 링크를 배송 lifecycle과 별도로 표시한다.
+- 판매자 취소 승인 직후 local 완료 메시지와 Backend COMPLETED 상태 안내가 중복되던 경로를 제거해 새로고침 전후 동일한 완료 안내 한 건만 표시한다.
+- Toss 취소, Payment 상태전이, reconciliation, 재고복원 및 SellerOrder 배송 상태전이는 변경하지 않았다.
+
+### 다음 단계 후보
+
+- FAILED 또는 장기 PROCESSING 환불의 관리자 관측·수동 대응 정책은 별도 운영 기능으로 설계한다.
+- 운영 전 실제 Toss staging 부분취소/webhook 통합 테스트 TODO는 계속 유지한다.
+
+## Cancellation 5-2 단계: 판매자 취소요청 관리 UI 완료
+
+- 판매자센터 `/seller/orders/cancellations`에서 자기 판매자 주문의 승인형 취소요청을 상태별로 필터링하고 서버 pagination으로 조회한다.
+- `/seller/orders/cancellations/{cancellationId}`에서 주문번호, 요청 사유, 상품·옵션 snapshot, 원 주문수량·기취소수량·요청수량과 안전한 수령인 정보를 확인한다.
+- `REQUESTED`에만 승인·거절 액션을 제공하며, 승인은 환불 시작 확인 단계를 거치고 거절 사유는 공백을 차단해 최대 500자로 전송한다.
+- 승인 결과 `PROCESSING`은 자동 reconciliation 대기 상태로 안내하고 `COMPLETED`, `REJECTED`, `FAILED`에는 재처리 액션을 노출하지 않는다.
+- 활성 취소요청은 배송 시작 제한 상태임을 판매자에게 안내하며, 모든 상태와 처리 결과는 Backend 재조회 결과를 최종 권위로 사용한다.
+
 ## Cancellation 5-1 단계: 구매자 상품·수량 취소 UI 완료
 
 - 구매자 주문 상세의 각 SellerOrder 카드에서 취소 가능한 상품을 여러 개 선택하고 수량별로 PAID 즉시취소 또는 PREPARING 취소요청을 제출할 수 있다.
@@ -7,11 +30,6 @@
 - 구매자 cancellation 목록 조회 API를 추가해 REQUESTED/PROCESSING/REJECTED/FAILED/COMPLETED 상태와 안전한 거절 사유를 배송 상태와 별도로 표시한다.
 - SHIPPED/DELIVERED/CANCELLED SellerOrder에는 취소 액션을 노출하지 않으며, 기존 Order 상태 기반 전체취소 버튼의 잘못된 노출을 제거했다. 기존 FULL 취소 API는 유지한다.
 - SellerOrder별 submit/loading/request key를 독립 관리하고 처리 후 주문 상세과 cancellation 목록을 다시 조회한다.
-
-### 다음 단계: Cancellation 5-2 — 판매자 취소요청 UI
-
-- 판매자센터 취소요청 목록/상세, 승인/거절 UI와 승인 이후 환불 결과 표시를 구현한다.
-- 운영 전 실제 Toss staging 부분취소/webhook 통합 테스트 TODO는 계속 유지한다.
 
 ## Cancellation 4-3C 단계: 부분환불 결과 불명 자동 복구 완료
 

@@ -27,6 +27,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.clearInvocations;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -58,7 +59,7 @@ class PartialPaymentCancellationPreparationServiceTest {
         given(orderCancellation.getId()).willReturn(30L);
         given(orderCancellation.getOrder()).willReturn(order);
         given(orderCancellation.getStatus()).willReturn(OrderCancellationStatus.PROCESSING);
-        given(orderCancellation.getReason()).willReturn("reason");
+        given(orderCancellation.getReason()).willReturn("가".repeat(499));
         given(orderCancellationRepository.findById(30L)).willReturn(Optional.of(orderCancellation));
         given(orderCancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(orderCancellation));
         given(paymentRepository.findFirstByOrderIdOrderByIdDesc(10L)).willReturn(Optional.of(payment));
@@ -78,6 +79,9 @@ class PartialPaymentCancellationPreparationServiceTest {
         assertThat(result.getAmount()).isEqualTo(10_000L);
         assertThat(result.getClientRequestKey()).startsWith("PARTIAL-");
         assertThat(result.getIdempotencyKey()).isNotBlank();
+        assertThat(result.getReason()).isEqualTo("구매자 주문 부분취소 요청 #30");
+        assertThat(result.getReason()).hasSizeLessThanOrEqualTo(200);
+        assertThat(orderCancellation.getReason()).hasSize(499);
         verify(refundBalanceService).validateRefundAmount(any(PaymentRefundBalance.class), eq(10_000L));
     }
 
@@ -87,13 +91,17 @@ class PartialPaymentCancellationPreparationServiceTest {
         given(existing.getPayment()).willReturn(payment);
         given(existing.getAmount()).willReturn(10_000L);
         given(existing.getIdempotencyKey()).willReturn("same-key");
+        given(existing.getReason()).willReturn("stored-provider-reason");
         given(paymentCancellationRepository.findByOrderCancellationId(30L))
                 .willReturn(Optional.of(existing));
+        clearInvocations(orderCancellation);
 
         PaymentCancellation result = service.prepare(30L, 10_000L);
 
         assertThat(result).isSameAs(existing);
         assertThat(result.getIdempotencyKey()).isEqualTo("same-key");
+        assertThat(result.getReason()).isEqualTo("stored-provider-reason");
+        verify(orderCancellation, never()).getReason();
         verify(paymentCancellationRepository, never()).saveAndFlush(any());
     }
 

@@ -22,6 +22,8 @@ import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentProvider;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
+import com.giftmarket.payment.service.PaymentRefundBalance;
+import com.giftmarket.payment.service.PaymentRefundBalanceService;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductOptionValue;
 import com.giftmarket.product.entity.ProductStatus;
@@ -66,6 +68,7 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentProperties paymentProperties;
+    private final PaymentRefundBalanceService paymentRefundBalanceService;
     private final OrderInventoryService orderInventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
     private final SellerOrderRepository sellerOrderRepository;
@@ -486,11 +489,27 @@ public class OrderService {
                         com.giftmarket.order.repository.PendingCancellationQuantityProjection::getOrderItemId,
                         com.giftmarket.order.repository.PendingCancellationQuantityProjection::getPendingQuantity));
 
+        PaymentRefundBalance refundBalance = paymentRepository
+                .findFirstByOrderIdAndOrderUserIdOrderByIdDesc(orderId, userId)
+                .map(paymentRefundBalanceService::getBalance)
+                .orElse(null);
+        long refundedAmount = refundBalance == null
+                ? 0L
+                : refundBalance.succeededRefundAmount();
+        long remainingPaymentAmount = refundBalance == null
+                ? order.getTotalAmount()
+                : Math.subtractExact(
+                        refundBalance.originalAmount(),
+                        refundBalance.succeededRefundAmount()
+                );
+
         return OrderDetailResponse.from(
                 order,
                 orderItems,
                 sellerOrders,
-                pendingCancellationQuantities
+                pendingCancellationQuantities,
+                refundedAmount,
+                remainingPaymentAmount
         );
     }
 

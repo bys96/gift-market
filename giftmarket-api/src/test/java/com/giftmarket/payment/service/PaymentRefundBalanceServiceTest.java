@@ -57,7 +57,44 @@ class PaymentRefundBalanceServiceTest {
         given(cancellationRepository.sumAmountByPaymentIdAndStatus(1L, PaymentCancellationStatus.REQUESTED))
                 .willReturn(null);
 
-        assertThat(service.getBalance(payment).availableRefundAmount()).isEqualTo(30_000L);
+        PaymentRefundBalance balance = service.getBalance(payment);
+
+        assertThat(balance.succeededRefundAmount()).isZero();
+        assertThat(balance.originalAmount() - balance.succeededRefundAmount())
+                .isEqualTo(30_000L);
+    }
+
+    @Test
+    void reportsAccumulatedSucceededRefundAndCurrentPaidBalance() {
+        given(cancellationRepository.sumAmountByPaymentIdAndStatus(
+                1L, PaymentCancellationStatus.SUCCEEDED
+        )).willReturn(20_000L);
+        given(cancellationRepository.sumAmountByPaymentIdAndStatus(
+                1L, PaymentCancellationStatus.REQUESTED
+        )).willReturn(5_000L);
+
+        PaymentRefundBalance balance = service.getBalance(payment);
+
+        assertThat(balance.succeededRefundAmount()).isEqualTo(20_000L);
+        assertThat(balance.originalAmount() - balance.succeededRefundAmount())
+                .isEqualTo(10_000L);
+        assertThat(balance.availableRefundAmount()).isEqualTo(5_000L);
+    }
+
+    @Test
+    void reportsZeroBalanceAfterSucceededRefundCoversOriginalAmount() {
+        given(cancellationRepository.sumAmountByPaymentIdAndStatus(
+                1L, PaymentCancellationStatus.SUCCEEDED
+        )).willReturn(30_000L);
+        given(cancellationRepository.sumAmountByPaymentIdAndStatus(
+                1L, PaymentCancellationStatus.REQUESTED
+        )).willReturn(0L);
+
+        PaymentRefundBalance balance = service.getBalance(payment);
+
+        assertThat(balance.succeededRefundAmount()).isEqualTo(30_000L);
+        assertThat(balance.originalAmount() - balance.succeededRefundAmount()).isZero();
+        assertThat(balance.availableRefundAmount()).isZero();
     }
 
     @Test

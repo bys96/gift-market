@@ -61,7 +61,7 @@ public class PartialPaymentCancellationPreparationService {
                 "PARTIAL-" + UUID.randomUUID(),
                 UUID.randomUUID().toString(),
                 refundAmount,
-                cancellation.getReason(),
+                PartialPaymentCancellationReason.create(cancellation.getId()),
                 LocalDateTime.now()
         );
         return paymentCancellationRepository.saveAndFlush(created);

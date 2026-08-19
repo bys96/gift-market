@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentCancellation extends BaseEntity {
+    private static final int MAX_PROVIDER_REASON_LENGTH = 200;
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -78,7 +79,7 @@ public class PaymentCancellation extends BaseEntity {
         value.clientRequestKey = clientRequestKey;
         value.idempotencyKey = idempotencyKey;
         value.amount = payment.getAmount();
-        value.reason = reason;
+        value.reason = requireProviderReason(reason);
         value.status = PaymentCancellationStatus.REQUESTED;
         value.requestedAt = now;
         return value;
@@ -107,7 +108,7 @@ public class PaymentCancellation extends BaseEntity {
         value.clientRequestKey = requireText(clientRequestKey, "부분환불 요청 키가 필요합니다.");
         value.idempotencyKey = requireText(idempotencyKey, "PG 멱등성 키가 필요합니다.");
         value.amount = amount;
-        value.reason = requireText(reason, "부분환불 사유가 필요합니다.");
+        value.reason = requireProviderReason(reason);
         value.status = PaymentCancellationStatus.REQUESTED;
         value.requestedAt = now;
         return value;
@@ -118,6 +119,14 @@ public class PaymentCancellation extends BaseEntity {
             throw new IllegalArgumentException(message);
         }
         return value.trim();
+    }
+
+    private static String requireProviderReason(String reason) {
+        String normalized = requireText(reason, "PG 취소 사유가 필요합니다.");
+        if (normalized.length() > MAX_PROVIDER_REASON_LENGTH) {
+            throw new IllegalArgumentException("PG 취소 사유는 200자 이내여야 합니다.");
+        }
+        return normalized;
     }
 
     public void succeed(String providerTransactionKey, LocalDateTime canceledAt) {

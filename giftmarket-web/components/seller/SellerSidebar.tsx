@@ -9,6 +9,7 @@ interface SellerMenuItem {
   href: string;
   icon: ReactNode;
   matchPaths?: string[];
+  excludePaths?: string[];
 }
 
 interface SellerMenuGroup {
@@ -31,6 +32,12 @@ const ProductIcon = () => (
 const OrderIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 3h14v18H5V3Zm1.6 1.6v14.8h10.8V4.6H6.6Zm2 3h6.8v1.5H8.6V7.6Zm0 3.7h6.8v1.5H8.6v-1.5Zm0 3.7h4.5v1.5H8.6V15Z" />
+  </svg>
+);
+
+const CancellationIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7.2 4h9.6l3.2 3.2v9.6L16.8 20H7.2L4 16.8V7.2L7.2 4Zm.7 1.6L5.6 7.9v8.2l2.3 2.3h8.2l2.3-2.3V7.9l-2.3-2.3H7.9Zm1.2 4.7h5.8v1.5H9.1v-1.5Zm0 3h5.8v1.5H9.1v-1.5Z" />
   </svg>
 );
 
@@ -83,6 +90,13 @@ const SELLER_MENU_GROUPS: SellerMenuGroup[] = [
         href: "/seller/orders",
         icon: <OrderIcon />,
         matchPaths: ["/seller/orders"],
+        excludePaths: ["/seller/orders/cancellations"],
+      },
+      {
+        label: "취소 요청",
+        href: "/seller/orders/cancellations",
+        icon: <CancellationIcon />,
+        matchPaths: ["/seller/orders/cancellations"],
       },
       {
         label: "문의 관리",
@@ -112,6 +126,13 @@ const SELLER_MENU_GROUPS: SellerMenuGroup[] = [
 ];
 
 function isActiveMenu(pathname: string, menuItem: SellerMenuItem): boolean {
+  if (
+    menuItem.excludePaths?.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    )
+  ) {
+    return false;
+  }
   if (pathname === menuItem.href) {
     return true;
   }

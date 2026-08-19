@@ -3,6 +3,7 @@ package com.giftmarket.order.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
+import com.giftmarket.order.dto.response.SellerOrderCancellationSummaryResponse;
 import com.giftmarket.order.dto.response.SellerOrderListItemResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.entity.OrderItem;
@@ -208,7 +209,15 @@ public class SellerOrderManagementService {
         if (items.isEmpty()) {
             throw new SellerException("판매자 주문 상품 정보를 확인할 수 없습니다.");
         }
-        return SellerOrderDetailResponse.from(sellerOrder, items);
+        List<SellerOrderCancellationSummaryResponse> cancellations =
+                orderCancellationRepository
+                        .findAllBySellerOrderIdAndRequiresSellerApprovalTrueOrderByRequestedAtDescIdDesc(
+                                sellerOrder.getId()
+                        )
+                        .stream()
+                        .map(SellerOrderCancellationSummaryResponse::from)
+                        .toList();
+        return SellerOrderDetailResponse.from(sellerOrder, items, cancellations);
     }
 
     private Seller getActiveSeller(Long userId) {

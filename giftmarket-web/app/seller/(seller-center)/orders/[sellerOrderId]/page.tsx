@@ -60,6 +60,15 @@ export default function SellerOrderDetailPage() {
     [order],
   );
 
+  const displayedCancellation = order?.cancellations.find(
+    (cancellation) => cancellation.status === "REQUESTED",
+  ) ?? order?.cancellations.find(
+    (cancellation) => cancellation.status === "PROCESSING",
+  ) ?? order?.cancellations[0] ?? null;
+  const requestedCancellationCount = order?.cancellations.filter(
+    (cancellation) => cancellation.status === "REQUESTED",
+  ).length ?? 0;
+
   const loadOrder = useCallback(async (quiet = false) => {
     await Promise.resolve();
 
@@ -167,12 +176,28 @@ export default function SellerOrderDetailPage() {
                 <article key={item.orderItemId} className="seller-order-detail-item">
                   <div className="seller-order-detail-item-image">{imageUrl ? <Image src={imageUrl} alt="" fill sizes="72px" /> : <span>이미지 없음</span>}</div>
                   <div className="seller-order-detail-item-info">{item.brandName && <small>{item.brandName}</small>}<strong>{item.productName}</strong>{item.optionSnapshot && <span>{item.optionSnapshot}</span>}</div>
-                  <dl><div><dt>단가</dt><dd>{formatPrice(item.unitPrice)}</dd></div><div><dt>수량</dt><dd>{item.quantity}개</dd></div><div><dt>주문금액</dt><dd><strong>{formatPrice(item.totalPrice)}</strong></dd></div></dl>
+                  <dl><div><dt>단가</dt><dd>{formatPrice(item.unitPrice)}</dd></div><div><dt>주문수량</dt><dd>{item.quantity}개</dd></div><div><dt>취소/처리</dt><dd>{item.remainingQuantity === 0 ? <span className="seller-order-item-cancelled">취소완료</span> : item.canceledQuantity > 0 ? <>취소 {item.canceledQuantity}개 · 처리 예정 {item.remainingQuantity}개</> : <>처리 예정 {item.remainingQuantity}개</>}</dd></div><div><dt>주문금액</dt><dd><strong>{formatPrice(item.totalPrice)}</strong></dd></div></dl>
                 </article>
               );
             })}
           </div>
         </section>
+
+        {displayedCancellation && (
+          <section className="seller-order-detail-section seller-order-cancellation-summary-section">
+            <div>
+              <h2>취소 요청</h2>
+              <p>
+                {displayedCancellation.status === "REQUESTED" && `취소 요청 ${requestedCancellationCount}건 확인이 필요합니다.`}
+                {displayedCancellation.status === "PROCESSING" && "취소 환불 처리 결과를 확인 중입니다."}
+                {displayedCancellation.status === "COMPLETED" && "취소 완료 내역이 있습니다."}
+                {displayedCancellation.status === "REJECTED" && "거절한 취소 요청 내역이 있습니다."}
+                {displayedCancellation.status === "FAILED" && "환불 처리에 실패한 취소 요청이 있습니다."}
+              </p>
+            </div>
+            <Link href={`/seller/orders/cancellations/${displayedCancellation.cancellationId}`}>취소 요청 보기</Link>
+          </section>
+        )}
 
         <div className="seller-order-detail-grid">
           <section className="seller-order-detail-section">

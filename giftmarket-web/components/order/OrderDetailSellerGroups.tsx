@@ -91,9 +91,10 @@ export default function OrderDetailSellerGroups({
                       </p>
                       {item.canceledQuantity > 0 && (
                         <p className="order-detail-product-cancellation-quantity">
-                          취소 {item.canceledQuantity}개 · 남은 수량 {item.quantity - item.canceledQuantity}개
-                          {item.availableCancellationQuantity === 0 && item.canceledQuantity === item.quantity && (
+                          {item.canceledQuantity === item.quantity ? (
                             <span className="order-detail-product-cancelled-badge">취소완료</span>
+                          ) : (
+                            <>취소 {item.canceledQuantity}개 · 남은 {item.quantity - item.canceledQuantity}개</>
                           )}
                         </p>
                       )}

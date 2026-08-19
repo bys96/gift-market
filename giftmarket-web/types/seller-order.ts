@@ -52,9 +52,24 @@ export interface SellerOrderItem {
   additionalPrice: number;
   unitPrice: number;
   quantity: number;
+  canceledQuantity: number;
+  remainingQuantity: number;
   totalPrice: number;
   freeShipping: boolean;
   shippingFee: number;
+}
+
+export type SellerOrderCancellationStatus =
+  | "REQUESTED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "FAILED";
+
+export interface SellerOrderCancellationSummary {
+  cancellationId: number;
+  status: SellerOrderCancellationStatus;
+  requestedAt: string;
 }
 
 export interface SellerOrderDetail {
@@ -74,6 +89,7 @@ export interface SellerOrderDetail {
   preparedAt: string | null;
   shippedAt: string | null;
   deliveredAt: string | null;
+  cancellations: SellerOrderCancellationSummary[];
 }
 
 export interface SellerOrderShipRequest {

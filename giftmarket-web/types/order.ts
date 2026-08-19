@@ -94,7 +94,6 @@ export interface OrderSummary {
   totalProductAmount: number;
   totalShippingFee: number;
   totalAmount: number;
-
   items: OrderHistoryItem[];
 }
 
@@ -107,6 +106,8 @@ export interface OrderDetail {
   totalProductAmount: number;
   totalShippingFee: number;
   totalAmount: number;
+  refundedAmount: number;
+  remainingPaymentAmount: number;
 
   recipientName: string;
   recipientPhone: string;

@@ -19,9 +19,14 @@ class OrderCancellationRefundExecutionServiceTest {
     @Mock PartialPaymentCancellationTransactionService transactions;
     @Mock PaymentGatewayRegistry registry;
     @Mock PaymentGateway gateway;
+    @Mock PartialPaymentCancellationOrphanRecoveryService orphanRecoveryService;
     private OrderCancellationRefundExecutionService service;
 
-    @BeforeEach void setUp() { service = new OrderCancellationRefundExecutionService(transactions, registry); }
+    @BeforeEach void setUp() {
+        service = new OrderCancellationRefundExecutionService(
+                transactions, registry, orphanRecoveryService
+        );
+    }
 
     @Test
     void executesPartialCancellationWithSnapshotAmountAndIdempotencyKey() {
@@ -33,7 +38,9 @@ class OrderCancellationRefundExecutionServiceTest {
         given(gateway.cancel(any())).willReturn(result);
         service.execute(1L);
         verify(gateway).cancel(argThat(command -> command.isPartialCancellation()
-                && command.cancelAmount() == 3_000L && command.idempotencyKey().equals("same-key")));
+                && command.cancelAmount() == 3_000L
+                && command.reason().equals("저장된 PG 사유")
+                && command.idempotencyKey().equals("same-key")));
         verify(transactions).complete(start, result);
     }
 
@@ -69,12 +76,25 @@ class OrderCancellationRefundExecutionServiceTest {
         service.execute(1L);
         verify(transactions, never()).fail(any(), any(), any(), any());
         verify(transactions, never()).complete(any(), any());
+        verify(orphanRecoveryService, never()).failIfPaymentCancellationWasNotCreated(any());
+    }
+
+    @Test
+    void startFailureChecksForUnpreparedProcessingOrphan() {
+        RuntimeException failure = new RuntimeException("prepare failed");
+        given(transactions.start(1L)).willThrow(failure);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.execute(1L))
+                .isSameAs(failure);
+
+        verify(orphanRecoveryService).failIfPaymentCancellationWasNotCreated(1L);
+        verify(gateway, never()).cancel(any());
     }
 
     private PartialCancellationStart start() {
         return new PartialCancellationStart(PartialCancellationStart.Action.EXECUTE, 1L, 20L, 30L,
                 PaymentProvider.TOSS, "payment-key", "order-id", 10_000L, 3_000L,
-                "KRW", "고객 요청", "same-key");
+                "KRW", "저장된 PG 사유", "same-key");
     }
 
     private GatewayPaymentQueryResult query(boolean partialCancelable) {

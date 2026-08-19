@@ -19,6 +19,8 @@ public record OrderDetailResponse(
         Long totalProductAmount,
         Long totalShippingFee,
         Long totalAmount,
+        Long refundedAmount,
+        Long remainingPaymentAmount,
 
         String recipientName,
         String recipientPhone,
@@ -38,7 +40,9 @@ public record OrderDetailResponse(
             Order order,
             List<OrderItem> orderItems,
             List<SellerOrder> sellerOrders,
-            Map<Long, Long> pendingCancellationQuantities
+            Map<Long, Long> pendingCancellationQuantities,
+            long refundedAmount,
+            long remainingPaymentAmount
     ) {
         return new OrderDetailResponse(
                 order.getId(),
@@ -53,6 +57,8 @@ public record OrderDetailResponse(
                 order.getTotalProductAmount(),
                 order.getTotalShippingFee(),
                 order.getTotalAmount(),
+                refundedAmount,
+                remainingPaymentAmount,
                 order.getRecipientName(),
                 order.getRecipientPhone(),
                 order.getPostalCode(),
@@ -75,6 +81,22 @@ public record OrderDetailResponse(
                                 pendingCancellationQuantities
                         ))
                         .toList()
+        );
+    }
+
+    public static OrderDetailResponse from(
+            Order order,
+            List<OrderItem> orderItems,
+            List<SellerOrder> sellerOrders,
+            Map<Long, Long> pendingCancellationQuantities
+    ) {
+        return from(
+                order,
+                orderItems,
+                sellerOrders,
+                pendingCancellationQuantities,
+                0L,
+                order.getTotalAmount()
         );
     }
 }

@@ -23,11 +23,13 @@ public record SellerOrderDetailResponse(
         String trackingNumber,
         LocalDateTime preparedAt,
         LocalDateTime shippedAt,
-        LocalDateTime deliveredAt
+        LocalDateTime deliveredAt,
+        List<SellerOrderCancellationSummaryResponse> cancellations
 ) {
     public static SellerOrderDetailResponse from(
             SellerOrder sellerOrder,
-            List<OrderItem> items
+            List<OrderItem> items,
+            List<SellerOrderCancellationSummaryResponse> cancellations
     ) {
         return new SellerOrderDetailResponse(
                 sellerOrder.getId(),
@@ -45,7 +47,8 @@ public record SellerOrderDetailResponse(
                 sellerOrder.getTrackingNumber(),
                 sellerOrder.getPreparedAt(),
                 sellerOrder.getShippedAt(),
-                sellerOrder.getDeliveredAt()
+                sellerOrder.getDeliveredAt(),
+                cancellations
         );
     }
 }

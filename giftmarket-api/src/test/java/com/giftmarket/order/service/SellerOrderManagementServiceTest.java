@@ -4,6 +4,8 @@ import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.entity.Order;
+import com.giftmarket.order.entity.OrderCancellation;
+import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
@@ -30,6 +32,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -136,6 +139,14 @@ class SellerOrderManagementServiceTest {
         given(orderItemRepository.findAllBySellerOrderIdOrderByIdAsc(
                 SELLER_ORDER_ID
         )).willReturn(List.of(orderItem));
+        OrderCancellation cancellation = org.mockito.Mockito.mock(OrderCancellation.class);
+        given(cancellation.getId()).willReturn(60L);
+        given(cancellation.getStatus()).willReturn(OrderCancellationStatus.COMPLETED);
+        given(cancellation.getRequestedAt()).willReturn(LocalDateTime.now());
+        given(orderCancellationRepository
+                .findAllBySellerOrderIdAndRequiresSellerApprovalTrueOrderByRequestedAtDescIdDesc(
+                        SELLER_ORDER_ID
+                )).willReturn(List.of(cancellation));
 
         SellerOrderDetailResponse response = service.getSellerOrder(
                 USER_ID, SELLER_ORDER_ID
@@ -143,6 +154,13 @@ class SellerOrderManagementServiceTest {
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().getFirst().productName()).isEqualTo("테스트 상품");
+        assertThat(response.items().getFirst().quantity()).isEqualTo(2);
+        assertThat(response.items().getFirst().canceledQuantity()).isEqualTo(1);
+        assertThat(response.items().getFirst().remainingQuantity()).isEqualTo(1);
+        assertThat(response.cancellations()).singleElement().satisfies(summary -> {
+            assertThat(summary.cancellationId()).isEqualTo(60L);
+            assertThat(summary.status()).isEqualTo(OrderCancellationStatus.COMPLETED);
+        });
         verify(orderItemRepository).findAllBySellerOrderIdOrderByIdAsc(
                 SELLER_ORDER_ID
         );
@@ -275,8 +293,10 @@ class SellerOrderManagementServiceTest {
         lenient().when(item.getProductPrice()).thenReturn(10_000L);
         lenient().when(item.getAdditionalPrice()).thenReturn(0L);
         lenient().when(item.getUnitPrice()).thenReturn(10_000L);
-        lenient().when(item.getQuantity()).thenReturn(1);
-        lenient().when(item.getTotalPrice()).thenReturn(10_000L);
+        lenient().when(item.getQuantity()).thenReturn(2);
+        lenient().when(item.getCanceledQuantity()).thenReturn(1);
+        lenient().when(item.getRemainingQuantity()).thenReturn(1);
+        lenient().when(item.getTotalPrice()).thenReturn(20_000L);
         lenient().when(item.getShippingFee()).thenReturn(0L);
         return item;
     }

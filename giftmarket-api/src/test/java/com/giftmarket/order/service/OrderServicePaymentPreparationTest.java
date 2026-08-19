@@ -23,6 +23,8 @@ import com.giftmarket.payment.config.PaymentProperties;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
+import com.giftmarket.payment.service.PaymentRefundBalance;
+import com.giftmarket.payment.service.PaymentRefundBalanceService;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductOptionGroup;
 import com.giftmarket.product.entity.ProductStatus;
@@ -77,6 +79,9 @@ class OrderServicePaymentPreparationTest {
 
     @Mock
     private PaymentRepository paymentRepository;
+
+    @Mock
+    private PaymentRefundBalanceService paymentRefundBalanceService;
 
     @Mock
     private PaymentProperties paymentProperties;
@@ -484,6 +489,12 @@ class OrderServicePaymentPreparationTest {
         given(pending.getPendingQuantity()).willReturn(1L);
         given(orderCancellationRepository.sumItemQuantitiesByStatuses(any(), any()))
                 .willReturn(List.of(pending));
+        Payment payment = mock(Payment.class);
+        given(paymentRepository.findFirstByOrderIdAndOrderUserIdOrderByIdDesc(
+                orderId, USER_ID
+        )).willReturn(Optional.of(payment));
+        given(paymentRefundBalanceService.getBalance(payment))
+                .willReturn(new PaymentRefundBalance(30_000L, 10_000L, 5_000L, 15_000L));
 
         OrderDetailResponse response = orderService.getMyOrder(USER_ID, orderId);
 
@@ -496,6 +507,8 @@ class OrderServicePaymentPreparationTest {
                 .containsExactly(2002L);
         assertThat(response.sellerOrders().get(0).items().getFirst().availableCancellationQuantity())
                 .isEqualTo(0);
+        assertThat(response.refundedAmount()).isEqualTo(10_000L);
+        assertThat(response.remainingPaymentAmount()).isEqualTo(20_000L);
     }
 
     private void prepareOrderSummary(

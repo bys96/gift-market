@@ -31,10 +31,23 @@ export default function OrderDetailSummary({ order }: OrderDetailSummaryProps) {
         </div>
 
         <div className="order-detail-payment-row order-detail-payment-total">
-          <dt>총 주문 금액</dt>
+          <dt>원 결제금액</dt>
 
           <dd>{formatPrice(order.totalAmount)}</dd>
         </div>
+
+        {order.refundedAmount > 0 && (
+          <>
+            <div className="order-detail-payment-row order-detail-payment-refund">
+              <dt>환불 완료금액</dt>
+              <dd>-{formatPrice(order.refundedAmount)}</dd>
+            </div>
+            <div className="order-detail-payment-row order-detail-payment-balance">
+              <dt>현재 결제잔액</dt>
+              <dd>{formatPrice(order.remainingPaymentAmount)}</dd>
+            </div>
+          </>
+        )}
       </dl>
     </section>
   );

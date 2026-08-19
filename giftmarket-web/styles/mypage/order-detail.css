@@ -268,6 +268,22 @@
   color: var(--color-text-primary);
 }
 
+.order-detail-payment-refund {
+  margin-top: 12px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.order-detail-payment-refund dd {
+  color: #b04a4a;
+  font-weight: 700;
+}
+
+.order-detail-payment-balance dt,
+.order-detail-payment-balance dd {
+  font-weight: 700;
+}
+
 .order-detail-payment-method {
   margin-top: 20px;
   padding-top: 20px;
@@ -502,6 +518,27 @@
   gap: 9px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.order-cancellation-select-product {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-cancellation-select-product strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-cancellation-select-product small {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .order-cancellation-available {

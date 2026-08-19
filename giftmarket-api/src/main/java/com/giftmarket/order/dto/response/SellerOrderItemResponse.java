@@ -14,6 +14,8 @@ public record SellerOrderItemResponse(
         long additionalPrice,
         long unitPrice,
         int quantity,
+        int canceledQuantity,
+        int remainingQuantity,
         long totalPrice,
         boolean freeShipping,
         long shippingFee
@@ -31,6 +33,8 @@ public record SellerOrderItemResponse(
                 item.getAdditionalPrice(),
                 item.getUnitPrice(),
                 item.getQuantity(),
+                item.getCanceledQuantity(),
+                item.getRemainingQuantity(),
                 item.getTotalPrice(),
                 item.isFreeShipping(),
                 item.getShippingFee()

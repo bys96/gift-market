@@ -88,7 +88,7 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
       <div className="order-cancellation-select-list">{cancellableItems.map((item) => {
         const quantity = selected[item.id];
         return <div key={item.id} className="order-cancellation-select-item">
-          <label><input type="checkbox" checked={Boolean(quantity)} onChange={() => toggle(item.id)} /><span>{item.productName}</span></label>
+          <label><input type="checkbox" checked={Boolean(quantity)} onChange={() => toggle(item.id)} /><span className="order-cancellation-select-product"><strong>{item.productName}</strong>{item.optionSnapshot && <small>{item.optionSnapshot}</small>}</span></label>
           <span className="order-cancellation-available">취소 가능 {item.availableCancellationQuantity}개</span>
           {quantity && <div className="order-cancellation-stepper" aria-label={`${item.productName} 취소 수량`}>
             <button type="button" onClick={() => changeQuantity(item.id, quantity - 1, item.availableCancellationQuantity)} disabled={quantity <= 1}>−</button>

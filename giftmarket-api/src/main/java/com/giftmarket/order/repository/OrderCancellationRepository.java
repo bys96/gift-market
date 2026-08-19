@@ -20,6 +20,10 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
 
     List<OrderCancellation> findAllByOrderIdOrderByRequestedAtDescIdDesc(Long orderId);
 
+    List<OrderCancellation> findAllBySellerOrderIdAndRequiresSellerApprovalTrueOrderByRequestedAtDescIdDesc(
+            Long sellerOrderId
+    );
+
     @Query(
             value = """
                     select c

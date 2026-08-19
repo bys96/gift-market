@@ -12,6 +12,25 @@ import static org.mockito.Mockito.when;
 class OrderCancellationTest {
 
     @Test
+    void preservesFiveHundredCharacterBusinessReason() {
+        Order order = mock(Order.class);
+        SellerOrder sellerOrder = mock(SellerOrder.class);
+        when(sellerOrder.getOrder()).thenReturn(order);
+        String reason = "가".repeat(500);
+
+        OrderCancellation cancellation = OrderCancellation.createRequested(
+                order,
+                sellerOrder,
+                "request-key",
+                reason,
+                true,
+                LocalDateTime.now()
+        );
+
+        assertThat(cancellation.getReason()).isEqualTo(reason);
+    }
+
+    @Test
     void requestedCancellationCanProceedAndComplete() {
         Order order = mock(Order.class);
         SellerOrder sellerOrder = mock(SellerOrder.class);

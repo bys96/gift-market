@@ -1,0 +1,53 @@
+.seller-cancellations-toolbar { justify-content: flex-start; }
+.seller-cancellations-table { min-width: 980px; }
+.seller-cancellation-id { display: block; margin-top: 4px; color: var(--color-text-tertiary); font-size: 10px; font-weight: 500; }
+.seller-cancellation-reason { display: -webkit-box; max-width: 230px; overflow: hidden; color: var(--color-text-secondary); line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.seller-cancellation-status { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.seller-cancellation-status-requested { background: #fff3d8; color: #8b5a00; }
+.seller-cancellation-status-processing { background: #eaf2ff; color: #315fa7; }
+.seller-cancellation-status-completed { background: #e8f7ef; color: #1f7546; }
+.seller-cancellation-status-rejected { background: #f1f2f4; color: #676d76; }
+.seller-cancellation-status-failed { background: #fff0f0; color: #a63d3d; }
+.seller-cancellation-summary .seller-cancellation-status { width: fit-content; font-size: 11px; }
+.seller-cancellation-state-message { margin: 0 0 18px; padding: 14px 18px; border-radius: 10px; font-size: 13px; line-height: 1.6; }
+.seller-cancellation-state-message.processing { background: #eef4ff; color: #315fa7; }
+.seller-cancellation-state-message.failed { background: #fff3f3; color: #a63d3d; }
+.seller-cancellation-info-list > div { grid-template-columns: 130px 1fr; }
+.seller-cancellation-items { display: flex; flex-direction: column; }
+.seller-cancellation-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 18px 0; border-top: 1px solid var(--color-border); }
+.seller-cancellation-item:first-child { padding-top: 0; border-top: 0; }
+.seller-cancellation-item:last-child { padding-bottom: 0; }
+.seller-cancellation-item > div { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.seller-cancellation-item > div strong { color: var(--color-text-primary); font-size: 14px; }
+.seller-cancellation-item > div span { color: var(--color-text-tertiary); font-size: 12px; }
+.seller-cancellation-item dl { display: flex; gap: 28px; margin: 0; }
+.seller-cancellation-item dl div { min-width: 74px; }
+.seller-cancellation-item dt { margin-bottom: 5px; color: var(--color-text-tertiary); font-size: 11px; }
+.seller-cancellation-item dd { margin: 0; color: var(--color-text-primary); font-size: 13px; }
+.seller-cancellation-shipping-notice { margin: 0 0 16px; padding: 12px 14px; border-radius: 9px; background: #fff7e7; color: #8b5a00; font-size: 12px; }
+.seller-cancellation-action-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+.seller-cancellation-action-section button.danger-secondary { border-color: #d9a6a6; background: #fff; color: #9d3838; }
+.seller-cancellation-action-section button.danger { border-color: #a63d3d; background: #a63d3d; }
+.seller-cancellation-confirm-box, .seller-cancellation-reject-form { padding: 18px; border: 1px solid var(--color-border); border-radius: 12px; background: #fafafa; }
+.seller-cancellation-confirm-box > strong { color: var(--color-text-primary); font-size: 14px; }
+.seller-cancellation-confirm-box > p { margin: 7px 0 16px; color: var(--color-text-secondary); font-size: 12px; }
+.seller-cancellation-confirm-box > div, .seller-cancellation-reject-form > div { display: flex; gap: 8px; justify-content: flex-end; }
+.seller-cancellation-reject-form label { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--color-text-primary); font-size: 12px; font-weight: 800; }
+.seller-cancellation-reject-form label span { color: var(--color-text-tertiary); font-weight: 500; }
+.seller-cancellation-reject-form textarea { width: 100%; min-height: 120px; resize: vertical; margin-bottom: 12px; padding: 12px 13px; border: 1px solid var(--color-border); border-radius: 9px; background: #fff; color: var(--color-text-primary); font: inherit; font-size: 13px; line-height: 1.6; outline: none; }
+.seller-cancellation-reject-form textarea:focus { border-color: var(--color-text-primary); box-shadow: 0 0 0 3px rgb(0 0 0 / 5%); }
+@media (max-width: 768px) {
+  .seller-cancellations-table { min-width: 0; }
+  .seller-cancellation-reason { max-width: none; }
+  .seller-cancellation-item { grid-template-columns: 1fr; gap: 14px; }
+  .seller-cancellation-item dl { justify-content: space-between; }
+  .seller-cancellation-info-list > div { grid-template-columns: 100px 1fr; }
+}
+
+@media (max-width: 520px) {
+  .seller-cancellation-item dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .seller-cancellation-item dl div { min-width: 0; }
+  .seller-cancellation-action-buttons, .seller-cancellation-confirm-box > div, .seller-cancellation-reject-form > div { display: grid; grid-template-columns: 1fr 1fr; }
+  .seller-cancellation-action-section button { width: 100%; }
+  .seller-cancellation-info-list > div { grid-template-columns: 82px 1fr; }
+}
