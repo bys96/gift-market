@@ -26,7 +26,8 @@ Order
 │  └─ PaymentWebhookEvent N(논리적 연계)
 │
 └─ SellerOrder N
-   └─ OrderItem N
+   ├─ OrderItem N
+   └─ Shipment N
 ```
 
 현재 일반 주문 흐름에서는 최신 Payment 한 건을 중심으로 처리하지만 Entity 관계는 결제 재시도/확장을 고려한다.
@@ -59,7 +60,7 @@ CANCELED
 
 Order는 전체 주문/결제 상태를 표현한다.
 
-SellerOrder는 판매자 배송 처리 상태를 표현한다.
+SellerOrder는 판매자 주문 처리 상태를 표현하고 Shipment는 실제 배송 실행/송장 이력을 표현한다. 최초 배송 정보의 source of truth는 `ORIGINAL_OUTBOUND Shipment`다.
 
 부분취소 후 일부 상품이 남아 있으면:
 

@@ -18,7 +18,7 @@ Order 전체를 판매자별 Payment로 쪼개지 않고, 하나의 Payment 안�
 - 중복 환불/중복 재고복원 방지
 - 멀티셀러 SellerOrder 간 상태 독립성 유지
 - SHIPPED 이후는 반품/교환과 분리
-- Shipment는 이번 도메인에 도입하지 않음
+- Cancellation 자체에는 Shipment를 결합하지 않음. 다만 현재 저장소에는 후속 반품/교환 준비 작업으로 Shipment 도메인이 별도 도입되어 있음
 
 ## 2. 현재 주문/결제 구조
 
@@ -30,6 +30,7 @@ Order
 ├─ SellerOrder A
 │  ├─ OrderItem
 │  ├─ OrderItem
+│  ├─ Shipment N
 │  └─ OrderCancellation N
 │      └─ OrderCancellationItem N
 │
@@ -502,23 +503,15 @@ ExchangeRequest
 
 ## 26. Shipment 경계
 
-현재:
+부분취소 도메인은 배송 전 PAID/PREPARING 범위이므로 Shipment를 직접 생성하거나 변경하지 않는다.
+
+현재 저장소에는 후속 반품/교환 준비 작업으로 다음 구조가 별도 구현되어 있다.
 
 ```text
-SellerOrder 1건 = 배송 1건 = 송장 1개
+SellerOrder 1 : N Shipment
 ```
 
-부분취소를 이유로 Shipment를 추가하지 않는다.
-
-실제 분리배송 요구가 생길 때:
-
-```text
-SellerOrder
-→ Shipment N
-→ ShipmentItem N
-```
-
-으로 별도 확장한다.
+최초 배송은 `ORIGINAL_OUTBOUND Shipment`가 source of truth다. SellerOrder legacy 배송 컬럼은 migration/rollback snapshot으로만 유지한다. 향후 Return/Exchange는 기존 OrderCancellation을 확장하지 않고 `RETURN_COLLECTION / EXCHANGE_COLLECTION / EXCHANGE_OUTBOUND` Shipment를 별도 업무 요청에서 참조한다.
 
 ## 27. 데이터 / migration
 
@@ -587,7 +580,7 @@ Cancellation 자체의 핵심 기능은 구현 완료 상태다.
 
 1. 운영 staging 최종 검증
 2. FAILED/장기 PROCESSING 관리자 관측/수동 대응
-3. SHIPPED/DELIVERED 반품·교환 설계
+3. OrderItem 반품/교환 배송비 snapshot 및 SHIPPED/DELIVERED 반품·교환 구현
 4. 관리자 주문/결제 운영 기능
 
 기존 부분취소 코드를 “미구현” 전제로 다시 만들지 않는다.

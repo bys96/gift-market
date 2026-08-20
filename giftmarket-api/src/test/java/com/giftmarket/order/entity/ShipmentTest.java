@@ -41,4 +41,34 @@ class ShipmentTest {
                 LocalDateTime.now()
         )).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void readyShipmentCanBeShippedOrCanceledButShippedShipmentCannotBeCanceled() {
+        Shipment shipped = Shipment.createReady(
+                mock(SellerOrder.class),
+                ShipmentType.RETURN_COLLECTION,
+                "택배사",
+                "RETURN-1234"
+        );
+        LocalDateTime shippedAt = LocalDateTime.now();
+
+        shipped.ship(shippedAt);
+
+        assertThat(shipped.getStatus()).isEqualTo(ShipmentStatus.SHIPPED);
+        assertThat(shipped.getShippedAt()).isEqualTo(shippedAt);
+        assertThatThrownBy(shipped::cancel)
+                .isInstanceOf(IllegalStateException.class);
+
+        Shipment canceled = Shipment.createReady(
+                mock(SellerOrder.class),
+                ShipmentType.EXCHANGE_OUTBOUND,
+                "택배사",
+                "EXCHANGE-1234"
+        );
+        canceled.cancel();
+
+        assertThat(canceled.getStatus()).isEqualTo(ShipmentStatus.CANCELED);
+        assertThatThrownBy(() -> canceled.ship(LocalDateTime.now()))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

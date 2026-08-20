@@ -22,7 +22,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -137,34 +136,33 @@ public class SellerOrder extends BaseEntity {
         this.preparedAt = preparedAt;
     }
 
-    public void ship(
-            String shippingCompany,
-            String trackingNumber,
-            LocalDateTime shippedAt
-    ) {
+    public void markShipped(LocalDateTime shippedAt) {
         if (status == SellerOrderStatus.SHIPPED) {
-            if (Objects.equals(this.shippingCompany, shippingCompany)
-                    && Objects.equals(this.trackingNumber, trackingNumber)) {
-                return;
-            }
-            throw new IllegalStateException("이미 다른 배송정보로 출고 처리되었습니다.");
+            return;
         }
         validateTransition(SellerOrderStatus.PREPARING, SellerOrderStatus.SHIPPED);
         status = SellerOrderStatus.SHIPPED;
-        this.shippingCompany = shippingCompany;
-        this.trackingNumber = trackingNumber;
         this.shippedAt = shippedAt;
     }
 
-    public void deliver(LocalDateTime deliveredAt) {
+    public void markDelivered(LocalDateTime deliveredAt) {
         if (status == SellerOrderStatus.DELIVERED) {
             return;
         }
         validateTransition(SellerOrderStatus.SHIPPED, SellerOrderStatus.DELIVERED);
-        if (shippingCompany == null || trackingNumber == null) {
-            throw new IllegalStateException("배송정보가 없는 주문은 배송완료 처리할 수 없습니다.");
-        }
         status = SellerOrderStatus.DELIVERED;
+        this.deliveredAt = deliveredAt;
+    }
+
+    public void synchronizeLegacyShippingSnapshot(
+            String shippingCompany,
+            String trackingNumber,
+            LocalDateTime shippedAt,
+            LocalDateTime deliveredAt
+    ) {
+        this.shippingCompany = shippingCompany;
+        this.trackingNumber = trackingNumber;
+        this.shippedAt = shippedAt;
         this.deliveredAt = deliveredAt;
     }
 

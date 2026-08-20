@@ -6,13 +6,13 @@
 
 ## 0. 현재 요약
 
-Gift Market은 회원/판매자/상품/장바구니/주문/결제/판매자 주문처리/구매자 배송조회에 이어 **주문 부분취소·부분환불과 판매자 승인형 취소 UI까지 구현된 상태**다.
+Gift Market은 회원/판매자/상품/장바구니/주문/결제/주문 부분취소·부분환불에 이어 **SellerOrder 1:N Shipment 기반 최초 배송 구조와 개발 DB 기존 데이터 migration까지 완료된 상태**다.
 
 현재 가장 큰 미완료 범위는 다음이다.
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- SHIPPED/DELIVERED 이후 반품/교환 도메인
+- OrderItem 반품/교환 배송비 snapshot과 SHIPPED/DELIVERED 이후 반품/교환 도메인
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 
@@ -96,7 +96,8 @@ Order
 ├─ Payment
 ├─ SellerOrder A
 │  ├─ OrderItem
-│  └─ OrderItem
+│  ├─ OrderItem
+│  └─ Shipment N
 └─ SellerOrder B
    └─ OrderItem
 ```
@@ -105,6 +106,7 @@ Order
 - `SellerOrder`: 한 Order 안에서 판매자별 처리 단위
 - `OrderItem`: 주문 당시 상품/옵션/가격/배송비 snapshot
 - `Payment`: Order 전체 결제
+- `Shipment`: SellerOrder에 속하는 실제 물류 이동과 송장 이력
 
 `OrderItem.sellerOrder`는 필수 관계다. Payment는 멀티셀러라도 Order 단위 하나를 유지한다.
 
@@ -137,9 +139,18 @@ PAID → PREPARING → SHIPPED → DELIVERED
 
 - 중간 점프/역방향 전이 차단
 - 판매자 ownership 검증
-- 배송사/운송장 저장
-- 현재 `SellerOrder 1건 = 송장 1개`
-- Shipment 테이블은 아직 도입하지 않음
+- `SellerOrder 1:N Shipment`
+- 최초 배송은 `Shipment(type=ORIGINAL_OUTBOUND)`가 source of truth
+- `ShipmentType`: ORIGINAL_OUTBOUND / RETURN_COLLECTION / EXCHANGE_COLLECTION / EXCHANGE_OUTBOUND
+- `ShipmentStatus`: READY / SHIPPED / DELIVERED / CANCELED
+- Shipment 상태 전이: `READY → SHIPPED → DELIVERED`, `READY → CANCELED`
+- 이미 SHIPPED인 Shipment는 취소하지 않고 출고 이후 역물류는 별도 Shipment로 처리
+- Order → SellerOrder 비관적 잠금 후 ORIGINAL_OUTBOUND 존재 여부를 검사해 최초 송장 중복 생성 방지
+- 모든 shipment type에 대한 `(seller_order_id, shipment_type)` UNIQUE는 사용하지 않음
+
+SellerOrder의 `shippingCompany / trackingNumber / shippedAt / deliveredAt` 컬럼은 물리적으로 유지하지만 migration/rollback 호환 snapshot이다. 신규 흐름은 Shipment에서 SellerOrder legacy snapshot 방향으로만 동기화한다.
+
+기존 API의 `shippingCompany / trackingNumber / shippedAt / deliveredAt` 응답 shape은 유지한다. 조회는 ORIGINAL_OUTBOUND Shipment를 우선하고, migration 안정화 기간에는 Shipment가 없는 기존 행만 SellerOrder 값으로 fallback한다. 기존 SHIPPED 행의 배송완료 시 Shipment를 생성하는 호환 경로도 유지한다.
 
 구매자 주문 조회는 `Order.status`와 별도로 SellerOrder 상태를 집계한 파생 `deliveryStatus`를 제공한다.
 
@@ -516,9 +527,9 @@ POST /api/payments/webhooks/toss
 - PREPARING 취소요청 → 판매자 승인 → PARTIAL PaymentCancellation SUCCEEDED 흐름 검증
 - 구매자/판매자 cancellation UI 구현
 
-현재 소스에는 주문/결제/cancellation 관련 단위 테스트가 다수 존재한다.
+현재 소스에는 주문/결제/cancellation/Shipment 관련 테스트가 존재한다. Shipment 전환 완료 후 Backend 전체 테스트를 실행해 **211 tests 성공**을 확인했다.
 
-이번 문서 최신화 환경에서는 Gradle wrapper distribution이 로컬에 없고 외부 네트워크가 차단되어 `gradlew test`를 새로 실행하지 못했다. 이는 코드 테스트 실패가 아니라 Gradle 배포본 다운로드 실패다.
+개발 DB에서는 `docs/sql/shipment-original-outbound-backfill.sql`을 실행해 SellerOrder 32를 DELIVERED ORIGINAL_OUTBOUND, SellerOrder 34를 SHIPPED ORIGINAL_OUTBOUND로 변환했다. `shipment-original-outbound-verification.sql`의 누락/중복/배송정보 불일치/상태·timestamp 불일치 네 검증은 모두 0 rows였다.
 
 ## 12. 운영 전 필수 Toss 검증 TODO
 
@@ -547,17 +558,29 @@ POST /api/payments/webhooks/toss
 - [ ] canceledQuantity 정확성 확인
 - [ ] Product/Variant 재고가 정확히 1회만 복원되는지 확인
 - [ ] Cart 정합성 확인
+- [ ] ORIGINAL_OUTBOUND Shipment 기반 실제 출고/배송완료 확인
+- [ ] legacy fallback 제거 전 staging 회귀 확인
+- [ ] dual-write 제거 전 migration/rollback 안정성 확인
+- [ ] 반품 구현 후 반품 환불/timeout/reconciliation 통합 검증
+- [ ] 교환 구현 후 회수/재배송/추가 배송비 통합 검증
 - [ ] 운영 키 전환 전 Payment/Cancellation 전체 회귀
 
 현재 docs 예제용 `test_gck_docs_...` / `test_gsk_docs_...` 계열을 사용하는 개발 테스트와, 상점용 테스트 키로 수행해야 하는 staging 최종 검증을 구분한다. 실제 Secret 값은 문서에 기록하지 않는다.
 
 ## 13. 다음 개발 우선순위 제안
 
-### 1순위: 반품/교환 설계
+### 1순위: OrderItem 반품/교환 배송비 snapshot
 
 현재 취소 정책은 SHIPPED/DELIVERED 이후를 의도적으로 차단한다.
 
-다음 별도 도메인 후보:
+Shipment 도입과 개발 DB backfill/검증은 완료됐다. 다음은 Product의 반품/교환 배송비를 주문 당시 OrderItem에 snapshot하는 단계다.
+
+```text
+OrderItem.returnShippingFee
+OrderItem.exchangeShippingFee
+```
+
+그 후 다음 별도 도메인을 구현한다.
 
 ```text
 ReturnRequest
@@ -565,6 +588,8 @@ ExchangeRequest
 ```
 
 이번에 구현한 OrderCancellation을 SHIPPED 이후까지 억지로 확장하지 않는다.
+
+ReturnRequest / ReturnRequestItem과 구매자 요청, 판매자 처리, 회수 Shipment, 검수, 재고, PaymentCancellation 기반 환불/reconciliation, Frontend 순으로 진행한다. Exchange는 Return 기본 흐름 안정화 후 진행한다.
 
 ### 2순위: 관리자 주문/결제 운영
 
@@ -582,7 +607,7 @@ ExchangeRequest
 
 ## 14. 기타 주의사항
 
-- Shipment는 실제 분리배송 요구가 생길 때 도입
+- Shipment는 이미 도입됐으며 최초 배송 source of truth로 사용
 - 새 UI에 Tailwind utility class 사용 금지
 - Frontend 금액을 최종 신뢰하지 않음
 - PG timeout/5xx를 실패로 단정하지 않음
@@ -598,8 +623,10 @@ AGENTS.md와 docs/DEVELOPMENT_STATUS.md를 읽되 실제 최신 코드를 최종
 
 SellerOrder 판매자 주문관리와 구매자 판매자별 배송조회가 구현되어 있다.
 
+SellerOrder 1:N Shipment가 구현되어 있고 최초 배송은 ORIGINAL_OUTBOUND Shipment가 source of truth다. SellerOrder 배송 컬럼은 migration/rollback snapshot이며 개발 DB backfill과 네 가지 검증 SQL 확인까지 완료됐다.
+
 OrderCancellation + OrderCancellationItem 기반 상품/수량 부분취소, PAID 즉시취소, PREPARING 판매자 승인/거절, Toss 부분환불, Payment PARTIALLY_CANCELED, 부분 재고복원, 부분환불 reconciliation/webhook/orphan recovery, 구매자/판매자 cancellation UI까지 구현되어 있다.
 
-SHIPPED/DELIVERED 이후 반품/교환은 아직 구현하지 않았다.
+SHIPPED/DELIVERED 이후 반품/교환은 아직 구현하지 않았다. 다음 작업은 OrderItem의 returnShippingFee/exchangeShippingFee 주문 snapshot 추가이며, 이후 Return 도메인으로 진행한다.
 운영 전 공개 staging + 상점용 Toss 테스트 키로 결제/전체취소/부분취소/webhook 전체 회귀가 필수다.
 ```

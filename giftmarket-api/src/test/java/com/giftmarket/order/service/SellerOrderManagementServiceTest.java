@@ -309,6 +309,35 @@ class SellerOrderManagementServiceTest {
         verify(shipmentRepository, never()).save(any());
     }
 
+    @Test
+    void legacyShippedOrderCreatesShipmentBeforeDelivery() {
+        LocalDateTime shippedAt = LocalDateTime.now().minusDays(1);
+        sellerOrder.prepare(shippedAt.minusHours(1));
+        sellerOrder.markShipped(shippedAt);
+        sellerOrder.synchronizeLegacyShippingSnapshot(
+                "CJ대한통운", "LEGACY-1234", shippedAt, null
+        );
+        givenLockedSellerOrder();
+        given(shipmentRepository.findBySellerOrderIdAndType(
+                SELLER_ORDER_ID, ShipmentType.ORIGINAL_OUTBOUND
+        )).willReturn(Optional.empty());
+
+        SellerOrderDetailResponse response = service.deliver(
+                USER_ID, SELLER_ORDER_ID
+        );
+
+        ArgumentCaptor<Shipment> shipmentCaptor = ArgumentCaptor.forClass(Shipment.class);
+        verify(shipmentRepository).save(shipmentCaptor.capture());
+        Shipment shipment = shipmentCaptor.getValue();
+        assertThat(shipment.getStatus())
+                .isEqualTo(com.giftmarket.order.entity.ShipmentStatus.DELIVERED);
+        assertThat(shipment.getShippingCompany()).isEqualTo("CJ대한통운");
+        assertThat(shipment.getTrackingNumber()).isEqualTo("LEGACY-1234");
+        assertThat(response.status()).isEqualTo(SellerOrderStatus.DELIVERED);
+        assertThat(response.shippingCompany()).isEqualTo("CJ대한통운");
+        assertThat(response.deliveredAt()).isEqualTo(shipment.getDeliveredAt());
+    }
+
     private void givenLockedSellerOrder() {
         given(sellerOrderRepository.findOrderIdByIdAndSellerId(
                 SELLER_ORDER_ID, SELLER_ID

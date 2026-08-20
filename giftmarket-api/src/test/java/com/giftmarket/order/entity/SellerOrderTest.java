@@ -43,8 +43,14 @@ class SellerOrderTest {
         LocalDateTime deliveredAt = shippedAt.plusDays(1);
 
         sellerOrder.prepare(preparedAt);
-        sellerOrder.ship("테스트택배", "1234567890", shippedAt);
-        sellerOrder.deliver(deliveredAt);
+        sellerOrder.markShipped(shippedAt);
+        sellerOrder.synchronizeLegacyShippingSnapshot(
+                "테스트택배", "1234567890", shippedAt, null
+        );
+        sellerOrder.markDelivered(deliveredAt);
+        sellerOrder.synchronizeLegacyShippingSnapshot(
+                "테스트택배", "1234567890", shippedAt, deliveredAt
+        );
 
         assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.DELIVERED);
         assertThat(sellerOrder.getPreparedAt()).isEqualTo(preparedAt);
@@ -57,19 +63,19 @@ class SellerOrderTest {
     @Test
     void rejectsSkippedOrReversedTransitions() {
         SellerOrder paid = paidSellerOrder();
-        assertThatThrownBy(() -> paid.ship("택배", "1", LocalDateTime.now()))
+        assertThatThrownBy(() -> paid.markShipped(LocalDateTime.now()))
                 .isInstanceOf(IllegalStateException.class);
 
         SellerOrder preparing = paidSellerOrder();
         preparing.prepare(LocalDateTime.now());
-        assertThatThrownBy(() -> preparing.deliver(LocalDateTime.now()))
+        assertThatThrownBy(() -> preparing.markDelivered(LocalDateTime.now()))
                 .isInstanceOf(IllegalStateException.class);
 
         SellerOrder delivered = paidSellerOrder();
         delivered.prepare(LocalDateTime.now());
-        delivered.ship("택배", "1", LocalDateTime.now());
-        delivered.deliver(LocalDateTime.now());
-        assertThatThrownBy(() -> delivered.ship("택배", "1", LocalDateTime.now()))
+        delivered.markShipped(LocalDateTime.now());
+        delivered.markDelivered(LocalDateTime.now());
+        assertThatThrownBy(() -> delivered.markShipped(LocalDateTime.now()))
                 .isInstanceOf(IllegalStateException.class);
     }
 

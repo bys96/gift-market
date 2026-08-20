@@ -171,18 +171,17 @@ public class SellerOrderManagementService {
                             sellerOrder.getId(), ShipmentType.ORIGINAL_OUTBOUND)) {
                         throw new SellerException("이미 최초 배송 송장이 등록되었습니다.");
                     }
-                    sellerOrder.ship(
-                            shippingCompany,
-                            trackingNumber,
-                            LocalDateTime.now()
-                    );
-                    shipmentRepository.save(Shipment.createShipped(
+                    LocalDateTime shippedAt = LocalDateTime.now();
+                    Shipment shipment = Shipment.createShipped(
                             sellerOrder,
                             ShipmentType.ORIGINAL_OUTBOUND,
                             shippingCompany,
                             trackingNumber,
-                            sellerOrder.getShippedAt()
-                    ));
+                            shippedAt
+                    );
+                    shipmentRepository.save(shipment);
+                    sellerOrder.markShipped(shipment.getShippedAt());
+                    synchronizeLegacyShippingSnapshot(sellerOrder, shipment);
                 }
         );
     }
@@ -204,7 +203,8 @@ public class SellerOrderManagementService {
                             .orElseGet(() -> createLegacyOriginalShipment(sellerOrder));
                     LocalDateTime deliveredAt = LocalDateTime.now();
                     shipment.deliver(deliveredAt);
-                    sellerOrder.deliver(deliveredAt);
+                    sellerOrder.markDelivered(shipment.getDeliveredAt());
+                    synchronizeLegacyShippingSnapshot(sellerOrder, shipment);
                 }
         );
     }
@@ -215,13 +215,27 @@ public class SellerOrderManagementService {
                 || sellerOrder.getShippedAt() == null) {
             throw new SellerException("최초 배송 송장 정보를 찾을 수 없습니다.");
         }
-        return shipmentRepository.save(Shipment.createShipped(
+        Shipment shipment = Shipment.createShipped(
                 sellerOrder,
                 ShipmentType.ORIGINAL_OUTBOUND,
                 sellerOrder.getShippingCompany(),
                 sellerOrder.getTrackingNumber(),
                 sellerOrder.getShippedAt()
-        ));
+        );
+        shipmentRepository.save(shipment);
+        return shipment;
+    }
+
+    private void synchronizeLegacyShippingSnapshot(
+            SellerOrder sellerOrder,
+            Shipment shipment
+    ) {
+        sellerOrder.synchronizeLegacyShippingSnapshot(
+                shipment.getShippingCompany(),
+                shipment.getTrackingNumber(),
+                shipment.getShippedAt(),
+                shipment.getDeliveredAt()
+        );
     }
 
     private SellerOrderDetailResponse transition(

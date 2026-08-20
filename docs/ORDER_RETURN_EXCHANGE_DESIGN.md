@@ -28,7 +28,7 @@ SHIPPED 이후 기존 주문취소와 분리하여, DELIVERED 된 SellerOrder에
 - 반품/교환 요청은 자신이 사용하는 회수/재배송 Shipment를 명시적으로 참조한다.
 - 최초 배송 정보도 최종적으로 `Shipment`를 단일 진실 공급원(source of truth)으로 사용한다.
 
-## 2. 현재 코드 기준 구조
+## 2. 현재 코드와 향후 확장 구조
 
 ```text
 Order
@@ -44,14 +44,17 @@ Order
 │  │   └─ EXCHANGE_OUTBOUND
 │  ├─ OrderCancellation N
 │  │   └─ OrderCancellationItem N
-│  ├─ ReturnRequest N
-│  └─ ExchangeRequest N
+│  ├─ ReturnRequest N (미구현 예정)
+│  └─ ExchangeRequest N (미구현 예정)
 │
 └─ SellerOrder B
    └─ ...
 ```
 
 현재 코드에서 확인된 핵심 사항:
+
+- 현재 구현 완료: Order / Payment / SellerOrder / OrderItem / OrderCancellation / Shipment
+- 현재 미구현: ReturnRequest / ReturnRequestItem / ExchangeRequest / ExchangeRequestItem 및 관련 Service/UI
 
 - `SellerOrderStatus`
   - `PENDING_PAYMENT`
@@ -62,10 +65,12 @@ Order
   - `CANCELLED`
 - `SellerOrder`
   - 현재 코드에는 `shippingCompany`, `trackingNumber`, `shippedAt`, `deliveredAt`가 직접 존재한다.
-  - Shipment 도입 단계에서 송장/배송 실행 정보는 `Shipment`로 이전한다.
+  - 송장/배송 실행 정보는 `Shipment`로 이전 완료했다.
   - `preparedAt`은 SellerOrder의 주문처리 lifecycle timestamp이므로 유지한다.
   - `SellerOrder.status`는 기존 `PAID → PREPARING → SHIPPED → DELIVERED` 상태 전이를 그대로 유지한다.
-  - `shippedAt`, `deliveredAt`은 기존 API 호환 기간 동안 읽기 모델에서 Shipment 기준으로 제공하고, Entity 중복 필드의 최종 제거 여부는 Shipment migration 단계에서 확정한다.
+  - `shippingCompany`, `trackingNumber`, `shippedAt`, `deliveredAt`은 비파괴 migration과 rollback을 위한 legacy snapshot으로 당분간 유지하고 신규 로직의 검증 기준으로 사용하지 않는다.
+  - 신규 출고/배송완료의 source of truth는 `ORIGINAL_OUTBOUND Shipment`이며 기존 API 응답도 Shipment를 우선 사용한다.
+  - backfill 전 기존 행에 한해서만 legacy 읽기 fallback과 배송완료 시 lazy migration을 허용한다.
 - `OrderItem`
   - 주문 당시 상품/옵션/가격 snapshot
   - `freeShipping`
@@ -162,6 +167,10 @@ ShipmentStatus
 - CANCELED
 ```
 
+상태 전이는 `READY → SHIPPED → DELIVERED`와 `READY → CANCELED`로 제한한다.
+`CANCELED`는 향후 준비된 회수/교환 송장을 실제 택배 인계 전에 취소하는 경우를 위한 상태다.
+이미 `SHIPPED`인 Shipment는 취소하지 않으며 출고 이후 역물류는 Return/Exchange 업무와 별도 Shipment로 처리한다.
+
 1차에서는 택배사 API 실시간 추적 상태까지 모델링하지 않는다.
 `IN_TRANSIT`, `OUT_FOR_DELIVERY` 같은 세부 상태는 실제 택배사 연동 시 확장한다.
 
@@ -192,7 +201,7 @@ Shipment는 항상 하나의 SellerOrder에 속한다.
 
 ```text
 최초 출고 등록
-→ Shipment(type=ORIGINAL_OUTBOUND) 생성/갱신
+→ Shipment(type=ORIGINAL_OUTBOUND) 단일 생성
 → SellerOrder.status = SHIPPED
 
 최초 배송완료
@@ -203,8 +212,17 @@ Shipment는 항상 하나의 SellerOrder에 속한다.
 현재 API 응답의 `shippingCompany / trackingNumber / shippedAt / deliveredAt` 필드는 바로 삭제하지 않는다.
 Frontend 회귀를 줄이기 위해 기존 응답 shape은 유지하고 Backend DTO가 `ORIGINAL_OUTBOUND Shipment`에서 값을 읽어 채운다.
 
-Entity의 기존 배송 필드를 장기간 Shipment와 이중 write하는 구조는 피한다.
-Shipment migration이 끝나면 배송 실행 정보의 source of truth는 Shipment 하나로 통일한다.
+Entity의 기존 배송 필드는 운영 rollback이 가능한 동안 legacy snapshot으로 dual-write한다.
+신규 로직은 Shipment를 먼저 생성/전이한 뒤 SellerOrder 처리 상태를 전이하며, legacy 필드는 Shipment 값으로만 동기화한다.
+DTO는 Shipment를 우선 사용하고 backfill 전 기존 행에만 legacy fallback을 적용한다.
+
+ORIGINAL_OUTBOUND 단일 생성은 Order와 SellerOrder를 기존 순서대로 비관적 잠금한 뒤 존재 여부를 검사하여 직렬화한다.
+반품/교환에서는 같은 SellerOrder와 type의 Shipment가 여러 건 생길 수 있으므로 `(seller_order_id, shipment_type)` 전체 UNIQUE 제약은 두지 않는다.
+
+운영 backfill과 검증은 다음 수동 SQL을 사용한다.
+
+- `docs/sql/shipment-original-outbound-backfill.sql`
+- `docs/sql/shipment-original-outbound-verification.sql`
 
 ### 3.6 왜 지금 Shipment가 과설계가 아닌가
 
@@ -339,7 +357,7 @@ deliveredAt + 7일 이내
 최소 원칙:
 
 - 구매자 귀책 7일 정책과 동일하게 하드코딩하지 않는다.
-- `deliveredAt`이 없는 주문은 자동 반품/교환 신청을 허용하지 않는다.
+- `ORIGINAL_OUTBOUND Shipment.deliveredAt`이 없는 주문은 자동 반품/교환 신청을 허용하지 않는다. migration 안정화 기간에만 SellerOrder legacy 값 fallback을 고려한다.
 - 관리자 CS 기능이 추가되면 예외 승인 경로를 둘 수 있게 한다.
 
 ## 7. 반품 사유와 귀책
@@ -658,7 +676,7 @@ SellerOrder 전체 반품 왕복비
 
 수량 또는 OrderItem 개수만큼 배송비를 단순 합산하지 않는다.
 
-향후 배송정책/묶음배송/Shipment 도메인이 생기면 배송비 계산 정책을 별도 배송정책 단위로 이전할 수 있다.
+향후 배송정책/묶음배송이 확장되면 배송비 계산 정책을 현재 Shipment 구조와 결합한 별도 배송정책 단위로 이전할 수 있다.
 
 ## 12. 반품 환불 금액 계산
 
@@ -1249,9 +1267,9 @@ DELIVERED SellerOrder에서:
 
 ## 31. 구현 순서
 
-Shipment 기반 배송 구조를 먼저 안정화한 뒤 반품을 완성하고 교환으로 간다.
+Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단계부터 반품을 구현하고, Return 기본 흐름 안정화 후 교환으로 간다.
 
-### Shipment 1 — Domain / Repository
+### Shipment 1 — Domain / Repository (완료)
 
 - `Shipment`
 - `ShipmentType`
@@ -1260,7 +1278,7 @@ Shipment 기반 배송 구조를 먼저 안정화한 뒤 반품을 완성하고 
 - SellerOrder 1:N 관계
 - ORIGINAL_OUTBOUND 단일 생성 정책
 
-### Shipment 2 — 기존 최초 배송 migration
+### Shipment 2 — 기존 최초 배송 migration (완료)
 
 - 판매자 기존 출고 API를 ORIGINAL_OUTBOUND Shipment 기반으로 변경
 - 배송완료 API를 Shipment 기반으로 변경
@@ -1269,11 +1287,18 @@ Shipment 기반 배송 구조를 먼저 안정화한 뒤 반품을 완성하고 
 - Frontend 회귀 없이 tracking 정보 노출
 - 기존 테스트 수정/추가
 
-### Shipment 3 — 기존 데이터 migration
+### Shipment 3 — 기존 데이터 migration (개발 DB 완료)
 
 - `seller_orders.shipping_company / tracking_number / shipped_at / delivered_at` 기존 값으로 ORIGINAL_OUTBOUND Shipment backfill
 - 데이터 검증 후 Shipment를 배송정보 source of truth로 전환
 - 중복 필드 제거는 migration 검증 후 별도 단계에서 수행
+
+개발 DB backfill 결과:
+
+- SellerOrder 32 → ORIGINAL_OUTBOUND / DELIVERED
+- SellerOrder 34 → ORIGINAL_OUTBOUND / SHIPPED
+- 누락, 중복, legacy 배송정보 불일치, 상태·timestamp 불일치 검증 모두 0 rows
+- SellerOrder legacy 배송 컬럼은 삭제하지 않고 migration/rollback snapshot 및 호환 fallback으로 유지
 
 ### Return 1 — 주문 snapshot 준비
 
@@ -1429,6 +1454,10 @@ Shipment 핵심 테스트:
 - 멀티셀러
 - Cart 정합성
 - 재고 1회 복원
+- ORIGINAL_OUTBOUND Shipment 기반 실제 출고
+- Shipment 배송완료
+- legacy fallback 제거 전 staging 검증
+- dual-write 제거 전 migration/rollback 안정성 검증
 - 반품 환불
 - 반품 환불 timeout/reconciliation
 - 반품 검수/재고 복원
@@ -1445,11 +1474,11 @@ Shipment 핵심 테스트:
 ```text
 1. Cancellation과 Return/Exchange는 별도 도메인이다.
 2. 반품/교환은 1차에서 DELIVERED 이후만 처리한다.
-3. Shipment를 정식 배송 도메인으로 추가한다.
+3. Shipment를 정식 배송 도메인으로 추가하며 `READY → SHIPPED → DELIVERED`, `READY → CANCELED` 전이를 사용한다.
 4. SellerOrder 1건에는 여러 Shipment가 존재할 수 있다.
 5. ORIGINAL_OUTBOUND / RETURN_COLLECTION / EXCHANGE_COLLECTION / EXCHANGE_OUTBOUND을 구분한다.
 6. SellerOrder는 주문 처리 상태를, Shipment는 실제 물류 이동과 송장 이력을 담당한다.
-7. 기존 최초 배송 API response shape은 유지하되 데이터 원천은 ORIGINAL_OUTBOUND Shipment로 이전한다.
+7. 기존 최초 배송 API response shape은 유지하되 데이터 원천은 ORIGINAL_OUTBOUND Shipment로 이전하고 legacy 컬럼은 migration/rollback snapshot으로만 유지한다.
 8. ReturnRequest는 collectionShipment를 참조한다.
 9. ExchangeRequest는 collectionShipment와 replacementShipment를 각각 참조한다.
 10. 반품/교환 요청은 회수지와 재배송지 정보를 요청 당시 snapshot으로 보존한다.
@@ -1471,5 +1500,5 @@ Shipment 핵심 테스트:
 26. Shipment 도입 후에도 기존 결제/취소/주문 조회 API를 불필요하게 변경하지 않는다.
 ```
 
-첫 구현은 반품 Entity가 아니라 **Shipment Domain / Repository → 기존 최초 배송 migration**부터 시작한다.
-그 다음 `OrderItem` 반품/교환 배송비 snapshot을 추가하고 Return 도메인으로 진행한다.
+Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증까지 완료됐다.
+다음 구현은 `OrderItem` 반품/교환 배송비 snapshot을 추가하는 Return 1 단계이며, 그 후 Return 도메인으로 진행한다.

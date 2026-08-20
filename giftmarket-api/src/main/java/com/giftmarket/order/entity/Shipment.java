@@ -82,6 +82,23 @@ public class Shipment extends BaseEntity {
         this.shippedAt = shippedAt;
     }
 
+    public static Shipment createReady(
+            SellerOrder sellerOrder,
+            ShipmentType type,
+            String shippingCompany,
+            String trackingNumber
+    ) {
+        validateRequiredFields(sellerOrder, type, shippingCompany, trackingNumber);
+        return new Shipment(
+                sellerOrder,
+                type,
+                shippingCompany,
+                trackingNumber,
+                ShipmentStatus.READY,
+                null
+        );
+    }
+
     public static Shipment createShipped(
             SellerOrder sellerOrder,
             ShipmentType type,
@@ -89,9 +106,8 @@ public class Shipment extends BaseEntity {
             String trackingNumber,
             LocalDateTime shippedAt
     ) {
-        if (sellerOrder == null || type == null || shippedAt == null
-                || shippingCompany == null || shippingCompany.isBlank()
-                || trackingNumber == null || trackingNumber.isBlank()) {
+        validateRequiredFields(sellerOrder, type, shippingCompany, trackingNumber);
+        if (shippedAt == null) {
             throw new IllegalArgumentException("배송 정보를 확인해주세요.");
         }
         return new Shipment(
@@ -104,6 +120,17 @@ public class Shipment extends BaseEntity {
         );
     }
 
+    public void ship(LocalDateTime shippedAt) {
+        if (status == ShipmentStatus.SHIPPED) {
+            return;
+        }
+        if (status != ShipmentStatus.READY || shippedAt == null) {
+            throw new IllegalStateException("준비 중인 배송만 출고 처리할 수 있습니다.");
+        }
+        status = ShipmentStatus.SHIPPED;
+        this.shippedAt = shippedAt;
+    }
+
     public void deliver(LocalDateTime deliveredAt) {
         if (status == ShipmentStatus.DELIVERED) {
             return;
@@ -113,5 +140,28 @@ public class Shipment extends BaseEntity {
         }
         status = ShipmentStatus.DELIVERED;
         this.deliveredAt = deliveredAt;
+    }
+
+    public void cancel() {
+        if (status == ShipmentStatus.CANCELED) {
+            return;
+        }
+        if (status != ShipmentStatus.READY) {
+            throw new IllegalStateException("준비 중인 배송만 취소할 수 있습니다.");
+        }
+        status = ShipmentStatus.CANCELED;
+    }
+
+    private static void validateRequiredFields(
+            SellerOrder sellerOrder,
+            ShipmentType type,
+            String shippingCompany,
+            String trackingNumber
+    ) {
+        if (sellerOrder == null || type == null
+                || shippingCompany == null || shippingCompany.isBlank()
+                || trackingNumber == null || trackingNumber.isBlank()) {
+            throw new IllegalArgumentException("배송 정보를 확인해주세요.");
+        }
     }
 }
