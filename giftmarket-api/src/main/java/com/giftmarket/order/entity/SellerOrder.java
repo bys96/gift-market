@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -22,6 +23,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Entity
@@ -81,6 +84,9 @@ public class SellerOrder extends BaseEntity {
 
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
+
+    @OneToMany(mappedBy = "sellerOrder")
+    private List<Shipment> shipments = new ArrayList<>();
 
     private SellerOrder(
             Order order,

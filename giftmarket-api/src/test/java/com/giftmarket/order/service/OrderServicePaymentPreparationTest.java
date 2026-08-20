@@ -19,6 +19,7 @@ import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.PendingCancellationQuantityProjection;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
+import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.payment.config.PaymentProperties;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -91,6 +92,9 @@ class OrderServicePaymentPreparationTest {
 
     @Mock
     private SellerOrderRepository sellerOrderRepository;
+
+    @Mock
+    private ShipmentRepository shipmentRepository;
 
     @Mock
     private CartItemRepository cartItemRepository;

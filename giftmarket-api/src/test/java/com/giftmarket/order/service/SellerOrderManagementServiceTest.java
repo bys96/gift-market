@@ -9,11 +9,14 @@ import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.order.entity.Shipment;
+import com.giftmarket.order.entity.ShipmentType;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
 import com.giftmarket.order.repository.SellerOrderRepository;
+import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -56,6 +59,7 @@ class SellerOrderManagementServiceTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderItemRepository orderItemRepository;
     @Mock OrderCancellationRepository orderCancellationRepository;
+    @Mock ShipmentRepository shipmentRepository;
     @Mock Seller seller;
     @Mock User user;
 
@@ -71,7 +75,8 @@ class SellerOrderManagementServiceTest {
                 sellerOrderRepository,
                 orderRepository,
                 orderItemRepository,
-                orderCancellationRepository
+                orderCancellationRepository,
+                shipmentRepository
         );
         lenient().when(sellerRepository.findByUserId(USER_ID))
                 .thenReturn(Optional.of(seller));
@@ -88,6 +93,9 @@ class SellerOrderManagementServiceTest {
         sellerOrder.markPaid();
         ReflectionTestUtils.setField(sellerOrder, "id", SELLER_ORDER_ID);
         orderItem = orderItem();
+        lenient().when(shipmentRepository.findAllBySellerOrderIdInAndType(
+                any(), eq(ShipmentType.ORIGINAL_OUTBOUND)
+        )).thenReturn(List.of());
     }
 
     @Test
@@ -147,6 +155,12 @@ class SellerOrderManagementServiceTest {
                 .findAllBySellerOrderIdAndRequiresSellerApprovalTrueOrderByRequestedAtDescIdDesc(
                         SELLER_ORDER_ID
                 )).willReturn(List.of(cancellation));
+        Shipment originalShipment = org.mockito.Mockito.mock(Shipment.class);
+        given(originalShipment.getShippingCompany()).willReturn("Shipment 택배");
+        given(originalShipment.getTrackingNumber()).willReturn("SHIP-1234");
+        given(shipmentRepository.findBySellerOrderIdAndType(
+                SELLER_ORDER_ID, ShipmentType.ORIGINAL_OUTBOUND
+        )).willReturn(Optional.of(originalShipment));
 
         SellerOrderDetailResponse response = service.getSellerOrder(
                 USER_ID, SELLER_ORDER_ID
@@ -157,6 +171,8 @@ class SellerOrderManagementServiceTest {
         assertThat(response.items().getFirst().quantity()).isEqualTo(2);
         assertThat(response.items().getFirst().canceledQuantity()).isEqualTo(1);
         assertThat(response.items().getFirst().remainingQuantity()).isEqualTo(1);
+        assertThat(response.shippingCompany()).isEqualTo("Shipment 택배");
+        assertThat(response.trackingNumber()).isEqualTo("SHIP-1234");
         assertThat(response.cancellations()).singleElement().satisfies(summary -> {
             assertThat(summary.cancellationId()).isEqualTo(60L);
             assertThat(summary.status()).isEqualTo(OrderCancellationStatus.COMPLETED);
@@ -192,6 +208,12 @@ class SellerOrderManagementServiceTest {
                 SELLER_ORDER_ID,
                 new SellerOrderShipRequest(" 테스트택배 ", " 1234567890 ")
         );
+        ArgumentCaptor<Shipment> shipmentCaptor = ArgumentCaptor.forClass(Shipment.class);
+        verify(shipmentRepository).save(shipmentCaptor.capture());
+        Shipment originalShipment = shipmentCaptor.getValue();
+        given(shipmentRepository.findBySellerOrderIdAndType(
+                SELLER_ORDER_ID, ShipmentType.ORIGINAL_OUTBOUND
+        )).willReturn(Optional.of(originalShipment));
         SellerOrderDetailResponse delivered = service.deliver(
                 USER_ID, SELLER_ORDER_ID
         );
@@ -204,6 +226,8 @@ class SellerOrderManagementServiceTest {
         assertThat(shipped.shippedAt()).isNotNull();
         assertThat(delivered.status()).isEqualTo(SellerOrderStatus.DELIVERED);
         assertThat(delivered.deliveredAt()).isNotNull();
+        assertThat(originalShipment.getType()).isEqualTo(ShipmentType.ORIGINAL_OUTBOUND);
+        assertThat(originalShipment.getDeliveredAt()).isNotNull();
     }
 
     @Test
@@ -267,6 +291,22 @@ class SellerOrderManagementServiceTest {
         );
 
         assertThat(response.status()).isEqualTo(SellerOrderStatus.SHIPPED);
+    }
+
+    @Test
+    void duplicateOriginalOutboundShipmentIsRejected() {
+        sellerOrder.prepare(java.time.LocalDateTime.now());
+        givenLockedSellerOrder();
+        given(shipmentRepository.existsBySellerOrderIdAndType(
+                SELLER_ORDER_ID, ShipmentType.ORIGINAL_OUTBOUND
+        )).willReturn(true);
+
+        assertThatThrownBy(() -> service.ship(
+                USER_ID, SELLER_ORDER_ID,
+                new SellerOrderShipRequest("택배사", "1234")
+        )).isInstanceOf(SellerException.class);
+
+        verify(shipmentRepository, never()).save(any());
     }
 
     private void givenLockedSellerOrder() {

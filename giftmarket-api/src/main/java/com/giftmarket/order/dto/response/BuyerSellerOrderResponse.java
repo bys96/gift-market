@@ -3,6 +3,7 @@ package com.giftmarket.order.dto.response;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.order.entity.Shipment;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +22,7 @@ public record BuyerSellerOrderResponse(
 ) {
     public static BuyerSellerOrderResponse from(
             SellerOrder sellerOrder,
+            Shipment originalShipment,
             List<OrderItem> orderItems,
             Map<Long, Long> pendingCancellationQuantities
     ) {
@@ -28,15 +30,23 @@ public record BuyerSellerOrderResponse(
                 sellerOrder.getId(),
                 sellerOrder.getSeller().getStoreName(),
                 sellerOrder.getStatus(),
-                sellerOrder.getShippingCompany(),
-                sellerOrder.getTrackingNumber(),
+                originalShipment == null ? sellerOrder.getShippingCompany() : originalShipment.getShippingCompany(),
+                originalShipment == null ? sellerOrder.getTrackingNumber() : originalShipment.getTrackingNumber(),
                 sellerOrder.getPreparedAt(),
-                sellerOrder.getShippedAt(),
-                sellerOrder.getDeliveredAt(),
+                originalShipment == null ? sellerOrder.getShippedAt() : originalShipment.getShippedAt(),
+                originalShipment == null ? sellerOrder.getDeliveredAt() : originalShipment.getDeliveredAt(),
                 orderItems.stream()
                         .map(item -> OrderHistoryItemResponse.from(
                                 item, pendingCancellationQuantities.getOrDefault(item.getId(), 0L)))
                         .toList()
         );
+    }
+
+    public static BuyerSellerOrderResponse from(
+            SellerOrder sellerOrder,
+            List<OrderItem> orderItems,
+            Map<Long, Long> pendingCancellationQuantities
+    ) {
+        return from(sellerOrder, null, orderItems, pendingCancellationQuantities);
     }
 }

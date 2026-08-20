@@ -3,6 +3,7 @@ package com.giftmarket.order.dto.response;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.order.entity.Shipment;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +29,7 @@ public record SellerOrderDetailResponse(
 ) {
     public static SellerOrderDetailResponse from(
             SellerOrder sellerOrder,
+            Shipment originalShipment,
             List<OrderItem> items,
             List<SellerOrderCancellationSummaryResponse> cancellations
     ) {
@@ -43,12 +45,20 @@ public record SellerOrderDetailResponse(
                 sellerOrder.getOrder().getPostalCode(),
                 sellerOrder.getOrder().getAddress(),
                 sellerOrder.getOrder().getAddressDetail(),
-                sellerOrder.getShippingCompany(),
-                sellerOrder.getTrackingNumber(),
+                originalShipment == null ? sellerOrder.getShippingCompany() : originalShipment.getShippingCompany(),
+                originalShipment == null ? sellerOrder.getTrackingNumber() : originalShipment.getTrackingNumber(),
                 sellerOrder.getPreparedAt(),
-                sellerOrder.getShippedAt(),
-                sellerOrder.getDeliveredAt(),
+                originalShipment == null ? sellerOrder.getShippedAt() : originalShipment.getShippedAt(),
+                originalShipment == null ? sellerOrder.getDeliveredAt() : originalShipment.getDeliveredAt(),
                 cancellations
         );
+    }
+
+    public static SellerOrderDetailResponse from(
+            SellerOrder sellerOrder,
+            List<OrderItem> items,
+            List<SellerOrderCancellationSummaryResponse> cancellations
+    ) {
+        return from(sellerOrder, null, items, cancellations);
     }
 }

@@ -12,11 +12,14 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
+import com.giftmarket.order.entity.Shipment;
+import com.giftmarket.order.entity.ShipmentType;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
+import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.payment.config.PaymentProperties;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentProvider;
@@ -73,6 +76,7 @@ public class OrderService {
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
     private final SellerOrderRepository sellerOrderRepository;
     private final OrderCancellationRepository orderCancellationRepository;
+    private final ShipmentRepository shipmentRepository;
 
     private final CartItemRepository cartItemRepository;
 
@@ -478,6 +482,15 @@ public class OrderService {
                         );
         List<SellerOrder> sellerOrders = sellerOrderRepository
                 .findAllByOrderIdOrderByIdAsc(order.getId());
+        Map<Long, Shipment> originalShipments = shipmentRepository
+                .findAllBySellerOrderIdInAndType(
+                        sellerOrders.stream().map(SellerOrder::getId).toList(),
+                        ShipmentType.ORIGINAL_OUTBOUND
+                ).stream()
+                .collect(Collectors.toMap(
+                        shipment -> shipment.getSellerOrder().getId(),
+                        shipment -> shipment
+                ));
 
         Map<Long, Long> pendingCancellationQuantities = orderCancellationRepository
                 .sumItemQuantitiesByStatuses(
@@ -507,6 +520,7 @@ public class OrderService {
                 order,
                 orderItems,
                 sellerOrders,
+                originalShipments,
                 pendingCancellationQuantities,
                 refundedAmount,
                 remainingPaymentAmount

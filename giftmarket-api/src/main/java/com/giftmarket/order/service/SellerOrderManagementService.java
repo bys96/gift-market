@@ -10,11 +10,14 @@ import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.order.entity.Shipment;
+import com.giftmarket.order.entity.ShipmentType;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
 import com.giftmarket.order.repository.SellerOrderRepository;
+import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
@@ -45,6 +48,7 @@ public class SellerOrderManagementService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
+    private final ShipmentRepository shipmentRepository;
 
     private static final Set<OrderCancellationStatus> SHIPPING_BLOCKING_CANCELLATION_STATUSES =
             Set.of(
@@ -87,6 +91,7 @@ public class SellerOrderManagementService {
                                 SellerOrderItemSummaryProjection::getSellerOrderId,
                                 summary -> summary
                         ));
+        Map<Long, Shipment> originalShipments = getOriginalShipments(sellerOrderIds);
 
         List<SellerOrderListItemResponse> orders = sellerOrderPage.getContent()
                 .stream()
@@ -96,7 +101,11 @@ public class SellerOrderManagementService {
                     if (summary == null) {
                         throw new SellerException("판매자 주문 상품 정보를 확인할 수 없습니다.");
                     }
-                    return SellerOrderListItemResponse.from(sellerOrder, summary);
+                    return SellerOrderListItemResponse.from(
+                            sellerOrder,
+                            originalShipments.get(sellerOrder.getId()),
+                            summary
+                    );
                 })
                 .toList();
 
@@ -158,11 +167,22 @@ public class SellerOrderManagementService {
                                 "처리 중인 취소 요청이 있어 배송을 시작할 수 없습니다."
                         );
                     }
+                    if (shipmentRepository.existsBySellerOrderIdAndType(
+                            sellerOrder.getId(), ShipmentType.ORIGINAL_OUTBOUND)) {
+                        throw new SellerException("이미 최초 배송 송장이 등록되었습니다.");
+                    }
                     sellerOrder.ship(
                             shippingCompany,
                             trackingNumber,
                             LocalDateTime.now()
                     );
+                    shipmentRepository.save(Shipment.createShipped(
+                            sellerOrder,
+                            ShipmentType.ORIGINAL_OUTBOUND,
+                            shippingCompany,
+                            trackingNumber,
+                            sellerOrder.getShippedAt()
+                    ));
                 }
         );
     }
@@ -175,8 +195,33 @@ public class SellerOrderManagementService {
         return transition(
                 userId,
                 sellerOrderId,
-                sellerOrder -> sellerOrder.deliver(LocalDateTime.now())
+                sellerOrder -> {
+                    Shipment shipment = shipmentRepository
+                            .findBySellerOrderIdAndType(
+                                    sellerOrder.getId(),
+                                    ShipmentType.ORIGINAL_OUTBOUND
+                            )
+                            .orElseGet(() -> createLegacyOriginalShipment(sellerOrder));
+                    LocalDateTime deliveredAt = LocalDateTime.now();
+                    shipment.deliver(deliveredAt);
+                    sellerOrder.deliver(deliveredAt);
+                }
         );
+    }
+
+    private Shipment createLegacyOriginalShipment(SellerOrder sellerOrder) {
+        if (sellerOrder.getShippingCompany() == null
+                || sellerOrder.getTrackingNumber() == null
+                || sellerOrder.getShippedAt() == null) {
+            throw new SellerException("최초 배송 송장 정보를 찾을 수 없습니다.");
+        }
+        return shipmentRepository.save(Shipment.createShipped(
+                sellerOrder,
+                ShipmentType.ORIGINAL_OUTBOUND,
+                sellerOrder.getShippingCompany(),
+                sellerOrder.getTrackingNumber(),
+                sellerOrder.getShippedAt()
+        ));
     }
 
     private SellerOrderDetailResponse transition(
@@ -217,7 +262,27 @@ public class SellerOrderManagementService {
                         .stream()
                         .map(SellerOrderCancellationSummaryResponse::from)
                         .toList();
-        return SellerOrderDetailResponse.from(sellerOrder, items, cancellations);
+        Shipment originalShipment = shipmentRepository
+                .findBySellerOrderIdAndType(
+                        sellerOrder.getId(), ShipmentType.ORIGINAL_OUTBOUND
+                )
+                .orElse(null);
+        return SellerOrderDetailResponse.from(
+                sellerOrder, originalShipment, items, cancellations
+        );
+    }
+
+    private Map<Long, Shipment> getOriginalShipments(List<Long> sellerOrderIds) {
+        if (sellerOrderIds.isEmpty()) {
+            return Map.of();
+        }
+        return shipmentRepository.findAllBySellerOrderIdInAndType(
+                        sellerOrderIds, ShipmentType.ORIGINAL_OUTBOUND
+                ).stream()
+                .collect(Collectors.toMap(
+                        shipment -> shipment.getSellerOrder().getId(),
+                        shipment -> shipment
+                ));
     }
 
     private Seller getActiveSeller(Long userId) {

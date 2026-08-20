@@ -4,6 +4,7 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
+import com.giftmarket.order.entity.Shipment;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,6 +41,7 @@ public record OrderDetailResponse(
             Order order,
             List<OrderItem> orderItems,
             List<SellerOrder> sellerOrders,
+            Map<Long, Shipment> originalShipments,
             Map<Long, Long> pendingCancellationQuantities,
             long refundedAmount,
             long remainingPaymentAmount
@@ -73,6 +75,7 @@ public record OrderDetailResponse(
                 sellerOrders.stream()
                         .map(sellerOrder -> BuyerSellerOrderResponse.from(
                                 sellerOrder,
+                                originalShipments.get(sellerOrder.getId()),
                                 orderItems.stream()
                                         .filter(item -> item.getSellerOrder()
                                                 .getId()
@@ -94,9 +97,21 @@ public record OrderDetailResponse(
                 order,
                 orderItems,
                 sellerOrders,
+                Map.of(),
                 pendingCancellationQuantities,
                 0L,
                 order.getTotalAmount()
         );
+    }
+
+    public static OrderDetailResponse from(
+            Order order,
+            List<OrderItem> orderItems,
+            List<SellerOrder> sellerOrders,
+            Map<Long, Shipment> originalShipments,
+            Map<Long, Long> pendingCancellationQuantities
+    ) {
+        return from(order, orderItems, sellerOrders, originalShipments,
+                pendingCancellationQuantities, 0L, order.getTotalAmount());
     }
 }

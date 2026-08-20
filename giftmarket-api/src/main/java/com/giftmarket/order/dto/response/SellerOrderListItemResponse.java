@@ -2,6 +2,7 @@ package com.giftmarket.order.dto.response;
 
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
+import com.giftmarket.order.entity.Shipment;
 
 import java.time.LocalDateTime;
 
@@ -21,6 +22,7 @@ public record SellerOrderListItemResponse(
 ) {
     public static SellerOrderListItemResponse from(
             SellerOrder sellerOrder,
+            Shipment originalShipment,
             SellerOrderItemSummaryProjection summary
     ) {
         return new SellerOrderListItemResponse(
@@ -34,8 +36,15 @@ public record SellerOrderListItemResponse(
                 summary.getTotalQuantity(),
                 summary.getTotalProductAmount(),
                 sellerOrder.getOrder().getRecipientName(),
-                sellerOrder.getShippingCompany(),
-                sellerOrder.getTrackingNumber()
+                originalShipment == null ? sellerOrder.getShippingCompany() : originalShipment.getShippingCompany(),
+                originalShipment == null ? sellerOrder.getTrackingNumber() : originalShipment.getTrackingNumber()
         );
+    }
+
+    public static SellerOrderListItemResponse from(
+            SellerOrder sellerOrder,
+            SellerOrderItemSummaryProjection summary
+    ) {
+        return from(sellerOrder, null, summary);
     }
 }
