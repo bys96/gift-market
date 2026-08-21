@@ -482,7 +482,9 @@ class OrderCancellationServiceTest {
                 0L,
                 quantity,
                 true,
-                0L
+                0L,
+                3_000L,
+                6_000L
         );
         ReflectionTestUtils.setField(value, "id", id);
         return value;

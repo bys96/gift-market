@@ -189,6 +189,10 @@ class OrderServicePaymentPreparationTest {
         assertThat(order.getOrderedAt()).isNull();
         assertThat(orderItem.getSourceCartItemId())
                 .isEqualTo(CART_ITEM_ID);
+        assertThat(orderItem.getReturnShippingFee())
+                .isEqualTo(3_000L);
+        assertThat(orderItem.getExchangeShippingFee())
+                .isEqualTo(6_000L);
         assertThat(orderItem.getSellerOrder()).isNotNull();
         assertThat(orderItem.getSellerOrder().getStatus())
                 .isEqualTo(com.giftmarket.order.entity.SellerOrderStatus.PENDING_PAYMENT);
@@ -309,6 +313,10 @@ class OrderServicePaymentPreparationTest {
 
         assertThat(itemCaptor.getValue().getSourceCartItemId())
                 .isNull();
+        assertThat(itemCaptor.getValue().getReturnShippingFee())
+                .isEqualTo(3_000L);
+        assertThat(itemCaptor.getValue().getExchangeShippingFee())
+                .isEqualTo(6_000L);
         assertThat(itemCaptor.getValue().getSellerOrder()).isNotNull();
         assertThat(itemCaptor.getValue().getSellerOrder().getSeller())
                 .isSameAs(seller);
@@ -581,6 +589,8 @@ class OrderServicePaymentPreparationTest {
         given(product.getBrandName()).willReturn("테스트 브랜드");
         given(product.getSeller()).willReturn(seller);
         given(product.isFreeShipping()).willReturn(true);
+        given(product.getReturnShippingFee()).willReturn(3_000L);
+        given(product.getExchangeShippingFee()).willReturn(6_000L);
         given(seller.getStoreName()).willReturn("테스트 스토어");
         given(productOptionGroupRepository
                 .findAllByProductIdOrderBySortOrderAsc(PRODUCT_ID))

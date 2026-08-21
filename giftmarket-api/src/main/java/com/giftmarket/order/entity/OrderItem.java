@@ -167,6 +167,13 @@ public class OrderItem extends BaseEntity {
     private int canceledQuantity;
 
     @Column(
+            name = "returned_quantity",
+            nullable = false,
+            columnDefinition = "int default 0"
+    )
+    private int returnedQuantity;
+
+    @Column(
             name = "total_price",
             nullable = false
     )
@@ -183,6 +190,18 @@ public class OrderItem extends BaseEntity {
             nullable = false
     )
     private Long shippingFee;
+
+    @Column(
+            name = "return_shipping_fee",
+            nullable = false
+    )
+    private Long returnShippingFee;
+
+    @Column(
+            name = "exchange_shipping_fee",
+            nullable = false
+    )
+    private Long exchangeShippingFee;
 
     @Builder
     private OrderItem(
@@ -201,7 +220,9 @@ public class OrderItem extends BaseEntity {
             Long additionalPrice,
             Integer quantity,
             boolean freeShipping,
-            Long shippingFee
+            Long shippingFee,
+            Long returnShippingFee,
+            Long exchangeShippingFee
     ) {
         this.order = order;
         this.product = product;
@@ -219,11 +240,14 @@ public class OrderItem extends BaseEntity {
         this.unitPrice = productPrice + additionalPrice;
         this.quantity = quantity;
         this.canceledQuantity = 0;
+        this.returnedQuantity = 0;
         this.totalPrice = this.unitPrice * quantity;
         this.freeShipping = freeShipping;
         this.shippingFee = freeShipping
                 ? 0L
                 : shippingFee;
+        this.returnShippingFee = returnShippingFee;
+        this.exchangeShippingFee = exchangeShippingFee;
     }
 
     public static OrderItem create(
@@ -242,7 +266,9 @@ public class OrderItem extends BaseEntity {
             Long additionalPrice,
             Integer quantity,
             boolean freeShipping,
-            Long shippingFee
+            Long shippingFee,
+            Long returnShippingFee,
+            Long exchangeShippingFee
     ) {
         return OrderItem.builder()
                 .order(order)
@@ -261,11 +287,19 @@ public class OrderItem extends BaseEntity {
                 .quantity(quantity)
                 .freeShipping(freeShipping)
                 .shippingFee(shippingFee)
+                .returnShippingFee(returnShippingFee)
+                .exchangeShippingFee(exchangeShippingFee)
                 .build();
     }
 
     public int getRemainingQuantity() {
         return quantity - canceledQuantity;
+    }
+
+    public int getReturnableQuantity() {
+        return quantity
+                - canceledQuantity
+                - returnedQuantity;
     }
 
     public void increaseCanceledQuantity(int cancelQuantity) {
@@ -291,7 +325,68 @@ public class OrderItem extends BaseEntity {
         canceledQuantity = confirmedQuantity;
     }
 
+    public void confirmReturn(int returnQuantity) {
+        if (returnQuantity <= 0) {
+            throw new IllegalArgumentException(
+                    "반품 수량은 1개 이상이어야 합니다."
+            );
+        }
+
+        if (returnedQuantity < 0) {
+            throw new IllegalStateException(
+                    "Invalid returned quantity state."
+            );
+        }
+
+        if (canceledQuantity < 0
+                || canceledQuantity > quantity) {
+            throw new IllegalStateException(
+                    "Invalid canceled quantity state."
+            );
+        }
+
+        int confirmedReturnedQuantity;
+
+        try {
+            confirmedReturnedQuantity = Math.addExact(
+                    returnedQuantity,
+                    returnQuantity
+            );
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException(
+                    "Return quantity overflow.",
+                    exception
+            );
+        }
+
+        int unavailableQuantity;
+
+        try {
+            unavailableQuantity = Math.addExact(
+                    canceledQuantity,
+                    confirmedReturnedQuantity
+            );
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException(
+                    "Return quantity overflow.",
+                    exception
+            );
+        }
+
+        if (unavailableQuantity > quantity) {
+            throw new IllegalArgumentException(
+                    "반품 수량이 주문 상품의 반품 가능 수량을 초과합니다."
+            );
+        }
+
+        returnedQuantity = confirmedReturnedQuantity;
+    }
+
     public boolean isFullyCanceled() {
         return canceledQuantity == quantity;
+    }
+
+    public boolean isFullyReturnedOrCanceled() {
+        return canceledQuantity + returnedQuantity == quantity;
     }
 }

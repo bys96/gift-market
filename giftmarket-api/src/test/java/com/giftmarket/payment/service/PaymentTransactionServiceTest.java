@@ -365,7 +365,8 @@ class PaymentTransactionServiceTest {
                 order, product, null, seller,
                 SellerOrder.createPendingPayment(order, seller), sourceCartItemId,
                 "상품", null, "스토어", null, null,
-                5_000L, 0L, quantity, true, 0L
+                5_000L, 0L, quantity, true, 0L,
+                3_000L, 6_000L
         );
     }
 }

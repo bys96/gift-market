@@ -280,7 +280,8 @@ class OrderCancellationCompletionServiceTest {
         OrderItem item = OrderItem.create(
                 order, mock(Product.class), null, owner.getSeller(), owner,
                 null, "product", null, "store", null, null,
-                10_000L, 0L, quantity, true, 0L
+                10_000L, 0L, quantity, true, 0L,
+                3_000L, 6_000L
         );
         ReflectionTestUtils.setField(item, "id", id);
         return item;

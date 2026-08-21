@@ -295,7 +295,9 @@ class SellerOrderCancellationServiceTest {
                 0L,
                 2,
                 true,
-                0L
+                0L,
+                3_000L,
+                6_000L
         );
         ReflectionTestUtils.setField(value, "id", ORDER_ITEM_ID);
         return value;

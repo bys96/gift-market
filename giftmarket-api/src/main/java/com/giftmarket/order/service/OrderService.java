@@ -369,7 +369,9 @@ public class OrderService {
                         product.isFreeShipping(),
                         product.isFreeShipping()
                                 ? 0L
-                                : product.getShippingFee()
+                                : product.getShippingFee(),
+                        product.getReturnShippingFee(),
+                        product.getExchangeShippingFee()
                 );
 
         Order order =
@@ -692,7 +694,9 @@ public class OrderService {
                 cartItem.getQuantity(),
                 totalPrice,
                 product.isFreeShipping(),
-                shippingFee
+                shippingFee,
+                product.getReturnShippingFee(),
+                product.getExchangeShippingFee()
         );
     }
 
@@ -722,7 +726,9 @@ public class OrderService {
                 prepared.additionalPrice(),
                 prepared.quantity(),
                 prepared.freeShipping(),
-                prepared.shippingFee()
+                prepared.shippingFee(),
+                prepared.returnShippingFee(),
+                prepared.exchangeShippingFee()
         );
     }
 
@@ -1223,7 +1229,11 @@ public class OrderService {
 
             boolean freeShipping,
 
-            Long shippingFee
+            Long shippingFee,
+
+            Long returnShippingFee,
+
+            Long exchangeShippingFee
 
     ) {
     }

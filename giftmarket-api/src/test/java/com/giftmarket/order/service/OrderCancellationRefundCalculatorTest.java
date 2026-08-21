@@ -323,7 +323,8 @@ class OrderCancellationRefundCalculatorTest {
         OrderItem item = OrderItem.create(
                 order, mock(Product.class), null, owner.getSeller(), owner,
                 null, "snapshot product", null, "store", null, null,
-                productPrice, additionalPrice, quantity, shippingFee == 0L, shippingFee
+                productPrice, additionalPrice, quantity, shippingFee == 0L, shippingFee,
+                3_000L, 6_000L
         );
         ReflectionTestUtils.setField(item, "id", id);
         return item;
