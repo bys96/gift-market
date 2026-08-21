@@ -84,6 +84,7 @@ public class SecurityConfig {
                                 "/api/seller-applications/**",
                                 "/api/cart/**",
                                 "/api/orders/**",
+                                "/api/returns/**",
                                 "/api/payments/**",
                                 "/api/addresses/**"
                         )

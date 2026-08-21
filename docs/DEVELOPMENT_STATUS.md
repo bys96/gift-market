@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-08-20
+> 최종 갱신: 2026-08-21
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 작성한다. 문서와 코드가 충돌하면 실제 코드를 현재 구현 상태의 최종 기준으로 사용한다.
 
@@ -569,27 +569,24 @@ POST /api/payments/webhooks/toss
 
 ## 13. 다음 개발 우선순위 제안
 
-### 1순위: OrderItem 반품/교환 배송비 snapshot
+### 1순위: Return 4 판매자 workflow
 
-현재 취소 정책은 SHIPPED/DELIVERED 이후를 의도적으로 차단한다.
-
-Shipment 도입과 개발 DB backfill/검증은 완료됐다. 다음은 Product의 반품/교환 배송비를 주문 당시 OrderItem에 snapshot하는 단계다.
+Shipment 도입과 개발 DB backfill/검증, OrderItem 반품/교환 배송비 snapshot, Return 기본 Domain과 구매자 반품 요청 생성/조회 Backend까지 완료됐다.
 
 ```text
 OrderItem.returnShippingFee
 OrderItem.exchangeShippingFee
 ```
 
-그 후 다음 별도 도메인을 구현한다.
+구매자 반품 API:
 
 ```text
-ReturnRequest
-ExchangeRequest
+POST /api/orders/{orderId}/seller-orders/{sellerOrderId}/returns
+GET  /api/orders/{orderId}/returns
+GET  /api/returns/{returnRequestId}
 ```
 
-이번에 구현한 OrderCancellation을 SHIPPED 이후까지 억지로 확장하지 않는다.
-
-ReturnRequest / ReturnRequestItem과 구매자 요청, 판매자 처리, 회수 Shipment, 검수, 재고, PaymentCancellation 기반 환불/reconciliation, Frontend 순으로 진행한다. Exchange는 Return 기본 흐름 안정화 후 진행한다.
+다음은 판매자 승인/거절, 회수 Shipment 생성·송장, 입고·검수의 Return 4다. 환불 계산, PG 환불/reconciliation, 재고 복원과 returnedQuantity 증가는 이후 단계에서 구현한다. Exchange는 Return 기본 흐름 안정화 후 진행한다.
 
 ### 2순위: 관리자 주문/결제 운영
 
@@ -627,6 +624,6 @@ SellerOrder 1:N Shipment가 구현되어 있고 최초 배송은 ORIGINAL_OUTBOU
 
 OrderCancellation + OrderCancellationItem 기반 상품/수량 부분취소, PAID 즉시취소, PREPARING 판매자 승인/거절, Toss 부분환불, Payment PARTIALLY_CANCELED, 부분 재고복원, 부분환불 reconciliation/webhook/orphan recovery, 구매자/판매자 cancellation UI까지 구현되어 있다.
 
-SHIPPED/DELIVERED 이후 반품/교환은 아직 구현하지 않았다. 다음 작업은 OrderItem의 returnShippingFee/exchangeShippingFee 주문 snapshot 추가이며, 이후 Return 도메인으로 진행한다.
+DELIVERED SellerOrder의 구매자 반품 요청 생성/목록/단건 조회 Backend가 구현되어 있다. 구매자 귀책은 ORIGINAL_OUTBOUND Shipment.deliveredAt 기준 7일 이내이며, 활성 반품 요청 수량을 차감하고 Order → SellerOrder → OrderItem 순서로 잠근다. 다음 작업은 Return 4 판매자 승인/거절과 회수/입고/검수 workflow다.
 운영 전 공개 staging + 상점용 Toss 테스트 키로 결제/전체취소/부분취소/webhook 전체 회귀가 필수다.
 ```

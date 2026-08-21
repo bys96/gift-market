@@ -5,14 +5,17 @@ import com.giftmarket.order.dto.request.OrderCreateRequest;
 import com.giftmarket.order.dto.request.OrderCancelRequest;
 import com.giftmarket.order.dto.request.OrderCancellationCreateRequest;
 import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
+import com.giftmarket.order.dto.request.ReturnRequestCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
 import com.giftmarket.order.dto.response.OrderCancelResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
+import com.giftmarket.order.dto.response.ReturnRequestResponse;
 import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
 import com.giftmarket.order.service.OrderCancellationWorkflowService;
+import com.giftmarket.order.service.ReturnRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +37,7 @@ public class OrderController {
     private final OrderService orderService;
     private final PaymentCancellationService paymentCancellationService;
     private final OrderCancellationWorkflowService orderCancellationWorkflowService;
+    private final ReturnRequestService returnRequestService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -113,5 +117,25 @@ public class OrderController {
         return ApiResponse.success(
                 orderCancellationWorkflowService.getAllOwned(userId, orderId)
         );
+    }
+
+    @PostMapping("/{orderId}/seller-orders/{sellerOrderId}/returns")
+    public ApiResponse<ReturnRequestResponse> createReturnRequest(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId,
+            @PathVariable Long sellerOrderId,
+            @Valid @RequestBody ReturnRequestCreateRequest request
+    ) {
+        return ApiResponse.success(
+                returnRequestService.create(userId, orderId, sellerOrderId, request)
+        );
+    }
+
+    @GetMapping("/{orderId}/returns")
+    public ApiResponse<List<ReturnRequestResponse>> getReturnRequests(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId
+    ) {
+        return ApiResponse.success(returnRequestService.getAllOwned(userId, orderId));
     }
 }

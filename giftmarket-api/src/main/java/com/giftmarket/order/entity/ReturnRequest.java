@@ -481,17 +481,7 @@ public class ReturnRequest extends BaseEntity {
     private static ReturnResponsibility resolveResponsibility(
             ReturnReasonType reasonType
     ) {
-        return switch (reasonType) {
-            case CHANGE_OF_MIND,
-                 OPTION_MISTAKE -> ReturnResponsibility.BUYER;
-
-            case DEFECTIVE,
-                 WRONG_ITEM,
-                 DAMAGED,
-                 DESCRIPTION_MISMATCH -> ReturnResponsibility.SELLER;
-
-            case OTHER -> null;
-        };
+        return reasonType.defaultResponsibility();
     }
 
     private static ReturnReasonType requireReasonType(
