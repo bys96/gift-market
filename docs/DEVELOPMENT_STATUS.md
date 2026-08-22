@@ -12,7 +12,7 @@ Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- Return 판매자 Frontend
+- Return staging E2E 검증
 - Exchange Backend/Frontend
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
@@ -538,7 +538,7 @@ REQUESTED → REJECTED
 - RESTOCKABLE만 Product/Variant 재고 복원하고 `restockedQuantity` 기록
 - `SUCCEEDED + REFUNDING`과 `0원 + REFUNDING` completion recovery 및 COMPLETED 멱등 장벽
 
-Return 구매자 Frontend는 구현되었다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 실제 PG/반품 E2E 검증도 운영 전 과제로 남아 있다.
+Return 구매자·판매자 Frontend는 구현되었다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 실제 PG/반품 E2E 검증도 운영 전 과제로 남아 있다.
 
 구매자 주문 상세(`/my/orders/{orderId}`)에서는 DELIVERED SellerOrder별로 다음 기능을 제공한다.
 
@@ -546,6 +546,8 @@ Return 구매자 Frontend는 구현되었다. Exchange는 설계만 존재하며
 - 기존 활성 반품과 완료 수량을 반영한 추가 반품 가능 수량 안내
 - 반품 상태, 환불금액 snapshot, 반품 회수 Shipment, 상품별 검수 결과 표시
 - 반품 목록만 별도로 로딩하고 요청 성공 후 주문·취소·반품 정보를 재조회
+
+판매자센터 `/seller/orders/returns`와 상세 화면에서는 상태 필터·pagination, 승인/거절, OTHER 귀책 확정, 회수 배송 등록, 입고, 전체 상품 검수와 환불 진행·완료 확인을 제공한다.
 
 ## 12. 실제 검증 상태
 
@@ -606,7 +608,7 @@ Return 구매자 Frontend는 구현되었다. Exchange는 설계만 존재하며
 
 ## 14. 다음 개발 우선순위 제안
 
-### 1순위: 판매자 Return Frontend
+### 1순위: Return staging E2E 검증
 
 Shipment 도입과 개발 DB backfill/검증, OrderItem 반품/교환 배송비 snapshot, 구매자 반품 요청과 판매자 승인/거절·회수·입고·검수 Backend까지 완료됐다.
 
@@ -625,7 +627,7 @@ GET  /api/returns/{returnRequestId}
 
 판매자 검수 완료 transaction에서 환불 snapshot을 확정한 뒤 별도 workflow가 PaymentCancellation(PARTIAL)을 ReturnRequest에 연결하고 commit 후 PG를 호출한다. timeout/5xx 등 결과 불명은 REQUESTED/REFUNDING으로 유지하며 저장된 고정 멱등 키로 reconciliation하고 webhook도 Return 환불을 분기 처리한다. PG 성공 또는 0원 환불은 별도 completion transaction에서 returnedQuantity를 확정하고 RESTOCKABLE 수량만 재고와 restockedQuantity에 반영한 뒤 COMPLETED로 전이한다. SUCCEEDED + REFUNDING 고아 상태는 recovery가 멱등 재처리한다.
 
-Return Backend 1~7과 구매자 Return Frontend는 완료됐다. 판매자 Return Frontend와 Exchange는 미구현이며, 운영 staging 환경의 PG/반품 E2E 검증은 아직 필요하다.
+Return Backend 1~7과 구매자·판매자 Return Frontend는 완료됐다. Exchange는 미구현이며, 운영 staging 환경의 PG/반품 E2E 검증은 아직 필요하다.
 
 ### 2순위: 관리자 주문/결제 운영
 

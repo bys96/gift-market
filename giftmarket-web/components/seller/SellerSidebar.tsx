@@ -90,13 +90,19 @@ const SELLER_MENU_GROUPS: SellerMenuGroup[] = [
         href: "/seller/orders",
         icon: <OrderIcon />,
         matchPaths: ["/seller/orders"],
-        excludePaths: ["/seller/orders/cancellations"],
+        excludePaths: ["/seller/orders/cancellations", "/seller/orders/returns"],
       },
       {
         label: "취소 요청",
         href: "/seller/orders/cancellations",
         icon: <CancellationIcon />,
         matchPaths: ["/seller/orders/cancellations"],
+      },
+      {
+        label: "반품 관리",
+        href: "/seller/orders/returns",
+        icon: <CancellationIcon />,
+        matchPaths: ["/seller/orders/returns"],
       },
       {
         label: "문의 관리",
