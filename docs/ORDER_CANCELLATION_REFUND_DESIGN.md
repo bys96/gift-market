@@ -1,6 +1,6 @@
 # Gift Market 주문 부분취소 / 부분환불 설계
 
-> 최종 갱신: 2026-08-20
+> 최종 갱신: 2026-08-22
 >
 > 최초 설계 문서를 현재 실제 구현에 맞게 갱신한 문서다. 아래의 "현재 구현"은 저장소 코드를 기준으로 한다.
 
@@ -145,9 +145,11 @@ PARTIAL
 ```
 
 - FULL: 기존 전체 결제 취소
-- PARTIAL: `OrderCancellation`과 연결되는 부분환불
+- PARTIAL: `OrderCancellation` 또는 배송 후 `ReturnRequest`와 연결되는 부분환불
 
-PARTIAL은 하나의 `OrderCancellation`에 하나의 PaymentCancellation이 연결되도록 제약한다.
+Cancellation 범위에서는 하나의 `OrderCancellation`에 하나의 PaymentCancellation이 연결되도록 제약한다. Return 환불은 별도 nullable `returnRequest` FK와 UNIQUE를 사용하며, PARTIAL 업무 source는 `OrderCancellation XOR ReturnRequest`가 되도록 Backend에서 검증한다.
+
+`FULL / PARTIAL`은 결제 취소 금액 범위이고 연결 FK는 취소/반품이라는 업무 원인을 나타낸다. Return 도입 후에도 Cancellation 상태와 승인 workflow는 기존 `OrderCancellation`이 담당한다.
 
 업무 승인/거절 상태를 PaymentCancellation에 넣지 않는다.
 

@@ -6,13 +6,14 @@
 
 ## 0. 현재 요약
 
-Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **반품 검수·환불 예정금액 snapshot 및 실제 PG 부분환불/reconciliation까지 완료된 상태**다.
+Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return Backend 1~7의 요청·회수·검수·PG 환불·재고복원·완료 처리까지 구현된 상태**다.
 
 현재 가장 큰 미완료 범위는 다음이다.
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- 반품 환불 성공 후 재고 복원·returnedQuantity·COMPLETED 처리 및 Frontend
+- Return Frontend
+- Exchange Backend/Frontend
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 
@@ -510,7 +511,36 @@ GET  /api/payments/{paymentId}
 POST /api/payments/webhooks/toss
 ```
 
-## 11. 실제 검증 상태
+## 11. Return Backend 구현 현황
+
+Return Backend 1~7의 정상 상태 흐름은 다음과 같다.
+
+```text
+REQUESTED → APPROVED → COLLECTING → RECEIVED → INSPECTED → REFUNDING → COMPLETED
+REQUESTED → REJECTED
+```
+
+- 구매자 생성·주문별 목록·단건 조회와 ownership 검증
+- `clientRequestKey`: 동일 key/동일 payload는 기존 결과 반환, 다른 payload 재사용은 충돌 처리
+- `quantity - canceledQuantity - returnedQuantity - 활성 Return 점유수량` 기준 반품 가능 수량 검증
+- Order → SellerOrder → ReturnRequest → 정렬된 OrderItem 비관적 잠금
+- 판매자 목록·상세·승인·거절과 `OTHER` 귀책(BUYER/SELLER) 확정
+- 별도 `RETURN_COLLECTION Shipment` 생성, 송장 등록, 회수 시작과 입고 처리
+- 모든 ReturnRequestItem 일괄 검수와 RESTOCKABLE/NON_RESTOCKABLE 기록
+- OrderItem 주문 당시 가격·원배송비·반품/교환 배송비 snapshot 기반 환불 예정금액 확정
+- BUYER/SELLER 귀책 및 SellerOrder 부분/전체반품 배송비 정책 적용
+- 기존 Cancellation/완료 Return과의 원 배송비 중복 환불 방지
+- Payment 환불 가능 잔액과 계산 확정 후 아직 미예약인 Return snapshot을 함께 검증
+- ReturnRequest와 `PaymentCancellation(PARTIAL)` UNIQUE 연결, 고정 PG idempotency key 사용
+- Toss 실제 부분환불, 결과 불명 유지, scheduler reconciliation과 webhook 연계
+- PG 성공 시 Payment PARTIALLY_CANCELED/CANCELED 반영; Order/SellerOrder 배송 후 상태는 유지
+- PG 성공 또는 0원 환불 확정 후 모든 item의 `returnedQuantity` 증가
+- RESTOCKABLE만 Product/Variant 재고 복원하고 `restockedQuantity` 기록
+- `SUCCEEDED + REFUNDING`과 `0원 + REFUNDING` completion recovery 및 COMPLETED 멱등 장벽
+
+Return Frontend는 미구현이다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 실제 PG/반품 E2E 검증도 운영 전 과제로 남아 있다.
+
+## 12. 실제 검증 상태
 
 기존 개발 과정에서 확인된 항목:
 
@@ -527,11 +557,11 @@ POST /api/payments/webhooks/toss
 - PREPARING 취소요청 → 판매자 승인 → PARTIAL PaymentCancellation SUCCEEDED 흐름 검증
 - 구매자/판매자 cancellation UI 구현
 
-현재 소스에는 주문/결제/cancellation/Shipment 관련 테스트가 존재한다. Shipment 전환 완료 후 Backend 전체 테스트를 실행해 **211 tests 성공**을 확인했다.
+현재 소스에는 주문/결제/cancellation/Shipment/Return 관련 테스트가 존재한다. Return 7 완료 후 Backend 전체 테스트를 실행해 **279 tests / 279 success / 0 failure / 0 error / 0 skipped**를 확인했다.
 
 개발 DB에서는 `docs/sql/shipment-original-outbound-backfill.sql`을 실행해 SellerOrder 32를 DELIVERED ORIGINAL_OUTBOUND, SellerOrder 34를 SHIPPED ORIGINAL_OUTBOUND로 변환했다. `shipment-original-outbound-verification.sql`의 누락/중복/배송정보 불일치/상태·timestamp 불일치 네 검증은 모두 0 rows였다.
 
-## 12. 운영 전 필수 Toss 검증 TODO
+## 13. 운영 전 필수 Toss 검증 TODO
 
 이 TODO는 실제 staging 검증 전 완료 처리하거나 삭제하지 않는다.
 
@@ -561,13 +591,13 @@ POST /api/payments/webhooks/toss
 - [ ] ORIGINAL_OUTBOUND Shipment 기반 실제 출고/배송완료 확인
 - [ ] legacy fallback 제거 전 staging 회귀 확인
 - [ ] dual-write 제거 전 migration/rollback 안정성 확인
-- [ ] 반품 구현 후 반품 환불/timeout/reconciliation 통합 검증
+- [ ] 반품 PG 환불/timeout/reconciliation/completion staging E2E 검증
 - [ ] 교환 구현 후 회수/재배송/추가 배송비 통합 검증
 - [ ] 운영 키 전환 전 Payment/Cancellation 전체 회귀
 
 현재 docs 예제용 `test_gck_docs_...` / `test_gsk_docs_...` 계열을 사용하는 개발 테스트와, 상점용 테스트 키로 수행해야 하는 staging 최종 검증을 구분한다. 실제 Secret 값은 문서에 기록하지 않는다.
 
-## 13. 다음 개발 우선순위 제안
+## 14. 다음 개발 우선순위 제안
 
 ### 1순위: Return Frontend
 
@@ -604,7 +634,7 @@ Return Backend 1~7은 완료됐다. Return Frontend와 Exchange는 미구현이�
 - 공개 staging Toss 통합 검증
 - 주문/결제/취소 integration test 확충
 
-## 14. 기타 주의사항
+## 15. 기타 주의사항
 
 - Shipment는 이미 도입됐으며 최초 배송 source of truth로 사용
 - 새 UI에 Tailwind utility class 사용 금지
@@ -613,7 +643,7 @@ Return Backend 1~7은 완료됐다. Return Frontend와 Exchange는 미구현이�
 - 실제 Secret/API Key/token을 코드·문서·로그에 기록하지 않음
 - 기존 정상 전체취소/reconciliation을 신규 기능 때문에 불필요하게 재작성하지 않음
 
-## 15. 새 세션 인계
+## 16. 새 세션 인계
 
 ```text
 AGENTS.md와 docs/DEVELOPMENT_STATUS.md를 읽되 실제 최신 코드를 최종 기준으로 확인해.

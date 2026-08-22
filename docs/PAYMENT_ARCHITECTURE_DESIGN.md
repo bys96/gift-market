@@ -1,6 +1,6 @@
 # Gift Market Payment Architecture
 
-> 최종 갱신: 2026-08-20
+> 최종 갱신: 2026-08-22
 >
 > 이 문서는 현재 실제 Payment 구현을 기준으로 정리한 아키텍처 문서다. 과거 단계별 TODO보다 현재 코드가 우선한다.
 
@@ -307,6 +307,15 @@ PaymentCancellation(PARTIAL)
 
 PaymentCancellation에 판매자 승인 workflow를 넣지 않는다.
 
+현재 PARTIAL의 업무 원인은 nullable FK로 구분한다.
+
+```text
+OrderCancellation PARTIAL: orderCancellation != null, returnRequest == null
+ReturnRequest PARTIAL:      orderCancellation == null, returnRequest != null
+```
+
+`FULL / PARTIAL`은 결제 취소 금액 범위이고 `OrderCancellation / ReturnRequest`는 업무 원인이다. Return 전용 PaymentCancellationType은 사용하지 않으며 각 업무 요청에는 PaymentCancellation이 최대 한 건만 연결된다.
+
 ### 상태
 
 부분환불 성공 후 잔액 존재:
@@ -444,6 +453,8 @@ provider transaction 식별:
 
 Toss webhook에서 PARTIAL 진행 중 payment가 감지되면 `PartialPaymentCancellationReconciliationService`로 전달한다.
 
+ReturnRequest에 연결된 진행 중 PARTIAL은 `ReturnPaymentCancellationReconciliationService`로 분기한다. webhook payload만으로 성공을 확정하지 않고 동일한 provider 단건 조회 결과를 각 업무 reconciliation에 전달한다.
+
 scheduler와 webhook이 별도 완료 코드를 만들지 않고 같은 reconciliation/completion 로직을 사용한다.
 
 ## 24. 부분 재고복원
@@ -564,6 +575,9 @@ giftmarket-web/app/payment/fail/page.tsx
 - `PartialPaymentCancellationTransactionService.java`
 - `PartialPaymentCancellationReconciliationService.java`
 - `PartialPaymentCancellationOrphanRecoveryService.java`
+- `ReturnRefundExecutionService.java`
+- `ReturnPaymentCancellationTransactionService.java`
+- `ReturnPaymentCancellationReconciliationService.java`
 
 ## 30. 운영 전 최종 통합 검증
 

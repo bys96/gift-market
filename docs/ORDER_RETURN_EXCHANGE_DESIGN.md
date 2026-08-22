@@ -1,6 +1,6 @@
 # Gift Market 주문 반품 / 교환 설계
 
-> 최종 확정: 2026-08-20
+> 최종 갱신: 2026-08-22
 >
 > 기준 우선순위: 현재 실제 코드 > 최신 문서 > 인수인계 내용.
 > 이 문서는 현재 `gift-market` 코드의 주문/결제/취소/재고/배송 구조를 유지하면서 실제 운영 가능한 반품·교환 기능을 추가하기 위한 확정 설계다.
@@ -44,8 +44,8 @@ Order
 │  │   └─ EXCHANGE_OUTBOUND
 │  ├─ OrderCancellation N
 │  │   └─ OrderCancellationItem N
-│  ├─ ReturnRequest N (미구현 예정)
-│  └─ ExchangeRequest N (미구현 예정)
+│  ├─ ReturnRequest N (Backend 구현 완료)
+│  └─ ExchangeRequest N (설계만 존재, 미구현)
 │
 └─ SellerOrder B
    └─ ...
@@ -53,8 +53,8 @@ Order
 
 현재 코드에서 확인된 핵심 사항:
 
-- 현재 구현 완료: Order / Payment / SellerOrder / OrderItem / OrderCancellation / Shipment
-- 현재 미구현: ReturnRequest / ReturnRequestItem / ExchangeRequest / ExchangeRequestItem 및 관련 Service/UI
+- 현재 구현 완료: Order / Payment / SellerOrder / OrderItem / OrderCancellation / Shipment / ReturnRequest / ReturnRequestItem 및 Return Backend Service
+- 현재 미구현: Return Frontend, ExchangeRequest / ExchangeRequestItem 및 Exchange 관련 Service/UI
 
 - `SellerOrderStatus`
   - `PENDING_PAYMENT`
@@ -747,9 +747,7 @@ PaymentCancellationType.PARTIAL
 
 을 사용한다.
 
-다만 현재 `PaymentCancellation`은 PARTIAL에 대해 `OrderCancellation`만 직접 연결한다.
-
-반품 구현 시 최소 변경:
+현재 `PaymentCancellation`은 PARTIAL 업무 source를 다음 nullable FK로 구분한다.
 
 ```text
 PaymentCancellation
@@ -829,7 +827,7 @@ Toss 최신 payment 조회
 
 외부 HTTP 호출 중 DB transaction을 유지하지 않는다.
 
-### Transaction B — 성공 확정
+### Transaction B — PG 성공 확정
 
 ```text
 Payment
@@ -843,11 +841,24 @@ Payment
 PG 응답 검증
 → PaymentCancellation SUCCEEDED
 → Payment PARTIALLY_CANCELED 또는 CANCELED
+→ ReturnRequest REFUNDING 유지
+→ commit
+```
+
+### Transaction C — Return completion
+
+```text
+Payment → Order → SellerOrder → ReturnRequest
+→ PaymentCancellation(금액이 0보다 큰 경우)
+→ OrderItem → Product/Variant 순서 잠금
+→ PG 환불 성공 또는 0원 환불 검증
 → returnedQuantity 증가
-→ 재판매 가능 수량만 재고 복원
+→ RESTOCKABLE만 재고 복원 및 restockedQuantity 기록
 → ReturnRequest COMPLETED
 → commit
 ```
+
+PG 성공 확정과 내부 완료 후처리를 분리한다. Transaction C가 실패하면 `PaymentCancellation SUCCEEDED + ReturnRequest REFUNDING`을 남기고 completion recovery가 새 PG 호출 없이 멱등 재시도한다. `refundAmount == 0`은 PaymentCancellation 없이 `REFUNDING`에서 같은 completion을 수행한다.
 
 ## 16. 환불 결과 불명 / reconciliation
 
@@ -864,8 +875,9 @@ timeout
 - 같은 `PaymentCancellation.idempotencyKey` 재사용
 - Toss 최신 payment/cancels 조회
 - provider transaction key / 금액 / 사유 검증
-- 성공 확인 후에만 ReturnRequest 완료
+- 성공 확인 시 PaymentCancellation을 먼저 SUCCEEDED로 확정하고 별도 completion을 실행
 - 성공 확인 전 `returnedQuantity`/재고를 최종 반영하지 않음
+- `SUCCEEDED + REFUNDING`은 completion recovery 대상
 
 운영 전 최종 E2E에서 기존 취소 reconciliation과 함께 반품 환불도 검증한다.
 
@@ -1267,7 +1279,7 @@ DELIVERED SellerOrder에서:
 
 ## 31. 구현 순서
 
-Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단계부터 반품을 구현하고, Return 기본 흐름 안정화 후 교환으로 간다.
+Shipment 기반 배송 구조와 개발 DB migration 및 Return Backend 1~7은 완료됐다. Exchange는 아래 설계만 존재한다.
 
 ### Shipment 1 — Domain / Repository (완료)
 
@@ -1300,7 +1312,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - 누락, 중복, legacy 배송정보 불일치, 상태·timestamp 불일치 검증 모두 0 rows
 - SellerOrder legacy 배송 컬럼은 삭제하지 않고 migration/rollback snapshot 및 호환 fallback으로 유지
 
-### Return 1 — 주문 snapshot 준비
+### Return 1 — 주문 snapshot 준비 (완료)
 
 - `OrderItem.returnShippingFee`
 - `OrderItem.exchangeShippingFee`
@@ -1308,7 +1320,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - 기존 데이터 backfill
 - 테스트
 
-### Return 2 — Domain
+### Return 2 — Domain (완료)
 
 - ReturnReasonType
 - ReturnResponsibility
@@ -1318,7 +1330,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - ReturnRequestItem
 - `OrderItem.returnedQuantity`
 
-### Return 3 — Repository / lock / 요청 생성
+### Return 3 — Repository / lock / 요청 생성 (완료)
 
 - 구매자 ownership
 - SellerOrder DELIVERED 검증
@@ -1326,7 +1338,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - 요청 가능 수량
 - clientRequestKey 멱등성
 
-### Return 4 — 판매자 workflow
+### Return 4 — 판매자 workflow (완료)
 
 - 승인
 - 거절
@@ -1334,7 +1346,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - 입고
 - 검수
 
-### Return 5 — 환불 계산
+### Return 5 — 환불 계산 (완료)
 
 - 상품금액
 - 원 배송비
@@ -1342,7 +1354,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - 편도/왕복 반품비
 - Payment 환불 가능 잔액
 
-### Return 6 — PG 환불
+### Return 6 — PG 환불 (완료)
 
 - PaymentCancellation ReturnRequest 연결
 - PaymentGateway 재사용
@@ -1350,13 +1362,13 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - timeout/5xx
 - reconciliation
 
-### Return 7 — 재고/완료
+### Return 7 — 재고/완료 (완료)
 
 - RESTOCKABLE만 복원
 - returnedQuantity
 - 중복복원 방지
 
-### Return 8 — Backend 테스트
+### Return Backend 테스트 (완료)
 
 - 부분 수량
 - 전체 반품
@@ -1369,7 +1381,7 @@ Shipment 기반 배송 구조와 개발 DB migration은 완료됐다. 다음 단
 - 환불잔액
 - timeout/reconciliation
 
-### Return 9 — Frontend
+### Return Frontend (미구현)
 
 - 구매자 주문상세
 - 반품 신청
@@ -1500,5 +1512,5 @@ Shipment 핵심 테스트:
 26. Shipment 도입 후에도 기존 결제/취소/주문 조회 API를 불필요하게 변경하지 않는다.
 ```
 
-Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증까지 완료됐다.
-다음 구현은 `OrderItem` 반품/교환 배송비 snapshot을 추가하는 Return 1 단계이며, 그 후 Return 도메인으로 진행한다.
+Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증과 Return Backend 1~7까지 완료됐다. 전체 Backend 자동 테스트는 279개 성공했다.
+다음 구현 범위는 Return Frontend이며 Exchange는 설계만 존재하고 미구현이다. 운영 전 공개 staging + 상점용 Toss 테스트 키를 사용한 PG/반품 E2E 검증이 필요하다.
