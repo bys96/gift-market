@@ -5,6 +5,7 @@ import com.giftmarket.payment.entity.PaymentCancellationStatus;
 import com.giftmarket.payment.gateway.*;
 import com.giftmarket.payment.repository.PaymentCancellationRepository;
 import com.giftmarket.payment.config.PaymentProperties;
+import com.giftmarket.order.service.ReturnCompletionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class ReturnPaymentCancellationReconciliationService {
     private final ReturnPaymentCancellationTransactionService transactions;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentProperties properties;
+    private final ReturnCompletionService completionService;
 
     @Scheduled(fixedDelayString = "#{@paymentProperties.partialCancellationReconciliationCheckIntervalMillis}")
     public void reconcileReturns() {
@@ -54,6 +56,7 @@ public class ReturnPaymentCancellationReconciliationService {
                         start.reason(), start.idempotencyKey(), start.cancelAmount()));
                 if (canceled == null) throw new PaymentGatewayUncertainException("PG 환불 응답이 비어 있습니다.", null);
                 transactions.complete(start, canceled);
+                completionService.complete(start.returnRequestId());
             }
         } catch (PaymentGatewayDeclinedException exception) {
             transactions.fail(start.returnRequestId(), start.paymentCancellationId(), exception.getFailureCode(), exception.getMessage());
@@ -92,6 +95,7 @@ public class ReturnPaymentCancellationReconciliationService {
             transactions.complete(start, new GatewayCancelResult(query.status(), query.providerPaymentKey(),
                     tx.providerTransactionId(), query.merchantPaymentId(), query.amount(), query.remainingAmount(),
                     query.currency(), query.providerStatus(), tx.canceledAt(), tx.amount(), tx.status(), tx.remainingAmount()));
+            completionService.complete(start.returnRequestId());
             return ReconcileResult.COMPLETED;
         }
         boolean safe = (query.status() == GatewayPaymentStatus.PAID || query.status() == GatewayPaymentStatus.PARTIALLY_CANCELED)

@@ -2,6 +2,8 @@ package com.giftmarket.order.service;
 
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderCancellationItem;
+import com.giftmarket.order.entity.ReturnInspectionResult;
+import com.giftmarket.order.entity.ReturnRequestItem;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.product.entity.Product;
@@ -54,6 +56,20 @@ public class OrderInventoryService {
             throw new OrderException("Cancellation items are required for stock restoration.");
         }
         restoreQuantities(cancellationItems.stream()
+                .map(item -> new InventoryRestoreItem(item.getOrderItem(), item.getQuantity()))
+                .toList());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void restoreReturnItems(List<ReturnRequestItem> returnItems) {
+        if (returnItems == null || returnItems.isEmpty()) {
+            throw new OrderException("Return items are required for stock restoration.");
+        }
+        List<ReturnRequestItem> restockable = returnItems.stream()
+                .filter(item -> item.getInspectionResult() == ReturnInspectionResult.RESTOCKABLE)
+                .toList();
+        if (restockable.isEmpty()) return;
+        restoreQuantities(restockable.stream()
                 .map(item -> new InventoryRestoreItem(item.getOrderItem(), item.getQuantity()))
                 .toList());
     }

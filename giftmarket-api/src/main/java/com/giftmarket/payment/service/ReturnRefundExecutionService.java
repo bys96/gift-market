@@ -1,6 +1,7 @@
 package com.giftmarket.payment.service;
 
 import com.giftmarket.payment.exception.PaymentException;
+import com.giftmarket.order.service.ReturnCompletionService;
 import com.giftmarket.payment.gateway.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,9 +14,15 @@ public class ReturnRefundExecutionService {
     private final ReturnPaymentCancellationTransactionService transactions;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final ReturnPaymentCancellationReconciliationService reconciliationService;
+    private final ReturnCompletionService completionService;
 
     public void execute(Long returnRequestId) {
         ReturnCancellationStart start = transactions.start(returnRequestId);
+        if (start.action() == ReturnCancellationStart.Action.ZERO_REFUND
+                || start.action() == ReturnCancellationStart.Action.SUCCEEDED) {
+            completionService.complete(returnRequestId);
+            return;
+        }
         if (start.action() == ReturnCancellationStart.Action.RECONCILE) {
             reconciliationService.reconcile(start.paymentCancellationId());
             return;
@@ -34,6 +41,7 @@ public class ReturnRefundExecutionService {
                     start.reason(), start.idempotencyKey(), start.cancelAmount()));
             if (result == null) throw new PaymentGatewayUncertainException("PG 환불 응답이 비어 있습니다.", null);
             transactions.complete(start, result);
+            completionService.complete(returnRequestId);
         } catch (PaymentGatewayDeclinedException exception) {
             transactions.fail(start.returnRequestId(), start.paymentCancellationId(), exception.getFailureCode(), exception.getMessage());
         } catch (PaymentGatewayUncertainException exception) {

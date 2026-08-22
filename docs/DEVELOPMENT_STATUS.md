@@ -569,7 +569,7 @@ POST /api/payments/webhooks/toss
 
 ## 13. 다음 개발 우선순위 제안
 
-### 1순위: Return 7 반품 완료
+### 1순위: Return Frontend
 
 Shipment 도입과 개발 DB backfill/검증, OrderItem 반품/교환 배송비 snapshot, 구매자 반품 요청과 판매자 승인/거절·회수·입고·검수 Backend까지 완료됐다.
 
@@ -586,7 +586,9 @@ GET  /api/orders/{orderId}/returns
 GET  /api/returns/{returnRequestId}
 ```
 
-판매자 검수 완료 transaction에서 환불 snapshot을 확정한 뒤 별도 workflow가 PaymentCancellation(PARTIAL)을 ReturnRequest에 연결하고 commit 후 PG를 호출한다. timeout/5xx 등 결과 불명은 REQUESTED/REFUNDING으로 유지하며 저장된 고정 멱등 키로 reconciliation하고 webhook도 Return 환불을 분기 처리한다. 성공 시 Payment 상태만 PARTIALLY_CANCELED/CANCELED로 반영하고 ReturnRequest는 REFUNDING을 유지한다. 다음은 Return 7 재고 복원·returnedQuantity 증가·COMPLETED 처리다.
+판매자 검수 완료 transaction에서 환불 snapshot을 확정한 뒤 별도 workflow가 PaymentCancellation(PARTIAL)을 ReturnRequest에 연결하고 commit 후 PG를 호출한다. timeout/5xx 등 결과 불명은 REQUESTED/REFUNDING으로 유지하며 저장된 고정 멱등 키로 reconciliation하고 webhook도 Return 환불을 분기 처리한다. PG 성공 또는 0원 환불은 별도 completion transaction에서 returnedQuantity를 확정하고 RESTOCKABLE 수량만 재고와 restockedQuantity에 반영한 뒤 COMPLETED로 전이한다. SUCCEEDED + REFUNDING 고아 상태는 recovery가 멱등 재처리한다.
+
+Return Backend 1~7은 완료됐다. Return Frontend와 Exchange는 미구현이며, 운영 staging 환경의 PG/반품 E2E 검증은 아직 필요하다.
 
 ### 2순위: 관리자 주문/결제 운영
 
@@ -624,6 +626,6 @@ SellerOrder 1:N Shipment가 구현되어 있고 최초 배송은 ORIGINAL_OUTBOU
 
 OrderCancellation + OrderCancellationItem 기반 상품/수량 부분취소, PAID 즉시취소, PREPARING 판매자 승인/거절, Toss 부분환불, Payment PARTIALLY_CANCELED, 부분 재고복원, 부분환불 reconciliation/webhook/orphan recovery, 구매자/판매자 cancellation UI까지 구현되어 있다.
 
-DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불과 결과 불명 reconciliation까지 구현되어 있다. 성공 시 Payment 상태를 반영하지만 ReturnRequest는 REFUNDING에 머물며 재고 복원, returnedQuantity, COMPLETED는 아직 미구현이다.
+DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불·reconciliation, returnedQuantity·RESTOCKABLE 재고 복원과 COMPLETED까지 Backend가 구현되어 있다. Frontend와 Exchange는 아직 미구현이다.
 운영 전 공개 staging + 상점용 Toss 테스트 키로 결제/전체취소/부분취소/webhook 전체 회귀가 필수다.
 ```

@@ -8,6 +8,7 @@ public record ReturnRequestItemResponse(
         String productName,
         String optionSnapshot,
         int quantity,
+        int returnedQuantity,
         ReturnInspectionResult inspectionResult,
         int restockedQuantity
 ) {
@@ -17,6 +18,7 @@ public record ReturnRequestItemResponse(
                 item.getOrderItem().getProductName(),
                 item.getOrderItem().getOptionSnapshot(),
                 item.getQuantity(),
+                item.getOrderItem().getReturnedQuantity(),
                 item.getInspectionResult(),
                 item.getRestockedQuantity()
         );

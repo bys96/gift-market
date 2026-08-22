@@ -142,4 +142,18 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
     Optional<ReturnRequest> findByIdForUpdate(
             @Param("id") Long id
     );
+
+    @Query("""
+            select r.id from ReturnRequest r
+            where r.status = com.giftmarket.order.entity.ReturnRequestStatus.REFUNDING
+              and ((r.refundAmount = 0 and not exists (
+                    select pc.id from PaymentCancellation pc where pc.returnRequest = r
+              )) or exists (
+                    select pc.id from PaymentCancellation pc
+                    where pc.returnRequest = r
+                      and pc.status = com.giftmarket.payment.entity.PaymentCancellationStatus.SUCCEEDED
+              ))
+            order by r.refundingAt asc, r.id asc
+            """)
+    List<Long> findCompletionCandidateIds(Pageable pageable);
 }

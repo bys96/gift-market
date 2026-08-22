@@ -2,6 +2,8 @@ package com.giftmarket.order.service;
 
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderCancellationItem;
+import com.giftmarket.order.entity.ReturnInspectionResult;
+import com.giftmarket.order.entity.ReturnRequestItem;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductVariant;
@@ -21,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -37,6 +40,7 @@ class OrderInventoryServiceTest {
     @Mock Product product;
     @Mock ProductVariant variant;
     @Mock OrderCancellationItem cancellationItem;
+    @Mock ReturnRequestItem returnItem;
 
     private OrderInventoryService service;
 
@@ -111,5 +115,26 @@ class OrderInventoryServiceTest {
 
         verify(variant).increaseStock(1);
         verify(product).changeStockQuantity(8);
+    }
+
+    @Test
+    void restoresOnlyRestockableReturnQuantity() {
+        given(returnItem.getInspectionResult()).willReturn(ReturnInspectionResult.RESTOCKABLE);
+        given(returnItem.getOrderItem()).willReturn(orderItem);
+        given(returnItem.getQuantity()).willReturn(1);
+        given(orderItem.getVariant()).willReturn(null);
+
+        service.restoreReturnItems(List.of(returnItem));
+
+        verify(product).increaseStock(1);
+    }
+
+    @Test
+    void doesNotRestoreNonRestockableReturnQuantity() {
+        given(returnItem.getInspectionResult()).willReturn(ReturnInspectionResult.NON_RESTOCKABLE);
+
+        service.restoreReturnItems(List.of(returnItem));
+
+        verify(product, never()).increaseStock(org.mockito.ArgumentMatchers.anyInt());
     }
 }
