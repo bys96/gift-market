@@ -26,6 +26,8 @@ class ReturnRequestItemTest {
                 .thenReturn(1);
         when(orderItem.getReturnedQuantity())
                 .thenReturn(0);
+        when(orderItem.getExchangedQuantity())
+                .thenReturn(0);
 
         ReturnRequestItem item = ReturnRequestItem.create(
                 returnRequest,
@@ -62,6 +64,41 @@ class ReturnRequestItemTest {
                 orderItem,
                 2
         )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void completedExchangeQuantityReducesReturnableAndAllowsExactRemainder() {
+        SellerOrder sellerOrder = mock(SellerOrder.class);
+        ReturnRequest returnRequest = mock(ReturnRequest.class);
+        OrderItem orderItem = mock(OrderItem.class);
+        when(returnRequest.getSellerOrder()).thenReturn(sellerOrder);
+        when(orderItem.getSellerOrder()).thenReturn(sellerOrder);
+        when(orderItem.getQuantity()).thenReturn(5);
+        when(orderItem.getCanceledQuantity()).thenReturn(1);
+        when(orderItem.getReturnedQuantity()).thenReturn(1);
+        when(orderItem.getExchangedQuantity()).thenReturn(1);
+
+        ReturnRequestItem item = ReturnRequestItem.create(returnRequest, orderItem, 2);
+
+        assertThat(item.getQuantity()).isEqualTo(2);
+        assertThatThrownBy(() -> ReturnRequestItem.create(returnRequest, orderItem, 3))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsWhenCanceledReturnedAndExchangedUseAllQuantity() {
+        SellerOrder sellerOrder = mock(SellerOrder.class);
+        ReturnRequest returnRequest = mock(ReturnRequest.class);
+        OrderItem orderItem = mock(OrderItem.class);
+        when(returnRequest.getSellerOrder()).thenReturn(sellerOrder);
+        when(orderItem.getSellerOrder()).thenReturn(sellerOrder);
+        when(orderItem.getQuantity()).thenReturn(3);
+        when(orderItem.getCanceledQuantity()).thenReturn(1);
+        when(orderItem.getReturnedQuantity()).thenReturn(1);
+        when(orderItem.getExchangedQuantity()).thenReturn(1);
+
+        assertThatThrownBy(() -> ReturnRequestItem.create(returnRequest, orderItem, 1))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

@@ -6,14 +6,13 @@
 
 ## 0. 현재 요약
 
-Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return Backend 1~7의 요청·회수·검수·PG 환불·재고복원·완료 처리까지 구현된 상태**다.
+Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return Backend 1~7, Buyer/Seller Frontend, 증빙 이미지 0~5장과 실제 Return E2E까지 완료된 상태**다. Exchange는 아직 구현 전이다.
 
 현재 가장 큰 미완료 범위는 다음이다.
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- Return staging E2E 검증
-- Exchange Backend/Frontend
+- Exchange Backend/Frontend, ExchangeShippingPayment와 실제 교환 E2E
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 
@@ -313,7 +312,7 @@ SellerOrder DELIVERED
 → 기존 주문취소 불가
 ```
 
-SHIPPED/DELIVERED는 향후 반품/교환 도메인 범위다.
+SHIPPED 이후 기존 주문취소는 불가하다. DELIVERED는 구현된 Return 도메인 범위이며 Exchange는 구현 예정이다.
 
 ### 8.3 구매자 API
 
@@ -538,7 +537,7 @@ REQUESTED → REJECTED
 - RESTOCKABLE만 Product/Variant 재고 복원하고 `restockedQuantity` 기록
 - `SUCCEEDED + REFUNDING`과 `0원 + REFUNDING` completion recovery 및 COMPLETED 멱등 장벽
 
-Return 구매자·판매자 Frontend는 구현되었다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 실제 PG/반품 E2E 검증도 운영 전 과제로 남아 있다.
+Return 구매자·판매자 Frontend와 증빙 이미지 0~5장 optional 첨부, 실제 Return E2E까지 완료되었다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 결제 전체 회귀는 운영 전 과제로 남아 있다.
 
 반품 요청에는 선택적으로 증빙 이미지 0~5장을 첨부할 수 있다. Backend가 `returns/{userId}/` prefix의 objectKey와 MinIO presigned PUT URL을 발급하고 Frontend가 직접 업로드한 뒤, `ReturnRequest 1:N ReturnRequestImage`로 objectKey와 표시 순서만 저장한다. Buyer/Seller 소유권 검증이 끝난 조회 응답에서만 만료되는 presigned GET URL을 발급하며 이미지가 없는 기존 반품은 `images=[]`로 호환된다. 업로드 후 반품 생성 실패로 남을 수 있는 orphan object 정리는 향후 prefix 기반 cleanup 작업으로 남아 있다.
 
@@ -550,6 +549,21 @@ Return 구매자·판매자 Frontend는 구현되었다. Exchange는 설계만 �
 - 반품 목록만 별도로 로딩하고 요청 성공 후 주문·취소·반품 정보를 재조회
 
 판매자센터 `/seller/orders/returns`와 상세 화면에서는 상태 필터·pagination, 승인/거절, OTHER 귀책 확정, 회수 배송 등록, 입고, 전체 상품 검수와 환불 진행·완료 확인을 제공한다.
+
+## 11.1 Exchange 1 도메인 foundation 구현 현황
+
+Exchange Service/API와 실제 workflow에 앞서 다음 기본 구조를 구현했다.
+
+- Exchange 전용 reason/responsibility/status/inspection enum
+- `ExchangeRequest`, `ExchangeRequestItem`, `ExchangeRequestImage`와 Repository
+- collection/reshipping 주소 snapshot과 EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND nullable 연결
+- 동일 Product의 target Product/Variant 관계와 target 상품명·옵션·판매단가 snapshot
+- `OrderItem.exchangedQuantity` 완료 누계와 교환 가능 수량 불변식
+- target reservation의 reserved/released/consumed 누적 수량과 멱등 추적 메서드
+- 원 상품 inspectionResult/restockedQuantity 구조
+- `order_items.exchanged_quantity` 안전 backfill과 세 Exchange 테이블 수동 DDL
+
+아직 구현하지 않은 범위는 Buyer/Seller API, Exchange Service, 실제 target stock 변경, Shipment 생성, ExchangeShippingPayment, Frontend와 실제 교환 E2E다.
 
 ## 12. 실제 검증 상태
 
@@ -602,7 +616,7 @@ Return 구매자·판매자 Frontend는 구현되었다. Exchange는 설계만 �
 - [ ] ORIGINAL_OUTBOUND Shipment 기반 실제 출고/배송완료 확인
 - [ ] legacy fallback 제거 전 staging 회귀 확인
 - [ ] dual-write 제거 전 migration/rollback 안정성 확인
-- [ ] 반품 PG 환불/timeout/reconciliation/completion staging E2E 검증
+- [x] 개발환경 실제 Return 요청→승인→회수→입고→검수→환불→완료 E2E 검증
 - [ ] 교환 구현 후 회수/재배송/추가 배송비 통합 검증
 - [ ] 운영 키 전환 전 Payment/Cancellation 전체 회귀
 
@@ -610,26 +624,16 @@ Return 구매자·판매자 Frontend는 구현되었다. Exchange는 설계만 �
 
 ## 14. 다음 개발 우선순위 제안
 
-### 1순위: Return staging E2E 검증
+### 1순위: Exchange 2 구매자 요청 Service/API
 
-Shipment 도입과 개발 DB backfill/검증, OrderItem 반품/교환 배송비 snapshot, 구매자 반품 요청과 판매자 승인/거절·회수·입고·검수 Backend까지 완료됐다.
+Return 전체와 Exchange 1 Entity foundation은 완료됐다. 다음은 구매자 교환 요청 생성·조회와 Backend 최종 검증이다.
 
-```text
-OrderItem.returnShippingFee
-OrderItem.exchangeShippingFee
-```
-
-구매자 반품 API:
-
-```text
-POST /api/orders/{orderId}/seller-orders/{sellerOrderId}/returns
-GET  /api/orders/{orderId}/returns
-GET  /api/returns/{returnRequestId}
-```
-
-판매자 검수 완료 transaction에서 환불 snapshot을 확정한 뒤 별도 workflow가 PaymentCancellation(PARTIAL)을 ReturnRequest에 연결하고 commit 후 PG를 호출한다. timeout/5xx 등 결과 불명은 REQUESTED/REFUNDING으로 유지하며 저장된 고정 멱등 키로 reconciliation하고 webhook도 Return 환불을 분기 처리한다. PG 성공 또는 0원 환불은 별도 completion transaction에서 returnedQuantity를 확정하고 RESTOCKABLE 수량만 재고와 restockedQuantity에 반영한 뒤 COMPLETED로 전이한다. SUCCEEDED + REFUNDING 고아 상태는 recovery가 멱등 재처리한다.
-
-Return Backend 1~7과 구매자·판매자 Return Frontend는 완료됐다. Exchange는 미구현이며, 운영 staging 환경의 PG/반품 E2E 검증은 아직 필요하다.
+- DELIVERED 및 ORIGINAL_OUTBOUND.deliveredAt 검증
+- 동일 Product의 동일/다른 Variant와 원 주문 unitPrice 동일 금액 검증
+- 부분 수량, 활성 Return/Exchange 점유량, 완료 교환량을 반영한 가용 수량 검증
+- 정렬된 OrderItem pessimistic lock
+- clientRequestKey payload 멱등성과 ExchangeRequestItem/Image transaction 저장
+- Buyer ownership 조회와 이미지 objectKey prefix 검증
 
 ### 2순위: 관리자 주문/결제 운영
 
@@ -667,6 +671,6 @@ SellerOrder 1:N Shipment가 구현되어 있고 최초 배송은 ORIGINAL_OUTBOU
 
 OrderCancellation + OrderCancellationItem 기반 상품/수량 부분취소, PAID 즉시취소, PREPARING 판매자 승인/거절, Toss 부분환불, Payment PARTIALLY_CANCELED, 부분 재고복원, 부분환불 reconciliation/webhook/orphan recovery, 구매자/판매자 cancellation UI까지 구현되어 있다.
 
-DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불·reconciliation, returnedQuantity·RESTOCKABLE 재고 복원과 COMPLETED까지 Backend가 구현되어 있다. Frontend와 Exchange는 아직 미구현이다.
+DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불·reconciliation, returnedQuantity·RESTOCKABLE 재고 복원과 COMPLETED까지 Backend가 구현되어 있다. Buyer/Seller Return Frontend, 증빙 이미지 0~5장과 실제 Return E2E도 완료됐다. Exchange는 Entity/Repository/OrderItem.exchangedQuantity/reservation 추적/Shipment 관계의 1단계 foundation까지만 구현됐고 Service/API/재고/결제/Frontend는 미구현이다.
 운영 전 공개 staging + 상점용 Toss 테스트 키로 결제/전체취소/부분취소/webhook 전체 회귀가 필수다.
 ```

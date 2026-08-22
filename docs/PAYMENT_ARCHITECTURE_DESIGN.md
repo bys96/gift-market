@@ -613,6 +613,12 @@ giftmarket-web/app/payment/fail/page.tsx
 - 실제 상점 계약 결제수단별 부분취소 가능 여부 검증
 - 운영 secret manager
 
+### Exchange 배송비 추가결제 (설계 확정, 미구현)
+
+교환은 환불이 없으므로 구매자 귀책 교환 배송비를 원 주문 `Payment`에서 차감하거나 기존 `PaymentCancellation`로 처리하지 않는다. `ExchangeRequest`와 1:1인 별도 `ExchangeShippingPayment`를 구현한다.
+
+최소 필드는 `amount`, `status`, `merchantPaymentId`, `providerPaymentKey`, `requestedAt`, `paidAt`, `failedAt`과 만료 판단용 `expiresAt` 또는 동등한 정책 시각이며 고정 idempotency key, 결과 불명 상태와 reconciliation을 고려한다. BUYER 귀책은 `APPROVED → PAYMENT_PENDING`에서 24시간 이내 추가결제가 성공한 뒤 target 재고를 예약하고 `COLLECTING`으로 진행한다. 미결제 24시간 만료는 `CANCELED`이며 `FAILED`가 아니고 target 재고도 예약하지 않는다. 24시간 값은 정책 상수/설정 한 곳에서 관리한다. SELLER 귀책은 추가결제 없이 승인 후 target 재고를 예약하고 `COLLECTING`으로 진행한다. 이 도메인은 현재 설계만 확정됐고 구현 및 staging E2E는 Exchange 작업 이후 수행한다.
+
 ## 32. 변경 시 지켜야 할 회귀 기준
 
 Payment 변경에서 다음을 동시에 보호한다.
