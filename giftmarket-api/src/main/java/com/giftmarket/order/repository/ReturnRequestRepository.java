@@ -117,6 +117,26 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
             @Param("statuses") Collection<ReturnRequestStatus> statuses
     );
 
+    @Query("""
+            select coalesce(sum(r.refundAmount), 0)
+            from ReturnRequest r
+            where r.order.id = :orderId
+              and r.id <> :excludedReturnRequestId
+              and r.refundAmount is not null
+              and r.status in :statuses
+              and not exists (
+                    select pc.id from PaymentCancellation pc
+                    where pc.returnRequest = r
+                      and pc.status in :cancellationStatuses
+              )
+            """)
+    Long sumUnreservedRefundAmountByOrderIdExcludingRequest(
+            @Param("orderId") Long orderId,
+            @Param("excludedReturnRequestId") Long excludedReturnRequestId,
+            @Param("statuses") Collection<ReturnRequestStatus> statuses,
+            @Param("cancellationStatuses") Collection<com.giftmarket.payment.entity.PaymentCancellationStatus> cancellationStatuses
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from ReturnRequest r where r.id = :id")
     Optional<ReturnRequest> findByIdForUpdate(

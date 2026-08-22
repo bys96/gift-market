@@ -2,6 +2,7 @@ package com.giftmarket.payment.entity;
 
 import com.giftmarket.global.entity.BaseEntity;
 import com.giftmarket.order.entity.OrderCancellation;
+import com.giftmarket.order.entity.ReturnRequest;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -14,7 +15,8 @@ import java.time.LocalDateTime;
 @Table(name = "payment_cancellations", uniqueConstraints = {
         @UniqueConstraint(name = "uk_payment_cancellations_client_key", columnNames = "client_request_key"),
         @UniqueConstraint(name = "uk_payment_cancellations_idempotency_key", columnNames = "idempotency_key"),
-        @UniqueConstraint(name = "uk_payment_cancellations_order_cancellation", columnNames = "order_cancellation_id")
+        @UniqueConstraint(name = "uk_payment_cancellations_order_cancellation", columnNames = "order_cancellation_id"),
+        @UniqueConstraint(name = "uk_payment_cancellations_return_request", columnNames = "return_request_id")
 }, indexes = {
         @Index(name = "idx_payment_cancellations_payment_status", columnList = "payment_id, status"),
         @Index(name = "idx_payment_cancellations_status_requested_at", columnList = "status, requested_at")
@@ -32,6 +34,10 @@ public class PaymentCancellation extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_cancellation_id")
     private OrderCancellation orderCancellation;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_request_id")
+    private ReturnRequest returnRequest;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'FULL'")
@@ -106,6 +112,34 @@ public class PaymentCancellation extends BaseEntity {
         value.orderCancellation = orderCancellation;
         value.type = PaymentCancellationType.PARTIAL;
         value.clientRequestKey = requireText(clientRequestKey, "부분환불 요청 키가 필요합니다.");
+        value.idempotencyKey = requireText(idempotencyKey, "PG 멱등성 키가 필요합니다.");
+        value.amount = amount;
+        value.reason = requireProviderReason(reason);
+        value.status = PaymentCancellationStatus.REQUESTED;
+        value.requestedAt = now;
+        return value;
+    }
+
+    public static PaymentCancellation createReturnPartial(
+            Payment payment,
+            ReturnRequest returnRequest,
+            String clientRequestKey,
+            String idempotencyKey,
+            Long amount,
+            String reason,
+            LocalDateTime now
+    ) {
+        if (payment == null || returnRequest == null || returnRequest.getOrder() != payment.getOrder()) {
+            throw new IllegalArgumentException("반품 환불의 주문 정보가 결제와 일치하지 않습니다.");
+        }
+        if (amount == null || amount <= 0L || amount > payment.getAmount()) {
+            throw new IllegalArgumentException("반품 환불 금액이 올바르지 않습니다.");
+        }
+        PaymentCancellation value = new PaymentCancellation();
+        value.payment = payment;
+        value.returnRequest = returnRequest;
+        value.type = PaymentCancellationType.PARTIAL;
+        value.clientRequestKey = requireText(clientRequestKey, "반품 환불 요청 키가 필요합니다.");
         value.idempotencyKey = requireText(idempotencyKey, "PG 멱등성 키가 필요합니다.");
         value.amount = amount;
         value.reason = requireProviderReason(reason);

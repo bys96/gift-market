@@ -33,6 +33,7 @@ class TossPaymentWebhookServiceTest {
     @Mock PaymentGatewayRegistry gatewayRegistry;
     @Mock PaymentGateway gateway;
     @Mock PartialPaymentCancellationReconciliationService partialCancellationReconciliationService;
+    @Mock ReturnPaymentCancellationReconciliationService returnCancellationReconciliationService;
 
     private TossPaymentWebhookService service;
 
@@ -43,7 +44,8 @@ class TossPaymentWebhookServiceTest {
                 transactionService,
                 gatewayRegistry,
                 org.mockito.Mockito.mock(PaymentCancellationTransactionService.class),
-                partialCancellationReconciliationService
+                partialCancellationReconciliationService,
+                returnCancellationReconciliationService
         );
     }
 

@@ -28,6 +28,16 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
 
     Optional<PaymentCancellation> findByOrderCancellationId(Long orderCancellationId);
 
+    Optional<PaymentCancellation> findByReturnRequestId(Long returnRequestId);
+
+    @Query("""
+            select c from PaymentCancellation c
+            join fetch c.payment
+            join fetch c.returnRequest
+            where c.id = :id
+            """)
+    Optional<PaymentCancellation> findReturnCancellationForReconciliation(@Param("id") Long id);
+
     @Query("""
             select coalesce(sum(c.amount), 0)
             from PaymentCancellation c
@@ -99,7 +109,33 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
             where c.payment.id = :paymentId
               and c.type = com.giftmarket.payment.entity.PaymentCancellationType.PARTIAL
               and c.status = com.giftmarket.payment.entity.PaymentCancellationStatus.REQUESTED
+              and c.orderCancellation is not null
             order by c.requestedAt asc, c.id asc
             """)
     List<Long> findRequestedPartialIdsByPaymentId(@Param("paymentId") Long paymentId);
+
+    @Query("""
+            select c.id from PaymentCancellation c
+            where c.payment.id = :paymentId
+              and c.type = com.giftmarket.payment.entity.PaymentCancellationType.PARTIAL
+              and c.status = com.giftmarket.payment.entity.PaymentCancellationStatus.REQUESTED
+              and c.returnRequest is not null
+            order by c.requestedAt asc, c.id asc
+            """)
+    List<Long> findRequestedReturnPartialIdsByPaymentId(@Param("paymentId") Long paymentId);
+
+    @Query("""
+            select c.id from PaymentCancellation c
+            where c.type = com.giftmarket.payment.entity.PaymentCancellationType.PARTIAL
+              and c.status = com.giftmarket.payment.entity.PaymentCancellationStatus.REQUESTED
+              and c.returnRequest is not null
+              and c.returnRequest.status = com.giftmarket.order.entity.ReturnRequestStatus.REFUNDING
+              and c.returnRequest.sellerOrder.status = com.giftmarket.order.entity.SellerOrderStatus.DELIVERED
+              and c.requestedAt <= :requestedBefore
+            order by c.requestedAt asc, c.id asc
+            """)
+    List<Long> findReturnReconciliationCandidateIds(
+            @Param("requestedBefore") LocalDateTime requestedBefore,
+            Pageable pageable
+    );
 }

@@ -26,6 +26,7 @@ public class TossPaymentWebhookService {
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentCancellationTransactionService cancellationTransactionService;
     private final PartialPaymentCancellationReconciliationService partialCancellationReconciliationService;
+    private final ReturnPaymentCancellationReconciliationService returnCancellationReconciliationService;
 
     public void process(
             String transmissionId,
@@ -106,10 +107,19 @@ public class TossPaymentWebhookService {
                     request.data().orderId()
             );
             if (start.action() == PaymentConfirmStart.Action.COMPLETED) {
-                if (partialCancellationReconciliationService.hasRequestedPartialCancellation(paymentId)) {
+                boolean hasOrderCancellation = partialCancellationReconciliationService
+                        .hasRequestedPartialCancellation(paymentId);
+                boolean hasReturnCancellation = returnCancellationReconciliationService
+                        .hasRequestedReturnCancellation(paymentId);
+                if (hasOrderCancellation || hasReturnCancellation) {
                     PaymentGateway gateway = gatewayRegistry.get(provider);
                     GatewayPaymentQueryResult result = gateway.getPayment(request.data().paymentKey());
-                    partialCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
+                    if (hasOrderCancellation) {
+                        partialCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
+                    }
+                    if (hasReturnCancellation) {
+                        returnCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
+                    }
                 }
                 eventService.processed(provider, transmissionId, paymentId);
                 return;
@@ -120,6 +130,7 @@ public class TossPaymentWebhookService {
                     request.data().paymentKey()
             );
             partialCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
+            returnCancellationReconciliationService.reconcileFromWebhook(paymentId, result);
             if (cancellationTransactionService.isCanceling(paymentId)) {
                 if (result.status() == com.giftmarket.payment.gateway.GatewayPaymentStatus.CANCELED
                         && result.remainingAmount() != null

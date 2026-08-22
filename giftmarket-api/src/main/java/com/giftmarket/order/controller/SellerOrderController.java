@@ -20,6 +20,7 @@ import com.giftmarket.order.service.SellerOrderManagementService;
 import com.giftmarket.order.service.SellerOrderCancellationService;
 import com.giftmarket.order.service.SellerOrderCancellationWorkflowService;
 import com.giftmarket.order.service.SellerReturnRequestService;
+import com.giftmarket.order.service.SellerReturnRequestWorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,6 +41,7 @@ public class SellerOrderController {
     private final SellerOrderCancellationService sellerOrderCancellationService;
     private final SellerOrderCancellationWorkflowService sellerOrderCancellationWorkflowService;
     private final SellerReturnRequestService sellerReturnRequestService;
+    private final SellerReturnRequestWorkflowService sellerReturnRequestWorkflowService;
 
     @GetMapping("/returns")
     public ApiResponse<SellerReturnRequestPageResponse> getReturns(
@@ -106,7 +108,7 @@ public class SellerOrderController {
             @PathVariable Long returnRequestId,
             @Valid @RequestBody SellerReturnInspectRequest request
     ) {
-        return ApiResponse.success(sellerReturnRequestService.inspect(userId, returnRequestId, request));
+        return ApiResponse.success(sellerReturnRequestWorkflowService.inspect(userId, returnRequestId, request));
     }
 
     @GetMapping("/cancellations")

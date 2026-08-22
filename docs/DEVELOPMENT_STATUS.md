@@ -6,13 +6,13 @@
 
 ## 0. 현재 요약
 
-Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **반품 검수 및 환불 예정금액 snapshot 계산까지 완료된 상태**다.
+Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **반품 검수·환불 예정금액 snapshot 및 실제 PG 부분환불/reconciliation까지 완료된 상태**다.
 
 현재 가장 큰 미완료 범위는 다음이다.
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- 반품 PG 환불/reconciliation, 재고 복원 및 Frontend
+- 반품 환불 성공 후 재고 복원·returnedQuantity·COMPLETED 처리 및 Frontend
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 
@@ -569,7 +569,7 @@ POST /api/payments/webhooks/toss
 
 ## 13. 다음 개발 우선순위 제안
 
-### 1순위: Return 6 PG 환불
+### 1순위: Return 7 반품 완료
 
 Shipment 도입과 개발 DB backfill/검증, OrderItem 반품/교환 배송비 snapshot, 구매자 반품 요청과 판매자 승인/거절·회수·입고·검수 Backend까지 완료됐다.
 
@@ -586,7 +586,7 @@ GET  /api/orders/{orderId}/returns
 GET  /api/returns/{returnRequestId}
 ```
 
-판매자 검수 완료 transaction에서 OrderItem snapshot과 귀책을 기준으로 상품금액·원 배송비·반품배송비·최종 환불액을 계산해 ReturnRequest에 저장한다. Payment → Order → SellerOrder → ReturnRequest → OrderItem 순서로 잠그고 기존 취소/반품의 원 배송비와 계산 확정된 다른 반품 수량을 반영한다. 기존 PaymentCancellation의 성공/예약 금액을 차감한 환불 가능 잔액도 사전 검증한다. 다음은 Return 6 PaymentCancellation/PG 환불이며 재고 복원과 returnedQuantity 증가는 아직 구현하지 않았다.
+판매자 검수 완료 transaction에서 환불 snapshot을 확정한 뒤 별도 workflow가 PaymentCancellation(PARTIAL)을 ReturnRequest에 연결하고 commit 후 PG를 호출한다. timeout/5xx 등 결과 불명은 REQUESTED/REFUNDING으로 유지하며 저장된 고정 멱등 키로 reconciliation하고 webhook도 Return 환불을 분기 처리한다. 성공 시 Payment 상태만 PARTIALLY_CANCELED/CANCELED로 반영하고 ReturnRequest는 REFUNDING을 유지한다. 다음은 Return 7 재고 복원·returnedQuantity 증가·COMPLETED 처리다.
 
 ### 2순위: 관리자 주문/결제 운영
 
@@ -624,6 +624,6 @@ SellerOrder 1:N Shipment가 구현되어 있고 최초 배송은 ORIGINAL_OUTBOU
 
 OrderCancellation + OrderCancellationItem 기반 상품/수량 부분취소, PAID 즉시취소, PREPARING 판매자 승인/거절, Toss 부분환불, Payment PARTIALLY_CANCELED, 부분 재고복원, 부분환불 reconciliation/webhook/orphan recovery, 구매자/판매자 cancellation UI까지 구현되어 있다.
 
-DELIVERED SellerOrder의 반품 요청부터 판매자 검수와 환불 예정금액 snapshot까지 구현되어 있다. BUYER/SELLER 귀책, 부분/전체반품, 무료/유료배송, 원 배송비 중복 방지와 Payment 환불 가능 잔액 사전 검증을 적용한다. 다음 작업은 Return 6 PaymentCancellation 기반 PG 환불이며 Payment 상태 변경, 재고 복원, returnedQuantity 처리는 아직 미구현이다.
+DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불과 결과 불명 reconciliation까지 구현되어 있다. 성공 시 Payment 상태를 반영하지만 ReturnRequest는 REFUNDING에 머물며 재고 복원, returnedQuantity, COMPLETED는 아직 미구현이다.
 운영 전 공개 staging + 상점용 Toss 테스트 키로 결제/전체취소/부분취소/webhook 전체 회귀가 필수다.
 ```
