@@ -9,9 +9,11 @@ import OrderDetailProductList from "@/components/order/OrderDetailProductList";
 import OrderDetailSellerGroups from "@/components/order/OrderDetailSellerGroups";
 import OrderDetailSummary from "@/components/order/OrderDetailSummary";
 import { getMyOrder, getOrderCancellations } from "@/lib/order-api";
+import { getOrderReturnRequests } from "@/lib/return-api";
 import { BUYER_DELIVERY_STATUS_LABELS } from "@/lib/order-status";
 import { useAuthStore } from "@/stores/auth-store";
 import type { OrderCancellation, OrderDetail } from "@/types/order";
+import type { ReturnRequest } from "@/types/return";
 
 function formatDateTime(date: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -37,6 +39,9 @@ export default function MyOrderDetailPage() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [cancellations, setCancellations] = useState<OrderCancellation[]>([]);
+  const [returns, setReturns] = useState<ReturnRequest[]>([]);
+  const [returnsLoading, setReturnsLoading] = useState(false);
+  const [returnsError, setReturnsError] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -82,6 +87,12 @@ export default function MyOrderDetailPage() {
 
         setOrder(response);
         setCancellations(cancellationResponse);
+        setReturnsLoading(true);
+        void getOrderReturnRequests(orderId).then((values) => {
+          if (!cancelled) { setReturns(values); setReturnsError(""); }
+        }).catch((error) => {
+          if (!cancelled) setReturnsError(error instanceof Error ? error.message : "반품 내역을 불러오지 못했습니다.");
+        }).finally(() => { if (!cancelled) setReturnsLoading(false); });
       } catch (error) {
         if (cancelled) {
           return;
@@ -107,11 +118,13 @@ export default function MyOrderDetailPage() {
   }, [authInitialized, isAuthenticated, user, orderId, isValidOrderId]);
 
   const refreshOrder = async () => {
-    const [latestOrder, latestCancellations] = await Promise.all([
-      getMyOrder(orderId), getOrderCancellations(orderId),
+    const [latestOrder, latestCancellations, latestReturns] = await Promise.all([
+      getMyOrder(orderId), getOrderCancellations(orderId), getOrderReturnRequests(orderId),
     ]);
     setOrder(latestOrder);
     setCancellations(latestCancellations);
+    setReturns(latestReturns);
+    setReturnsError("");
   };
 
   if (!authInitialized) {
@@ -213,6 +226,10 @@ export default function MyOrderDetailPage() {
           sellerOrders={order.sellerOrders}
           orderId={order.id}
           cancellations={cancellations}
+          returns={returns}
+          returnsLoading={returnsLoading}
+          returnsError={returnsError}
+          collectionAddress={{ recipientName: order.recipientName, phone: order.recipientPhone, postalCode: order.postalCode, address: order.address, addressDetail: order.addressDetail }}
           onChanged={refreshOrder}
         />
       ) : (

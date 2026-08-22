@@ -1,15 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import OrderCancellationPanel from "@/components/order/OrderCancellationPanel";
+import OrderReturnPanel from "@/components/order/OrderReturnPanel";
 
 import { BUYER_SELLER_ORDER_STATUS_LABELS } from "@/lib/order-status";
 import type { BuyerSellerOrder, OrderCancellation } from "@/types/order";
+import type { ReturnRequest } from "@/types/return";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderDetailSellerGroupsProps {
   sellerOrders: BuyerSellerOrder[];
   orderId: number;
   cancellations: OrderCancellation[];
+  returns: ReturnRequest[];
+  returnsLoading: boolean;
+  returnsError: string;
+  collectionAddress: { recipientName: string; phone: string; postalCode: string; address: string; addressDetail: string | null };
   onChanged: () => Promise<void>;
 }
 
@@ -21,6 +27,10 @@ export default function OrderDetailSellerGroups({
   sellerOrders,
   orderId,
   cancellations,
+  returns,
+  returnsLoading,
+  returnsError,
+  collectionAddress,
   onChanged,
 }: OrderDetailSellerGroupsProps) {
   return (
@@ -130,6 +140,15 @@ export default function OrderDetailSellerGroups({
               orderId={orderId}
               sellerOrder={sellerOrder}
               cancellations={cancellations.filter((value) => value.sellerOrderId === sellerOrder.sellerOrderId)}
+              onChanged={onChanged}
+            />
+            <OrderReturnPanel
+              orderId={orderId}
+              sellerOrder={sellerOrder}
+              returns={returns.filter((value) => value.sellerOrderId === sellerOrder.sellerOrderId)}
+              isLoading={returnsLoading}
+              loadError={returnsError}
+              collectionAddress={collectionAddress}
               onChanged={onChanged}
             />
           </section>
