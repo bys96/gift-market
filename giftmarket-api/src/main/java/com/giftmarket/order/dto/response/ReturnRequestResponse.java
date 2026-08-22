@@ -38,7 +38,8 @@ public record ReturnRequestResponse(
         Long returnShippingCharge,
         Long refundAmount,
         ReturnCollectionShipmentResponse collectionShipment,
-        List<ReturnRequestItemResponse> items
+        List<ReturnRequestItemResponse> items,
+        List<ReturnRequestImageResponse> images
 ) {
     public static ReturnRequestResponse from(
             ReturnRequest request,
@@ -57,7 +58,27 @@ public record ReturnRequestResponse(
                 request.getProductRefundAmount(), request.getOriginalShippingRefundAmount(),
                 request.getReturnShippingCharge(), request.getRefundAmount(),
                 ReturnCollectionShipmentResponse.from(request.getCollectionShipment()),
-                items.stream().map(ReturnRequestItemResponse::from).toList()
+                items.stream().map(ReturnRequestItemResponse::from).toList(),
+                List.of()
+        );
+    }
+
+    public static ReturnRequestResponse from(
+            ReturnRequest request,
+            List<ReturnRequestItem> items,
+            List<ReturnRequestImageResponse> images
+    ) {
+        ReturnRequestResponse response = from(request, items);
+        return new ReturnRequestResponse(
+                response.returnRequestId(), response.orderId(), response.sellerOrderId(),
+                response.status(), response.reasonType(), response.reason(), response.responsibility(),
+                response.collectionRecipientName(), response.collectionPhone(), response.collectionPostalCode(),
+                response.collectionAddress(), response.collectionAddressDetail(), response.requestedAt(),
+                response.approvedAt(), response.collectingAt(), response.receivedAt(), response.inspectedAt(),
+                response.refundingAt(), response.completedAt(), response.rejectedAt(), response.rejectedReason(),
+                response.canceledAt(), response.failedAt(), response.productRefundAmount(),
+                response.originalShippingRefundAmount(), response.returnShippingCharge(), response.refundAmount(),
+                response.collectionShipment(), response.items(), images == null ? List.of() : List.copyOf(images)
         );
     }
 }

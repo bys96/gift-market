@@ -6,6 +6,7 @@ import com.giftmarket.order.dto.response.ReturnRequestResponse;
 import com.giftmarket.order.dto.response.SellerReturnRequestPageResponse;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
+import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -56,9 +57,11 @@ class SellerReturnRequestServiceTest {
     @Mock OrderItemRepository orderItemRepository;
     @Mock ReturnRequestRepository returnRequestRepository;
     @Mock ReturnRequestItemRepository returnRequestItemRepository;
+    @Mock ReturnRequestImageRepository returnRequestImageRepository;
     @Mock ShipmentRepository shipmentRepository;
     @Mock PaymentRepository paymentRepository;
     @Mock ReturnRefundCalculationService returnRefundCalculationService;
+    @Mock StorageService storageService;
 
     private SellerReturnRequestService service;
     private Seller seller;
@@ -73,8 +76,8 @@ class SellerReturnRequestServiceTest {
     void setUp() {
         service = spy(new SellerReturnRequestService(
                 sellerRepository, orderRepository, sellerOrderRepository, orderItemRepository,
-                returnRequestRepository, returnRequestItemRepository, shipmentRepository,
-                paymentRepository, returnRefundCalculationService
+                returnRequestRepository, returnRequestItemRepository, returnRequestImageRepository,
+                shipmentRepository, paymentRepository, returnRefundCalculationService, storageService
         ));
         doReturn(NOW).when(service).currentTime();
         seller = mock(Seller.class);
@@ -120,6 +123,13 @@ class SellerReturnRequestServiceTest {
         given(returnRequestItemRepository
                 .findAllByReturnRequestIdInOrderByReturnRequestIdAscOrderItemIdAsc(List.of(RETURN_ID)))
                 .willReturn(List.of(requestItem));
+        ReturnRequestImage image = ReturnRequestImage.create(request, "returns/1/evidence.jpg", 0);
+        ReflectionTestUtils.setField(image, "id", 70L);
+        given(returnRequestImageRepository
+                .findAllByReturnRequestIdInOrderByReturnRequestIdAscSortOrderAsc(List.of(RETURN_ID)))
+                .willReturn(List.of(image));
+        given(storageService.createReadUrl("returns/1/evidence.jpg"))
+                .willReturn("https://storage.example/evidence");
 
         SellerReturnRequestPageResponse response = service.getReturns(
                 USER_ID, ReturnRequestStatus.REQUESTED, 0, 20
@@ -130,6 +140,11 @@ class SellerReturnRequestServiceTest {
             assertThat(value.orderId()).isEqualTo(ORDER_ID);
             assertThat(value.items()).singleElement()
                     .extracting(item -> item.productName()).isEqualTo("상품 snapshot");
+            assertThat(value.images()).singleElement().satisfies(returnImage -> {
+                assertThat(returnImage.imageId()).isEqualTo(70L);
+                assertThat(returnImage.url()).isEqualTo("https://storage.example/evidence");
+                assertThat(returnImage.sortOrder()).isZero();
+            });
         });
     }
 

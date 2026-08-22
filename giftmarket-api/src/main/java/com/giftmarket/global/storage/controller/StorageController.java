@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Set;
+
 @RestController
 @RequestMapping("/api/storage")
 @RequiredArgsConstructor
@@ -30,6 +32,11 @@ public class StorageController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody PresignedUrlRequest request
     ) {
+        if (request.type() == StorageType.RETURN_EVIDENCE
+                && !Set.of("image/jpeg", "image/png", "image/webp")
+                .contains(request.contentType().trim().toLowerCase())) {
+            throw new IllegalArgumentException("반품 증빙은 JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");
+        }
         Long ownerId = resolveOwnerId(
                 userId,
                 request.type()

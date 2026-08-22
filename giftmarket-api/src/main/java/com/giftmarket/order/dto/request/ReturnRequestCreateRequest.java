@@ -24,6 +24,8 @@ public record ReturnRequestCreateRequest(
         @NotBlank @Size(max = 255) String collectionAddress,
         @Size(max = 255) String collectionAddressDetail,
         @NotNull @Size(min = 1, max = 100)
-        List<@Valid ReturnRequestItemRequest> items
+        List<@Valid ReturnRequestItemRequest> items,
+        @Size(max = 5)
+        List<@NotBlank @Size(max = 500) String> imageObjectKeys
 ) {
 }

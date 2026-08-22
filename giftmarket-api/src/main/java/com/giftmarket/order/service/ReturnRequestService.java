@@ -1,13 +1,16 @@
 package com.giftmarket.order.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.order.dto.request.ReturnRequestCreateRequest;
 import com.giftmarket.order.dto.request.ReturnRequestItemRequest;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
+import com.giftmarket.order.dto.response.ReturnRequestImageResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.ReturnRequest;
 import com.giftmarket.order.entity.ReturnRequestItem;
+import com.giftmarket.order.entity.ReturnRequestImage;
 import com.giftmarket.order.entity.ReturnRequestStatus;
 import com.giftmarket.order.entity.ReturnResponsibility;
 import com.giftmarket.order.entity.SellerOrder;
@@ -19,6 +22,7 @@ import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.PendingReturnQuantityProjection;
 import com.giftmarket.order.repository.ReturnRequestItemRepository;
+import com.giftmarket.order.repository.ReturnRequestImageRepository;
 import com.giftmarket.order.repository.ReturnRequestRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.ShipmentRepository;
@@ -53,6 +57,7 @@ public class ReturnRequestService {
     private static final int BUYER_RETURN_DAYS = 7;
     private static final int MAX_REASON_LENGTH = 500;
     private static final int MAX_ITEM_COUNT = 100;
+    private static final int MAX_IMAGE_COUNT = 5;
 
     private final OrderRepository orderRepository;
     private final SellerOrderRepository sellerOrderRepository;
@@ -60,6 +65,8 @@ public class ReturnRequestService {
     private final ShipmentRepository shipmentRepository;
     private final ReturnRequestRepository returnRequestRepository;
     private final ReturnRequestItemRepository returnRequestItemRepository;
+    private final ReturnRequestImageRepository returnRequestImageRepository;
+    private final StorageService storageService;
 
     @Transactional(readOnly = true)
     public ReturnRequestResponse getOwned(Long userId, Long returnRequestId) {
@@ -87,10 +94,15 @@ public class ReturnRequestService {
                 )
                 .stream()
                 .collect(Collectors.groupingBy(item -> item.getReturnRequest().getId()));
+        Map<Long, List<ReturnRequestImage>> imagesByRequestId = returnRequestImageRepository
+                .findAllByReturnRequestIdInOrderByReturnRequestIdAscSortOrderAsc(
+                        requests.stream().map(ReturnRequest::getId).toList()
+                ).stream().collect(Collectors.groupingBy(image -> image.getReturnRequest().getId()));
         return requests.stream()
                 .map(request -> ReturnRequestResponse.from(
                         request,
-                        itemsByRequestId.getOrDefault(request.getId(), List.of())
+                        itemsByRequestId.getOrDefault(request.getId(), List.of()),
+                        imageResponses(imagesByRequestId.getOrDefault(request.getId(), List.of()))
                 ))
                 .toList();
     }
@@ -104,6 +116,7 @@ public class ReturnRequestService {
     ) {
         validateAuthenticated(userId);
         NormalizedRequest normalized = normalize(request);
+        validateImageOwnership(userId, normalized.imageObjectKeys());
 
         Optional<ReturnRequestResponse> existing = findExisting(
                 userId, orderId, sellerOrderId, normalized
@@ -159,13 +172,22 @@ public class ReturnRequestService {
                 ))
                 .toList();
         returnRequestItemRepository.saveAll(returnItems);
-        return ReturnRequestResponse.from(returnRequest, returnItems);
+        List<ReturnRequestImage> returnImages = new java.util.ArrayList<>();
+        for (int index = 0; index < normalized.imageObjectKeys().size(); index++) {
+            returnImages.add(ReturnRequestImage.create(
+                    returnRequest, normalized.imageObjectKeys().get(index), index
+            ));
+        }
+        if (!returnImages.isEmpty()) returnRequestImageRepository.saveAll(returnImages);
+        return ReturnRequestResponse.from(returnRequest, returnItems, imageResponses(returnImages));
     }
 
     private ReturnRequestResponse toResponse(ReturnRequest request) {
         return ReturnRequestResponse.from(
                 request,
-                returnRequestItemRepository.findAllByReturnRequestIdOrderByIdAsc(request.getId())
+                returnRequestItemRepository.findAllByReturnRequestIdOrderByIdAsc(request.getId()),
+                imageResponses(returnRequestImageRepository
+                        .findAllByReturnRequestIdOrderBySortOrderAsc(request.getId()))
         );
     }
 
@@ -185,6 +207,10 @@ public class ReturnRequestService {
                     Map<Long, Integer> quantities = items.stream().collect(Collectors.toMap(
                             item -> item.getOrderItem().getId(), ReturnRequestItem::getQuantity
                     ));
+                    List<ReturnRequestImage> images = returnRequestImageRepository
+                            .findAllByReturnRequestIdOrderBySortOrderAsc(existing.getId());
+                    List<String> imageObjectKeys = images.stream()
+                            .map(ReturnRequestImage::getObjectKey).toList();
                     if (!existing.getOrder().getId().equals(orderId)
                             || !existing.getSellerOrder().getId().equals(sellerOrderId)
                             || existing.getReasonType() != requested.reasonType()
@@ -194,10 +220,11 @@ public class ReturnRequestService {
                             || !existing.getCollectionPostalCode().equals(requested.collectionPostalCode())
                             || !existing.getCollectionAddress().equals(requested.collectionAddress())
                             || !java.util.Objects.equals(existing.getCollectionAddressDetail(), requested.collectionAddressDetail())
-                            || !quantities.equals(requested.quantities())) {
+                            || !quantities.equals(requested.quantities())
+                            || !imageObjectKeys.equals(requested.imageObjectKeys())) {
                         throw new OrderException("반품 요청 키가 최초 요청과 다른 내용으로 재사용되었습니다.");
                     }
-                    return ReturnRequestResponse.from(existing, items);
+                    return ReturnRequestResponse.from(existing, items, imageResponses(images));
                 });
     }
 
@@ -276,14 +303,42 @@ public class ReturnRequestService {
             throw new OrderException("반품 사유 유형을 선택해주세요.");
         }
         Map<Long, Integer> quantities = normalizeItems(request.items());
+        List<String> imageObjectKeys = normalizeImageObjectKeys(request.imageObjectKeys());
         return new NormalizedRequest(
                 key, request.reasonType(), reason,
                 requiredText(request.collectionRecipientName(), 100, "회수 수령인 이름을 입력해주세요."),
                 requiredText(request.collectionPhone(), 30, "회수 연락처를 입력해주세요."),
                 requiredText(request.collectionPostalCode(), 20, "회수 우편번호를 입력해주세요."),
                 requiredText(request.collectionAddress(), 255, "회수 주소를 입력해주세요."),
-                nullableText(request.collectionAddressDetail(), 255), quantities
+                nullableText(request.collectionAddressDetail(), 255), quantities, imageObjectKeys
         );
+    }
+
+    private List<String> normalizeImageObjectKeys(List<String> values) {
+        if (values == null || values.isEmpty()) return List.of();
+        if (values.size() > MAX_IMAGE_COUNT) {
+            throw new OrderException("반품 증빙 이미지는 최대 5장까지 첨부할 수 있습니다.");
+        }
+        List<String> normalized = values.stream()
+                .map(value -> requiredText(value, 500, "반품 이미지 정보를 확인해주세요."))
+                .toList();
+        if (Set.copyOf(normalized).size() != normalized.size()) {
+            throw new OrderException("같은 반품 이미지를 중복 첨부할 수 없습니다.");
+        }
+        return normalized;
+    }
+
+    private void validateImageOwnership(Long userId, List<String> objectKeys) {
+        String requiredPrefix = "returns/" + userId + "/";
+        if (objectKeys.stream().anyMatch(key -> !key.startsWith(requiredPrefix))) {
+            throw new OrderException("반품 요청에 사용할 수 없는 이미지입니다.");
+        }
+    }
+
+    private List<ReturnRequestImageResponse> imageResponses(List<ReturnRequestImage> images) {
+        return images.stream().map(image -> new ReturnRequestImageResponse(
+                image.getId(), storageService.createReadUrl(image.getObjectKey()), image.getSortOrder()
+        )).toList();
     }
 
     private Map<Long, Integer> normalizeItems(List<ReturnRequestItemRequest> items) {
@@ -360,7 +415,8 @@ public class ReturnRequestService {
             String collectionPostalCode,
             String collectionAddress,
             String collectionAddressDetail,
-            Map<Long, Integer> quantities
+            Map<Long, Integer> quantities,
+            List<String> imageObjectKeys
     ) {
     }
 }

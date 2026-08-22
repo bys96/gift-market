@@ -114,6 +114,24 @@ public class StorageService {
         }
     }
 
+    public String createReadUrl(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new IllegalArgumentException("조회할 파일 정보가 필요합니다.");
+        }
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(minioProperties.bucket())
+                            .object(objectKey)
+                            .expiry(PRESIGNED_URL_EXPIRATION_SECONDS)
+                            .build()
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("파일 조회 URL 생성에 실패했습니다.", exception);
+        }
+    }
+
     private String createObjectKey(
             Long ownerId,
             StorageType storageType,
@@ -148,6 +166,13 @@ public class StorageService {
                         + ownerId
                         + "/content/"
                         + fileName;
+            }
+
+            case RETURN_EVIDENCE -> {
+                if (ownerId == null) {
+                    throw new IllegalArgumentException("반품 이미지 업로드 소유자 정보가 필요합니다.");
+                }
+                yield "returns/" + ownerId + "/" + fileName;
             }
 
             default -> storageType.getDirectory()

@@ -6,6 +6,7 @@ import com.giftmarket.order.dto.response.ReturnRequestResponse;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.*;
+import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.user.entity.User;
@@ -50,6 +51,8 @@ class ReturnRequestServiceTest {
     @Mock ShipmentRepository shipmentRepository;
     @Mock ReturnRequestRepository returnRequestRepository;
     @Mock ReturnRequestItemRepository returnRequestItemRepository;
+    @Mock ReturnRequestImageRepository returnRequestImageRepository;
+    @Mock StorageService storageService;
 
     private ReturnRequestService service;
     private User user;
@@ -62,7 +65,8 @@ class ReturnRequestServiceTest {
     void setUp() {
         service = spy(new ReturnRequestService(
                 orderRepository, sellerOrderRepository, orderItemRepository,
-                shipmentRepository, returnRequestRepository, returnRequestItemRepository
+                shipmentRepository, returnRequestRepository, returnRequestItemRepository,
+                returnRequestImageRepository, storageService
         ));
         doReturn(NOW).when(service).currentTime();
         user = mock(User.class);
@@ -105,6 +109,69 @@ class ReturnRequestServiceTest {
         });
         assertThat(orderItem.getReturnedQuantity()).isZero();
         assertThat(response.approvedAt()).isNull();
+        assertThat(response.images()).isEmpty();
+    }
+
+    @Test
+    void createsOneToFiveImagesInRequestOrder() {
+        List<String> keys = List.of(
+                "returns/1/a.jpg", "returns/1/b.png", "returns/1/c.webp",
+                "returns/1/d.jpg", "returns/1/e.png"
+        );
+        ReturnRequestCreateRequest request = request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1));
+        request = new ReturnRequestCreateRequest(
+                request.clientRequestKey(), request.reasonType(), request.reason(),
+                request.collectionRecipientName(), request.collectionPhone(), request.collectionPostalCode(),
+                request.collectionAddress(), request.collectionAddressDetail(), request.items(), keys
+        );
+
+        ReturnRequestResponse response = service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, request);
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<List<ReturnRequestImage>> images =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(returnRequestImageRepository).saveAll(images.capture());
+        assertThat(images.getValue()).extracting(ReturnRequestImage::getObjectKey).containsExactlyElementsOf(keys);
+        assertThat(images.getValue()).extracting(ReturnRequestImage::getSortOrder).containsExactly(0, 1, 2, 3, 4);
+        assertThat(response.images()).hasSize(5);
+    }
+
+    @Test
+    void createsSingleOptionalImage() {
+        ReturnRequestCreateRequest base = request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1));
+        ReturnRequestCreateRequest withImage = new ReturnRequestCreateRequest(
+                base.clientRequestKey(), base.reasonType(), base.reason(), base.collectionRecipientName(),
+                base.collectionPhone(), base.collectionPostalCode(), base.collectionAddress(),
+                base.collectionAddressDetail(), base.items(), List.of("returns/1/only.jpg")
+        );
+
+        assertThat(service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, withImage).images())
+                .singleElement().extracting(image -> image.sortOrder()).isEqualTo(0);
+    }
+
+    @Test
+    void rejectsTooManyDuplicateBlankAndForeignImages() {
+        ReturnRequestCreateRequest base = request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1));
+        java.util.function.Function<List<String>, ReturnRequestCreateRequest> withImages = keys ->
+                new ReturnRequestCreateRequest(
+                        base.clientRequestKey(), base.reasonType(), base.reason(),
+                        base.collectionRecipientName(), base.collectionPhone(), base.collectionPostalCode(),
+                        base.collectionAddress(), base.collectionAddressDetail(), base.items(), keys
+                );
+
+        assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID,
+                withImages.apply(List.of("returns/1/1.jpg", "returns/1/2.jpg", "returns/1/3.jpg",
+                        "returns/1/4.jpg", "returns/1/5.jpg", "returns/1/6.jpg"))))
+                .isInstanceOf(OrderException.class).hasMessageContaining("최대 5장");
+        assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID,
+                withImages.apply(List.of("returns/1/a.jpg", "returns/1/a.jpg"))))
+                .isInstanceOf(OrderException.class).hasMessageContaining("중복");
+        assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID,
+                withImages.apply(java.util.Arrays.asList(" "))))
+                .isInstanceOf(OrderException.class);
+        assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID,
+                withImages.apply(List.of("returns/2/foreign.jpg"))))
+                .isInstanceOf(OrderException.class).hasMessageContaining("사용할 수 없는");
     }
 
     @Test
@@ -258,9 +325,42 @@ class ReturnRequestServiceTest {
                 request.clientRequestKey(), request.reasonType(), "다른 사유",
                 request.collectionRecipientName(), request.collectionPhone(),
                 request.collectionPostalCode(), request.collectionAddress(),
-                request.collectionAddressDetail(), request.items()
+                request.collectionAddressDetail(), request.items(), request.imageObjectKeys()
         );
         assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, changed))
+                .isInstanceOf(OrderException.class).hasMessageContaining("다른 내용");
+    }
+
+    @Test
+    void imageListParticipatesInIdempotencyPayloadInOrder() {
+        ReturnRequestCreateRequest base = request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1));
+        List<String> keys = List.of("returns/1/a.jpg", "returns/1/b.jpg");
+        ReturnRequestCreateRequest original = new ReturnRequestCreateRequest(
+                base.clientRequestKey(), base.reasonType(), base.reason(), base.collectionRecipientName(),
+                base.collectionPhone(), base.collectionPostalCode(), base.collectionAddress(),
+                base.collectionAddressDetail(), base.items(), keys
+        );
+        ReturnRequest existing = existingRequest(original);
+        ReturnRequestItem existingItem = ReturnRequestItem.create(existing, orderItem, 1);
+        ReturnRequestImage first = ReturnRequestImage.create(existing, keys.get(0), 0);
+        ReturnRequestImage second = ReturnRequestImage.create(existing, keys.get(1), 1);
+        given(returnRequestRepository.findByClientRequestKey(original.clientRequestKey()))
+                .willReturn(Optional.of(existing));
+        given(returnRequestItemRepository.findAllByReturnRequestIdOrderByIdAsc(100L))
+                .willReturn(List.of(existingItem));
+        given(returnRequestImageRepository.findAllByReturnRequestIdOrderBySortOrderAsc(100L))
+                .willReturn(List.of(first, second));
+
+        assertThat(service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, original).returnRequestId())
+                .isEqualTo(100L);
+
+        ReturnRequestCreateRequest reordered = new ReturnRequestCreateRequest(
+                original.clientRequestKey(), original.reasonType(), original.reason(),
+                original.collectionRecipientName(), original.collectionPhone(), original.collectionPostalCode(),
+                original.collectionAddress(), original.collectionAddressDetail(), original.items(),
+                List.of(keys.get(1), keys.get(0))
+        );
+        assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, reordered))
                 .isInstanceOf(OrderException.class).hasMessageContaining("다른 내용");
     }
 
@@ -302,7 +402,7 @@ class ReturnRequestServiceTest {
     private ReturnRequestCreateRequest request(ReturnReasonType reason, ReturnRequestItemRequest... items) {
         return new ReturnRequestCreateRequest(
                 UUID.randomUUID().toString(), reason, " 반품 사유 ", " 구매자 ",
-                " 010-1234-5678 ", " 12345 ", " 서울시 강남구 ", " 101호 ", List.of(items)
+                " 010-1234-5678 ", " 12345 ", " 서울시 강남구 ", " 101호 ", List.of(items), List.of()
         );
     }
 

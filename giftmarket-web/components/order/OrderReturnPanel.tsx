@@ -1,8 +1,9 @@
 "use client";
 
 import Script from "next/script";
-import { useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createReturnRequest } from "@/lib/return-api";
+import { uploadImage } from "@/lib/storage-api";
 import type { BuyerSellerOrder } from "@/types/order";
 import {
   RETURN_INSPECTION_LABELS,
@@ -59,6 +60,15 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+const MAX_RETURN_IMAGE_COUNT = 5;
+const MAX_RETURN_IMAGE_SIZE = 5 * 1024 * 1024;
+const RETURN_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+interface SelectedReturnImage {
+  file: File;
+  previewUrl: string;
+}
+
 export default function OrderReturnPanel({
   orderId,
   sellerOrder,
@@ -86,6 +96,20 @@ export default function OrderReturnPanel({
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
   const requestKeyRef = useRef<string | null>(null);
+  const uploadedImageKeysRef = useRef<string[] | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImages, setSelectedImages] = useState<SelectedReturnImage[]>([]);
+  const selectedImagesRef = useRef<SelectedReturnImage[]>([]);
+
+  useEffect(() => {
+    selectedImagesRef.current = selectedImages;
+  }, [selectedImages]);
+
+  useEffect(() => {
+    return () => selectedImagesRef.current.forEach(
+      (image) => URL.revokeObjectURL(image.previewUrl),
+    );
+  }, []);
 
   const availableByItem = useMemo(() => {
     const result = new Map<number, number>();
@@ -126,6 +150,7 @@ export default function OrderReturnPanel({
     sellerOrder.status === "DELIVERED" && returnableItems.length > 0;
   const changed = () => {
     requestKeyRef.current = null;
+    uploadedImageKeysRef.current = null;
     setFormError("");
   };
   const toggle = (itemId: number) => {
@@ -165,6 +190,35 @@ export default function OrderReturnPanel({
     }).open();
   };
 
+  const selectImages = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (selectedImages.length + files.length > MAX_RETURN_IMAGE_COUNT) {
+      setFormError("증빙 사진은 최대 5장까지 첨부할 수 있습니다.");
+      return;
+    }
+    const invalid = files.find(
+      (file) => !RETURN_IMAGE_TYPES.includes(file.type) || file.size > MAX_RETURN_IMAGE_SIZE,
+    );
+    if (invalid) {
+      setFormError("JPG, PNG, WEBP 이미지만 파일당 5MB까지 첨부할 수 있습니다.");
+      return;
+    }
+    changed();
+    setSelectedImages((current) => [
+      ...current,
+      ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const removeImage = (index: number) => {
+    changed();
+    setSelectedImages((current) => {
+      URL.revokeObjectURL(current[index].previewUrl);
+      return current.filter((_, currentIndex) => currentIndex !== index);
+    });
+  };
+
   const submit = async () => {
     const items = Object.entries(selected).map(([orderItemId, quantity]) => ({
       orderItemId: Number(orderItemId),
@@ -197,6 +251,14 @@ export default function OrderReturnPanel({
       setIsSubmitting(true);
       setFormError("");
       setMessage("");
+      if (uploadedImageKeysRef.current === null) {
+        const uploadedKeys: string[] = [];
+        for (const image of selectedImages) {
+          uploadedKeys.push(await uploadImage(image.file, "RETURN_EVIDENCE"));
+        }
+        uploadedImageKeysRef.current = uploadedKeys;
+      }
+      const imageObjectKeys = uploadedImageKeysRef.current;
       await createReturnRequest(orderId, sellerOrder.sellerOrderId, {
         clientRequestKey: requestKeyRef.current,
         reasonType,
@@ -207,10 +269,15 @@ export default function OrderReturnPanel({
         collectionAddress: address.trim(),
         collectionAddressDetail: addressDetail.trim() || null,
         items,
+        imageObjectKeys,
       });
       requestKeyRef.current = null;
+      uploadedImageKeysRef.current = null;
       setSelected({});
       setReason("");
+      selectedImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      setSelectedImages([]);
+      if (imageInputRef.current) imageInputRef.current.value = "";
       setIsOpen(false);
       setMessage("반품 요청이 접수되었습니다.");
     } catch (error) {
@@ -279,6 +346,16 @@ export default function OrderReturnPanel({
               <span>{RETURN_REASON_LABELS[request.reasonType]}</span>
             </header>
             <p className="order-return-reason">{request.reason}</p>
+            {request.images.length > 0 && (
+              <div className="order-return-image-history">
+                {request.images.map((image, index) => (
+                  <a key={image.imageId} href={image.url} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={image.url} alt={`반품 증빙 이미지 ${index + 1}`} />
+                  </a>
+                ))}
+              </div>
+            )}
             <ul>
               {request.items.map((item) => (
                 <li key={item.orderItemId}>
@@ -476,6 +553,17 @@ export default function OrderReturnPanel({
               />
               <small>{reason.length}/500</small>
             </label>
+          </div>
+          <div className="order-return-evidence">
+            <div><strong>증빙 사진 (선택)</strong><span>{selectedImages.length}/5</span></div>
+            <p>상품 상태나 문제 상황을 확인할 수 있는 사진을 첨부하면 판매자가 요청을 확인하는 데 도움이 됩니다.</p>
+            <input ref={imageInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={isSubmitting || selectedImages.length >= 5} onChange={selectImages} />
+            <button type="button" onClick={() => imageInputRef.current?.click()} disabled={isSubmitting || selectedImages.length >= 5}>사진 선택</button>
+            {selectedImages.length > 0 && <div className="order-return-image-previews">{selectedImages.map((image, index) => <div key={`${image.file.name}-${image.file.lastModified}-${index}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image.previewUrl} alt={`${image.file.name} 미리보기`} />
+              <button type="button" aria-label={`${image.file.name} 삭제`} disabled={isSubmitting} onClick={() => removeImage(index)}>×</button>
+            </div>)}</div>}
           </div>
           <h3>회수 주소</h3>
           <div className="order-return-fields">

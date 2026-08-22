@@ -171,6 +171,10 @@ refundAmount가 0이면 PG 호출과 PaymentCancellation을 만들지 않는다.
 
 # DB / 개발환경
 
+## Return 증빙 이미지 orphan
+
+MinIO direct upload가 성공한 뒤 반품 생성 요청이 실패하면 DB에 연결되지 않은 `returns/{userId}/` object가 남을 수 있다. 반품 생성은 모든 선택 이미지 업로드 성공 후에만 실행하고 동일 화면 재시도에서는 업로드된 key를 재사용한다. 자동 삭제 작업은 아직 없으므로 운영 도입 전 prefix와 생성 시각을 기준으로 미참조 object를 정리하는 cleanup 정책이 필요하다.
+
 ## ddl-auto:update와 수동 SQL의 중복 실행
 
 개발환경에서 Hibernate가 이미 컬럼이나 제약을 추가한 뒤 같은 ALTER SQL을 실행하면 duplicate column/constraint 오류가 발생할 수 있다. `docs/sql`은 자동 실행 파일이 아니라 스키마 확인·백업 후 사용하는 수동 migration 참고본이다. 운영 전에는 Flyway/Liquibase 같은 versioned migration으로 전환해야 한다.

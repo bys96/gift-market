@@ -74,6 +74,12 @@ export interface ReturnRequestItem {
   restockedQuantity: number;
 }
 
+export interface ReturnRequestImage {
+  imageId: number;
+  url: string;
+  sortOrder: number;
+}
+
 export interface ReturnCollectionShipment {
   shipmentId: number;
   type: ReturnShipmentType;
@@ -114,6 +120,7 @@ export interface ReturnRequest {
   refundAmount: number | null;
   collectionShipment: ReturnCollectionShipment | null;
   items: ReturnRequestItem[];
+  images: ReturnRequestImage[];
 }
 
 export interface ReturnRequestCreateRequest {
@@ -126,6 +133,7 @@ export interface ReturnRequestCreateRequest {
   collectionAddress: string;
   collectionAddressDetail: string | null;
   items: Array<{ orderItemId: number; quantity: number }>;
+  imageObjectKeys: string[];
 }
 
 export interface SellerReturnRequestPage {

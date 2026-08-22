@@ -540,6 +540,8 @@ REQUESTED → REJECTED
 
 Return 구매자·판매자 Frontend는 구현되었다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 실제 PG/반품 E2E 검증도 운영 전 과제로 남아 있다.
 
+반품 요청에는 선택적으로 증빙 이미지 0~5장을 첨부할 수 있다. Backend가 `returns/{userId}/` prefix의 objectKey와 MinIO presigned PUT URL을 발급하고 Frontend가 직접 업로드한 뒤, `ReturnRequest 1:N ReturnRequestImage`로 objectKey와 표시 순서만 저장한다. Buyer/Seller 소유권 검증이 끝난 조회 응답에서만 만료되는 presigned GET URL을 발급하며 이미지가 없는 기존 반품은 `images=[]`로 호환된다. 업로드 후 반품 생성 실패로 남을 수 있는 orphan object 정리는 향후 prefix 기반 cleanup 작업으로 남아 있다.
+
 구매자 주문 상세(`/my/orders/{orderId}`)에서는 DELIVERED SellerOrder별로 다음 기능을 제공한다.
 
 - 원 주문 배송지를 기본 회수지로 사용하는 상품별 반품 신청과 수량·사유 입력

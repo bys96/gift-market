@@ -1,9 +1,11 @@
 package com.giftmarket.order.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.order.dto.request.SellerReturnInspectRequest;
 import com.giftmarket.order.dto.request.SellerReturnInspectionItemRequest;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
+import com.giftmarket.order.dto.response.ReturnRequestImageResponse;
 import com.giftmarket.order.dto.response.SellerReturnRequestPageResponse;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
@@ -39,9 +41,11 @@ public class SellerReturnRequestService {
     private final OrderItemRepository orderItemRepository;
     private final ReturnRequestRepository returnRequestRepository;
     private final ReturnRequestItemRepository returnRequestItemRepository;
+    private final ReturnRequestImageRepository returnRequestImageRepository;
     private final ShipmentRepository shipmentRepository;
     private final PaymentRepository paymentRepository;
     private final ReturnRefundCalculationService returnRefundCalculationService;
+    private final StorageService storageService;
 
     @Transactional(readOnly = true)
     public SellerReturnRequestPageResponse getReturns(
@@ -58,11 +62,12 @@ public class SellerReturnRequestService {
         Map<Long, List<ReturnRequestItem>> itemsByRequestId = getItemsByRequestId(
                 returns.getContent()
         );
+        Map<Long, List<ReturnRequestImage>> imagesByRequestId = getImagesByRequestId(returns.getContent());
         return new SellerReturnRequestPageResponse(
                 returns.getContent().stream()
                         .map(request -> response(request, itemsByRequestId.getOrDefault(
                                 request.getId(), List.of()
-                        )))
+                        ), imagesByRequestId.getOrDefault(request.getId(), List.of())))
                         .toList(),
                 returns.getNumber(), returns.getSize(), returns.getTotalElements(),
                 returns.getTotalPages(), returns.isFirst(), returns.isLast()
@@ -322,10 +327,30 @@ public class SellerReturnRequestService {
     }
 
     private ReturnRequestResponse response(ReturnRequest request, List<ReturnRequestItem> items) {
+        return response(request, items,
+                returnRequestImageRepository.findAllByReturnRequestIdOrderBySortOrderAsc(request.getId()));
+    }
+
+    private ReturnRequestResponse response(
+            ReturnRequest request,
+            List<ReturnRequestItem> items,
+            List<ReturnRequestImage> images
+    ) {
         if (items.isEmpty()) {
             throw new SellerException("반품 요청 상품 정보를 확인할 수 없습니다.");
         }
-        return ReturnRequestResponse.from(request, items);
+        return ReturnRequestResponse.from(request, items, images.stream()
+                .map(image -> new ReturnRequestImageResponse(
+                        image.getId(), storageService.createReadUrl(image.getObjectKey()), image.getSortOrder()
+                )).toList());
+    }
+
+    private Map<Long, List<ReturnRequestImage>> getImagesByRequestId(List<ReturnRequest> requests) {
+        if (requests.isEmpty()) return Map.of();
+        return returnRequestImageRepository
+                .findAllByReturnRequestIdInOrderByReturnRequestIdAscSortOrderAsc(
+                        requests.stream().map(ReturnRequest::getId).toList())
+                .stream().collect(Collectors.groupingBy(image -> image.getReturnRequest().getId()));
     }
 
     private void requireStatus(ReturnRequest request, ReturnRequestStatus expected) {

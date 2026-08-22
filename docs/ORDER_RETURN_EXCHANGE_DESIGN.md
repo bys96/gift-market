@@ -18,6 +18,11 @@ SHIPPED 이후 기존 주문취소와 분리하여, DELIVERED 된 SellerOrder에
 - 상품/배송비는 주문 당시 snapshot을 기준으로 계산한다.
 - 반품은 판매자 회수/검수 후 환불한다.
 - 반품 요청/승인 시점에는 판매 가능 재고를 복원하지 않는다.
+- 반품 증빙 이미지는 모든 사유에서 선택사항이며 0~5장을 허용한다.
+- 증빙 이미지는 MinIO presigned URL로 직접 업로드하고 DB에는 objectKey와 sortOrder만 저장한다.
+- `ReturnRequest 1:N ReturnRequestImage`로만 확장하며 이미지 유무는 상태 전이·환불·재고복원에 영향을 주지 않는다.
+- Buyer/Seller 소유권 확인 후 만료되는 presigned GET URL을 응답하고 기존 반품은 `images=[]`로 조회한다.
+- Exchange 증빙 이미지는 추후 같은 패턴을 적용할 수 있으나 현재는 미구현이다.
 - PG 환불은 기존 `PaymentCancellation + PaymentGateway` 구조를 재사용한다.
 - timeout/5xx/응답 유실을 즉시 실패로 단정하지 않는다.
 - 중복 환불/중복 재고복원/중복 요청을 방지한다.

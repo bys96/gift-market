@@ -11,6 +11,7 @@ public enum StorageType {
     PRODUCT_REPRESENTATIVE("products/representative"),
     PRODUCT_GALLERY("products/gallery"),
     PRODUCT_CONTENT("products/content"),
+    RETURN_EVIDENCE("returns"),
     REVIEW("review"),
     BANNER("banner");
 

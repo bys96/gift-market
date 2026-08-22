@@ -9,6 +9,7 @@ export type StorageType =
   | "PRODUCT_REPRESENTATIVE"
   | "PRODUCT_GALLERY"
   | "PRODUCT_CONTENT"
+  | "RETURN_EVIDENCE"
   | "REVIEW"
   | "BANNER";
 
