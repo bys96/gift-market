@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
 import {
   approveSellerReturnRequest,
   getSellerReturnRequest,
@@ -45,6 +46,7 @@ export default function SellerReturnDetailPage() {
   const [shippingCompany, setShippingCompany] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [inspections, setInspections] = useState<Record<number, ReturnInspectionResult>>({});
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const loadRequest = useCallback(async (quiet = false) => {
     await Promise.resolve();
@@ -115,10 +117,10 @@ export default function SellerReturnDetailPage() {
 
     <section className="seller-order-detail-section"><h2>반품 요청 정보</h2><dl className="seller-order-detail-info-list seller-return-info-list"><div><dt>주문</dt><dd><Link href={`/seller/orders/${request.sellerOrderId}`}>주문 ID #{request.orderId} 상세보기</Link></dd></div><div><dt>반품 사유</dt><dd>{RETURN_REASON_LABELS[request.reasonType]} · {request.reason}</dd></div><div><dt>귀책</dt><dd>{request.responsibility ? RETURN_RESPONSIBILITY_LABELS[request.responsibility] : "귀책 확인 전"}</dd></div><div><dt>회수지</dt><dd>{request.collectionRecipientName} · {request.collectionPhone}<br />({request.collectionPostalCode}) {request.collectionAddress} {request.collectionAddressDetail}</dd></div>{request.rejectedReason && <div><dt>거절 사유</dt><dd>{request.rejectedReason}</dd></div>}</dl>{timeline.length > 0 && <div className="seller-return-timeline">{timeline.map(([label, date]) => <div key={label}><span>{label}</span><strong>{formatDate(date)}</strong></div>)}</div>}</section>
 
-    {request.images.length > 0 && <section className="seller-order-detail-section"><h2>첨부 이미지</h2><div className="seller-return-images">{request.images.map((image, index) => <a key={image.imageId} href={image.url} target="_blank" rel="noreferrer">
+    {request.images.length > 0 && <section className="seller-order-detail-section"><h2>첨부 이미지</h2><div className="seller-return-images">{request.images.map((image, index) => <button key={image.imageId} type="button" className="return-image-thumbnail-button" aria-label={`반품 증빙 이미지 ${index + 1} 크게 보기`} onClick={() => setViewerIndex(index)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={image.url} alt={`반품 증빙 이미지 ${index + 1}`} />
-    </a>)}</div></section>}
+    </button>)}</div></section>}
 
     <section className="seller-order-detail-section"><h2>반품 상품</h2><div className="seller-return-items">{request.items.map((item) => <article key={item.orderItemId} className="seller-return-item"><div><strong>{item.productName}</strong>{item.optionSnapshot && <span>{item.optionSnapshot}</span>}</div><dl><div><dt>요청 수량</dt><dd>{item.quantity}개</dd></div><div><dt>반품 완료 누적</dt><dd>{item.returnedQuantity}개</dd></div><div><dt>검수 결과</dt><dd>{item.inspectionResult ? RETURN_INSPECTION_LABELS[item.inspectionResult] : "검수 전"}</dd></div><div><dt>재입고 수량</dt><dd>{item.restockedQuantity}개</dd></div></dl></article>)}</div></section>
 
@@ -138,5 +140,6 @@ export default function SellerReturnDetailPage() {
       {!["REQUESTED", "APPROVED", "COLLECTING", "RECEIVED"].includes(request.status) && <p className="seller-order-action-notice">{request.status === "COMPLETED" ? "반품 처리가 완료되었습니다." : request.status === "FAILED" ? "관리자 확인이 필요한 상태입니다." : `${RETURN_STATUS_LABELS[request.status]} 상태이며 판매자 추가 작업은 없습니다.`}</p>}
       {actionError && <p className="seller-order-action-error">{actionError}</p>}
     </section>
+    {viewerIndex !== null && <ReturnImageViewerModal images={request.images} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
   </div></main>;
 }

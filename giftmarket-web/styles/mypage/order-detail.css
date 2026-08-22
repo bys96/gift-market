@@ -647,7 +647,7 @@
 .order-return-reason { margin: 12px 0; color: var(--color-text-primary); font-size: 13px; }
 .order-return-image-history,
 .order-return-image-previews { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.order-return-image-history a,
+.order-return-image-history .return-image-thumbnail-button,
 .order-return-image-previews > div { position: relative; width: 76px; height: 76px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 9px; background: #f1f2f4; }
 .order-return-image-history img,
 .order-return-image-previews img { width: 100%; height: 100%; object-fit: cover; }

@@ -207,18 +207,51 @@ class ReturnRequestServiceTest {
     void listsAndGetsOnlyOwnedReturnsWithItems() {
         ReturnRequest existing = existingRequest(request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1)));
         ReturnRequestItem existingItem = ReturnRequestItem.create(existing, orderItem, 1);
+        ReturnRequestImage existingImage = ReturnRequestImage.create(
+                existing, "returns/1/evidence.jpg", 0
+        );
+        ReflectionTestUtils.setField(existingImage, "id", 101L);
         given(orderRepository.findByIdAndUserId(ORDER_ID, USER_ID)).willReturn(Optional.of(order));
         given(returnRequestRepository.findAllByOrderIdOrderByRequestedAtDescIdDesc(ORDER_ID))
                 .willReturn(List.of(existing));
         given(returnRequestItemRepository.findAllByReturnRequestIdInOrderByReturnRequestIdAscOrderItemIdAsc(List.of(100L)))
                 .willReturn(List.of(existingItem));
+        given(returnRequestImageRepository
+                .findAllByReturnRequestIdInOrderByReturnRequestIdAscSortOrderAsc(List.of(100L)))
+                .willReturn(List.of(existingImage));
         given(returnRequestRepository.findById(100L)).willReturn(Optional.of(existing));
         given(returnRequestItemRepository.findAllByReturnRequestIdOrderByIdAsc(100L))
                 .willReturn(List.of(existingItem));
+        given(returnRequestImageRepository.findAllByReturnRequestIdOrderBySortOrderAsc(100L))
+                .willReturn(List.of(existingImage));
+        given(storageService.createReadUrl("returns/1/evidence.jpg"))
+                .willReturn("https://storage.example/evidence");
 
-        assertThat(service.getAllOwned(USER_ID, ORDER_ID)).singleElement()
-                .extracting(ReturnRequestResponse::returnRequestId).isEqualTo(100L);
-        assertThat(service.getOwned(USER_ID, 100L).items()).hasSize(1);
+        assertThat(service.getAllOwned(USER_ID, ORDER_ID)).singleElement().satisfies(response -> {
+            assertThat(response.returnRequestId()).isEqualTo(100L);
+            assertThat(response.images()).singleElement().satisfies(image -> {
+                assertThat(image.imageId()).isEqualTo(101L);
+                assertThat(image.url()).isEqualTo("https://storage.example/evidence");
+                assertThat(image.sortOrder()).isZero();
+            });
+        });
+        ReturnRequestResponse detail = service.getOwned(USER_ID, 100L);
+        assertThat(detail.items()).hasSize(1);
+        assertThat(detail.images()).singleElement()
+                .extracting(image -> image.url()).isEqualTo("https://storage.example/evidence");
+    }
+
+    @Test
+    void returnsEmptyImagesForExistingReturnWithoutImageRows() {
+        ReturnRequest existing = existingRequest(request(ReturnReasonType.CHANGE_OF_MIND, item(ORDER_ITEM_ID, 1)));
+        ReturnRequestItem existingItem = ReturnRequestItem.create(existing, orderItem, 1);
+        given(returnRequestRepository.findById(100L)).willReturn(Optional.of(existing));
+        given(returnRequestItemRepository.findAllByReturnRequestIdOrderByIdAsc(100L))
+                .willReturn(List.of(existingItem));
+        given(returnRequestImageRepository.findAllByReturnRequestIdOrderBySortOrderAsc(100L))
+                .willReturn(List.of());
+
+        assertThat(service.getOwned(USER_ID, 100L).images()).isEmpty();
     }
 
     @Test

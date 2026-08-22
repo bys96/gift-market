@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
 import { createReturnRequest } from "@/lib/return-api";
 import { uploadImage } from "@/lib/storage-api";
 import type { BuyerSellerOrder } from "@/types/order";
@@ -100,6 +101,10 @@ export default function OrderReturnPanel({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [selectedImages, setSelectedImages] = useState<SelectedReturnImage[]>([]);
   const selectedImagesRef = useRef<SelectedReturnImage[]>([]);
+  const [viewer, setViewer] = useState<{
+    images: ReturnRequest["images"];
+    initialIndex: number;
+  } | null>(null);
 
   useEffect(() => {
     selectedImagesRef.current = selectedImages;
@@ -194,7 +199,7 @@ export default function OrderReturnPanel({
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (selectedImages.length + files.length > MAX_RETURN_IMAGE_COUNT) {
-      setFormError("증빙 사진은 최대 5장까지 첨부할 수 있습니다.");
+      alert("사진은 최대 5장까지 첨부할 수 있습니다.");
       return;
     }
     const invalid = files.find(
@@ -349,10 +354,16 @@ export default function OrderReturnPanel({
             {request.images.length > 0 && (
               <div className="order-return-image-history">
                 {request.images.map((image, index) => (
-                  <a key={image.imageId} href={image.url} target="_blank" rel="noreferrer">
+                  <button
+                    key={image.imageId}
+                    type="button"
+                    className="return-image-thumbnail-button"
+                    aria-label={`반품 증빙 이미지 ${index + 1} 크게 보기`}
+                    onClick={() => setViewer({ images: request.images, initialIndex: index })}
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={image.url} alt={`반품 증빙 이미지 ${index + 1}`} />
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -640,6 +651,13 @@ export default function OrderReturnPanel({
             </button>
           </div>
         </div>
+      )}
+      {viewer && (
+        <ReturnImageViewerModal
+          images={viewer.images}
+          initialIndex={viewer.initialIndex}
+          onClose={() => setViewer(null)}
+        />
       )}
     </div>
   );
