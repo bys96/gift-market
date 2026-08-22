@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface PaymentCancellationRepository extends JpaRepository<PaymentCancellation, Long> {
@@ -36,6 +37,22 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
     Long sumAmountByPaymentIdAndStatus(
             @Param("paymentId") Long paymentId,
             @Param("status") PaymentCancellationStatus status
+    );
+
+    @Query("""
+            select count(pc)
+            from PaymentCancellation pc
+            where pc.orderCancellation.sellerOrder.id = :sellerOrderId
+              and pc.status in :statuses
+              and pc.amount > (
+                    select coalesce(sum(ci.orderItem.unitPrice * ci.quantity), 0)
+                    from OrderCancellationItem ci
+                    where ci.orderCancellation = pc.orderCancellation
+              )
+            """)
+    long countShippingRefundsBySellerOrderId(
+            @Param("sellerOrderId") Long sellerOrderId,
+            @Param("statuses") Collection<PaymentCancellationStatus> statuses
     );
 
     @Query("""

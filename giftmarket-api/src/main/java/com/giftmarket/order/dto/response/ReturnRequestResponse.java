@@ -33,6 +33,11 @@ public record ReturnRequestResponse(
         String rejectedReason,
         LocalDateTime canceledAt,
         LocalDateTime failedAt,
+        Long productRefundAmount,
+        Long originalShippingRefundAmount,
+        Long returnShippingCharge,
+        Long refundAmount,
+        ReturnCollectionShipmentResponse collectionShipment,
         List<ReturnRequestItemResponse> items
 ) {
     public static ReturnRequestResponse from(
@@ -49,6 +54,9 @@ public record ReturnRequestResponse(
                 request.getReceivedAt(), request.getInspectedAt(), request.getRefundingAt(),
                 request.getCompletedAt(), request.getRejectedAt(), request.getRejectedReason(),
                 request.getCanceledAt(), request.getFailedAt(),
+                request.getProductRefundAmount(), request.getOriginalShippingRefundAmount(),
+                request.getReturnShippingCharge(), request.getRefundAmount(),
+                ReturnCollectionShipmentResponse.from(request.getCollectionShipment()),
                 items.stream().map(ReturnRequestItemResponse::from).toList()
         );
     }

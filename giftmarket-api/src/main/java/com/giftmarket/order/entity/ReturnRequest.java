@@ -183,6 +183,18 @@ public class ReturnRequest extends BaseEntity {
     )
     private String rejectedReason;
 
+    @Column(name = "product_refund_amount")
+    private Long productRefundAmount;
+
+    @Column(name = "original_shipping_refund_amount")
+    private Long originalShippingRefundAmount;
+
+    @Column(name = "return_shipping_charge")
+    private Long returnShippingCharge;
+
+    @Column(name = "refund_amount")
+    private Long refundAmount;
+
     private ReturnRequest(
             Order order,
             SellerOrder sellerOrder,
@@ -402,6 +414,47 @@ public class ReturnRequest extends BaseEntity {
 
         status = ReturnRequestStatus.REFUNDING;
         this.refundingAt = refundingAt;
+    }
+
+    public void confirmRefundCalculation(
+            long productRefundAmount,
+            long originalShippingRefundAmount,
+            long returnShippingCharge,
+            long refundAmount
+    ) {
+        requireStatus(ReturnRequestStatus.INSPECTED);
+        if (responsibility == null) {
+            throw new IllegalStateException("반품 귀책 주체가 확정되지 않았습니다.");
+        }
+        if (productRefundAmount < 0L || originalShippingRefundAmount < 0L
+                || returnShippingCharge < 0L || refundAmount < 0L) {
+            throw new IllegalArgumentException("반품 환불 금액은 음수일 수 없습니다.");
+        }
+        long expected;
+        try {
+            expected = Math.subtractExact(
+                    Math.addExact(productRefundAmount, originalShippingRefundAmount),
+                    returnShippingCharge
+            );
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("반품 환불 금액을 안전하게 확정할 수 없습니다.", exception);
+        }
+        if (expected != refundAmount) {
+            throw new IllegalArgumentException("반품 환불 금액 합계가 일치하지 않습니다.");
+        }
+        if (this.refundAmount != null) {
+            if (this.productRefundAmount == productRefundAmount
+                    && this.originalShippingRefundAmount == originalShippingRefundAmount
+                    && this.returnShippingCharge == returnShippingCharge
+                    && this.refundAmount == refundAmount) {
+                return;
+            }
+            throw new IllegalStateException("반품 환불 금액이 이미 확정되었습니다.");
+        }
+        this.productRefundAmount = productRefundAmount;
+        this.originalShippingRefundAmount = originalShippingRefundAmount;
+        this.returnShippingCharge = returnShippingCharge;
+        this.refundAmount = refundAmount;
     }
 
     public void complete(LocalDateTime completedAt) {
