@@ -160,6 +160,50 @@ public class OrderInventoryService {
         }
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void releaseExchangeTargets(List<ExchangeRequestItem> exchangeItems) {
+        if (exchangeItems == null || exchangeItems.isEmpty()) {
+            throw new OrderException("교환 요청 상품 정보가 필요합니다.");
+        }
+        List<ExchangeRequestItem> sorted = exchangeItems.stream()
+                .sorted(Comparator.comparing((ExchangeRequestItem item) -> item.getOrderItem().getId()))
+                .toList();
+        Map<TargetStockKey, Integer> releaseByTarget = new LinkedHashMap<>();
+        for (ExchangeRequestItem item : sorted) {
+            int effective = item.getEffectiveReservedQuantity();
+            if (effective == 0) continue;
+            TargetStockKey key = new TargetStockKey(item.getTargetProduct().getId(),
+                    item.getTargetVariant() == null ? null : item.getTargetVariant().getId());
+            releaseByTarget.merge(key, effective, Math::addExact);
+        }
+        if (releaseByTarget.isEmpty()) return;
+
+        Map<Long, Product> products = new LinkedHashMap<>();
+        Map<Long, ProductVariant> variants = new LinkedHashMap<>();
+        for (TargetStockKey key : releaseByTarget.keySet().stream().sorted().toList()) {
+            Product product = products.computeIfAbsent(key.productId(), this::getLockedProduct);
+            if (key.variantId() != null) variants.computeIfAbsent(key.variantId(), id -> getLockedVariant(id, product.getId()));
+        }
+        Set<Long> variantProductIds = new LinkedHashSet<>();
+        for (Map.Entry<TargetStockKey, Integer> entry : releaseByTarget.entrySet()) {
+            TargetStockKey key = entry.getKey();
+            if (key.variantId() == null) products.get(key.productId()).increaseStock(entry.getValue());
+            else {
+                variants.get(key.variantId()).increaseStock(entry.getValue());
+                variantProductIds.add(key.productId());
+            }
+        }
+        for (Long productId : variantProductIds) {
+            int total = productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
+                    .stream().mapToInt(ProductVariant::getStockQuantity).sum();
+            products.get(productId).changeStockQuantity(total);
+        }
+        for (ExchangeRequestItem item : sorted) {
+            int effective = item.getEffectiveReservedQuantity();
+            if (effective > 0) item.releaseTargetStockReservation(effective);
+        }
+    }
+
     private void validateExchangeTarget(
             List<ExchangeRequestItem> items,
             TargetStockKey key,

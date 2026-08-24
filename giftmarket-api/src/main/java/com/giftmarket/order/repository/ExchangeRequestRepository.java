@@ -14,6 +14,8 @@ import org.springframework.data.domain.Pageable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
+import org.springframework.data.domain.Pageable;
 
 public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest, Long> {
     Optional<ExchangeRequest> findByClientRequestKey(String clientRequestKey);
@@ -86,4 +88,8 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from ExchangeRequest e where e.id = :id")
     Optional<ExchangeRequest> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("select e.id from ExchangeRequest e where e.status = :status and e.paymentDueAt < :now order by e.id")
+    List<Long> findExpiredPaymentCandidateIds(@Param("status") ExchangeRequestStatus status,
+                                               @Param("now") LocalDateTime now, Pageable pageable);
 }

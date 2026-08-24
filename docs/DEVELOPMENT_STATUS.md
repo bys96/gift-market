@@ -1,5 +1,13 @@
 # Gift Market 개발 현황
 
+## Exchange 4 완료 (2026-08-24)
+
+- BUYER 귀책 교환에 주문 결제/PaymentCancellation과 분리된 `ExchangeShippingPayment` 1:1 aggregate를 추가했다.
+- 배송비는 요청 OrderItem의 `exchangeShippingFee` snapshot 최댓값이며 수량을 곱하지 않는다. 0원은 추적 가능한 SUCCEEDED 결제로 즉시 COLLECTING 처리한다.
+- 같은 결제 시도 내 Toss order id/idempotency key는 고정하고, 명시 실패 뒤 새 시도는 같은 aggregate row에서 attempt key만 회전한다. PG 호출은 DB transaction 밖에서 수행한다.
+- 결과 불명은 REQUESTED와 reservation을 유지하고 reconciliation한다. 24시간 만료는 결과 확인 후에만 CANCELED + 재고 복원 + release bookkeeping을 원자 처리한다.
+- 만료 후 늦은 성공은 Exchange를 부활시키지 않고 `COMPENSATION_REQUIRED`로 기록한다. 다음 Exchange 5는 collection Shipment/회수·입고·검수다.
+
 > 최종 갱신: 2026-08-24
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 작성한다. 문서와 코드가 충돌하면 실제 코드를 현재 구현 상태의 최종 기준으로 사용한다.

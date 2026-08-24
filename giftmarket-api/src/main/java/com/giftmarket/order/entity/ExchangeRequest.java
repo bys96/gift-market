@@ -222,6 +222,23 @@ public class ExchangeRequest extends BaseEntity {
         this.collectingAt = collectingAt;
     }
 
+    public void completeShippingPayment(LocalDateTime collectingAt) {
+        requireStatus(ExchangeRequestStatus.PAYMENT_PENDING);
+        if (responsibility != ExchangeResponsibility.BUYER) {
+            throw new IllegalStateException("구매자 귀책 교환만 배송비 결제로 진행할 수 있습니다.");
+        }
+        if (collectingAt == null) throw new IllegalArgumentException("교환 회수 준비 시각이 필요합니다.");
+        status = ExchangeRequestStatus.COLLECTING;
+        this.collectingAt = collectingAt;
+    }
+
+    public void cancelExpiredPayment(LocalDateTime canceledAt) {
+        requireStatus(ExchangeRequestStatus.PAYMENT_PENDING);
+        if (canceledAt == null) throw new IllegalArgumentException("교환 취소 시각이 필요합니다.");
+        status = ExchangeRequestStatus.CANCELED;
+        this.canceledAt = canceledAt;
+    }
+
     public void receive(LocalDateTime receivedAt) {
         requireStatus(ExchangeRequestStatus.COLLECTING);
         if (receivedAt == null) throw new IllegalArgumentException("교환 입고 시각이 필요합니다.");

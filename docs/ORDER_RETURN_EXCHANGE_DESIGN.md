@@ -1,5 +1,13 @@
 # Gift Market 주문 반품 / 교환 설계
 
+## Exchange 4 결제 및 reservation release
+
+- BUYER 승인: target reservation -> PAYMENT_PENDING(24시간) -> 별도 배송비 결제 성공 -> COLLECTING.
+- 결제액은 요청 item의 `OrderItem.exchangeShippingFee` snapshot 최댓값이며 수량을 곱하지 않는다. 음수는 차단하고 0원은 audit용 SUCCEEDED row를 남긴다.
+- SELLER 귀책에는 payment를 생성하지 않는다. 결과 불명은 REQUESTED/PAYMENT_PENDING/reservation을 유지한다.
+- 안전하게 미결제가 확정된 만료만 CANCELED로 전이하며 target stock 복원과 `releasedQuantity` 증가를 같은 transaction에서 수행한다.
+- release lock은 OrderItem id -> Product id -> Variant id 순서다. CANCELED 뒤 늦은 성공은 COLLECTING으로 되돌리지 않고 compensation 대상으로 기록한다.
+
 > 최종 갱신: 2026-08-24
 >
 > 기준 우선순위: 현재 실제 코드 > 최신 문서 > 인수인계 내용.

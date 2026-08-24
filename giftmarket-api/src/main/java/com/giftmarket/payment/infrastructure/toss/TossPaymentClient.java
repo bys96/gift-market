@@ -243,6 +243,33 @@ public class TossPaymentClient {
         }
     }
 
+    public Optional<TossPaymentResponse> getPaymentByOrderId(String merchantPaymentId) {
+        return getPayment("/v1/payments/orders/{id}", merchantPaymentId);
+    }
+
+    private Optional<TossPaymentResponse> getPayment(String path, String id) {
+        if (!StringUtils.hasText(id)) {
+            throw new PaymentGatewayUncertainException("결제 조회 식별정보를 확인할 수 없습니다.", null);
+        }
+        try {
+            ResponseEntity<TossPaymentResponse> responseEntity = restClient.get()
+                    .uri(path, id)
+                    .header(HttpHeaders.AUTHORIZATION, createAuthorizationHeader())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve().toEntity(TossPaymentResponse.class);
+            return Optional.ofNullable(responseEntity.getBody());
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode().value() == 404) return Optional.empty();
+            throw new PaymentGatewayUncertainException("결제 결과를 확인 중입니다.", exception);
+        } catch (ResourceAccessException exception) {
+            throw new PaymentGatewayUncertainException("결제 결과를 확인 중입니다.", exception);
+        } catch (PaymentGatewayUncertainException exception) {
+            throw exception;
+        } catch (RestClientException exception) {
+            throw new PaymentGatewayUncertainException("결제 결과를 확인 중입니다.", exception);
+        }
+    }
+
     public TossPaymentResponse cancel(GatewayCancelCommand command) {
         log.info("Toss request started. method=POST, target={}/v1/payments/{{paymentKey}}/cancel, paymentKeyLength={}",
                 properties.getBaseUrl(), command.providerPaymentKey().length());

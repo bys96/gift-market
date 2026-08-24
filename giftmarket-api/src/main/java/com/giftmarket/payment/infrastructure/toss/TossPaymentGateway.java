@@ -60,6 +60,19 @@ public class TossPaymentGateway implements PaymentGateway {
     }
 
     @Override
+    public GatewayPaymentQueryResult getPaymentByOrderId(String merchantPaymentId) {
+        return tossPaymentClient.getPaymentByOrderId(merchantPaymentId)
+                .map(tossPaymentMapper::toQueryResult)
+                .orElseGet(() -> unknown(null));
+    }
+
+    private GatewayPaymentQueryResult unknown(String providerPaymentKey) {
+        return new GatewayPaymentQueryResult(
+                GatewayPaymentStatus.UNKNOWN, providerPaymentKey, null, null, null, null,
+                null, null, null, null, null, null, null, java.util.List.of());
+    }
+
+    @Override
     public GatewayCancelResult cancel(GatewayCancelCommand command) {
         return tossPaymentMapper.toCancelResult(tossPaymentClient.cancel(command), command);
     }

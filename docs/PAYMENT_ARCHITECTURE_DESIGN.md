@@ -1,5 +1,11 @@
 # Gift Market Payment Architecture
 
+## Exchange shipping payment
+
+구매자 귀책 교환배송비는 주문 `Payment` 및 환불용 `PaymentCancellation`과 분리된 `ExchangeShippingPayment`로 관리한다. ExchangeRequest당 row와 amount snapshot은 하나다. 동일 REQUESTED 결과불명 재호출은 같은 Toss order id/idempotency key를 사용한다. 명시 실패 뒤 새 사용자 결제 시도는 Toss의 15일 멱등 응답 재사용을 피하도록 같은 row에서 `attemptSequence`를 증가시키고 attempt별 order id/idempotency key를 사용한다.
+
+PG 호출은 transaction 밖에서 수행한다. 명시 거절만 FAILED로 기록하고 Exchange는 PAYMENT_PENDING을 유지한다. 네트워크/5xx/빈 응답은 REQUESTED와 reservation을 유지하며 paymentKey 조회 reconciliation 대상으로 둔다. 예외적으로 REQUESTED에 paymentKey가 없으면 Toss orderId 조회로 복구하며 404/불명은 REQUESTED를 유지한다. 만료 처리도 reconciliation이 성공/불명확을 배제하기 전에는 release하지 않는다. 만료 뒤 늦은 성공은 `COMPENSATION_REQUIRED`로 기록하고 Exchange를 되살리지 않는다.
+
 > 최종 갱신: 2026-08-24
 >
 > 이 문서는 현재 실제 Payment 구현을 기준으로 정리한 아키텍처 문서다. 과거 단계별 TODO보다 현재 코드가 우선한다.
