@@ -1,5 +1,13 @@
 # Gift Market 개발 현황
 
+## Exchange 6 완료 - 정상 Backend workflow 완성 (2026-08-24)
+
+- Seller Exchange에 `reship`, `deliver` API를 추가했다.
+- INSPECTED 교환은 별도 `EXCHANGE_OUTBOUND` Shipment를 SHIPPED로 생성하고 target reservation을 실제 재고 변경 없이 consume한 뒤 RESHIPPING으로 전이한다.
+- 재배송 완료 transaction에서 outbound Shipment DELIVERED, 원 OrderItem `exchangedQuantity` 증가, Exchange COMPLETED를 원자적으로 처리한다.
+- 완료 후 reservation audit은 `reserved=quantity`, `released=0`, `consumed=quantity`, `effectiveReserved=0`으로 유지한다.
+- Exchange Backend 정상 workflow는 완료됐지만 Exchange Frontend, 실제 Exchange E2E, staging Toss 추가결제 E2E는 아직 미구현/미검증이다.
+
 ## Exchange 5 완료 (2026-08-24)
 
 - Seller Exchange에 `collect`, `receive`, `inspect` API를 추가했다.

@@ -113,6 +113,22 @@ public class SellerOrderController {
         return ApiResponse.success(sellerExchangeRequestService.inspect(userId, exchangeRequestId, request));
     }
 
+    @PatchMapping("/exchanges/{exchangeRequestId}/reship")
+    public ApiResponse<ExchangeRequestResponse> reshipExchange(
+            @AuthenticationPrincipal Long userId, @PathVariable Long exchangeRequestId,
+            @Valid @RequestBody SellerExchangeCollectRequest request
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.reship(
+                userId, exchangeRequestId, request.shippingCompany(), request.trackingNumber()));
+    }
+
+    @PatchMapping("/exchanges/{exchangeRequestId}/deliver")
+    public ApiResponse<ExchangeRequestResponse> deliverExchange(
+            @AuthenticationPrincipal Long userId, @PathVariable Long exchangeRequestId
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.deliver(userId, exchangeRequestId));
+    }
+
     @GetMapping("/returns")
     public ApiResponse<SellerReturnRequestPageResponse> getReturns(
             @AuthenticationPrincipal Long userId,

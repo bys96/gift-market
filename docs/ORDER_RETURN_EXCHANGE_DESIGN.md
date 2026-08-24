@@ -1,5 +1,13 @@
 # Gift Market 주문 반품 / 교환 설계
 
+## Exchange 6 재배송 및 완료 구현 확정
+
+- `INSPECTED -> EXCHANGE_OUTBOUND(SHIPPED) + reservation consume -> RESHIPPING`을 한 transaction에서 처리한다.
+- consume은 Exchange 3에서 이미 차감된 target stock을 다시 변경하지 않고 `consumedQuantity` bookkeeping만 확정한다.
+- `RESHIPPING -> EXCHANGE_OUTBOUND DELIVERED + OrderItem.confirmExchange(quantity) + COMPLETED`를 한 transaction에서 처리한다.
+- 완료 후 SellerOrder와 Order 상태는 기존 배송완료 상태를 유지한다.
+- 교환 완료 상품의 재교환/재클레임은 현재 자동 workflow에서 지원하지 않으며 향후 CS 및 replacement lineage 확장으로 검토한다.
+
 ## Exchange 4 결제 및 reservation release
 
 - BUYER 승인: target reservation -> PAYMENT_PENDING(24시간) -> 별도 배송비 결제 성공 -> COLLECTING.

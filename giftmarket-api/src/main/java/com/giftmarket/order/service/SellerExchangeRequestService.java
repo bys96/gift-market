@@ -213,6 +213,65 @@ public class SellerExchangeRequestService {
         return response(locked.request(), locked.items());
     }
 
+    @Transactional
+    public ExchangeRequestResponse reship(
+            Long userId, Long exchangeRequestId, String shippingCompany, String trackingNumber
+    ) {
+        String company = requiredText(shippingCompany, 100, "택배사를 입력해주세요.");
+        String tracking = requiredText(trackingNumber, 100, "송장번호를 입력해주세요.");
+        LockedExchangeBase locked = lockWorkflow(userId, exchangeRequestId);
+        requireStatus(locked.request(), ExchangeRequestStatus.INSPECTED);
+        validateReadyToConsume(locked.items());
+        if (locked.request().getOutboundShipment() != null) {
+            throw new SellerException("이미 교환품 재배송이 시작되었습니다.");
+        }
+        LocalDateTime now = currentTime();
+        Shipment shipment = Shipment.createShipped(
+                locked.sellerOrder(), ShipmentType.EXCHANGE_OUTBOUND, company, tracking, now);
+        shipmentRepository.save(shipment);
+        try {
+            locked.request().assignOutboundShipment(shipment);
+            for (ExchangeRequestItem item : locked.items()) {
+                item.consumeTargetStockReservation(item.getQuantity());
+            }
+            validateConsumed(locked.items());
+            locked.request().startReshipping(now);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new SellerException(exception.getMessage());
+        }
+        return response(locked.request(), locked.items());
+    }
+
+    @Transactional
+    public ExchangeRequestResponse deliver(Long userId, Long exchangeRequestId) {
+        LockedExchangeBase locked = lockWorkflow(userId, exchangeRequestId);
+        requireStatus(locked.request(), ExchangeRequestStatus.RESHIPPING);
+        Shipment outbound = validateOutboundShipment(locked.request(), locked.sellerOrder());
+        Shipment lockedShipment = shipmentRepository.findByIdForUpdate(outbound.getId())
+                .orElseThrow(this::exchangeNotFound);
+        validateOutboundShipment(locked.request(), locked.sellerOrder(), lockedShipment);
+
+        List<Long> orderItemIds = locked.items().stream()
+                .map(item -> item.getOrderItem().getId()).sorted().toList();
+        List<OrderItem> lockedOrderItems = orderItemRepository.findAllByIdInForUpdate(orderItemIds);
+        Map<Long, OrderItem> byId = lockedOrderItems.stream()
+                .collect(Collectors.toMap(OrderItem::getId, item -> item));
+        validateCompletionItems(locked.request(), locked.sellerOrder(), locked.items(), byId);
+        validateConsumed(locked.items());
+
+        LocalDateTime now = currentTime();
+        try {
+            lockedShipment.deliver(now);
+            for (ExchangeRequestItem item : locked.items()) {
+                byId.get(item.getOrderItem().getId()).confirmExchange(item.getQuantity());
+            }
+            locked.request().complete(now);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new SellerException(exception.getMessage());
+        }
+        return response(locked.request(), locked.items());
+    }
+
     private LockedExchange lock(Long userId, Long exchangeRequestId) {
         LockedExchangeBase base = lockWorkflow(userId, exchangeRequestId);
         Order order = base.order();
@@ -336,6 +395,62 @@ public class SellerExchangeRequestService {
                     || item.getReleasedQuantity() != 0 || item.getConsumedQuantity() != 0
                     || item.getEffectiveReservedQuantity() != item.getQuantity()) {
                 throw new SellerException("교환 target 재고 예약 상태를 확인해주세요.");
+            }
+        }
+    }
+
+    private void validateReadyToConsume(List<ExchangeRequestItem> items) {
+        for (ExchangeRequestItem item : items) {
+            if (item.getInspectionResult() == null
+                    || item.getReservedQuantity() != item.getQuantity()
+                    || item.getReleasedQuantity() != 0 || item.getConsumedQuantity() != 0
+                    || item.getEffectiveReservedQuantity() != item.getQuantity()) {
+                throw new SellerException("교환 target 재고 예약 상태를 확인해주세요.");
+            }
+        }
+    }
+
+    private void validateConsumed(List<ExchangeRequestItem> items) {
+        for (ExchangeRequestItem item : items) {
+            if (item.getReservedQuantity() != item.getQuantity()
+                    || item.getReleasedQuantity() != 0
+                    || item.getConsumedQuantity() != item.getQuantity()
+                    || item.getEffectiveReservedQuantity() != 0) {
+                throw new SellerException("교환 target 재고 소비 상태를 확인해주세요.");
+            }
+        }
+    }
+
+    private Shipment validateOutboundShipment(ExchangeRequest request, SellerOrder sellerOrder) {
+        Shipment shipment = request.getOutboundShipment();
+        if (shipment == null) throw new SellerException("교환품 재배송 정보를 찾을 수 없습니다.");
+        return validateOutboundShipment(request, sellerOrder, shipment);
+    }
+
+    private Shipment validateOutboundShipment(
+            ExchangeRequest request, SellerOrder sellerOrder, Shipment shipment
+    ) {
+        if (!shipment.getId().equals(request.getOutboundShipment().getId())
+                || !shipment.getSellerOrder().getId().equals(sellerOrder.getId())
+                || shipment.getType() != ShipmentType.EXCHANGE_OUTBOUND
+                || shipment.getStatus() != ShipmentStatus.SHIPPED) {
+            throw new SellerException("교환품 재배송 상태를 확인해주세요.");
+        }
+        return shipment;
+    }
+
+    private void validateCompletionItems(
+            ExchangeRequest request, SellerOrder sellerOrder,
+            List<ExchangeRequestItem> items, Map<Long, OrderItem> lockedItems
+    ) {
+        if (lockedItems.size() != items.size()) throw new SellerException("교환 상품 정보를 확인할 수 없습니다.");
+        for (ExchangeRequestItem item : items) {
+            OrderItem orderItem = lockedItems.get(item.getOrderItem().getId());
+            if (item.getExchangeRequest() != request || orderItem == null
+                    || orderItem.getSellerOrder() != sellerOrder
+                    || item.getQuantity() <= 0
+                    || item.getQuantity() > orderItem.getExchangeableQuantity()) {
+                throw new SellerException("교환 완료 수량을 확인해주세요.");
             }
         }
     }

@@ -83,8 +83,13 @@ class SellerExchangeRequestServiceTest {
         order = Order.createPendingPayment("GM-ORDER", user, 20_000L, 0L,
                 "구매자", "010-1234-5678", "12345", "서울", null);
         ReflectionTestUtils.setField(order, "id", ORDER_ID);
+        order.markPaid(NOW.minusDays(5));
         sellerOrder = SellerOrder.createPendingPayment(order, seller);
         ReflectionTestUtils.setField(sellerOrder, "id", SELLER_ORDER_ID);
+        sellerOrder.markPaid();
+        sellerOrder.prepare(NOW.minusDays(4));
+        sellerOrder.markShipped(NOW.minusDays(3));
+        sellerOrder.markDelivered(NOW.minusDays(2));
         Product product = mock(Product.class);
         given(product.getId()).willReturn(50L);
         orderItem = OrderItem.create(order, product, null, seller, sellerOrder, null,
@@ -116,11 +121,12 @@ class SellerExchangeRequestServiceTest {
         }).when(orderInventoryService).reserveExchangeTargets(anyList());
         given(shipmentRepository.save(any(Shipment.class))).willAnswer(invocation -> {
             Shipment shipment = invocation.getArgument(0);
-            ReflectionTestUtils.setField(shipment, "id", 70L);
+            ReflectionTestUtils.setField(shipment, "id",
+                    shipment.getType() == ShipmentType.EXCHANGE_COLLECTION ? 70L : 71L);
             return shipment;
         });
-        given(shipmentRepository.findByIdForUpdate(70L)).willAnswer(invocation ->
-                Optional.of(request.getCollectionShipment()));
+        given(shipmentRepository.findByIdForUpdate(70L)).willAnswer(invocation -> Optional.ofNullable(request.getCollectionShipment()));
+        given(shipmentRepository.findByIdForUpdate(71L)).willAnswer(invocation -> Optional.ofNullable(request.getOutboundShipment()));
     }
 
     @Test
@@ -329,6 +335,99 @@ class SellerExchangeRequestServiceTest {
         verify(exchangeShippingPaymentRepository).findByExchangeRequestId(EXCHANGE_ID);
     }
 
+    @Test
+    void reshipsWithOutboundShipmentAndConsumesReservationWithoutStockOrExchangeCompletion() {
+        inspectSellerExchange();
+        int originalExchanged = orderItem.getExchangedQuantity();
+
+        ExchangeRequestResponse response = service.reship(USER_ID, EXCHANGE_ID, " 재배송택배 ", " OUT-X-1 ");
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.RESHIPPING);
+        assertThat(response.outboundShipment()).satisfies(shipment -> {
+            assertThat(shipment.type()).isEqualTo(ShipmentType.EXCHANGE_OUTBOUND);
+            assertThat(shipment.status()).isEqualTo(ShipmentStatus.SHIPPED);
+            assertThat(shipment.shippingCompany()).isEqualTo("재배송택배");
+            assertThat(shipment.trackingNumber()).isEqualTo("OUT-X-1");
+            assertThat(shipment.shippedAt()).isEqualTo(NOW);
+        });
+        assertThat(requestItem.getReservedQuantity()).isEqualTo(requestItem.getQuantity());
+        assertThat(requestItem.getReleasedQuantity()).isZero();
+        assertThat(requestItem.getConsumedQuantity()).isEqualTo(requestItem.getQuantity());
+        assertThat(requestItem.getEffectiveReservedQuantity()).isZero();
+        assertThat(orderItem.getExchangedQuantity()).isEqualTo(originalExchanged);
+        verify(orderInventoryService).reserveExchangeTargets(anyList());
+        verify(orderInventoryService, times(1)).restoreExchangeOriginalItems(anyList());
+        verifyNoMoreInteractions(orderInventoryService);
+
+        assertThatThrownBy(() -> service.reship(USER_ID, EXCHANGE_ID, "택배", "OUT-X-2"))
+                .isInstanceOf(SellerException.class);
+        verify(shipmentRepository, times(2)).save(any());
+    }
+
+    @Test
+    void deliversOutboundAndCompletesExchangeExactlyOnce() {
+        startReshipping();
+        OrderStatus orderStatus = order.getStatus();
+        SellerOrderStatus sellerOrderStatus = sellerOrder.getStatus();
+
+        ExchangeRequestResponse response = service.deliver(USER_ID, EXCHANGE_ID);
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.COMPLETED);
+        assertThat(response.completedAt()).isEqualTo(NOW);
+        assertThat(response.outboundShipment().status()).isEqualTo(ShipmentStatus.DELIVERED);
+        assertThat(response.outboundShipment().deliveredAt()).isEqualTo(NOW);
+        assertThat(orderItem.getExchangedQuantity()).isEqualTo(requestItem.getQuantity());
+        assertThat(requestItem.getReservedQuantity()).isEqualTo(requestItem.getQuantity());
+        assertThat(requestItem.getReleasedQuantity()).isZero();
+        assertThat(requestItem.getConsumedQuantity()).isEqualTo(requestItem.getQuantity());
+        assertThat(order.getStatus()).isEqualTo(orderStatus);
+        assertThat(sellerOrder.getStatus()).isEqualTo(sellerOrderStatus).isEqualTo(SellerOrderStatus.DELIVERED);
+
+        assertThatThrownBy(() -> service.deliver(USER_ID, EXCHANGE_ID)).isInstanceOf(SellerException.class);
+        assertThat(orderItem.getExchangedQuantity()).isEqualTo(requestItem.getQuantity());
+    }
+
+    @Test
+    void brokenReservationBlocksReshipBeforeShipmentCreationOrConsume() {
+        inspectSellerExchange();
+        requestItem.releaseTargetStockReservation(1);
+
+        assertThatThrownBy(() -> service.reship(USER_ID, EXCHANGE_ID, "택배", "OUT-X"))
+                .isInstanceOf(SellerException.class).hasMessageContaining("예약 상태");
+
+        assertThat(request.getStatus()).isEqualTo(ExchangeRequestStatus.INSPECTED);
+        assertThat(request.getOutboundShipment()).isNull();
+        assertThat(requestItem.getConsumedQuantity()).isZero();
+        verify(shipmentRepository, times(1)).save(any());
+    }
+
+    @Test
+    void invalidSecondCompletionItemLeavesFirstQuantityShipmentAndExchangeUnchanged() {
+        startReshipping();
+        OrderItem secondOrderItem = OrderItem.create(order, orderItem.getProduct(), null, seller, sellerOrder, null,
+                "두 번째 상품", null, "상점", null, null, 10_000L, 0L,
+                1, true, 0L, 3_000L, 6_000L);
+        ReflectionTestUtils.setField(secondOrderItem, "id", 41L);
+        ExchangeRequestItem second = ExchangeRequestItem.create(
+                request, secondOrderItem, 1, secondOrderItem.getProduct(), null,
+                "두 번째 상품", null, 10_000L);
+        second.reserveTargetStock(1);
+        second.inspect(ExchangeInspectionResult.NON_RESTOCKABLE);
+        second.consumeTargetStockReservation(1);
+        secondOrderItem.confirmCancellation(1);
+        given(exchangeRequestItemRepository.findAllByExchangeRequestIdOrderByOrderItemIdAsc(EXCHANGE_ID))
+                .willReturn(List.of(requestItem, second));
+        given(orderItemRepository.findAllByIdInForUpdate(List.of(ORDER_ITEM_ID, 41L)))
+                .willReturn(List.of(orderItem, secondOrderItem));
+
+        assertThatThrownBy(() -> service.deliver(USER_ID, EXCHANGE_ID))
+                .isInstanceOf(SellerException.class).hasMessageContaining("완료 수량");
+
+        assertThat(orderItem.getExchangedQuantity()).isZero();
+        assertThat(request.getOutboundShipment().getStatus()).isEqualTo(ShipmentStatus.SHIPPED);
+        assertThat(request.getStatus()).isEqualTo(ExchangeRequestStatus.RESHIPPING);
+    }
+
     private void moveSellerExchangeToCollecting() {
         setRequest(ExchangeReasonType.DEFECTIVE);
         service.approve(USER_ID, EXCHANGE_ID, null);
@@ -342,6 +441,18 @@ class SellerExchangeRequestServiceTest {
     private void receiveCollection() {
         startCollection();
         service.receive(USER_ID, EXCHANGE_ID);
+    }
+
+    private void inspectSellerExchange() {
+        receiveCollection();
+        service.inspect(USER_ID, EXCHANGE_ID, new SellerExchangeInspectRequest(List.of(
+                new SellerExchangeInspectionItemRequest(ORDER_ITEM_ID,
+                        ExchangeInspectionResult.NON_RESTOCKABLE))));
+    }
+
+    private void startReshipping() {
+        inspectSellerExchange();
+        service.reship(USER_ID, EXCHANGE_ID, "택배", "OUT-X-1");
     }
 
     private void setRequest(ExchangeReasonType reasonType) {
