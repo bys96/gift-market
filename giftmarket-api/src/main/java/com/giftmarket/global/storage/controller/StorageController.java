@@ -32,7 +32,8 @@ public class StorageController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody PresignedUrlRequest request
     ) {
-        if (request.type() == StorageType.RETURN_EVIDENCE
+        if ((request.type() == StorageType.RETURN_EVIDENCE
+                || request.type() == StorageType.EXCHANGE_EVIDENCE)
                 && !Set.of("image/jpeg", "image/png", "image/webp")
                 .contains(request.contentType().trim().toLowerCase())) {
             throw new IllegalArgumentException("반품 증빙은 JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");

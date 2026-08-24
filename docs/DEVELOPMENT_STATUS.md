@@ -6,13 +6,13 @@
 
 ## 0. 현재 요약
 
-Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return Backend 1~7, Buyer/Seller Frontend, 증빙 이미지 0~5장과 실제 Return E2E까지 완료된 상태**다. Exchange는 아직 구현 전이다.
+Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return 전체와 Exchange 2 구매자 요청 Backend까지 완료된 상태**다.
 
 현재 가장 큰 미완료 범위는 다음이다.
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- Exchange Backend/Frontend, ExchangeShippingPayment와 실제 교환 E2E
+- Exchange 판매자 처리/재고 reservation/배송비 결제/Shipment/Frontend와 실제 교환 E2E
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 
@@ -312,7 +312,7 @@ SellerOrder DELIVERED
 → 기존 주문취소 불가
 ```
 
-SHIPPED 이후 기존 주문취소는 불가하다. DELIVERED는 구현된 Return 도메인 범위이며 Exchange는 구현 예정이다.
+SHIPPED 이후 기존 주문취소는 불가하다. DELIVERED는 Return 전체와 Exchange 구매자 요청 생성 범위가 구현되어 있다.
 
 ### 8.3 구매자 API
 
@@ -537,7 +537,7 @@ REQUESTED → REJECTED
 - RESTOCKABLE만 Product/Variant 재고 복원하고 `restockedQuantity` 기록
 - `SUCCEEDED + REFUNDING`과 `0원 + REFUNDING` completion recovery 및 COMPLETED 멱등 장벽
 
-Return 구매자·판매자 Frontend와 증빙 이미지 0~5장 optional 첨부, 실제 Return E2E까지 완료되었다. Exchange는 설계만 존재하며 Backend/Frontend 모두 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 결제 전체 회귀는 운영 전 과제로 남아 있다.
+Return 구매자·판매자 Frontend와 증빙 이미지 0~5장 optional 첨부, 실제 Return E2E까지 완료되었다. Exchange는 구매자 요청 생성/목록/상세 Backend와 이미지 연결까지 구현됐고 판매자 workflow와 Frontend는 미구현이다. 공개 staging과 상점용 Toss 테스트 키를 사용한 결제 전체 회귀는 운영 전 과제로 남아 있다.
 
 반품 요청에는 선택적으로 증빙 이미지 0~5장을 첨부할 수 있다. Backend가 `returns/{userId}/` prefix의 objectKey와 MinIO presigned PUT URL을 발급하고 Frontend가 직접 업로드한 뒤, `ReturnRequest 1:N ReturnRequestImage`로 objectKey와 표시 순서만 저장한다. Buyer/Seller 소유권 검증이 끝난 조회 응답에서만 만료되는 presigned GET URL을 발급하며 이미지가 없는 기존 반품은 `images=[]`로 호환된다. 업로드 후 반품 생성 실패로 남을 수 있는 orphan object 정리는 향후 prefix 기반 cleanup 작업으로 남아 있다.
 
@@ -563,7 +563,26 @@ Exchange Service/API와 실제 workflow에 앞서 다음 기본 구조를 구현
 - 원 상품 inspectionResult/restockedQuantity 구조
 - `order_items.exchanged_quantity` 안전 backfill과 세 Exchange 테이블 수동 DDL
 
-아직 구현하지 않은 범위는 Buyer/Seller API, Exchange Service, 실제 target stock 변경, Shipment 생성, ExchangeShippingPayment, Frontend와 실제 교환 E2E다.
+## 11.2 Exchange 2 구매자 요청 Backend 구현 현황
+
+구매자 교환 요청 생성과 구매자 소유 목록·상세 조회를 구현했다.
+
+- `POST /api/orders/{orderId}/seller-orders/{sellerOrderId}/exchanges`
+- `GET /api/orders/{orderId}/exchanges`
+- `GET /api/exchanges/{exchangeRequestId}`
+- Order → SellerOrder → 정렬된 OrderItem pessimistic lock과 Buyer ownership 은닉 정책
+- DELIVERED SellerOrder 및 DELIVERED `ORIGINAL_OUTBOUND.deliveredAt` 검증
+- 구매자 귀책 7일 경계, 판매자 귀책/OTHER 무기한 정책과 사유 기반 귀책 확정
+- 동일 Product target, 옵션 유무·활성/판매 상태·현재 재고와 현재 가격 exact arithmetic 검증
+- 완료 취소/반품/교환 수량과 활성 Return/Exchange 수량의 양방향 batch 교차 점유
+- clientRequestKey payload 멱등성, DB unique race domain conflict 처리
+- collection/reshipping 주소 snapshot과 `exchanges/{userId}/` 이미지 0~5장 연결
+- 목록 items/images batch 조회 및 구매자 소유 확인 후 presigned GET URL 응답
+
+요청 생성에서는 target 재고 차감/예약, `exchangedQuantity` 증가, Shipment/Payment 생성을 수행하지 않는다.
+
+아직 구현하지 않은 범위는 판매자 승인/거절과 OTHER 귀책 확정, 실제 target stock reservation,
+ExchangeShippingPayment, EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND Shipment 생성, Frontend와 실제 교환 E2E다.
 
 ## 12. 실제 검증 상태
 
@@ -624,16 +643,15 @@ Exchange Service/API와 실제 workflow에 앞서 다음 기본 구조를 구현
 
 ## 14. 다음 개발 우선순위 제안
 
-### 1순위: Exchange 2 구매자 요청 Service/API
+### 1순위: Exchange 3 판매자 처리 Service/API
 
-Return 전체와 Exchange 1 Entity foundation은 완료됐다. 다음은 구매자 교환 요청 생성·조회와 Backend 최종 검증이다.
+Exchange 2 구매자 요청 Backend까지 완료됐다. 다음은 판매자 승인/거절과 승인 시점 target 재고 reservation이다.
 
-- DELIVERED 및 ORIGINAL_OUTBOUND.deliveredAt 검증
-- 동일 Product의 동일/다른 Variant와 원 주문 unitPrice 동일 금액 검증
-- 부분 수량, 활성 Return/Exchange 점유량, 완료 교환량을 반영한 가용 수량 검증
-- 정렬된 OrderItem pessimistic lock
-- clientRequestKey payload 멱등성과 ExchangeRequestItem/Image transaction 저장
-- Buyer ownership 조회와 이미지 objectKey prefix 검증
+- 판매자 ownership 및 REQUESTED 상태 lock
+- OTHER 귀책 확정과 승인/거절
+- target Product/Variant 재검증 및 정렬된 재고 pessimistic lock
+- 승인 시 실제 target stock 차감과 `reservedQuantity` 기록
+- 구매자 귀책 배송비 결제 대기 연결 전 단계 정합성
 
 ### 2순위: 관리자 주문/결제 운영
 

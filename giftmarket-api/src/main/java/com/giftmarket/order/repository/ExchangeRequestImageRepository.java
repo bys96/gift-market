@@ -7,4 +7,7 @@ import java.util.List;
 
 public interface ExchangeRequestImageRepository extends JpaRepository<ExchangeRequestImage, Long> {
     List<ExchangeRequestImage> findAllByExchangeRequestIdOrderBySortOrderAsc(Long exchangeRequestId);
+    List<ExchangeRequestImage> findAllByExchangeRequestIdInOrderByExchangeRequestIdAscSortOrderAsc(
+            List<Long> exchangeRequestIds
+    );
 }

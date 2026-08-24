@@ -6,16 +6,19 @@ import com.giftmarket.order.dto.request.OrderCancelRequest;
 import com.giftmarket.order.dto.request.OrderCancellationCreateRequest;
 import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.request.ReturnRequestCreateRequest;
+import com.giftmarket.order.dto.request.ExchangeRequestCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
 import com.giftmarket.order.dto.response.OrderCancelResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
+import com.giftmarket.order.dto.response.ExchangeRequestResponse;
 import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
 import com.giftmarket.order.service.OrderCancellationWorkflowService;
 import com.giftmarket.order.service.ReturnRequestService;
+import com.giftmarket.order.service.ExchangeRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,6 +41,7 @@ public class OrderController {
     private final PaymentCancellationService paymentCancellationService;
     private final OrderCancellationWorkflowService orderCancellationWorkflowService;
     private final ReturnRequestService returnRequestService;
+    private final ExchangeRequestService exchangeRequestService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -137,5 +141,22 @@ public class OrderController {
             @PathVariable Long orderId
     ) {
         return ApiResponse.success(returnRequestService.getAllOwned(userId, orderId));
+    }
+
+    @PostMapping("/{orderId}/seller-orders/{sellerOrderId}/exchanges")
+    public ApiResponse<ExchangeRequestResponse> createExchangeRequest(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId,
+            @PathVariable Long sellerOrderId,
+            @Valid @RequestBody ExchangeRequestCreateRequest request
+    ) {
+        return ApiResponse.success(exchangeRequestService.create(userId, orderId, sellerOrderId, request));
+    }
+
+    @GetMapping("/{orderId}/exchanges")
+    public ApiResponse<List<ExchangeRequestResponse>> getExchangeRequests(
+            @AuthenticationPrincipal Long userId, @PathVariable Long orderId
+    ) {
+        return ApiResponse.success(exchangeRequestService.getAllOwned(userId, orderId));
     }
 }

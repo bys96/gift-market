@@ -13,6 +13,7 @@ import com.giftmarket.order.entity.ReturnRequestItem;
 import com.giftmarket.order.entity.ReturnRequestImage;
 import com.giftmarket.order.entity.ReturnRequestStatus;
 import com.giftmarket.order.entity.ReturnResponsibility;
+import com.giftmarket.order.entity.ExchangeRequestStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.entity.Shipment;
@@ -26,6 +27,8 @@ import com.giftmarket.order.repository.ReturnRequestImageRepository;
 import com.giftmarket.order.repository.ReturnRequestRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.ShipmentRepository;
+import com.giftmarket.order.repository.ExchangeRequestRepository;
+import com.giftmarket.order.repository.PendingExchangeQuantityProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -54,6 +57,15 @@ public class ReturnRequestService {
             ReturnRequestStatus.INSPECTED,
             ReturnRequestStatus.REFUNDING
     );
+    private static final Set<ExchangeRequestStatus> EXCHANGE_QUANTITY_HOLDING_STATUSES = Set.of(
+            ExchangeRequestStatus.REQUESTED,
+            ExchangeRequestStatus.APPROVED,
+            ExchangeRequestStatus.PAYMENT_PENDING,
+            ExchangeRequestStatus.COLLECTING,
+            ExchangeRequestStatus.RECEIVED,
+            ExchangeRequestStatus.INSPECTED,
+            ExchangeRequestStatus.RESHIPPING
+    );
     private static final int BUYER_RETURN_DAYS = 7;
     private static final int MAX_REASON_LENGTH = 500;
     private static final int MAX_ITEM_COUNT = 100;
@@ -66,6 +78,7 @@ public class ReturnRequestService {
     private final ReturnRequestRepository returnRequestRepository;
     private final ReturnRequestItemRepository returnRequestItemRepository;
     private final ReturnRequestImageRepository returnRequestImageRepository;
+    private final ExchangeRequestRepository exchangeRequestRepository;
     private final StorageService storageService;
 
     @Transactional(readOnly = true)
@@ -149,7 +162,10 @@ public class ReturnRequestService {
         validateReturnPeriod(normalized.reasonType().defaultResponsibility(), outbound.getDeliveredAt());
 
         Map<Long, Long> heldQuantities = heldQuantities(orderItemIds);
-        validateAvailableQuantities(orderItems, normalized.quantities(), heldQuantities);
+        Map<Long, Long> heldExchangeQuantities = heldExchangeQuantities(orderItemIds);
+        validateAvailableQuantities(
+                orderItems, normalized.quantities(), heldQuantities, heldExchangeQuantities
+        );
 
         ReturnRequest returnRequest;
         try {
@@ -279,18 +295,29 @@ public class ReturnRequestService {
     private void validateAvailableQuantities(
             List<OrderItem> items,
             Map<Long, Integer> requested,
-            Map<Long, Long> held
+            Map<Long, Long> held,
+            Map<Long, Long> exchangeHeld
     ) {
         for (OrderItem item : items) {
             long available = (long) item.getQuantity()
                     - item.getCanceledQuantity()
                     - item.getReturnedQuantity()
-                    - held.getOrDefault(item.getId(), 0L);
+                    - item.getExchangedQuantity()
+                    - held.getOrDefault(item.getId(), 0L)
+                    - exchangeHeld.getOrDefault(item.getId(), 0L);
             if (requested.get(item.getId()) > available) {
-                throw new OrderException("활성 반품 요청을 포함한 반품 가능 수량을 초과했습니다.");
+                throw new OrderException("활성 반품 및 교환 요청을 포함한 반품 가능 수량을 초과했습니다.");
             }
         }
-        // Exchange 도입 시 활성 교환 요청 수량도 같은 transaction 안에서 차감한다.
+    }
+
+    private Map<Long, Long> heldExchangeQuantities(Collection<Long> orderItemIds) {
+        return exchangeRequestRepository.sumItemQuantitiesByStatuses(
+                        orderItemIds, EXCHANGE_QUANTITY_HOLDING_STATUSES
+                ).stream().collect(Collectors.toMap(
+                        PendingExchangeQuantityProjection::getOrderItemId,
+                        PendingExchangeQuantityProjection::getPendingQuantity
+                ));
     }
 
     private NormalizedRequest normalize(ReturnRequestCreateRequest request) {

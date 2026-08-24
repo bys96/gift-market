@@ -9,4 +9,9 @@ import java.util.List;
 public interface ExchangeRequestItemRepository extends JpaRepository<ExchangeRequestItem, Long> {
     @EntityGraph(attributePaths = {"orderItem", "targetProduct", "targetVariant"})
     List<ExchangeRequestItem> findAllByExchangeRequestIdOrderByOrderItemIdAsc(Long exchangeRequestId);
+
+    @EntityGraph(attributePaths = {"orderItem", "targetProduct", "targetVariant"})
+    List<ExchangeRequestItem> findAllByExchangeRequestIdInOrderByExchangeRequestIdAscOrderItemIdAsc(
+            List<Long> exchangeRequestIds
+    );
 }

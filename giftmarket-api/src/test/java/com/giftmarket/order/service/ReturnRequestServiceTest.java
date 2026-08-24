@@ -52,6 +52,7 @@ class ReturnRequestServiceTest {
     @Mock ReturnRequestRepository returnRequestRepository;
     @Mock ReturnRequestItemRepository returnRequestItemRepository;
     @Mock ReturnRequestImageRepository returnRequestImageRepository;
+    @Mock ExchangeRequestRepository exchangeRequestRepository;
     @Mock StorageService storageService;
 
     private ReturnRequestService service;
@@ -66,7 +67,7 @@ class ReturnRequestServiceTest {
         service = spy(new ReturnRequestService(
                 orderRepository, sellerOrderRepository, orderItemRepository,
                 shipmentRepository, returnRequestRepository, returnRequestItemRepository,
-                returnRequestImageRepository, storageService
+                returnRequestImageRepository, exchangeRequestRepository, storageService
         ));
         doReturn(NOW).when(service).currentTime();
         user = mock(User.class);
@@ -85,6 +86,7 @@ class ReturnRequestServiceTest {
         given(shipmentRepository.findBySellerOrderIdAndType(SELLER_ORDER_ID, ShipmentType.ORIGINAL_OUTBOUND))
                 .willReturn(Optional.of(shipment));
         given(returnRequestRepository.sumItemQuantitiesByStatuses(any(), any())).willReturn(List.of());
+        given(exchangeRequestRepository.sumItemQuantitiesByStatuses(any(), any())).willReturn(List.of());
         given(returnRequestRepository.saveAndFlush(any(ReturnRequest.class))).willAnswer(invocation -> {
             ReturnRequest value = invocation.getArgument(0);
             ReflectionTestUtils.setField(value, "id", 100L);
@@ -305,6 +307,30 @@ class ReturnRequestServiceTest {
                 ReturnRequestStatus.INSPECTED, ReturnRequestStatus.REFUNDING
         ).doesNotContain(ReturnRequestStatus.REJECTED, ReturnRequestStatus.CANCELED,
                 ReturnRequestStatus.FAILED, ReturnRequestStatus.COMPLETED);
+    }
+
+    @Test
+    void subtractsCompletedAndActiveExchangeQuantitiesFromReturnAvailability() {
+        ReflectionTestUtils.setField(orderItem, "exchangedQuantity", 1);
+        PendingExchangeQuantityProjection projection = mock(PendingExchangeQuantityProjection.class);
+        given(projection.getOrderItemId()).willReturn(ORDER_ITEM_ID);
+        given(projection.getPendingQuantity()).willReturn(1L);
+        given(exchangeRequestRepository.sumItemQuantitiesByStatuses(any(), any()))
+                .willReturn(List.of(projection));
+
+        assertThatThrownBy(() -> createDefault())
+                .isInstanceOf(OrderException.class).hasMessageContaining("반품 가능 수량");
+
+        @SuppressWarnings("unchecked")
+        var statuses = org.mockito.ArgumentCaptor.forClass(Set.class);
+        verify(exchangeRequestRepository).sumItemQuantitiesByStatuses(any(), statuses.capture());
+        assertThat(statuses.getValue()).containsExactlyInAnyOrder(
+                ExchangeRequestStatus.REQUESTED, ExchangeRequestStatus.APPROVED,
+                ExchangeRequestStatus.PAYMENT_PENDING, ExchangeRequestStatus.COLLECTING,
+                ExchangeRequestStatus.RECEIVED, ExchangeRequestStatus.INSPECTED,
+                ExchangeRequestStatus.RESHIPPING
+        ).doesNotContain(ExchangeRequestStatus.COMPLETED, ExchangeRequestStatus.REJECTED,
+                ExchangeRequestStatus.CANCELED, ExchangeRequestStatus.FAILED);
     }
 
     @Test

@@ -175,6 +175,13 @@ public class StorageService {
                 yield "returns/" + ownerId + "/" + fileName;
             }
 
+            case EXCHANGE_EVIDENCE -> {
+                if (ownerId == null) {
+                    throw new IllegalArgumentException("교환 이미지 업로드 소유자 정보가 필요합니다.");
+                }
+                yield "exchanges/" + ownerId + "/" + fileName;
+            }
+
             default -> storageType.getDirectory()
                     + "/"
                     + fileName;
