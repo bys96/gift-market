@@ -194,9 +194,7 @@ public class ExchangeRequest extends BaseEntity {
     }
 
     public void assignCollectionShipment(Shipment shipment) {
-        if (status != ExchangeRequestStatus.APPROVED && status != ExchangeRequestStatus.PAYMENT_PENDING) {
-            throw new IllegalStateException("승인되거나 결제 대기 중인 교환만 회수 배송을 연결할 수 있습니다.");
-        }
+        requireStatus(ExchangeRequestStatus.COLLECTING);
         validateShipment(shipment, ShipmentType.EXCHANGE_COLLECTION);
         if (collectionShipment != null) throw new IllegalStateException("교환 회수 배송이 이미 연결되었습니다.");
         collectionShipment = shipment;
@@ -241,6 +239,7 @@ public class ExchangeRequest extends BaseEntity {
 
     public void receive(LocalDateTime receivedAt) {
         requireStatus(ExchangeRequestStatus.COLLECTING);
+        if (collectionShipment == null) throw new IllegalStateException("교환 회수 배송이 필요합니다.");
         if (receivedAt == null) throw new IllegalArgumentException("교환 입고 시각이 필요합니다.");
         status = ExchangeRequestStatus.RECEIVED;
         this.receivedAt = receivedAt;

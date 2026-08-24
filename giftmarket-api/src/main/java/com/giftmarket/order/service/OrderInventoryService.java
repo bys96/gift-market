@@ -78,6 +78,20 @@ public class OrderInventoryService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    public void restoreExchangeOriginalItems(List<ExchangeRequestItem> exchangeItems) {
+        if (exchangeItems == null || exchangeItems.isEmpty()) {
+            throw new OrderException("Exchange items are required for stock restoration.");
+        }
+        List<ExchangeRequestItem> restockable = exchangeItems.stream()
+                .filter(item -> item.getInspectionResult() == com.giftmarket.order.entity.ExchangeInspectionResult.RESTOCKABLE)
+                .toList();
+        if (restockable.isEmpty()) return;
+        restoreQuantities(restockable.stream()
+                .map(item -> new InventoryRestoreItem(item.getOrderItem(), item.getQuantity()))
+                .toList());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public void reserveExchangeTargets(List<ExchangeRequestItem> exchangeItems) {
         if (exchangeItems == null || exchangeItems.isEmpty()) {
             throw new OrderException("교환 요청 상품 정보가 필요합니다.");

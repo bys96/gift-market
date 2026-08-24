@@ -5,12 +5,16 @@ import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.order.dto.response.ExchangeRequestImageResponse;
 import com.giftmarket.order.dto.response.ExchangeRequestResponse;
 import com.giftmarket.order.dto.response.SellerExchangeRequestPageResponse;
+import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
+import com.giftmarket.order.dto.request.SellerExchangeInspectionItemRequest;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
+import com.giftmarket.payment.entity.ExchangeShippingPaymentStatus;
+import com.giftmarket.payment.repository.ExchangeShippingPaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -49,6 +54,8 @@ public class SellerExchangeRequestService {
     private final ExchangeRequestItemRepository exchangeRequestItemRepository;
     private final ExchangeRequestImageRepository exchangeRequestImageRepository;
     private final ReturnRequestRepository returnRequestRepository;
+    private final ShipmentRepository shipmentRepository;
+    private final ExchangeShippingPaymentRepository exchangeShippingPaymentRepository;
     private final OrderInventoryService orderInventoryService;
     private final StorageService storageService;
 
@@ -136,7 +143,98 @@ public class SellerExchangeRequestService {
         return response(locked.request(), locked.items());
     }
 
+    @Transactional
+    public ExchangeRequestResponse collect(
+            Long userId, Long exchangeRequestId, String shippingCompany, String trackingNumber
+    ) {
+        String company = requiredText(shippingCompany, 100, "택배사를 입력해주세요.");
+        String tracking = requiredText(trackingNumber, 100, "송장번호를 입력해주세요.");
+        LockedExchangeBase locked = lockWorkflow(userId, exchangeRequestId);
+        requireStatus(locked.request(), ExchangeRequestStatus.COLLECTING);
+        validateReservation(locked.items());
+        if (locked.request().getCollectionShipment() != null) {
+            throw new SellerException("이미 교환 회수 배송이 시작되었습니다.");
+        }
+        Shipment shipment = Shipment.createShipped(
+                locked.sellerOrder(), ShipmentType.EXCHANGE_COLLECTION, company, tracking, currentTime());
+        shipmentRepository.save(shipment);
+        try {
+            locked.request().assignCollectionShipment(shipment);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new SellerException(exception.getMessage());
+        }
+        return response(locked.request(), locked.items());
+    }
+
+    @Transactional
+    public ExchangeRequestResponse receive(Long userId, Long exchangeRequestId) {
+        LockedExchangeBase locked = lockWorkflow(userId, exchangeRequestId);
+        requireStatus(locked.request(), ExchangeRequestStatus.COLLECTING);
+        Shipment shipment = validateCollectionShipment(locked.request(), locked.sellerOrder());
+        Shipment lockedShipment = shipmentRepository.findByIdForUpdate(shipment.getId())
+                .orElseThrow(this::exchangeNotFound);
+        validateCollectionShipment(locked.request(), locked.sellerOrder(), lockedShipment);
+        LocalDateTime now = currentTime();
+        try {
+            lockedShipment.deliver(now);
+            locked.request().receive(now);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new SellerException(exception.getMessage());
+        }
+        return response(locked.request(), locked.items());
+    }
+
+    @Transactional
+    public ExchangeRequestResponse inspect(
+            Long userId, Long exchangeRequestId, SellerExchangeInspectRequest inspectRequest
+    ) {
+        Map<Long, ExchangeInspectionResult> results = normalizeInspection(inspectRequest);
+        LockedExchange locked = lock(userId, exchangeRequestId);
+        requireStatus(locked.request(), ExchangeRequestStatus.RECEIVED);
+        validateReservation(locked.items());
+        validateBuyerPayment(locked.request());
+        Map<Long, ExchangeRequestItem> itemsByOrderItemId = locked.items().stream()
+                .collect(Collectors.toMap(item -> item.getOrderItem().getId(), item -> item));
+        if (!itemsByOrderItemId.keySet().equals(results.keySet())) {
+            throw new SellerException("교환 요청의 모든 상품 검수 결과를 한 번에 입력해주세요.");
+        }
+        try {
+            results.forEach((orderItemId, result) -> itemsByOrderItemId.get(orderItemId).inspect(result));
+            orderInventoryService.restoreExchangeOriginalItems(locked.items());
+            for (ExchangeRequestItem item : locked.items()) {
+                if (item.getInspectionResult() == ExchangeInspectionResult.RESTOCKABLE) {
+                    item.increaseRestockedQuantity(item.getQuantity());
+                }
+            }
+            locked.request().completeInspection(currentTime());
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new SellerException(exception.getMessage());
+        }
+        return response(locked.request(), locked.items());
+    }
+
     private LockedExchange lock(Long userId, Long exchangeRequestId) {
+        LockedExchangeBase base = lockWorkflow(userId, exchangeRequestId);
+        Order order = base.order();
+        SellerOrder sellerOrder = base.sellerOrder();
+        ExchangeRequest request = base.request();
+        List<ExchangeRequestItem> items = base.items();
+        List<Long> itemIds = items.stream().map(item -> item.getOrderItem().getId()).sorted().toList();
+        List<OrderItem> lockedItems = orderItemRepository.findAllByIdInForUpdate(itemIds);
+        Map<Long, OrderItem> byId = lockedItems.stream()
+                .collect(Collectors.toMap(OrderItem::getId, item -> item));
+        if (byId.size() != itemIds.size()) throw new SellerException("교환 요청 상품 정보를 확인할 수 없습니다.");
+        for (ExchangeRequestItem item : items) {
+            OrderItem lockedItem = byId.get(item.getOrderItem().getId());
+            if (lockedItem == null || !lockedItem.getOrder().getId().equals(order.getId())
+                    || !lockedItem.getSellerOrder().getId().equals(sellerOrder.getId())) {
+                throw new SellerException("교환 요청 상품 정보가 판매자 주문과 일치하지 않습니다.");
+            }
+        }
+        return new LockedExchange(order, sellerOrder, request, items, lockedItems);
+    }
+
+    private LockedExchangeBase lockWorkflow(Long userId, Long exchangeRequestId) {
         Seller seller = getActiveSeller(userId);
         ExchangeRequestOwnershipProjection ownership = exchangeRequestRepository
                 .findOwnership(exchangeRequestId, seller.getId()).orElseThrow(this::exchangeNotFound);
@@ -152,19 +250,13 @@ public class SellerExchangeRequestService {
         }
         List<ExchangeRequestItem> items = getItems(exchangeRequestId);
         if (items.isEmpty()) throw new SellerException("교환 요청 상품 정보를 확인할 수 없습니다.");
-        List<Long> itemIds = items.stream().map(item -> item.getOrderItem().getId()).sorted().toList();
-        List<OrderItem> lockedItems = orderItemRepository.findAllByIdInForUpdate(itemIds);
-        Map<Long, OrderItem> byId = lockedItems.stream()
-                .collect(Collectors.toMap(OrderItem::getId, item -> item));
-        if (byId.size() != itemIds.size()) throw new SellerException("교환 요청 상품 정보를 확인할 수 없습니다.");
         for (ExchangeRequestItem item : items) {
-            OrderItem lockedItem = byId.get(item.getOrderItem().getId());
-            if (lockedItem == null || !lockedItem.getOrder().getId().equals(order.getId())
-                    || !lockedItem.getSellerOrder().getId().equals(sellerOrder.getId())) {
+            if (!item.getOrderItem().getOrder().getId().equals(order.getId())
+                    || !item.getOrderItem().getSellerOrder().getId().equals(sellerOrder.getId())) {
                 throw new SellerException("교환 요청 상품 정보가 판매자 주문과 일치하지 않습니다.");
             }
         }
-        return new LockedExchange(order, sellerOrder, request, items, lockedItems);
+        return new LockedExchangeBase(order, sellerOrder, request, items);
     }
 
     private void validateAvailableQuantities(
@@ -232,6 +324,65 @@ public class SellerExchangeRequestService {
         }
     }
 
+    private void requireStatus(ExchangeRequest request, ExchangeRequestStatus expected) {
+        if (request.getStatus() != expected) {
+            throw new SellerException("현재 교환 상태에서는 요청을 처리할 수 없습니다.");
+        }
+    }
+
+    private void validateReservation(List<ExchangeRequestItem> items) {
+        for (ExchangeRequestItem item : items) {
+            if (item.getReservedQuantity() != item.getQuantity()
+                    || item.getReleasedQuantity() != 0 || item.getConsumedQuantity() != 0
+                    || item.getEffectiveReservedQuantity() != item.getQuantity()) {
+                throw new SellerException("교환 target 재고 예약 상태를 확인해주세요.");
+            }
+        }
+    }
+
+    private Shipment validateCollectionShipment(ExchangeRequest request, SellerOrder sellerOrder) {
+        Shipment shipment = request.getCollectionShipment();
+        if (shipment == null) throw new SellerException("교환 회수 배송 정보를 찾을 수 없습니다.");
+        return validateCollectionShipment(request, sellerOrder, shipment);
+    }
+
+    private Shipment validateCollectionShipment(
+            ExchangeRequest request, SellerOrder sellerOrder, Shipment shipment
+    ) {
+        if (!shipment.getId().equals(request.getCollectionShipment().getId())
+                || !shipment.getSellerOrder().getId().equals(sellerOrder.getId())
+                || shipment.getType() != ShipmentType.EXCHANGE_COLLECTION
+                || shipment.getStatus() != ShipmentStatus.SHIPPED) {
+            throw new SellerException("교환 회수 배송 상태를 확인해주세요.");
+        }
+        return shipment;
+    }
+
+    private Map<Long, ExchangeInspectionResult> normalizeInspection(SellerExchangeInspectRequest request) {
+        if (request == null || request.items() == null || request.items().isEmpty()) {
+            throw new SellerException("교환 검수 결과를 입력해주세요.");
+        }
+        Map<Long, ExchangeInspectionResult> results = new LinkedHashMap<>();
+        for (SellerExchangeInspectionItemRequest item : request.items()) {
+            if (item == null || item.orderItemId() == null || item.inspectionResult() == null) {
+                throw new SellerException("교환 검수 결과를 확인해주세요.");
+            }
+            if (results.putIfAbsent(item.orderItemId(), item.inspectionResult()) != null) {
+                throw new SellerException("중복된 교환 상품 검수 결과가 있습니다.");
+            }
+        }
+        return results;
+    }
+
+    private void validateBuyerPayment(ExchangeRequest request) {
+        if (request.getResponsibility() != ExchangeResponsibility.BUYER) return;
+        if (exchangeShippingPaymentRepository.findByExchangeRequestId(request.getId())
+                .filter(payment -> payment.getStatus() == ExchangeShippingPaymentStatus.SUCCEEDED)
+                .isEmpty()) {
+            throw new SellerException("구매자 귀책 교환 배송비 결제 상태를 확인해주세요.");
+        }
+    }
+
     private void validatePage(int page, int size) {
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) throw new SellerException("페이지 정보를 확인해주세요.");
     }
@@ -252,5 +403,10 @@ public class SellerExchangeRequestService {
     private record LockedExchange(
             Order order, SellerOrder sellerOrder, ExchangeRequest request,
             List<ExchangeRequestItem> items, List<OrderItem> lockedOrderItems
+    ) { }
+
+    private record LockedExchangeBase(
+            Order order, SellerOrder sellerOrder, ExchangeRequest request,
+            List<ExchangeRequestItem> items
     ) { }
 }

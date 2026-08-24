@@ -67,8 +67,8 @@ class ExchangeRequestTest {
         Shipment outbound = shipment(sellerOrder, ShipmentType.EXCHANGE_OUTBOUND, ShipmentStatus.DELIVERED);
 
         request.approve(NOW.plusMinutes(1));
+        request.startCollectingAfterReservation(NOW.plusMinutes(2));
         request.assignCollectionShipment(collection);
-        request.startCollecting(NOW.plusMinutes(2));
         request.receive(NOW.plusMinutes(3));
         request.completeInspection(NOW.plusMinutes(4));
         request.assignOutboundShipment(outbound);
@@ -84,6 +84,7 @@ class ExchangeRequestTest {
     void rejectsWrongShipmentTypeAndSellerOrder() {
         ExchangeRequest request = request(ExchangeReasonType.DEFECTIVE);
         request.approve(NOW.plusMinutes(1));
+        request.startCollectingAfterReservation(NOW.plusMinutes(2));
         assertThatThrownBy(() -> request.assignCollectionShipment(
                 shipment(request.getSellerOrder(), ShipmentType.ORIGINAL_OUTBOUND, ShipmentStatus.SHIPPED)))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -98,9 +99,9 @@ class ExchangeRequestTest {
         assertThatThrownBy(() -> request.receive(NOW)).isInstanceOf(IllegalStateException.class);
 
         request.approve(NOW.plusMinutes(1));
+        request.startCollectingAfterReservation(NOW.plusMinutes(2));
         request.assignCollectionShipment(
                 shipment(request.getSellerOrder(), ShipmentType.EXCHANGE_COLLECTION, ShipmentStatus.SHIPPED));
-        request.startCollecting(NOW.plusMinutes(2));
         request.receive(NOW.plusMinutes(3));
         request.completeInspection(NOW.plusMinutes(4));
         request.assignOutboundShipment(

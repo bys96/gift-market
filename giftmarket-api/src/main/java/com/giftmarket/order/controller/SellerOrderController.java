@@ -9,6 +9,8 @@ import com.giftmarket.order.dto.request.SellerReturnInspectRequest;
 import com.giftmarket.order.dto.request.SellerReturnRejectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeApproveRequest;
 import com.giftmarket.order.dto.request.SellerExchangeRejectRequest;
+import com.giftmarket.order.dto.request.SellerExchangeCollectRequest;
+import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
@@ -85,6 +87,30 @@ public class SellerOrderController {
     ) {
         return ApiResponse.success(sellerExchangeRequestService.reject(
                 userId, exchangeRequestId, request.reason()));
+    }
+
+    @PatchMapping("/exchanges/{exchangeRequestId}/collect")
+    public ApiResponse<ExchangeRequestResponse> collectExchange(
+            @AuthenticationPrincipal Long userId, @PathVariable Long exchangeRequestId,
+            @Valid @RequestBody SellerExchangeCollectRequest request
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.collect(
+                userId, exchangeRequestId, request.shippingCompany(), request.trackingNumber()));
+    }
+
+    @PatchMapping("/exchanges/{exchangeRequestId}/receive")
+    public ApiResponse<ExchangeRequestResponse> receiveExchange(
+            @AuthenticationPrincipal Long userId, @PathVariable Long exchangeRequestId
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.receive(userId, exchangeRequestId));
+    }
+
+    @PatchMapping("/exchanges/{exchangeRequestId}/inspect")
+    public ApiResponse<ExchangeRequestResponse> inspectExchange(
+            @AuthenticationPrincipal Long userId, @PathVariable Long exchangeRequestId,
+            @Valid @RequestBody SellerExchangeInspectRequest request
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.inspect(userId, exchangeRequestId, request));
     }
 
     @GetMapping("/returns")

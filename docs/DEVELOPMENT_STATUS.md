@@ -1,5 +1,14 @@
 # Gift Market 개발 현황
 
+## Exchange 5 완료 (2026-08-24)
+
+- Seller Exchange에 `collect`, `receive`, `inspect` API를 추가했다.
+- COLLECTING 교환은 별도 `EXCHANGE_COLLECTION` Shipment를 SHIPPED로 생성하며 Exchange 상태는 유지한다.
+- 회수 입고는 Shipment를 DELIVERED, ExchangeRequest를 RECEIVED로 같은 transaction에서 전이한다.
+- RECEIVED 상태에서 모든 item을 한 번에 검수하고 RESTOCKABLE 원 OrderItem 상품/Variant 재고만 복원한 뒤 `restockedQuantity`를 기록하고 INSPECTED에서 멈춘다.
+- Exchange 5 동안 target reservation의 reserved/released/consumed 수량과 target 출고, `OrderItem.exchangedQuantity`는 변경하지 않는다.
+- 다음 Exchange 6 범위는 EXCHANGE_OUTBOUND, target reservation consume, 재배송 완료 및 Exchange COMPLETED다.
+
 ## Exchange 4 완료 (2026-08-24)
 
 - BUYER 귀책 교환에 주문 결제/PaymentCancellation과 분리된 `ExchangeShippingPayment` 1:1 aggregate를 추가했다.

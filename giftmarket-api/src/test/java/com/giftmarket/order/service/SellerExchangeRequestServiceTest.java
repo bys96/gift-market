@@ -2,6 +2,8 @@ package com.giftmarket.order.service;
 
 import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.order.dto.response.ExchangeRequestResponse;
+import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
+import com.giftmarket.order.dto.request.SellerExchangeInspectionItemRequest;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
 import com.giftmarket.order.exception.OrderException;
@@ -11,6 +13,7 @@ import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
 import com.giftmarket.user.entity.User;
+import com.giftmarket.payment.repository.ExchangeShippingPaymentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +53,8 @@ class SellerExchangeRequestServiceTest {
     @Mock ExchangeRequestItemRepository exchangeRequestItemRepository;
     @Mock ExchangeRequestImageRepository exchangeRequestImageRepository;
     @Mock ReturnRequestRepository returnRequestRepository;
+    @Mock ShipmentRepository shipmentRepository;
+    @Mock ExchangeShippingPaymentRepository exchangeShippingPaymentRepository;
     @Mock OrderInventoryService orderInventoryService;
     @Mock StorageService storageService;
 
@@ -66,7 +71,8 @@ class SellerExchangeRequestServiceTest {
         service = spy(new SellerExchangeRequestService(
                 sellerRepository, orderRepository, sellerOrderRepository, orderItemRepository,
                 exchangeRequestRepository, exchangeRequestItemRepository, exchangeRequestImageRepository,
-                returnRequestRepository, orderInventoryService, storageService
+                returnRequestRepository, shipmentRepository, exchangeShippingPaymentRepository,
+                orderInventoryService, storageService
         ));
         doReturn(NOW).when(service).currentTime();
         seller = mock(Seller.class);
@@ -108,6 +114,13 @@ class SellerExchangeRequestServiceTest {
             items.forEach(item -> item.reserveTargetStock(item.getQuantity()));
             return null;
         }).when(orderInventoryService).reserveExchangeTargets(anyList());
+        given(shipmentRepository.save(any(Shipment.class))).willAnswer(invocation -> {
+            Shipment shipment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(shipment, "id", 70L);
+            return shipment;
+        });
+        given(shipmentRepository.findByIdForUpdate(70L)).willAnswer(invocation ->
+                Optional.of(request.getCollectionShipment()));
     }
 
     @Test
@@ -224,6 +237,111 @@ class SellerExchangeRequestServiceTest {
         assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REJECTED);
         assertThat(response.rejectedReason()).isEqualTo("재고 확보 불가");
         verify(orderInventoryService, never()).reserveExchangeTargets(anyList());
+    }
+
+    @Test
+    void collectsWithSeparateShippedExchangeShipmentAndBlocksDuplicate() {
+        moveSellerExchangeToCollecting();
+        Shipment original = Shipment.createShipped(sellerOrder, ShipmentType.ORIGINAL_OUTBOUND,
+                "기존택배", "OUT-1", NOW.minusDays(2));
+
+        ExchangeRequestResponse response = service.collect(USER_ID, EXCHANGE_ID, " 회수택배 ", " EXC-1 ");
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.COLLECTING);
+        assertThat(response.collectionShipment()).satisfies(shipment -> {
+            assertThat(shipment.type()).isEqualTo(ShipmentType.EXCHANGE_COLLECTION);
+            assertThat(shipment.status()).isEqualTo(ShipmentStatus.SHIPPED);
+            assertThat(shipment.shippingCompany()).isEqualTo("회수택배");
+            assertThat(shipment.trackingNumber()).isEqualTo("EXC-1");
+        });
+        assertThat(original.getStatus()).isEqualTo(ShipmentStatus.SHIPPED);
+        assertThatThrownBy(() -> service.collect(USER_ID, EXCHANGE_ID, "택배", "EXC-2"))
+                .isInstanceOf(SellerException.class);
+        verify(shipmentRepository, times(1)).save(any());
+    }
+
+    @Test
+    void receivesOnlyShippedExchangeCollection() {
+        startCollection();
+
+        ExchangeRequestResponse response = service.receive(USER_ID, EXCHANGE_ID);
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.RECEIVED);
+        assertThat(response.receivedAt()).isEqualTo(NOW);
+        assertThat(response.collectionShipment().status()).isEqualTo(ShipmentStatus.DELIVERED);
+        assertThat(response.collectionShipment().deliveredAt()).isEqualTo(NOW);
+        assertThatThrownBy(() -> service.receive(USER_ID, EXCHANGE_ID)).isInstanceOf(SellerException.class);
+    }
+
+    @Test
+    void inspectsAllItemsRestoresOnlyOriginalRestockableAndKeepsTargetReservation() {
+        receiveCollection();
+        int reserved = requestItem.getReservedQuantity();
+
+        ExchangeRequestResponse response = service.inspect(USER_ID, EXCHANGE_ID,
+                new SellerExchangeInspectRequest(List.of(
+                        new SellerExchangeInspectionItemRequest(ORDER_ITEM_ID,
+                                ExchangeInspectionResult.RESTOCKABLE))));
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.INSPECTED);
+        assertThat(requestItem.getInspectionResult()).isEqualTo(ExchangeInspectionResult.RESTOCKABLE);
+        assertThat(requestItem.getRestockedQuantity()).isEqualTo(requestItem.getQuantity());
+        assertThat(requestItem.getReservedQuantity()).isEqualTo(reserved);
+        assertThat(requestItem.getReleasedQuantity()).isZero();
+        assertThat(requestItem.getConsumedQuantity()).isZero();
+        assertThat(orderItem.getExchangedQuantity()).isZero();
+        verify(orderInventoryService).restoreExchangeOriginalItems(List.of(requestItem));
+    }
+
+    @Test
+    void inspectionRequiresExactUniqueItemsAndValidReservation() {
+        receiveCollection();
+        SellerExchangeInspectionItemRequest value = new SellerExchangeInspectionItemRequest(
+                ORDER_ITEM_ID, ExchangeInspectionResult.NON_RESTOCKABLE);
+        assertThatThrownBy(() -> service.inspect(USER_ID, EXCHANGE_ID,
+                new SellerExchangeInspectRequest(List.of(value, value))))
+                .isInstanceOf(SellerException.class).hasMessageContaining("중복");
+        assertThatThrownBy(() -> service.inspect(USER_ID, EXCHANGE_ID,
+                new SellerExchangeInspectRequest(List.of(new SellerExchangeInspectionItemRequest(
+                        999L, ExchangeInspectionResult.RESTOCKABLE)))))
+                .isInstanceOf(SellerException.class).hasMessageContaining("모든 상품");
+
+        requestItem.releaseTargetStockReservation(1);
+        assertThatThrownBy(() -> service.inspect(USER_ID, EXCHANGE_ID,
+                new SellerExchangeInspectRequest(List.of(value))))
+                .isInstanceOf(SellerException.class).hasMessageContaining("예약 상태");
+        verify(orderInventoryService, never()).restoreExchangeOriginalItems(anyList());
+    }
+
+    @Test
+    void buyerInspectionRequiresSucceededShippingPaymentWithoutPgCall() {
+        requestItem.reserveTargetStock(1);
+        request.approve(NOW.minusHours(2));
+        request.startPaymentPending(NOW.minusHours(2), NOW.plusHours(22));
+        request.completeShippingPayment(NOW.minusHours(1));
+        service.collect(USER_ID, EXCHANGE_ID, "택배", "EXC-BUYER");
+        service.receive(USER_ID, EXCHANGE_ID);
+
+        assertThatThrownBy(() -> service.inspect(USER_ID, EXCHANGE_ID,
+                new SellerExchangeInspectRequest(List.of(new SellerExchangeInspectionItemRequest(
+                        ORDER_ITEM_ID, ExchangeInspectionResult.RESTOCKABLE)))))
+                .isInstanceOf(SellerException.class).hasMessageContaining("결제 상태");
+        verify(exchangeShippingPaymentRepository).findByExchangeRequestId(EXCHANGE_ID);
+    }
+
+    private void moveSellerExchangeToCollecting() {
+        setRequest(ExchangeReasonType.DEFECTIVE);
+        service.approve(USER_ID, EXCHANGE_ID, null);
+    }
+
+    private void startCollection() {
+        moveSellerExchangeToCollecting();
+        service.collect(USER_ID, EXCHANGE_ID, "택배", "EXC-1");
+    }
+
+    private void receiveCollection() {
+        startCollection();
+        service.receive(USER_ID, EXCHANGE_ID);
     }
 
     private void setRequest(ExchangeReasonType reasonType) {

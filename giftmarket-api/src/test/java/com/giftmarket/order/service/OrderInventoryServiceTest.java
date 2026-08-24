@@ -5,6 +5,7 @@ import com.giftmarket.order.entity.OrderCancellationItem;
 import com.giftmarket.order.entity.ReturnInspectionResult;
 import com.giftmarket.order.entity.ReturnRequestItem;
 import com.giftmarket.order.entity.ExchangeRequestItem;
+import com.giftmarket.order.entity.ExchangeInspectionResult;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.order.repository.OrderItemRepository;
@@ -142,6 +143,47 @@ class OrderInventoryServiceTest {
         service.restoreReturnItems(List.of(returnItem));
 
         verify(product, never()).increaseStock(org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void restoresOnlyRestockableExchangeOriginalProductQuantity() {
+        given(exchangeItem.getInspectionResult()).willReturn(ExchangeInspectionResult.RESTOCKABLE);
+        given(exchangeItem.getOrderItem()).willReturn(orderItem);
+        given(exchangeItem.getQuantity()).willReturn(1);
+        given(orderItem.getVariant()).willReturn(null);
+
+        service.restoreExchangeOriginalItems(List.of(exchangeItem));
+
+        verify(product).increaseStock(1);
+    }
+
+    @Test
+    void restoresExchangeOriginalVariantAndSynchronizesProduct() {
+        given(exchangeItem.getInspectionResult()).willReturn(ExchangeInspectionResult.RESTOCKABLE);
+        given(exchangeItem.getOrderItem()).willReturn(orderItem);
+        given(exchangeItem.getQuantity()).willReturn(1);
+        given(orderItem.getVariant()).willReturn(variant);
+        given(variant.getId()).willReturn(VARIANT_ID);
+        given(variant.getStockQuantity()).willReturn(9);
+        given(productVariantRepository.findWithLockByIdAndProductId(VARIANT_ID, PRODUCT_ID))
+                .willReturn(Optional.of(variant));
+        given(productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(PRODUCT_ID))
+                .willReturn(List.of(variant));
+
+        service.restoreExchangeOriginalItems(List.of(exchangeItem));
+
+        verify(variant).increaseStock(1);
+        verify(product).changeStockQuantity(9);
+    }
+
+    @Test
+    void doesNotRestoreNonRestockableExchangeOriginal() {
+        given(exchangeItem.getInspectionResult()).willReturn(ExchangeInspectionResult.NON_RESTOCKABLE);
+
+        service.restoreExchangeOriginalItems(List.of(exchangeItem));
+
+        verify(product, never()).increaseStock(anyInt());
+        verify(variant, never()).increaseStock(anyInt());
     }
 
     @Test
