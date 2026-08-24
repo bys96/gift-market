@@ -7,12 +7,14 @@ interface Props {
   images: ReturnRequestImage[];
   initialIndex: number;
   onClose: () => void;
+  label?: string;
 }
 
 export default function ReturnImageViewerModal({
   images,
   initialIndex,
   onClose,
+  label = "반품 첨부 이미지",
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(() =>
     Math.min(Math.max(initialIndex, 0), images.length - 1),
@@ -50,7 +52,7 @@ export default function ReturnImageViewerModal({
       className="return-image-viewer-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="반품 첨부 이미지 뷰어"
+      aria-label={`${label} 뷰어`}
       onClick={onClose}
     >
       <div
@@ -79,7 +81,7 @@ export default function ReturnImageViewerModal({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentImage.url}
-            alt={`반품 증빙 이미지 ${currentIndex + 1}`}
+            alt={`${label} ${currentIndex + 1}`}
           />
           <button
             type="button"

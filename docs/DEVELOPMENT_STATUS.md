@@ -1,12 +1,20 @@
 # Gift Market 개발 현황
 
+## Exchange Buyer Frontend 1 완료 (2026-08-24)
+
+- 구매자 주문 상세에 SellerOrder별 교환 신청과 REQUESTED~COMPLETED 전체 이력 UI를 추가했다.
+- 동일 Product의 현재 Buyer 상품 API를 다시 조회해 동일 가격 Variant만 선택하고, 현재 가격·재고를 제출 직전에도 사전 검증한다. 최종 검증과 reservation은 Backend가 담당한다.
+- 회수지/재배송지 snapshot, UUID 멱등 요청, JPEG/PNG/WEBP 증빙 이미지 0~5장 presigned PUT 후 objectKey 제출을 연결했다.
+- BUYER `PAYMENT_PENDING`은 Backend 결제금액/기한/상태를 표시하고 주문 결제와 같은 Toss Widgets를 Exchange 전용 session/callback으로 연결했다. `REQUESTED`와 보상 필요 상태에서는 중복 결제를 막는다.
+- Buyer Exchange Frontend는 완료됐지만 Seller Exchange Frontend, 실제 Exchange E2E, staging Toss 추가결제 E2E는 아직 미구현/미검증이다.
+
 ## Exchange 6 완료 - 정상 Backend workflow 완성 (2026-08-24)
 
 - Seller Exchange에 `reship`, `deliver` API를 추가했다.
 - INSPECTED 교환은 별도 `EXCHANGE_OUTBOUND` Shipment를 SHIPPED로 생성하고 target reservation을 실제 재고 변경 없이 consume한 뒤 RESHIPPING으로 전이한다.
 - 재배송 완료 transaction에서 outbound Shipment DELIVERED, 원 OrderItem `exchangedQuantity` 증가, Exchange COMPLETED를 원자적으로 처리한다.
 - 완료 후 reservation audit은 `reserved=quantity`, `released=0`, `consumed=quantity`, `effectiveReserved=0`으로 유지한다.
-- Exchange Backend 정상 workflow는 완료됐지만 Exchange Frontend, 실제 Exchange E2E, staging Toss 추가결제 E2E는 아직 미구현/미검증이다.
+- Exchange Backend 정상 workflow는 완료됐고 Buyer Frontend가 연결됐다. Seller Frontend, 실제 Exchange E2E, staging Toss 추가결제 E2E는 아직 미구현/미검증이다.
 
 ## Exchange 5 완료 (2026-08-24)
 
@@ -31,13 +39,13 @@
 
 ## 0. 현재 요약
 
-Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return 전체와 Exchange 2 구매자 요청 Backend까지 완료된 상태**다.
+Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·부분환불과 SellerOrder 1:N Shipment에 이어 **Return 전체, Exchange 정상 Backend workflow와 Buyer Frontend까지 완료된 상태**다.
 
 현재 가장 큰 미완료 범위는 다음이다.
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- Exchange reservation release, PAYMENT_PENDING timeout, 배송비 결제, Shipment, 입고/검수/완료, Frontend와 실제 교환 E2E
+- Exchange Seller Frontend와 실제 교환 E2E, staging Toss 추가결제 E2E
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 

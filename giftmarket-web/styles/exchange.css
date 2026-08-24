@@ -1,0 +1,36 @@
+.order-exchange-area { margin-top: 22px; padding-top: 22px; border-top: 1px solid #ececec; color: #282828; }
+.order-exchange-heading, .order-exchange-history > header, .order-exchange-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.order-exchange-heading strong { font-size: 18px; }
+.order-exchange-heading span, .order-exchange-notice { color: #777; font-size: 13px; }
+.order-exchange-history { margin-top: 14px; padding: 18px; border: 1px solid #e6e6e6; border-radius: 12px; background: #fff; }
+.order-exchange-status { display: inline-flex; padding: 6px 10px; border-radius: 999px; background: #f2f3f5; font-size: 12px; font-weight: 700; }
+.order-exchange-status.is-payment_pending, .order-exchange-status.is-reshipping { background: #fff3df; color: #a35c00; }
+.order-exchange-status.is-completed { background: #e8f7ef; color: #177245; }
+.order-exchange-status.is-rejected, .order-exchange-status.is-canceled, .order-exchange-status.is-failed { background: #fff0f0; color: #b42318; }
+.order-exchange-history h4 { margin: 15px 0 6px; }
+.order-exchange-items { display: grid; gap: 8px; margin: 14px 0; padding: 0; list-style: none; }
+.order-exchange-items li { display: grid; gap: 3px; padding: 12px; border-radius: 8px; background: #f8f8f8; font-size: 13px; }
+.order-exchange-items em { color: #5b4bb7; font-style: normal; font-weight: 700; }
+.order-exchange-images, .order-exchange-evidence > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.order-exchange-images button, .order-exchange-evidence figure { position: relative; width: 76px; height: 76px; margin: 0; padding: 0; overflow: hidden; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+.order-exchange-images img, .order-exchange-evidence img { width: 100%; height: 100%; object-fit: cover; }
+.order-exchange-evidence figure button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgb(0 0 0 / 65%); color: #fff; }
+.order-exchange-detail-grid, .order-exchange-addresses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.order-exchange-detail-grid section, .exchange-payment-box { padding: 14px; border-radius: 9px; background: #fafafa; }
+.order-exchange-detail-grid h5, .exchange-payment-box h4 { margin: 0 0 8px; }
+.order-exchange-detail-grid p { margin: 0; font-size: 13px; line-height: 1.6; }
+.exchange-payment-box { margin-top: 14px; background: #fff8ec; }
+.exchange-payment-box dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.exchange-payment-box dl div { display: grid; gap: 3px; }.exchange-payment-box dt { color: #777; font-size: 12px; }.exchange-payment-box dd { margin: 0; font-weight: 700; }
+.order-exchange-form { margin-top: 14px; padding: 18px; border: 1px solid #d8d3f4; border-radius: 12px; background: #fcfbff; }
+.order-exchange-select { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
+.order-exchange-select > label:first-child { display: flex; gap: 10px; }.order-exchange-select small { display: block; color: #777; }.order-exchange-select select { max-width: 330px; }
+.order-exchange-fields, .order-exchange-address { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; padding: 0; border: 0; }
+.order-exchange-fields label, .order-exchange-address label { display: grid; gap: 6px; font-size: 13px; }.order-exchange-fields .wide, .order-exchange-address .wide { grid-column: 1 / -1; }
+.order-exchange-form input, .order-exchange-form select, .order-exchange-form textarea { min-height: 40px; padding: 9px 10px; border: 1px solid #d7d7d7; border-radius: 7px; background: #fff; }
+.order-exchange-address .wide > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.order-exchange-form button, .exchange-payment-box button, .order-exchange-open { min-height: 40px; padding: 0 16px; border: 1px solid #5b4bb7; border-radius: 8px; background: #5b4bb7; color: #fff; font-weight: 700; cursor: pointer; }
+.order-exchange-form button:disabled, .exchange-payment-box button:disabled { cursor: not-allowed; opacity: .5; }
+.order-exchange-evidence { margin-top: 18px; }.order-exchange-actions { margin-top: 20px; justify-content: flex-end; }.order-exchange-actions button:first-child { background: #fff; color: #555; border-color: #ccc; }
+.order-exchange-error { color: #b42318; }.order-exchange-success, .order-exchange-complete { color: #177245; font-weight: 700; }
+@media (max-width: 680px) { .order-exchange-heading { align-items: flex-start; flex-direction: column; }.order-exchange-detail-grid, .order-exchange-addresses, .order-exchange-fields, .order-exchange-address, .exchange-payment-box dl { grid-template-columns: 1fr; }.order-exchange-select { grid-template-columns: 1fr; }.order-exchange-select select { width: 100%; max-width: none; }.order-exchange-history, .order-exchange-form { padding: 14px; } }

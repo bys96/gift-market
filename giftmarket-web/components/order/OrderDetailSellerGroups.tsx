@@ -2,10 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 import OrderCancellationPanel from "@/components/order/OrderCancellationPanel";
 import OrderReturnPanel from "@/components/order/OrderReturnPanel";
+import OrderExchangePanel from "@/components/order/OrderExchangePanel";
 
 import { BUYER_SELLER_ORDER_STATUS_LABELS } from "@/lib/order-status";
 import type { BuyerSellerOrder, OrderCancellation } from "@/types/order";
 import type { ReturnRequest } from "@/types/return";
+import type { ExchangeRequest } from "@/types/exchange";
 import { resolveImageUrl } from "@/utils/image-url";
 
 interface OrderDetailSellerGroupsProps {
@@ -15,6 +17,10 @@ interface OrderDetailSellerGroupsProps {
   returns: ReturnRequest[];
   returnsLoading: boolean;
   returnsError: string;
+  exchanges: ExchangeRequest[];
+  exchangesLoading: boolean;
+  exchangesError: string;
+  userId: number;
   collectionAddress: { recipientName: string; phone: string; postalCode: string; address: string; addressDetail: string | null };
   onChanged: () => Promise<void>;
 }
@@ -30,6 +36,10 @@ export default function OrderDetailSellerGroups({
   returns,
   returnsLoading,
   returnsError,
+  exchanges,
+  exchangesLoading,
+  exchangesError,
+  userId,
   collectionAddress,
   onChanged,
 }: OrderDetailSellerGroupsProps) {
@@ -149,6 +159,17 @@ export default function OrderDetailSellerGroups({
               isLoading={returnsLoading}
               loadError={returnsError}
               collectionAddress={collectionAddress}
+              onChanged={onChanged}
+            />
+            <OrderExchangePanel
+              orderId={orderId}
+              sellerOrder={sellerOrder}
+              exchanges={exchanges.filter((value) => value.sellerOrderId === sellerOrder.sellerOrderId)}
+              returns={returns.filter((value) => value.sellerOrderId === sellerOrder.sellerOrderId)}
+              isLoading={exchangesLoading}
+              loadError={exchangesError}
+              defaultAddress={collectionAddress}
+              userId={userId}
               onChanged={onChanged}
             />
           </section>

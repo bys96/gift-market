@@ -10,10 +10,12 @@ import OrderDetailSellerGroups from "@/components/order/OrderDetailSellerGroups"
 import OrderDetailSummary from "@/components/order/OrderDetailSummary";
 import { getMyOrder, getOrderCancellations } from "@/lib/order-api";
 import { getOrderReturnRequests } from "@/lib/return-api";
+import { getOrderExchangeRequests } from "@/lib/exchange-api";
 import { BUYER_DELIVERY_STATUS_LABELS } from "@/lib/order-status";
 import { useAuthStore } from "@/stores/auth-store";
 import type { OrderCancellation, OrderDetail } from "@/types/order";
 import type { ReturnRequest } from "@/types/return";
+import type { ExchangeRequest } from "@/types/exchange";
 
 function formatDateTime(date: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -42,6 +44,9 @@ export default function MyOrderDetailPage() {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState("");
+  const [exchanges, setExchanges] = useState<ExchangeRequest[]>([]);
+  const [exchangesLoading, setExchangesLoading] = useState(false);
+  const [exchangesError, setExchangesError] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -93,6 +98,12 @@ export default function MyOrderDetailPage() {
         }).catch((error) => {
           if (!cancelled) setReturnsError(error instanceof Error ? error.message : "반품 내역을 불러오지 못했습니다.");
         }).finally(() => { if (!cancelled) setReturnsLoading(false); });
+        setExchangesLoading(true);
+        void getOrderExchangeRequests(orderId).then((values) => {
+          if (!cancelled) { setExchanges(values); setExchangesError(""); }
+        }).catch((error) => {
+          if (!cancelled) setExchangesError(error instanceof Error ? error.message : "교환 이력을 불러오지 못했습니다.");
+        }).finally(() => { if (!cancelled) setExchangesLoading(false); });
       } catch (error) {
         if (cancelled) {
           return;
@@ -118,12 +129,13 @@ export default function MyOrderDetailPage() {
   }, [authInitialized, isAuthenticated, user, orderId, isValidOrderId]);
 
   const refreshOrder = async () => {
-    const [latestOrder, latestCancellations, latestReturns] = await Promise.all([
-      getMyOrder(orderId), getOrderCancellations(orderId), getOrderReturnRequests(orderId),
+    const [latestOrder, latestCancellations, latestReturns, latestExchanges] = await Promise.all([
+      getMyOrder(orderId), getOrderCancellations(orderId), getOrderReturnRequests(orderId), getOrderExchangeRequests(orderId),
     ]);
     setOrder(latestOrder);
     setCancellations(latestCancellations);
     setReturns(latestReturns);
+    setExchanges(latestExchanges);
     setReturnsError("");
   };
 
@@ -229,6 +241,10 @@ export default function MyOrderDetailPage() {
           returns={returns}
           returnsLoading={returnsLoading}
           returnsError={returnsError}
+          exchanges={exchanges}
+          exchangesLoading={exchangesLoading}
+          exchangesError={exchangesError}
+          userId={user.id}
           collectionAddress={{ recipientName: order.recipientName, phone: order.recipientPhone, postalCode: order.postalCode, address: order.address, addressDetail: order.addressDetail }}
           onChanged={refreshOrder}
         />
