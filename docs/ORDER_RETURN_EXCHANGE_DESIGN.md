@@ -1,6 +1,6 @@
 # Gift Market 주문 반품 / 교환 설계
 
-> 최종 갱신: 2026-08-22
+> 최종 갱신: 2026-08-24
 >
 > 기준 우선순위: 현재 실제 코드 > 최신 문서 > 인수인계 내용.
 > 이 문서는 현재 `gift-market` 코드의 주문/결제/취소/재고/배송 구조를 유지하면서 실제 운영 가능한 반품·교환 기능을 추가하기 위한 확정 설계다.
@@ -22,7 +22,7 @@ SHIPPED 이후 기존 주문취소와 분리하여, DELIVERED 된 SellerOrder에
 - 증빙 이미지는 MinIO presigned URL로 직접 업로드하고 DB에는 objectKey와 sortOrder만 저장한다.
 - `ReturnRequest 1:N ReturnRequestImage`로만 확장하며 이미지 유무는 상태 전이·환불·재고복원에 영향을 주지 않는다.
 - Buyer/Seller 소유권 확인 후 만료되는 presigned GET URL을 응답하고 기존 반품은 `images=[]`로 조회한다.
-- Exchange 증빙 이미지는 `ExchangeRequest 1:N ExchangeRequestImage` Entity 관계까지 구현했으며, Return과 동일한 0~5장 optional 검증·업로드 Service/API는 아직 미구현이다.
+- Exchange 증빙 이미지는 `ExchangeRequest 1:N ExchangeRequestImage`로 구현했으며, Return과 동일하게 0~5장 optional 검증, `exchanges/{userId}/` prefix, presigned 업로드/조회 Backend가 구현되어 있다.
 - PG 환불은 기존 `PaymentCancellation + PaymentGateway` 구조를 재사용한다.
 - timeout/5xx/응답 유실을 즉시 실패로 단정하지 않는다.
 - 중복 환불/중복 재고복원/중복 요청을 방지한다.
@@ -50,7 +50,7 @@ Order
 │  ├─ OrderCancellation N
 │  │   └─ OrderCancellationItem N
 │  ├─ ReturnRequest N (Backend 구현 완료)
-│  └─ ExchangeRequest N (설계만 존재, 미구현)
+│  └─ ExchangeRequest N (Exchange 1 foundation + Exchange 2 Buyer Backend 완료)
 │
 └─ SellerOrder B
    └─ ...
@@ -61,7 +61,8 @@ Order
 - 현재 구현 완료: Order / Payment / SellerOrder / OrderItem / OrderCancellation / Shipment / ReturnRequest / ReturnRequestItem / ReturnRequestImage, Return Backend와 Buyer/Seller Frontend
 - 현재 검증 완료: 이미지 0~5장 optional 첨부를 포함한 실제 Return E2E
 - 현재 Exchange 1 구현 완료: ExchangeRequest / ExchangeRequestItem / ExchangeRequestImage Entity와 Repository, OrderItem.exchangedQuantity, target snapshot·reservation 추적·Shipment 연결 foundation
-- 현재 미구현: Exchange Service/API, 실제 재고 reservation, Shipment 생성, ExchangeShippingPayment, Buyer/Seller Frontend
+- 현재 Exchange 2 구현 완료: Buyer 요청 생성/목록/상세 API, 기간·가격·Variant·신청 시 현재 재고 사전검사, Return/Exchange 양방향 수량 점유, pessimistic lock, clientRequestKey 멱등성, 이미지 Backend
+- 현재 미구현: Seller 승인/거절, 실제 target 재고 reservation/release, PAYMENT_PENDING timeout, ExchangeShippingPayment, Exchange Shipment workflow, Buyer/Seller Frontend와 Exchange E2E
 
 - `SellerOrderStatus`
   - `PENDING_PAYMENT`
@@ -191,7 +192,7 @@ ReturnRequest
 
 ExchangeRequest
 ├─ collectionShipment 0..1
-└─ replacementShipment 0..1
+└─ outboundShipment 0..1
 ```
 
 Shipment는 항상 하나의 SellerOrder에 속한다.
@@ -993,6 +994,7 @@ ExchangeRequest
 - 원 OrderItem과 동일 Product 안의 동일 Variant 또는 다른 Variant
 - 다른 Product로 교환 불가. 다른 상품 요구는 반품 후 재구매로 안내
 - target 현재 판매단가가 원 주문 `OrderItem.unitPrice`와 정확히 같은 경우에만 자동 교환
+- 구매자 신청 시 target Product/Variant의 현재 재고가 교환 요청 수량 이상인 경우에만 요청 생성
 
 `OrderItem.additionalPrice`와 `OrderItem.unitPrice`는 주문 당시 snapshot이다. 교환 시 target 현재 판매단가는 `Product.price + targetVariant.additionalPrice`로 계산하고 원 주문 `OrderItem.unitPrice`와 비교한다. Product 또는 Variant 가격이 주문 후 바뀌어 동일 옵션군이라도 동일 금액 조건을 만족하지 못하면 자동 교환하지 않는다. 가격 차액의 추가결제, 가격 차액의 부분환불, 주문금액 수정은 지원하지 않고 반품 후 재구매로 안내한다. 이는 교환을 주문금액 변경 기능으로 사용하지 않기 위한 정책이다.
 
@@ -1004,22 +1006,30 @@ ExchangeRequest
 
 교환 사유와 귀책은 ReturnReason/Responsibility와 같은 개념을 별도 Exchange 도메인에 적용한다. 귀책은 `BUYER / SELLER`이며 `OTHER`는 판매자 승인 시 확정한다. 이미지 유무는 귀책 판정이나 승인 가능 조건이 아니다.
 
+### 19.1 신청 단계와 승인 단계의 책임
+
+교환 신청 단계는 buyer ownership, DELIVERED/기간, target Product·Variant, 현재 가격 동일성, 현재 재고 사전검사, Return/Exchange 교차 수량, 이미지, clientRequestKey 멱등성을 검증한다.
+
+신청 시 **현재 target stock >= 교환 요청 수량** 확인은 이미 품절되거나 수량이 부족한 옵션을 선택시키지 않기 위한 UX 사전검사다. 신청 당시 재고가 있었다는 사실은 판매자 승인 시점까지의 재고를 보장하지 않는다.
+
+판매자 승인 transaction은 seller ownership과 `REQUESTED` 상태, target Product/Variant 상태와 실제 재고를 다시 검증하고 Product/Variant를 pessimistic lock으로 잠근다. 이후 기존 reservation bookkeeping 불변식을 확인하고 실제 stock 차감과 `ExchangeRequestItem.reserveTargetStock(...)`를 같은 transaction에서 수행한다. BUYER 귀책은 reservation 이후 `PAYMENT_PENDING`, SELLER 귀책은 reservation 이후 `COLLECTING`으로 전이한다. 신청 단계 검사 결과를 신뢰해 승인 단계 검증을 생략해서는 안 된다.
+
 ## 20. 교환 상태 머신
 
 ```text
 REQUESTED
-→ APPROVED
+→ 판매자 승인 transaction에서 target 재고 재검증/lock/reservation
 
 BUYER 귀책:
-APPROVED
+REQUESTED
+→ target reservation
 → PAYMENT_PENDING
 → 교환배송비 결제 성공
-→ target 재고 예약
 → COLLECTING
 
 SELLER 귀책:
-APPROVED
-→ target 재고 예약
+REQUESTED
+→ target reservation
 → COLLECTING
 
 공통:
@@ -1034,11 +1044,11 @@ COLLECTING
 
 ```text
 REQUESTED → REJECTED
-REQUESTED / APPROVED / PAYMENT_PENDING → CANCELED
+PAYMENT_PENDING 24시간 미결제 → CANCELED + target reservation release
 복구 불가능 오류 → FAILED
 ```
 
-실제 취소 허용 범위는 구현 시 현재 상태, target 예약 여부, 추가결제 성공 여부를 함께 검토해 확정한다. 예약 또는 결제 이후 취소는 보상 transaction 없이 단순 상태 변경만 해서는 안 된다.
+`APPROVED`는 현재 Entity 상태로 유지되지만 승인 workflow에서는 재고 lock·reservation과 다음 귀책별 상태 전이를 하나의 업무 transaction으로 묶는다. 향후 기타 취소 허용 범위는 결제/Shipment 구현 단계에서 실제 side effect를 함께 검토해 확정한다. 예약 또는 결제 이후 취소는 보상 transaction 없이 단순 상태 변경만 해서는 안 된다.
 
 권장 enum:
 
@@ -1057,13 +1067,15 @@ ExchangeRequestStatus
 - FAILED
 ```
 
-`PAYMENT_PENDING`의 교환배송비 결제 유효시간은 24시간이다. 24시간 안에 결제가 완료되지 않으면 `ExchangeRequest`를 `CANCELED`로 종료하며 이는 정상적인 업무 만료이지 `FAILED`가 아니다. 이 시점에는 target 재고를 아직 예약하지 않는 것이 기본이다. 24시간 값은 구현 시 여러 위치에 하드코딩하지 않고 정책 상수 또는 설정 한 곳에서 관리한다.
+`PAYMENT_PENDING`의 교환배송비 결제 유효시간은 24시간이다. 이 상태에는 승인 transaction에서 target reservation이 이미 잡혀 있다. 24시간 안에 결제가 완료되지 않으면 `ExchangeRequest`를 `CANCELED`로 종료하고 같은 업무 결과로 reservation을 release하여 실제 Product/Variant stock과 `releasedQuantity`를 정확히 한 번 복원한다. scheduler/retry가 중복 실행되어도 stock을 두 번 복원하면 안 된다. 24시간 값은 정책 상수 또는 설정 한 곳에서 관리한다.
+
+단순 미결제 만료와 명시적인 결제 실패는 구분한다. 명시적 결제 실패 한 번만으로 ExchangeRequest를 즉시 `FAILED`로 만들지 않는다. 기존 Payment/PG 원칙처럼 재시도 가능 상태와 결과 불명 상태를 고려하며 구체적인 `ExchangeShippingPayment` 상태 머신은 후속 결제 단계에서 확정한다.
 
 `FAILED`는 시스템·결제·데이터 정합성 문제로 정상 workflow를 계속할 수 없고 자동 recovery도 불가능한 경우로 제한한다. 다음은 `FAILED`가 아니다.
 
 - 24시간 동안 교환배송비 미결제: `CANCELED`
 - 판매자 거절: `REJECTED`
-- target 재고 부족: 승인 차단 또는 `REJECTED`
+- target 재고 부족: 승인 차단, `REQUESTED` 유지
 - `NON_RESTOCKABLE` 검수 결과: 원 상품 재고만 복원하지 않고 교환은 계속 진행 가능
 - 회수 지연: 현재 상태 유지
 
@@ -1075,22 +1087,39 @@ target 재고는 판매 재고의 단순 차감이 아니라 **교환용 예약(
 
 ```text
 REQUESTED
+→ 신청 시 현재 target 재고 사전검사만 수행
 → 아직 target 재고 예약 안 함
 
-BUYER: 교환배송비 결제 성공
+판매자 승인 공통:
+→ target Product/Variant 상태 재검증
 → 교환 대상 Product/Variant lock
-→ target 재고 예약
+→ 현재 stock >= exchange quantity 재검증
+→ 실제 target stock 차감
+→ reservedQuantity 반영
+
+BUYER:
+→ PAYMENT_PENDING
+→ 교환배송비 결제 성공
 → COLLECTING
 
-SELLER: APPROVED
-→ 교환 대상 Product/Variant lock
-→ target 재고 예약
+SELLER:
 → COLLECTING
 ```
 
-target 재고가 부족하면 `COLLECTING`으로 진행하지 않는다. BUYER 귀책은 결제 성공 전 target 재고를 장시간 잡지 않으며 SELLER 귀책은 승인 직후 예약할 수 있다.
+신청 시 재고 확인은 UX 사전검사이고 재고 보장이 아니다. 신청 당시 재고가 있었더라도 승인 시 부족할 수 있으므로 승인 transaction에서 반드시 다시 잠그고 검증한다. 승인 시 재고가 부족하면 stock 음수, 승인 성공, `PAYMENT_PENDING` 진입, reservation 기록을 모두 금지하고 `REQUESTED`를 유지한다. 자동 `REJECTED`로 바꾸지 않으며 판매자가 재고 확보 후 다시 승인할 수 있게 한다.
 
-현재 프로젝트에는 별도 `reservedStock` 컬럼이나 범용 reservation 도메인이 없으므로 1차 구현에서는 기존 stock 차감 primitive로 예약을 표현할 수 있다. 다만 `ExchangeRequest` 또는 `ExchangeRequestItem`에 예약이 실제로 잡혔는지, 소비됐는지, 해제됐는지를 정확히 판별할 상태 또는 snapshot을 둔다. 이를 멱등 장벽으로 사용해 중복 예약과 중복 복원을 막는다. 대규모 공용 Inventory reservation 시스템은 1차 범위가 아니다.
+현재 `ExchangeRequestItem`의 누적 bookkeeping 의미는 다음과 같다.
+
+```text
+reservedQuantity = 승인 이후 교환용으로 확보한 누적 수량
+releasedQuantity = 취소/만료/실패로 일반 판매재고에 복원한 누적 수량
+consumedQuantity = EXCHANGE_OUTBOUND 실제 출고에 사용한 누적 수량
+
+0 <= releasedQuantity + consumedQuantity <= reservedQuantity <= exchange quantity
+effectiveReservedQuantity = reservedQuantity - releasedQuantity - consumedQuantity
+```
+
+실제 Product/Variant stock 차감은 Exchange 3에서 `reserveTargetStock(...)` bookkeeping과 같은 transaction에서 수행한다. 누적 수량과 effective reservation을 멱등 장벽으로 사용해 중복 예약·중복 복원·중복 출고 소비를 막는다. 대규모 공용 Inventory reservation 시스템은 1차 범위가 아니다.
 
 이유:
 
@@ -1161,7 +1190,7 @@ exchangeShippingCharge
 - 원 주문 Payment 금액/상태를 변경하지 않음
 - 기존 `PaymentCancellation`은 교환 배송비 추가결제에 재사용하지 않음
 
-구매자 귀책 교환은 `APPROVED → PAYMENT_PENDING`으로 전이한다. 24시간 이내 배송비 결제가 성공한 뒤에만 target 재고를 예약하고 `COLLECTING`으로 진행한다. 미결제 만료는 `CANCELED`이며 target 예약은 없다.
+구매자 귀책 교환은 판매자 승인 transaction에서 target 재고를 먼저 예약한 뒤 `PAYMENT_PENDING`으로 전이한다. 24시간 이내 배송비 결제가 성공하면 이미 확보된 reservation을 유지한 채 `COLLECTING`으로 진행한다. 미결제 만료는 `CANCELED`이며 같은 업무 처리에서 reservation을 정확히 한 번 release한다.
 
 이 추가결제는 반품 1차 구현과 분리하고 교환 구현 단계에서 진행한다.
 
@@ -1306,6 +1335,8 @@ DELIVERED SellerOrder에서:
 - 사유 선택
 - 상세 사유
 - target Variant 선택과 동일 Product 검증
+- target Variant 재고 0은 품절 표시 및 선택 불가
+- 현재 target 재고가 교환 요청 수량보다 적으면 해당 수량으로 신청 불가
 - 현재 target 가격과 원 주문 unitPrice의 일치 여부 안내
 - 회수지와 재배송지 snapshot 입력
 - 증빙 이미지 0~5장 optional
@@ -1313,6 +1344,7 @@ DELIVERED SellerOrder에서:
 - 요청 상태, 회수 Shipment, 재배송 Shipment 조회
 
 가격과 배송비는 안내용이며 Backend 응답과 검증을 최종값으로 사용한다.
+Frontend에 표시된 재고는 실시간 보장을 의미하지 않으며 신청과 승인 단계의 Backend 검증이 최종 권위다. 이 UI는 아직 미구현이다.
 
 ### 판매자센터
 
@@ -1353,7 +1385,7 @@ DELIVERED SellerOrder에서:
 
 ## 31. 구현 순서
 
-Shipment 기반 배송 구조와 개발 DB migration 및 Return Backend 1~7은 완료됐다. Exchange는 아래 설계만 존재한다.
+Shipment 기반 배송 구조, Return 전체, Exchange 1 foundation과 Exchange 2 Buyer 요청 Backend까지 완료됐다.
 
 ### Shipment 1 — Domain / Repository (완료)
 
@@ -1463,14 +1495,26 @@ Shipment 기반 배송 구조와 개발 DB migration 및 Return Backend 1~7은 �
 - 판매자 반품관리
 - CSS
 
-### Exchange 2 이후 (미구현)
+### Exchange 1 — Domain foundation (완료)
 
-Exchange 1 foundation 이후:
+- ExchangeRequest / ExchangeRequestItem / ExchangeRequestImage
+- OrderItem.exchangedQuantity
+- target snapshot과 reserved/released/consumed bookkeeping
+- Shipment nullable 관계와 foundation DDL
+
+### Exchange 2 — Buyer 요청 Backend (완료)
 
 - 구매자 요청 생성·조회 Service/API
 - 기간·가격·가용 수량·멱등성 검증
+- 신청 시 target 현재 재고 사전검사
+- Return/Exchange 양방향 수량 점유
+- Exchange 이미지 0~5장 Backend
+
+### Exchange 3 이후 (미구현)
+
 - 판매자 승인/거절과 OTHER 귀책 확정
-- 귀책별 시점의 실제 target 재고 reservation
+- 승인 transaction의 target 재고 재검증/lock/reservation
+- PAYMENT_PENDING 24시간 만료와 reservation release
 - 구매자 귀책 배송비 추가결제
 - 회수/입고/검수와 재배송 Shipment 생성
 - 구매자/판매자 UI
@@ -1570,7 +1614,7 @@ Shipment 핵심 테스트:
 6. SellerOrder는 주문 처리 상태를, Shipment는 실제 물류 이동과 송장 이력을 담당한다.
 7. 기존 최초 배송 API response shape은 유지하되 데이터 원천은 ORIGINAL_OUTBOUND Shipment로 이전하고 legacy 컬럼은 migration/rollback snapshot으로만 유지한다.
 8. ReturnRequest는 collectionShipment를 참조한다.
-9. ExchangeRequest는 collectionShipment와 replacementShipment를 각각 참조한다.
+9. ExchangeRequest는 collectionShipment와 outboundShipment를 각각 참조한다.
 10. 반품/교환 요청은 회수지와 재배송지 정보를 요청 당시 snapshot으로 보존한다.
 11. 교환은 기본적으로 회수/검수 완료 후 재배송한다.
 12. SellerOrder는 반품/교환 중에도 DELIVERED를 유지한다.
@@ -1590,9 +1634,11 @@ Shipment 핵심 테스트:
 26. Shipment 도입 후에도 기존 결제/취소/주문 조회 API를 불필요하게 변경하지 않는다.
 27. 교환 증빙 이미지는 귀책과 무관하게 0~5장 optional이며 ExchangeRequestImage에 objectKey만 저장한다.
 28. 구매자 귀책 교환은 ExchangeShippingPayment 결제 완료 후 회수를 시작하고 PaymentCancellation을 재사용하지 않는다.
-29. target 재고는 교환용 예약으로 관리한다. SELLER 귀책은 승인 후, BUYER 귀책은 추가결제 성공 후 예약하며 취소/실패 시 정확히 1회 해제하고 재배송 출고 시 소비한다.
-30. PAYMENT_PENDING은 24시간 후 미결제 시 CANCELED로 만료되며 FAILED는 자동 복구 불가능한 시스템·결제·정합성 오류로 제한한다.
+29. 신청 시 현재 target 재고 확인은 UX 사전검사이며 승인 시점까지 재고를 보장하지 않는다.
+30. target 재고는 귀책과 무관하게 판매자 승인 transaction에서 재검증·lock 후 교환용으로 예약한다. 취소/만료/실패 시 정확히 1회 해제하고 재배송 출고 시 소비한다.
+31. BUYER 귀책은 reservation 후 PAYMENT_PENDING으로 전이하고, SELLER 귀책은 reservation 후 COLLECTING으로 전이한다.
+32. PAYMENT_PENDING은 24시간 후 미결제 시 CANCELED와 reservation release를 함께 완료하며 FAILED는 자동 복구 불가능한 시스템·정합성 오류로 제한한다.
 ```
 
 Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증, Return Backend 1~7, Buyer/Seller Return Frontend, Return 증빙 이미지와 실제 Return E2E까지 완료됐다. 전체 Backend 자동 테스트 기준 기록은 279개 성공이다.
-Exchange 1 도메인 foundation은 완료됐다. 다음 구현 범위는 Exchange 2 구매자 요청 생성·조회와 가용 수량/기간/가격/멱등성 검증 Service/API다. 실제 재고 reservation, Seller workflow, ExchangeShippingPayment, Buyer/Seller Frontend는 아직 미구현이고 실제 교환 E2E도 미검증이다.
+Exchange 1 도메인 foundation과 Exchange 2 Buyer 요청 생성/조회 Backend, 신청 시 target 현재 재고 사전검사, 양방향 수량 점유와 이미지 Backend까지 완료됐다. 실제 reservation/release, Seller workflow, PAYMENT_PENDING timeout, ExchangeShippingPayment, Shipment workflow, Buyer/Seller Frontend는 아직 미구현이고 실제 교환 E2E도 미검증이다.

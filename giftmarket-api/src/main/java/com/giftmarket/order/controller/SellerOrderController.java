@@ -7,20 +7,26 @@ import com.giftmarket.order.dto.request.SellerReturnApproveRequest;
 import com.giftmarket.order.dto.request.SellerReturnCollectRequest;
 import com.giftmarket.order.dto.request.SellerReturnInspectRequest;
 import com.giftmarket.order.dto.request.SellerReturnRejectRequest;
+import com.giftmarket.order.dto.request.SellerExchangeApproveRequest;
+import com.giftmarket.order.dto.request.SellerExchangeRejectRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationResponse;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
 import com.giftmarket.order.dto.response.SellerReturnRequestPageResponse;
+import com.giftmarket.order.dto.response.ExchangeRequestResponse;
+import com.giftmarket.order.dto.response.SellerExchangeRequestPageResponse;
 import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.entity.ReturnRequestStatus;
+import com.giftmarket.order.entity.ExchangeRequestStatus;
 import com.giftmarket.order.service.SellerOrderManagementService;
 import com.giftmarket.order.service.SellerOrderCancellationService;
 import com.giftmarket.order.service.SellerOrderCancellationWorkflowService;
 import com.giftmarket.order.service.SellerReturnRequestService;
 import com.giftmarket.order.service.SellerReturnRequestWorkflowService;
+import com.giftmarket.order.service.SellerExchangeRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,6 +48,44 @@ public class SellerOrderController {
     private final SellerOrderCancellationWorkflowService sellerOrderCancellationWorkflowService;
     private final SellerReturnRequestService sellerReturnRequestService;
     private final SellerReturnRequestWorkflowService sellerReturnRequestWorkflowService;
+    private final SellerExchangeRequestService sellerExchangeRequestService;
+
+    @GetMapping("/exchanges")
+    public ApiResponse<SellerExchangeRequestPageResponse> getExchanges(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(required = false) ExchangeRequestStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.getExchanges(userId, status, page, size));
+    }
+
+    @GetMapping("/exchanges/{exchangeRequestId}")
+    public ApiResponse<ExchangeRequestResponse> getExchange(
+            @AuthenticationPrincipal Long userId, @PathVariable Long exchangeRequestId
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.getExchange(userId, exchangeRequestId));
+    }
+
+    @PatchMapping("/exchanges/{exchangeRequestId}/approve")
+    public ApiResponse<ExchangeRequestResponse> approveExchange(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long exchangeRequestId,
+            @Valid @RequestBody SellerExchangeApproveRequest request
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.approve(
+                userId, exchangeRequestId, request.responsibility()));
+    }
+
+    @PatchMapping("/exchanges/{exchangeRequestId}/reject")
+    public ApiResponse<ExchangeRequestResponse> rejectExchange(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long exchangeRequestId,
+            @Valid @RequestBody SellerExchangeRejectRequest request
+    ) {
+        return ApiResponse.success(sellerExchangeRequestService.reject(
+                userId, exchangeRequestId, request.reason()));
+    }
 
     @GetMapping("/returns")
     public ApiResponse<SellerReturnRequestPageResponse> getReturns(

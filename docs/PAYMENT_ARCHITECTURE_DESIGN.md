@@ -1,6 +1,6 @@
 # Gift Market Payment Architecture
 
-> 최종 갱신: 2026-08-22
+> 최종 갱신: 2026-08-24
 >
 > 이 문서는 현재 실제 Payment 구현을 기준으로 정리한 아키텍처 문서다. 과거 단계별 TODO보다 현재 코드가 우선한다.
 
@@ -617,7 +617,11 @@ giftmarket-web/app/payment/fail/page.tsx
 
 교환은 환불이 없으므로 구매자 귀책 교환 배송비를 원 주문 `Payment`에서 차감하거나 기존 `PaymentCancellation`로 처리하지 않는다. `ExchangeRequest`와 1:1인 별도 `ExchangeShippingPayment`를 구현한다.
 
-최소 필드는 `amount`, `status`, `merchantPaymentId`, `providerPaymentKey`, `requestedAt`, `paidAt`, `failedAt`과 만료 판단용 `expiresAt` 또는 동등한 정책 시각이며 고정 idempotency key, 결과 불명 상태와 reconciliation을 고려한다. BUYER 귀책은 `APPROVED → PAYMENT_PENDING`에서 24시간 이내 추가결제가 성공한 뒤 target 재고를 예약하고 `COLLECTING`으로 진행한다. 미결제 24시간 만료는 `CANCELED`이며 `FAILED`가 아니고 target 재고도 예약하지 않는다. 24시간 값은 정책 상수/설정 한 곳에서 관리한다. SELLER 귀책은 추가결제 없이 승인 후 target 재고를 예약하고 `COLLECTING`으로 진행한다. 이 도메인은 현재 설계만 확정됐고 구현 및 staging E2E는 Exchange 작업 이후 수행한다.
+최소 필드는 `amount`, `status`, `merchantPaymentId`, `providerPaymentKey`, `requestedAt`, `paidAt`, `failedAt`과 만료 판단용 `expiresAt` 또는 동등한 정책 시각이며 고정 idempotency key, 결과 불명 상태와 reconciliation을 고려한다.
+
+BUYER 귀책은 판매자 승인 transaction에서 target Product/Variant를 재검증·pessimistic lock하고 실제 stock 차감과 reservation bookkeeping을 완료한 뒤 `PAYMENT_PENDING`으로 전이한다. 즉 교환배송비는 target reservation 완료 후 결제한다. 24시간 이내 추가결제가 성공하면 reservation을 유지한 채 `COLLECTING`으로 진행한다.
+
+24시간 미결제 만료는 `FAILED`가 아니라 `CANCELED`이며, 같은 업무 결과로 reservation을 release하고 실제 stock과 `releasedQuantity`를 정확히 한 번 복원한다. 단순 결제 실패 한 번을 ExchangeRequest 즉시 `FAILED`로 확정하지 않으며 재시도 가능/결과 불명 상태는 후속 `ExchangeShippingPayment` 상태 머신에서 정한다. SELLER 귀책은 추가결제 없이 승인 transaction의 target reservation 후 `COLLECTING`으로 진행한다. `ExchangeShippingPayment`는 아직 미구현이며 기존 `PaymentCancellation`을 재사용하지 않는다.
 
 ## 32. 변경 시 지켜야 할 회귀 기준
 

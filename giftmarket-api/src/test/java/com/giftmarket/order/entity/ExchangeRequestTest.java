@@ -51,6 +51,15 @@ class ExchangeRequestTest {
     }
 
     @Test
+    void sellerCanEnterCollectingAfterReservationWithoutShipment() {
+        ExchangeRequest request = request(ExchangeReasonType.DEFECTIVE);
+        request.approve(NOW.plusMinutes(1));
+        request.startCollectingAfterReservation(NOW.plusMinutes(2));
+        assertThat(request.getStatus()).isEqualTo(ExchangeRequestStatus.COLLECTING);
+        assertThat(request.getCollectionShipment()).isNull();
+    }
+
+    @Test
     void sellerFollowsCollectionInspectionAndReshippingFlow() {
         ExchangeRequest request = request(ExchangeReasonType.DEFECTIVE);
         SellerOrder sellerOrder = request.getSellerOrder();

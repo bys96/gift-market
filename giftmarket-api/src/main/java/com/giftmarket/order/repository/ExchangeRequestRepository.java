@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Collection;
 import java.util.List;
@@ -21,6 +23,40 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
 
     List<ExchangeRequest> findAllBySellerOrderIdOrderByRequestedAtDescIdDesc(Long sellerOrderId);
 
+    @Query(
+            value = """
+                    select e from ExchangeRequest e
+                    join fetch e.order
+                    join fetch e.sellerOrder so
+                    left join fetch e.collectionShipment
+                    left join fetch e.outboundShipment
+                    where so.seller.id = :sellerId
+                      and (:status is null or e.status = :status)
+                    order by e.requestedAt desc, e.id desc
+                    """,
+            countQuery = """
+                    select count(e.id) from ExchangeRequest e
+                    where e.sellerOrder.seller.id = :sellerId
+                      and (:status is null or e.status = :status)
+                    """
+    )
+    Page<ExchangeRequest> findSellerExchanges(
+            @Param("sellerId") Long sellerId,
+            @Param("status") ExchangeRequestStatus status,
+            Pageable pageable
+    );
+
+    @Query("""
+            select e.order.id as orderId, e.sellerOrder.id as sellerOrderId
+            from ExchangeRequest e
+            where e.id = :exchangeRequestId
+              and e.sellerOrder.seller.id = :sellerId
+            """)
+    Optional<ExchangeRequestOwnershipProjection> findOwnership(
+            @Param("exchangeRequestId") Long exchangeRequestId,
+            @Param("sellerId") Long sellerId
+    );
+
     @Query("""
             select ei.orderItem.id as orderItemId, sum(ei.quantity) as pendingQuantity
             from ExchangeRequestItem ei
@@ -30,6 +66,20 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
             """)
     List<PendingExchangeQuantityProjection> sumItemQuantitiesByStatuses(
             @Param("orderItemIds") Collection<Long> orderItemIds,
+            @Param("statuses") Collection<ExchangeRequestStatus> statuses
+    );
+
+    @Query("""
+            select ei.orderItem.id as orderItemId, sum(ei.quantity) as pendingQuantity
+            from ExchangeRequestItem ei
+            where ei.orderItem.id in :orderItemIds
+              and ei.exchangeRequest.id <> :excludedExchangeRequestId
+              and ei.exchangeRequest.status in :statuses
+            group by ei.orderItem.id
+            """)
+    List<PendingExchangeQuantityProjection> sumItemQuantitiesByStatusesExcludingRequest(
+            @Param("orderItemIds") Collection<Long> orderItemIds,
+            @Param("excludedExchangeRequestId") Long excludedExchangeRequestId,
             @Param("statuses") Collection<ExchangeRequestStatus> statuses
     );
 

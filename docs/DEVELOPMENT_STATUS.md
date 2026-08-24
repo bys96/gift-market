@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-08-22
+> 최종 갱신: 2026-08-24
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 작성한다. 문서와 코드가 충돌하면 실제 코드를 현재 구현 상태의 최종 기준으로 사용한다.
 
@@ -12,7 +12,7 @@ Gift Market은 회원/판매자/상품/장바구니/주문/결제/부분취소·
 
 - 공개 HTTPS staging + 상점용 Toss 테스트 키를 사용한 최종 webhook/부분취소 통합 검증
 - FAILED 또는 장기 PROCESSING 부분환불을 운영자가 관측·수동 대응하는 관리자 기능
-- Exchange 판매자 처리/재고 reservation/배송비 결제/Shipment/Frontend와 실제 교환 E2E
+- Exchange reservation release, PAYMENT_PENDING timeout, 배송비 결제, Shipment, 입고/검수/완료, Frontend와 실제 교환 E2E
 - 관리자 주문/결제 운영 화면
 - 운영 DB용 versioned migration 도입
 
@@ -573,16 +573,39 @@ Exchange Service/API와 실제 workflow에 앞서 다음 기본 구조를 구현
 - Order → SellerOrder → 정렬된 OrderItem pessimistic lock과 Buyer ownership 은닉 정책
 - DELIVERED SellerOrder 및 DELIVERED `ORIGINAL_OUTBOUND.deliveredAt` 검증
 - 구매자 귀책 7일 경계, 판매자 귀책/OTHER 무기한 정책과 사유 기반 귀책 확정
-- 동일 Product target, 옵션 유무·활성/판매 상태·현재 재고와 현재 가격 exact arithmetic 검증
+- 동일 Product target, 옵션 유무·활성/판매 상태·현재 가격 exact arithmetic 검증
+- 신청 시 target Product/Variant의 현재 stock이 요청 수량보다 적으면 요청을 차단하는 UX 사전검사
 - 완료 취소/반품/교환 수량과 활성 Return/Exchange 수량의 양방향 batch 교차 점유
 - clientRequestKey payload 멱등성, DB unique race domain conflict 처리
 - collection/reshipping 주소 snapshot과 `exchanges/{userId}/` 이미지 0~5장 연결
 - 목록 items/images batch 조회 및 구매자 소유 확인 후 presigned GET URL 응답
 
 요청 생성에서는 target 재고 차감/예약, `exchangedQuantity` 증가, Shipment/Payment 생성을 수행하지 않는다.
+신청 시 재고 사전검사는 승인 시점까지 재고를 보장하지 않는다. 실제 보장은 Exchange 3 판매자 승인 transaction에서 target 상태·재고 재검증, pessimistic lock, stock 차감과 reservation bookkeeping을 함께 수행해야 성립한다.
 
-아직 구현하지 않은 범위는 판매자 승인/거절과 OTHER 귀책 확정, 실제 target stock reservation,
-ExchangeShippingPayment, EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND Shipment 생성, Frontend와 실제 교환 E2E다.
+Exchange 2 요청 생성 자체에서는 target 재고를 차감하거나 예약하지 않는다. 실제 판매자 승인과 reservation은 아래 Exchange 3에서 구현했으며, reservation release와 PAYMENT_PENDING 24시간 timeout, ExchangeShippingPayment, EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND Shipment 생성, Frontend와 실제 교환 E2E는 아직 미구현이다.
+
+## 11.3 Exchange 3 판매자 승인/거절 및 target reservation 구현 현황
+
+판매자 Exchange 목록/상세와 승인/거절 Backend를 구현했다.
+
+- `GET /api/seller/orders/exchanges` status filter + pagination
+- `GET /api/seller/orders/exchanges/{exchangeRequestId}`
+- `PATCH /api/seller/orders/exchanges/{exchangeRequestId}/approve`
+- `PATCH /api/seller/orders/exchanges/{exchangeRequestId}/reject`
+- Seller ownership 은닉과 Order → SellerOrder → ExchangeRequest → 정렬 OrderItem lock
+- OTHER 승인 시 BUYER/SELLER responsibility 확정, 일반 reason의 귀책 변경 차단
+- 승인 시 target Product/Variant 상태·관계·현재 가격 재검증
+- target Product → Variant 정렬 pessimistic lock과 동일 target SKU 요청 수량 합산
+- 실제 stock 차감, `reservedQuantity` 반영, 상태 전이를 한 transaction에서 처리
+- Variant stock 차감 후 활성 Variant 합계로 Product 총재고 동기화
+- 현재 요청을 제외한 활성 Exchange 및 활성 Return을 반영한 승인 시 수량 재검증
+- BUYER는 reservation 후 `PAYMENT_PENDING`과 승인 시점 +24시간 dueAt 기록
+- SELLER는 reservation 후 Shipment 생성 없이 `COLLECTING` 진입
+- 승인 불가/재고 부족은 자동 거절 없이 operation 실패 및 `REQUESTED` 유지
+
+Exchange 3에서는 ExchangeShippingPayment/PG, PAYMENT_PENDING timeout, reservation release,
+EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND Shipment, 입고/검수/완료와 Frontend를 구현하지 않았다.
 
 ## 12. 실제 검증 상태
 
@@ -643,15 +666,15 @@ ExchangeShippingPayment, EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND Shipment 생성, 
 
 ## 14. 다음 개발 우선순위 제안
 
-### 1순위: Exchange 3 판매자 처리 Service/API
+### 1순위: Exchange 4 배송비 결제 및 reservation 만료 처리
 
-Exchange 2 구매자 요청 Backend까지 완료됐다. 다음은 판매자 승인/거절과 승인 시점 target 재고 reservation이다.
+Exchange 3 판매자 승인/거절과 승인 시점 target 재고 reservation까지 완료됐다. 다음은 BUYER 귀책 배송비 결제와 24시간 만료 보상 처리다.
 
-- 판매자 ownership 및 REQUESTED 상태 lock
-- OTHER 귀책 확정과 승인/거절
-- target Product/Variant 재검증 및 정렬된 재고 pessimistic lock
-- 승인 시 실제 target stock 차감과 `reservedQuantity` 기록
-- 구매자 귀책 배송비 결제 대기 연결 전 단계 정합성
+- ExchangeShippingPayment 별도 도메인과 고정 idempotency key
+- BUYER `PAYMENT_PENDING` 추가결제 및 결과 불명 reconciliation
+- 24시간 미결제 `CANCELED` + stock/releasedQuantity 정확히 1회 release
+- 결제 성공 후 기존 reservation을 유지한 `COLLECTING` 전이
+- PaymentCancellation 및 원 주문 Payment 불변 보장
 
 ### 2순위: 관리자 주문/결제 운영
 
@@ -689,6 +712,6 @@ SellerOrder 1:N Shipment가 구현되어 있고 최초 배송은 ORIGINAL_OUTBOU
 
 OrderCancellation + OrderCancellationItem 기반 상품/수량 부분취소, PAID 즉시취소, PREPARING 판매자 승인/거절, Toss 부분환불, Payment PARTIALLY_CANCELED, 부분 재고복원, 부분환불 reconciliation/webhook/orphan recovery, 구매자/판매자 cancellation UI까지 구현되어 있다.
 
-DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불·reconciliation, returnedQuantity·RESTOCKABLE 재고 복원과 COMPLETED까지 Backend가 구현되어 있다. Buyer/Seller Return Frontend, 증빙 이미지 0~5장과 실제 Return E2E도 완료됐다. Exchange는 Entity/Repository/OrderItem.exchangedQuantity/reservation 추적/Shipment 관계의 1단계 foundation까지만 구현됐고 Service/API/재고/결제/Frontend는 미구현이다.
+DELIVERED SellerOrder의 반품 요청부터 판매자 검수, 환불 예정금액 snapshot, PaymentCancellation 기반 PG 부분환불·reconciliation, returnedQuantity·RESTOCKABLE 재고 복원과 COMPLETED까지 Backend가 구현되어 있다. Buyer/Seller Return Frontend, 증빙 이미지 0~5장과 실제 Return E2E도 완료됐다. Exchange는 1단계 Entity foundation, 2단계 Buyer 요청 Backend, 3단계 Seller 조회/승인/거절과 실제 target reservation까지 구현됐다. reservation release, PAYMENT_PENDING timeout, ExchangeShippingPayment, Shipment workflow, 입고/검수/완료, Frontend와 E2E는 미구현이다.
 운영 전 공개 staging + 상점용 Toss 테스트 키로 결제/전체취소/부분취소/webhook 전체 회귀가 필수다.
 ```

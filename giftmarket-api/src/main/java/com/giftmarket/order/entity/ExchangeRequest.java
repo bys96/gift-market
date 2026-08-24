@@ -212,6 +212,16 @@ public class ExchangeRequest extends BaseEntity {
         this.collectingAt = collectingAt;
     }
 
+    public void startCollectingAfterReservation(LocalDateTime collectingAt) {
+        requireStatus(ExchangeRequestStatus.APPROVED);
+        if (responsibility != ExchangeResponsibility.SELLER) {
+            throw new IllegalStateException("판매자 귀책 교환만 배송비 결제 없이 회수를 준비할 수 있습니다.");
+        }
+        if (collectingAt == null) throw new IllegalArgumentException("교환 회수 준비 시각이 필요합니다.");
+        status = ExchangeRequestStatus.COLLECTING;
+        this.collectingAt = collectingAt;
+    }
+
     public void receive(LocalDateTime receivedAt) {
         requireStatus(ExchangeRequestStatus.COLLECTING);
         if (receivedAt == null) throw new IllegalArgumentException("교환 입고 시각이 필요합니다.");
