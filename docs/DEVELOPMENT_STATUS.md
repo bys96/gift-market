@@ -1,5 +1,9 @@
 # Gift Market 개발 현황
 
+## Exchange Buyer/Seller UI UX polish 완료 (2026-08-25)
+
+- 교환 가능 옵션 노출, 신청 정보 위계, 배송비 안내, 상태 timeline, 주소·이미지·Shipment와 판매자 목록·상세 action UX를 기존 workflow 변경 없이 정리했다.
+
 ## Exchange Seller Frontend 2 완료 (2026-08-24)
 
 - 판매자센터에 `/seller/orders/exchanges` 목록과 `/seller/orders/exchanges/{exchangeRequestId}` 상세, 전체 상태 filter와 pagination을 추가했다.

@@ -1,6 +1,8 @@
 .seller-exchanges-toolbar { justify-content: flex-start; }
 .seller-exchanges-toolbar .seller-orders-tabs { flex-wrap: wrap; }
-.seller-exchanges-table { min-width: 1240px; }
+.seller-exchanges-table { min-width: 1080px; }
+.seller-exchanges-table th:last-child,
+.seller-exchanges-table td:last-child { width: 92px; }
 .seller-exchange-product { display: grid; min-width: 190px; gap: 4px; }
 .seller-exchange-product strong { overflow: hidden; color: var(--color-text-primary); text-overflow: ellipsis; white-space: nowrap; }
 .seller-exchange-product small { color: var(--color-text-tertiary); line-height: 1.45; }
@@ -26,6 +28,11 @@
 .seller-exchange-item dl { display: grid; grid-template-columns: repeat(3, minmax(68px, auto)); gap: 16px; margin: 0; }
 .seller-exchange-item dt { margin-bottom: 5px; color: var(--color-text-tertiary); font-size: 10px; }
 .seller-exchange-item dd { margin: 0; color: var(--color-text-primary); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.seller-exchange-timeline div { position: relative; border: 1px solid transparent; color: var(--color-text-tertiary); }
+.seller-exchange-timeline div.is-active { border-color: #ded8f3; background: #f7f5ff; }
+.seller-exchange-timeline div.is-active span { color: #6550a4; font-weight: 800; }
+.seller-exchange-timeline div:not(.is-active) strong { color: var(--color-text-tertiary); font-weight: 500; }
+.seller-exchanges-page .seller-return-action-section { border: 1px solid #ded8f3; box-shadow: 0 8px 22px rgb(68 50 130 / 7%); }
 @media (max-width: 1000px) { .seller-exchange-item { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }.seller-exchange-item dl { grid-column: 1 / -1; } }
 @media (max-width: 768px) { .seller-exchanges-table { min-width: 0; }.seller-exchange-product { min-width: 0; }.seller-exchange-item { grid-template-columns: 1fr; }.seller-exchange-arrow { transform: rotate(90deg); }.seller-exchange-item dl { grid-column: auto; grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 520px) { .seller-exchange-item dl { grid-template-columns: 1fr 1fr; }.seller-exchange-item dd { white-space: normal; } }
