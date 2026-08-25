@@ -1,6 +1,6 @@
 # Gift Market 개발 트러블슈팅 기록
 
-> 최종 갱신: 2026-08-22
+> 최종 갱신: 2026-08-25
 >
 > 실제 코드, 기존 설계 문서와 git 이력에서 확인되는 문제와 해결 구조를 보존한다. 최종 운영 runbook이 아니며 운영 staging 검증 전 항목을 완료로 간주하지 않는다.
 
@@ -169,6 +169,48 @@ PG 성공 transaction과 Return completion을 분리한다. 후처리 실패 시
 
 refundAmount가 0이면 PG 호출과 PaymentCancellation을 만들지 않는다. `ReturnRequest REFUNDING + refundAmount == 0`을 completion 조건으로 사용하며 returnedQuantity, RESTOCKABLE 재고와 COMPLETED 처리는 일반 환불과 동일하다.
 
+# Exchange
+
+## paymentKey 없는 교환배송비 결과 불명
+
+교환배송비 승인 응답이 유실되면 `ExchangeShippingPayment.REQUESTED`에 paymentKey가 남지 않을 수 있다. paymentKey가 없다는 이유만으로 실패나 미결제로 확정하면 이미 성공한 결제를 놓치고 reservation을 잘못 해제할 수 있다.
+
+reconciliation은 paymentKey 조회를 우선하고, 없으면 저장된 provider orderId로 조회한다. 404 또는 불명확한 응답은 REQUESTED와 target reservation을 유지한다. 24시간 만료도 provider 성공 가능성을 배제한 뒤에만 Exchange CANCELED, Payment EXPIRED와 reservation release를 같은 업무 결과로 확정한다.
+
+## FAILED retry와 attemptSequence
+
+Toss idempotency key는 같은 결제 시도에서는 반드시 재사용하지만, 명시적으로 실패한 요청에 같은 key를 다시 쓰면 과거 실패 응답이 재사용될 수 있다. 따라서 하나의 ExchangeRequest당 `ExchangeShippingPayment` row와 amount snapshot은 유지하면서, 명시 실패 뒤 새 사용자 시도에는 `attemptSequence`를 증가시키고 provider orderId/idempotency key를 함께 회전한다. REQUESTED 결과 불명에는 새 attempt를 만들지 않는다.
+
+## Return/Exchange 수량 교차 점유
+
+같은 OrderItem에 반품과 교환이 동시에 생성되면 각각의 검증만으로는 원 주문수량을 초과할 수 있다. 가용수량 계산은 `canceledQuantity`, `returnedQuantity`, `exchangedQuantity`와 활성 Return/Exchange 점유수량을 함께 차감한다. Order → SellerOrder → 정렬 OrderItem 잠금 뒤 DB 기준으로 다시 확인한다.
+
+## target reservation의 release와 consume
+
+교환 target 재고는 승인 시 판매 가능 재고에서 먼저 차감하고 `reservedQuantity`로 추적한다. 미결제 만료·취소는 실제 재고 복원과 `releasedQuantity`를 같은 transaction에서 반영한다. 교환품 발송은 재고를 다시 차감하지 않고 `consumedQuantity`만 확정한다.
+
+```text
+effectiveReserved = reservedQuantity - releasedQuantity - consumedQuantity
+```
+
+누적 bookkeeping과 상태 전이를 멱등 장벽으로 사용해 중복 예약·복원·소비를 막는다.
+
+# Product Variant
+
+## inactive Variant와 과거 주문 참조
+
+옵션 그룹·값을 제거할 때 과거 Variant를 물리 삭제하면 `OrderItem.variant` 참조와 주문 이력이 깨질 수 있다. 제거된 조합은 `active=false`로 보존하고 현재 mapping만 정리한다. Buyer에는 active Variant만 노출하며 Product 총재고도 active Variant만 합산한다.
+
+현재 옵션 구조와 동일한 `combinationKey`가 다시 만들어지면 `(product_id, combination_key)` unique를 기준으로 기존 inactive Variant ID를 재활성화한다. 예전 옵션 차원의 조합은 현재 구조와 key가 다르므로 잘못 재활성화되지 않는다. 주문 당시 옵션 표시는 `OrderItem.optionSnapshot`으로도 보존한다.
+
+# Frontend build
+
+## App Router useSearchParams와 prerender
+
+Next.js production build의 정적 페이지 생성 단계에서 `useSearchParams() should be wrapped in a suspense boundary` 오류가 발생했다. query 처리 로직이나 SSR/cache 정책을 바꾸지 않고 `/products`, `/login`, `/order`, `/seller/products/new`의 query-dependent Client Content를 기존 page의 `Suspense` 경계 아래 배치했다.
+
+검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 정적 페이지 29개를 포함한 production build가 성공했다.
+
 # DB / 개발환경
 
 ## Return 증빙 이미지 orphan
@@ -191,4 +233,4 @@ MySQL Safe Update Mode Error 1175 사례의 정확한 실행 쿼리와 해결 �
 - Return 환불 예정금액 snapshot, 배송비 중복 방지와 refund balance 검증 구현
 - Return PARTIAL PG 환불, 결과 불명 reconciliation와 webhook 연결
 - Return returnedQuantity, RESTOCKABLE 재고복원, completion recovery와 COMPLETED 구현
-- 현재: Return Backend 1~7 완료, Return Frontend와 Exchange 미구현, 운영 staging PG/반품 E2E 미검증
+- 현재: Return과 Exchange Buyer/Seller workflow·Frontend 완료, Return 정상 E2E와 BUYER 귀책 Exchange/Toss 6,000원 추가결제 정상 E2E 확인. SELLER 귀책 및 실제 timeout/5xx 장애 E2E, 공개 staging 전체 회귀는 미검증

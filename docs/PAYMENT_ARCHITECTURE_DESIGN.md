@@ -6,7 +6,7 @@
 
 PG 호출은 transaction 밖에서 수행한다. 명시 거절만 FAILED로 기록하고 Exchange는 PAYMENT_PENDING을 유지한다. 네트워크/5xx/빈 응답은 REQUESTED와 reservation을 유지하며 paymentKey 조회 reconciliation 대상으로 둔다. 예외적으로 REQUESTED에 paymentKey가 없으면 Toss orderId 조회로 복구하며 404/불명은 REQUESTED를 유지한다. 만료 처리도 reconciliation이 성공/불명확을 배제하기 전에는 release하지 않는다. 만료 뒤 늦은 성공은 `COMPENSATION_REQUIRED`로 기록하고 Exchange를 되살리지 않는다.
 
-> 최종 갱신: 2026-08-24
+> 최종 갱신: 2026-08-25
 >
 > 이 문서는 현재 실제 Payment 구현을 기준으로 정리한 아키텍처 문서다. 과거 단계별 TODO보다 현재 코드가 우선한다.
 
@@ -33,7 +33,9 @@ Order
 │
 └─ SellerOrder N
    ├─ OrderItem N
-   └─ Shipment N
+   ├─ Shipment N
+   └─ ExchangeRequest N
+      └─ ExchangeShippingPayment 0..1
 ```
 
 현재 일반 주문 흐름에서는 최신 Payment 한 건을 중심으로 처리하지만 Entity 관계는 결제 재시도/확장을 고려한다.
@@ -552,6 +554,8 @@ giftmarket-web/app/payment/fail/page.tsx
 - `PaymentStatus.java`
 - `PaymentCancellationStatus.java`
 - `PaymentCancellationType.java`
+- `ExchangeShippingPayment.java`
+- `ExchangeShippingPaymentStatus.java`
 
 ### Gateway / Toss
 
@@ -584,6 +588,11 @@ giftmarket-web/app/payment/fail/page.tsx
 - `ReturnRefundExecutionService.java`
 - `ReturnPaymentCancellationTransactionService.java`
 - `ReturnPaymentCancellationReconciliationService.java`
+- `ExchangeShippingPaymentService.java`
+- `ExchangeShippingPaymentTransactionService.java`
+- `ExchangeShippingPaymentReconciliationService.java`
+- `ExchangePaymentExpirationService.java`
+- `ExchangePaymentExpirationTransactionService.java`
 
 ## 30. 운영 전 최종 통합 검증
 
@@ -610,7 +619,7 @@ giftmarket-web/app/payment/fail/page.tsx
 - Cart 정합성
 - 운영키 전환 전 전체 회귀
 
-## 31. 남은 운영 과제
+## 31. 결제 확장 및 남은 운영 과제
 
 - Flyway/Liquibase 등 versioned migration
 - 관리자 결제/취소 관측 UI
@@ -619,15 +628,17 @@ giftmarket-web/app/payment/fail/page.tsx
 - 실제 상점 계약 결제수단별 부분취소 가능 여부 검증
 - 운영 secret manager
 
-### Exchange 배송비 추가결제 (설계 확정, 미구현)
+### Exchange 배송비 추가결제 (구현 완료)
 
-교환은 환불이 없으므로 구매자 귀책 교환 배송비를 원 주문 `Payment`에서 차감하거나 기존 `PaymentCancellation`로 처리하지 않는다. `ExchangeRequest`와 1:1인 별도 `ExchangeShippingPayment`를 구현한다.
+교환은 환불이 없으므로 구매자 귀책 교환 배송비를 원 주문 `Payment`에서 차감하거나 기존 `PaymentCancellation`로 처리하지 않는다. `ExchangeRequest`와 1:1인 별도 `ExchangeShippingPayment` aggregate로 처리한다.
 
-최소 필드는 `amount`, `status`, `merchantPaymentId`, `providerPaymentKey`, `requestedAt`, `paidAt`, `failedAt`과 만료 판단용 `expiresAt` 또는 동등한 정책 시각이며 고정 idempotency key, 결과 불명 상태와 reconciliation을 고려한다.
+현재 주요 필드는 `amount`, `status`, `providerOrderId`, `providerPaymentKey`, `idempotencyKey`, `attemptSequence`, `requestedAt`, `succeededAt`, `failedAt`, `expiredAt`이다. 결제기한은 ExchangeRequest의 `paymentDueAt` snapshot을 사용한다.
 
 BUYER 귀책은 판매자 승인 transaction에서 target Product/Variant를 재검증·pessimistic lock하고 실제 stock 차감과 reservation bookkeeping을 완료한 뒤 `PAYMENT_PENDING`으로 전이한다. 즉 교환배송비는 target reservation 완료 후 결제한다. 24시간 이내 추가결제가 성공하면 reservation을 유지한 채 `COLLECTING`으로 진행한다.
 
-24시간 미결제 만료는 `FAILED`가 아니라 `CANCELED`이며, 같은 업무 결과로 reservation을 release하고 실제 stock과 `releasedQuantity`를 정확히 한 번 복원한다. 단순 결제 실패 한 번을 ExchangeRequest 즉시 `FAILED`로 확정하지 않으며 재시도 가능/결과 불명 상태는 후속 `ExchangeShippingPayment` 상태 머신에서 정한다. SELLER 귀책은 추가결제 없이 승인 transaction의 target reservation 후 `COLLECTING`으로 진행한다. `ExchangeShippingPayment`는 아직 미구현이며 기존 `PaymentCancellation`을 재사용하지 않는다.
+24시간 미결제 만료는 ExchangeRequest `CANCELED`와 결제 `EXPIRED`이며, 같은 업무 결과로 reservation을 release하고 실제 stock과 `releasedQuantity`를 정확히 한 번 복원한다. 단순 결제 실패 한 번은 ExchangeRequest를 `FAILED`로 만들지 않는다. 결제는 `FAILED`로 기록하고 같은 aggregate row에서 `attemptSequence`를 증가시켜 새 provider order id/idempotency key로 다시 시도한다.
+
+`REQUESTED`는 PG 성공 여부가 불명확할 수 있는 상태다. 같은 attempt의 식별자를 유지하고 paymentKey 조회를 우선하며, paymentKey가 없으면 provider orderId 조회로 reconciliation한다. 만료 처리도 성공 또는 결과 불명 가능성을 배제하기 전에는 reservation을 release하지 않는다. 만료 후 늦은 성공은 Exchange를 되살리지 않고 결제를 `COMPENSATION_REQUIRED`로 기록한다. 0원은 PG 호출 없이 추적 가능한 `SUCCEEDED` row로 남긴다. SELLER 귀책은 결제를 만들지 않고 승인 transaction의 target reservation 후 `COLLECTING`으로 진행한다.
 
 ## 32. 변경 시 지켜야 할 회귀 기준
 

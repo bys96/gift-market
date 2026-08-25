@@ -4,6 +4,7 @@ import com.giftmarket.auth.handler.OAuth2AuthenticationSuccessHandler;
 import com.giftmarket.auth.jwt.JwtAuthenticationFilter;
 import com.giftmarket.auth.service.CustomOidcUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -30,14 +31,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
+            HttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
 
                 .cors(cors -> cors
-                        .configurationSource(corsConfigurationSource())
+                        .configurationSource(corsConfigurationSource)
                 )
 
                 // OAuth2 로그인 과정에서 임시 세션 필요
@@ -111,12 +113,14 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.frontend-url}") String frontendUrl
+    ) {
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
         configuration.setAllowedOrigins(
-                List.of("http://localhost:3000")
+                List.of(frontendUrl)
         );
 
         configuration.setAllowedMethods(

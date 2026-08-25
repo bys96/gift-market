@@ -37,4 +37,9 @@ out/
 .vscode/
 
 ### 설정파일 ###
-**/application.yaml
+**/application*.yaml
+**/application*.yml
+**/application*.properties
+!**/application-example.yaml
+!**/application-example.yml
+!**/application-example.properties

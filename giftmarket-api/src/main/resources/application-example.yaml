@@ -3,14 +3,15 @@ spring:
     name: giftmarket-api
 
   datasource:
-    url: jdbc:mysql://localhost:3306/gift_market?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useUnicode=true
-    username: your-db-username
-    password: your-db-password
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # 로컬 개발은 update, 운영 배포는 validate를 사용한다.
+      ddl-auto: ${JPA_DDL_AUTO:update}
 
     properties:
       hibernate:
@@ -50,10 +51,10 @@ spring:
             user-name-attribute: id
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 app:
-  frontend-url: http://localhost:3000
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
   jwt:
     # 반드시 환경변수로 등록한다.
@@ -62,18 +63,18 @@ app:
     access-token-expiration-seconds: 1800
     refresh-token-expiration-seconds: 1209600
     refresh-cookie-name: gift_refresh_token
-    secure-cookie: false
+    secure-cookie: ${REFRESH_COOKIE_SECURE:false}
 
 logging:
   level:
-    org.hibernate.SQL: debug
-    org.hibernate.orm.jdbc.bind: info
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:debug}
+    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:info}
 
 minio:
-  endpoint: http://localhost:9000
-  access-key: giftmarket
-  secret-key: giftmarket123!
-  bucket: gift-market
+  endpoint: ${MINIO_ENDPOINT}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET:gift-market}
 
 payment:
   reservation-minutes: 30

@@ -1,6 +1,6 @@
 # Gift Market 주문 부분취소 / 부분환불 설계
 
-> 최종 갱신: 2026-08-22
+> 최종 갱신: 2026-08-25
 >
 > 최초 설계 문서를 현재 실제 구현에 맞게 갱신한 문서다. 아래의 "현재 구현"은 저장소 코드를 기준으로 한다.
 
@@ -18,7 +18,7 @@ Order 전체를 판매자별 Payment로 쪼개지 않고, 하나의 Payment 안�
 - 중복 환불/중복 재고복원 방지
 - 멀티셀러 SellerOrder 간 상태 독립성 유지
 - SHIPPED 이후는 반품/교환과 분리
-- Cancellation 자체에는 Shipment를 결합하지 않음. 다만 현재 저장소에는 후속 반품/교환 준비 작업으로 Shipment 도메인이 별도 도입되어 있음
+- Cancellation 자체에는 Shipment를 결합하지 않음. Return/Exchange는 별도 Shipment 도메인을 사용함
 
 ## 2. 현재 주문/결제 구조
 
@@ -79,7 +79,8 @@ Order
 
 - 공개 staging 실제 부분취소/webhook 최종 통합 검증
 - 운영자 FAILED/장기 PROCESSING 관측 및 수동 대응
-- SHIPPED/DELIVERED 반품·교환
+
+Return/Exchange는 별도 도메인으로 구현 완료됐으며 Cancellation의 미완료 범위가 아니다.
 
 ## 4. 사용자 정책
 
@@ -87,8 +88,8 @@ Order
 |---|---|---|
 | PAID | 즉시취소 | 판매자 승인 없이 부분환불 실행 |
 | PREPARING | 취소요청 | 판매자 승인/거절 |
-| SHIPPED | 주문취소 불가 | 향후 반품/교환 |
-| DELIVERED | 주문취소 불가 | 향후 반품/교환 |
+| SHIPPED | 주문취소 불가 | 배송 완료 후 Return/Exchange 정책 적용 |
+| DELIVERED | 주문취소 불가 | 별도 Return/Exchange 요청 |
 | CANCELLED | 추가 취소 불가 | 종료 |
 
 Frontend에서 버튼을 숨기는 것과 별개로 Backend가 상태를 최종 검증한다.
@@ -492,9 +493,7 @@ PATCH /api/seller/orders/cancellations/{cancellationId}/reject
 
 ## 25. SHIPPED 이후 경계
 
-SHIPPED/DELIVERED는 `OrderCancellation` 생성/승인 범위가 아니다.
-
-향후 별도 설계:
+SHIPPED/DELIVERED는 `OrderCancellation` 생성/승인 범위가 아니다. 배송 후 클레임은 구현된 별도 도메인이 담당한다.
 
 ```text
 ReturnRequest
@@ -507,13 +506,13 @@ ExchangeRequest
 
 부분취소 도메인은 배송 전 PAID/PREPARING 범위이므로 Shipment를 직접 생성하거나 변경하지 않는다.
 
-현재 저장소에는 후속 반품/교환 준비 작업으로 다음 구조가 별도 구현되어 있다.
+현재 저장소에는 반품/교환 물류를 포함하는 다음 구조가 구현되어 있다.
 
 ```text
 SellerOrder 1 : N Shipment
 ```
 
-최초 배송은 `ORIGINAL_OUTBOUND Shipment`가 source of truth다. SellerOrder legacy 배송 컬럼은 migration/rollback snapshot으로만 유지한다. 향후 Return/Exchange는 기존 OrderCancellation을 확장하지 않고 `RETURN_COLLECTION / EXCHANGE_COLLECTION / EXCHANGE_OUTBOUND` Shipment를 별도 업무 요청에서 참조한다.
+최초 배송은 `ORIGINAL_OUTBOUND Shipment`가 source of truth다. SellerOrder legacy 배송 컬럼은 migration/rollback snapshot으로만 유지한다. Return/Exchange는 기존 OrderCancellation을 확장하지 않고 `RETURN_COLLECTION / EXCHANGE_COLLECTION / EXCHANGE_OUTBOUND` Shipment를 각 업무 요청에서 참조한다.
 
 ## 27. 데이터 / migration
 
@@ -582,7 +581,7 @@ Cancellation 자체의 핵심 기능은 구현 완료 상태다.
 
 1. 운영 staging 최종 검증
 2. FAILED/장기 PROCESSING 관리자 관측/수동 대응
-3. OrderItem 반품/교환 배송비 snapshot 및 SHIPPED/DELIVERED 반품·교환 구현
+3. Return/Exchange를 포함한 공개 staging 회귀 검증
 4. 관리자 주문/결제 운영 기능
 
 기존 부분취소 코드를 “미구현” 전제로 다시 만들지 않는다.
