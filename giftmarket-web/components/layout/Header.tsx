@@ -23,6 +23,8 @@ export default function Header() {
   const profileImageSrc = resolveImageUrl(user?.profileImageUrl);
 
   useEffect(() => {
+    // route 이동 시 열려 있던 모바일 UI를 닫는다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileSearchOpen(false);
     setIsMobileMenuOpen(false);
   }, [pathname]);
@@ -40,6 +42,8 @@ export default function Header() {
     };
 
     if (desktopMediaQuery.matches) {
+      // 최초 desktop media 상태를 모바일 UI에 동기화한다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsMobileMenuOpen(false);
       setIsMobileSearchOpen(false);
     }

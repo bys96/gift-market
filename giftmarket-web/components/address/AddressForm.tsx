@@ -68,6 +68,8 @@ export default function AddressForm({
   const [isAddressLayerOpen, setIsAddressLayerOpen] = useState(false);
 
   useEffect(() => {
+    // 선택된 배송지가 바뀌면 controlled form과 주소검색 layer를 초기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setErrorMessage("");
     setIsAddressLayerOpen(false);
 

@@ -75,6 +75,8 @@ export default function AdminSellerApplicationsPage() {
       return;
     }
 
+    // 인증이 완료된 관리자의 pending 신청 목록을 최초 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPendingApplications();
   }, [initialized, isAuthenticated, user, router, loadPendingApplications]);
 

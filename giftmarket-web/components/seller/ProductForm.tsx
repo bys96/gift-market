@@ -15,33 +15,20 @@ import ProductEditor from "@/components/seller/ProductEditor";
 import ProductOptionManager, {
   type ProductOptionEditorState,
 } from "@/components/seller/ProductOptionManager";
-import {
-  createProduct,
-  getCategories,
-  modifyProduct,
-  registerProduct,
-  updateProduct,
-  updateProductOptions,
-  updateProductStatus,
-  updateProductVariants,
-} from "@/lib/product-api";
+import { getCategories, modifyProduct, registerProduct } from "@/lib/product-api";
 import {
   createProductDraft,
-  deleteProductDraft,
   getProductDraftByProductId,
   updateProductDraft,
 } from "@/lib/product-draft-api";
 import { uploadImage } from "@/lib/storage-api";
 import type {
   Category,
-  ProductCreateRequest,
   ProductModificationRequest,
   ProductModificationVariantRequest,
   ProductOptionUpdateRequest,
   ProductRegistrationRequest,
   ProductRegistrationVariantRequest,
-  ProductUpdateRequest,
-  ProductVariantUpdateRequest,
   SellerProduct,
 } from "@/types/product";
 import type { ProductDraft, ProductDraftData } from "@/types/product-draft";
@@ -355,6 +342,8 @@ export default function ProductForm({
       );
 
       if (rootCategoryId) {
+        // 카테고리 API 결과와 controlled 상위 카테고리 선택값을 동기화한다.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedRootCategoryId(String(rootCategoryId));
         return;
       }
@@ -873,68 +862,6 @@ export default function ProductForm({
       });
     };
 
-  const saveProductOptionsAndVariants = async (
-    productId: number,
-    optionRequest: ProductOptionUpdateRequest,
-  ) => {
-    const optionResponse = await updateProductOptions(productId, optionRequest);
-
-    const optionValueIdByClientId = new Map<string, number>();
-
-    optionEditorState.optionGroups.forEach((draftGroup, groupIndex) => {
-      const savedGroup = optionResponse.optionGroups.find(
-        (group) => group.sortOrder === groupIndex,
-      );
-
-      if (!savedGroup) {
-        throw new Error("저장된 상품 옵션 정보를 확인할 수 없습니다.");
-      }
-
-      draftGroup.values.forEach((draftValue, valueIndex) => {
-        const savedValue = savedGroup.values.find(
-          (value) => value.sortOrder === valueIndex,
-        );
-
-        if (!savedValue) {
-          throw new Error("저장된 상품 옵션 값을 확인할 수 없습니다.");
-        }
-
-        optionValueIdByClientId.set(draftValue.clientId, savedValue.id);
-      });
-    });
-
-    const variantRequest: ProductVariantUpdateRequest = {
-      variants: optionEditorState.variants.map((variant) => {
-        const optionValueIds = variant.optionValueClientIds.map((clientId) => {
-          const optionValueId = optionValueIdByClientId.get(clientId);
-
-          if (!optionValueId) {
-            throw new Error("SKU에 연결된 옵션 값을 확인할 수 없습니다.");
-          }
-
-          return optionValueId;
-        });
-
-        return {
-          id: variant.id,
-          skuCode: variant.skuCode.trim(),
-          optionValueIds,
-          additionalPrice: parseRequiredNumber(
-            variant.additionalPrice,
-            `${variant.skuCode.trim()} 추가금`,
-          ),
-          stockQuantity: parseRequiredNumber(
-            variant.stockQuantity,
-            `${variant.skuCode.trim()} 재고`,
-          ),
-          active: variant.active,
-        };
-      }),
-    };
-
-    await updateProductVariants(productId, variantRequest);
-  };
-
   const uploadDraftImages = async () => {
     let nextRepresentativeImageKey = representativeImageKey;
 
@@ -1234,6 +1161,8 @@ export default function ProductForm({
 
     const draft = JSON.parse(initialDraft.draftData) as ProductDraftData;
 
+    // 서버에서 복원한 최초 임시저장을 controlled 상품 폼에 반영한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm({
       categoryId: draft.categoryId,
 
@@ -1340,8 +1269,6 @@ export default function ProductForm({
 
       const imageRequest = await uploadImages();
 
-      let productId: number;
-
       if (mode === "create") {
         if (!startSale) {
           throw new Error("임시저장은 임시저장 버튼을 이용해주세요.");
@@ -1373,7 +1300,7 @@ export default function ProductForm({
           draftId,
         };
 
-        const registrationResult = await registerProduct(registrationRequest);
+        await registerProduct(registrationRequest);
 
         router.replace("/seller/products");
         router.refresh();

@@ -41,6 +41,8 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
   const hasChanges = trimmedName !== user.name || selectedProfileImage !== null;
 
   useEffect(() => {
+    // 저장 후 갱신된 user prop을 controlled profile form에 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(user.name);
     setProfileImageUrl(user.profileImageUrl);
     setSelectedProfileImage(null);
@@ -158,6 +160,8 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
         <div className="profile-image-editor">
           <div className="profile-image-preview">
             {profileImageSrc ? (
+              /* data URL을 포함할 수 있는 로컬 미리보기이므로 Next Image 최적화를 적용하지 않는다. */
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 className="profile-image"
                 src={profileImageSrc}

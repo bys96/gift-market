@@ -168,6 +168,8 @@ export default function SellerProductsPage() {
       return;
     }
 
+    // 인증 완료 후 상품과 임시저장 목록을 최초 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void Promise.all([loadProducts(), loadDrafts()]);
   }, [initialized, isAuthenticated, user, router, loadProducts, loadDrafts]);
 

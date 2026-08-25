@@ -48,6 +48,8 @@ export default function SellerProductEditPage() {
     }
 
     if (!Number.isSafeInteger(productId) || productId <= 0) {
+      // route parameter 검증 결과를 기존 오류 UI에 반영한다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setErrorMessage("올바르지 않은 상품 번호입니다.");
       setIsLoading(false);
       return;
