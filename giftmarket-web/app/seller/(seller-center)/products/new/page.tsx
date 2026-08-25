@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import ProductForm from "@/components/seller/ProductForm";
@@ -8,7 +8,7 @@ import { getProductDraft } from "@/lib/product-draft-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { ProductDraft } from "@/types/product-draft";
 
-export default function SellerProductCreatePage() {
+function SellerProductCreateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -55,6 +55,8 @@ export default function SellerProductCreatePage() {
     const draftId = Number(draftIdParam);
 
     if (!Number.isSafeInteger(draftId) || draftId <= 0) {
+      // query parameter 검증 결과를 기존 오류 UI에 반영한다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraftErrorMessage("올바르지 않은 임시저장 번호입니다.");
 
       return;
@@ -154,4 +156,23 @@ export default function SellerProductCreatePage() {
   }
 
   return <ProductForm mode="create" initialDraft={initialDraft} />;
+}
+
+export default function SellerProductCreatePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="seller-product-form-page">
+          <div className="common-inner">
+            <div className="seller-application-loading">
+              <span className="seller-application-loading-spinner" />
+              <p>판매자 정보를 확인하고 있습니다.</p>
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <SellerProductCreateContent />
+    </Suspense>
+  );
 }

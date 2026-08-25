@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FormEvent,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -78,7 +79,7 @@ function isSameNumberArray(first: number[], second: number[]) {
   return firstSorted.every((value, index) => value === secondSorted[index]);
 }
 
-export default function ProductsPage() {
+function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -318,11 +319,15 @@ export default function ProductsPage() {
     }
 
     if (isSameNumberArray(optimisticCategoryIds, categoryIds)) {
+      // URL이 optimistic 선택을 반영한 시점에 임시 UI 상태를 해제한다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOptimisticCategoryIds(null);
     }
   }, [categoryIds, optimisticCategoryIds]);
 
   useEffect(() => {
+    // 뒤로가기 등 URL 검색어 변경을 입력 필드에 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchKeyword(keyword);
   }, [keyword]);
 
@@ -359,6 +364,8 @@ export default function ProductsPage() {
   }, []);
 
   useEffect(() => {
+    // query parameter 변경을 상품 API 조회로 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadProducts();
   }, [loadProducts]);
 
@@ -738,5 +745,45 @@ export default function ProductsPage() {
         </>
       )}
     </main>
+  );
+}
+
+function ProductsFallback() {
+  return (
+    <main className="product-page">
+      <header className="product-page-header">
+        <div>
+          <p className="product-page-eyebrow">PRODUCTS</p>
+          <h1 className="product-page-title">선물 전체보기</h1>
+        </div>
+        <p className="product-page-count">총 <strong>0</strong>개의 상품</p>
+      </header>
+      <form className="product-page-search-form">
+        <label htmlFor="product-search-loading" className="sr-only">상품 검색</label>
+        <input id="product-search-loading" type="search" placeholder="상품명으로 검색" className="product-page-search-input" disabled />
+        <button type="button" className="product-page-search-button" disabled>검색</button>
+      </form>
+      <section className="product-page-category-filter">
+        <div className="product-page-category-primary">
+          <button type="button" className="product-page-category-primary-item product-page-category-primary-item-all-active" disabled>전체</button>
+          <span className="product-page-category-loading">카테고리를 불러오는 중입니다.</span>
+        </div>
+      </section>
+      <div className="product-page-filter-toolbar">
+        <div className="product-page-filter-toolbar-left" />
+        <label className="product-page-sold-out-filter"><input type="checkbox" disabled /><span>품절 상품 제외</span></label>
+      </div>
+      <div className="product-page-state">
+        <p>상품을 불러오는 중입니다.</p>
+      </div>
+    </main>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<ProductsFallback />}>
+      <ProductsContent />
+    </Suspense>
   );
 }

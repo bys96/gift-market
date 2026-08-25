@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import OrderProductList from "@/components/order/OrderProductList";
@@ -104,7 +104,7 @@ function parsePositiveInteger(value: string | null): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-export default function OrderPage() {
+function OrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -775,5 +775,19 @@ export default function OrderPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function OrderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="order-empty">
+          <h1 className="order-empty-title">주문 정보를 불러오는 중입니다.</h1>
+        </div>
+      }
+    >
+      <OrderContent />
+    </Suspense>
   );
 }
