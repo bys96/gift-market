@@ -12,10 +12,30 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Collection;
 import java.util.List;
 
 public interface SellerOrderRepository
         extends JpaRepository<SellerOrder, Long> {
+
+    long countBySellerIdAndStatusIn(
+            Long sellerId,
+            Collection<SellerOrderStatus> statuses
+    );
+
+    @Query("""
+            select so
+            from SellerOrder so
+            join fetch so.order o
+            where so.seller.id = :sellerId
+              and so.status <> :excludedStatus
+            order by o.orderedAt desc, so.id desc
+            """)
+    List<SellerOrder> findRecentSellerOrders(
+            @Param("sellerId") Long sellerId,
+            @Param("excludedStatus") SellerOrderStatus excludedStatus,
+            Pageable pageable
+    );
 
     Optional<SellerOrder> findByOrderIdAndSellerId(
             Long orderId,

@@ -16,6 +16,11 @@ import java.util.Optional;
 
 public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Long> {
 
+    long countBySellerOrderSellerIdAndStatus(
+            Long sellerId,
+            ReturnRequestStatus status
+    );
+
     Optional<ReturnRequest> findByClientRequestKey(String clientRequestKey);
 
     @Query(

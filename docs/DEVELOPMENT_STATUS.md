@@ -51,6 +51,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - 프로필, 배송지, Wishlist
 - 판매자 신청, 관리자 승인, SELLER 권한
 - 판매자센터와 상품·주문·클레임 관리
+- Seller Dashboard 실데이터 집계와 처리 필요 업무 Action Center
 
 ### 상품 / 옵션 / Variant
 

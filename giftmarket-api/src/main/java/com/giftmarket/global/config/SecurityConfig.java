@@ -79,6 +79,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/seller/orders/**")
                         .hasRole("SELLER")
 
+                        .requestMatchers("/api/seller/dashboard")
+                        .hasRole("SELLER")
+
                         .requestMatchers(
                                 "/api/auth/me",
                                 "/api/users/me",

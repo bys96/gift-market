@@ -16,6 +16,11 @@ import java.util.List;
 
 public interface OrderCancellationRepository extends JpaRepository<OrderCancellation, Long> {
 
+    long countBySellerOrderSellerIdAndRequiresSellerApprovalTrueAndStatus(
+            Long sellerId,
+            OrderCancellationStatus status
+    );
+
     Optional<OrderCancellation> findByClientRequestKey(String clientRequestKey);
 
     List<OrderCancellation> findAllByOrderIdOrderByRequestedAtDescIdDesc(Long orderId);

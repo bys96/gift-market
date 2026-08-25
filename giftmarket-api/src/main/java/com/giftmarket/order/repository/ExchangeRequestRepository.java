@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.Collection;
 import java.util.List;
@@ -18,6 +17,11 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 
 public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest, Long> {
+    long countBySellerOrderSellerIdAndStatus(
+            Long sellerId,
+            ExchangeRequestStatus status
+    );
+
     Optional<ExchangeRequest> findByClientRequestKey(String clientRequestKey);
 
     @EntityGraph(attributePaths = {"order", "sellerOrder", "collectionShipment", "outboundShipment"})
