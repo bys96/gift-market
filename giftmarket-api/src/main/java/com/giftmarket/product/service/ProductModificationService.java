@@ -55,6 +55,12 @@ public class ProductModificationService {
          * 옵션 저장 후 새로 생성된 옵션값까지 포함한
          * 실제 DB ID를 응답으로 확보합니다.
          */
+        productOptionService.retireVariantsUsingRemovedOptions(
+                userId,
+                productId,
+                request.options()
+        );
+
         ProductOptionResponse savedOptions =
                 productOptionService.updateProductOptions(
                         userId,
@@ -83,9 +89,17 @@ public class ProductModificationService {
                     productId,
                     variantRequest
             );
-        } else if (!request.normalizedVariants().isEmpty()) {
-            throw new ProductException(
-                    "옵션이 없는 상품에는 SKU를 등록할 수 없습니다."
+        } else {
+            if (!request.normalizedVariants().isEmpty()) {
+                throw new ProductException(
+                        "옵션이 없는 상품에는 SKU를 등록할 수 없습니다."
+                );
+            }
+
+            productVariantService.updateProductVariants(
+                    userId,
+                    productId,
+                    new ProductVariantUpdateRequest(List.of())
             );
         }
 

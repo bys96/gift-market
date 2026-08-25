@@ -17,6 +17,10 @@ public interface ProductVariantOptionValueRepository
             Collection<Long> variantIds
     );
 
+    List<ProductVariantOptionValue> findAllByOptionValueIdIn(
+            Collection<Long> optionValueIds
+    );
+
     boolean existsByOptionValueId(
             Long optionValueId
     );

@@ -154,7 +154,10 @@ function createVariantDrafts(
         clientIdByOptionValueId.get(optionValue.optionValueId),
       );
 
-    if (optionValueClientIds.some((clientId) => !clientId)) {
+    if (
+      optionValueClientIds.length !== optionGroups.length ||
+      optionValueClientIds.some((clientId) => !clientId)
+    ) {
       return [];
     }
 
@@ -233,6 +236,8 @@ export default function ProductOptionManager({
 
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [showInactiveVariants, setShowInactiveVariants] = useState(false);
+
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
@@ -302,6 +307,8 @@ export default function ProductOptionManager({
       return;
     }
 
+    // Draft 복원은 외부 저장 snapshot을 로컬 편집 상태로 한 번 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEnabled(draftState.enabled);
 
     setOptionGroups(
@@ -374,6 +381,9 @@ export default function ProductOptionManager({
         }, 0),
     [variants],
   );
+
+  const activeVariants = variants.filter((variant) => variant.active);
+  const inactiveVariants = variants.filter((variant) => !variant.active);
 
   const updateOptionGroups = (
     updater: (current: ProductOptionGroupDraft[]) => ProductOptionGroupDraft[],
@@ -507,6 +517,24 @@ export default function ProductOptionManager({
   ) => {
     const currentInput = event.currentTarget;
 
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const { selectionStart, selectionEnd, value } = currentInput;
+
+      if (
+        selectionStart === null ||
+        selectionEnd === null ||
+        selectionStart !== selectionEnd ||
+        (event.key === "ArrowLeft" && selectionStart !== 0) ||
+        (event.key === "ArrowRight" && selectionEnd !== value.length)
+      ) {
+        return;
+      }
+    }
+
     const row = currentInput.closest("tr");
 
     if (!row) {
@@ -572,12 +600,18 @@ export default function ProductOptionManager({
       return;
     }
 
-    event.preventDefault();
-
     const targetInput = targetInputs[targetColumnIndex];
 
+    event.preventDefault();
     targetInput.focus();
-    targetInput.select();
+
+    if (event.key === "ArrowLeft") {
+      targetInput.setSelectionRange(targetInput.value.length, targetInput.value.length);
+    } else if (event.key === "ArrowRight") {
+      targetInput.setSelectionRange(0, 0);
+    } else {
+      targetInput.select();
+    }
   };
 
   const handleVariantActiveChange = (
@@ -777,9 +811,11 @@ export default function ProductOptionManager({
               </span>
             </div>
 
-            {variants.length === 0 ? (
+            {activeVariants.length === 0 ? (
               <div className="seller-product-variant-empty">
-                옵션명과 옵션 값을 모두 입력하면 SKU 조합이 자동으로 생성됩니다.
+                {inactiveVariants.length > 0
+                  ? "현재 판매 중인 SKU가 없습니다. 판매 중지 옵션에서 다시 활성화할 수 있습니다."
+                  : "옵션명과 옵션 값을 모두 입력하면 SKU 조합이 자동으로 생성됩니다."}
               </div>
             ) : (
               <div className="seller-product-variant-table-wrapper">
@@ -795,7 +831,7 @@ export default function ProductOptionManager({
                   </thead>
 
                   <tbody>
-                    {variants.map((variant) => (
+                    {activeVariants.map((variant) => (
                       <tr key={variant.clientId}>
                         <td>
                           <div className="seller-product-variant-combination">
@@ -960,9 +996,39 @@ export default function ProductOptionManager({
               </div>
             )}
 
+            {inactiveVariants.length > 0 && (
+              <div className="seller-product-inactive-variants">
+                <button
+                  type="button"
+                  className="seller-product-inactive-toggle"
+                  aria-expanded={showInactiveVariants}
+                  onClick={() => setShowInactiveVariants((current) => !current)}
+                >
+                  판매 중지 옵션 보기 <span>{inactiveVariants.length}개</span>
+                </button>
+
+                {showInactiveVariants && (
+                  <div className="seller-product-inactive-list">
+                    {inactiveVariants.map((variant) => (
+                      <div key={variant.clientId}>
+                        <div className="seller-product-variant-combination">
+                          {variant.optionValueClientIds.map((clientId) => {
+                            const option = optionValueMap.get(clientId);
+                            return option ? <span key={clientId}><small>{option.groupName}</small>{option.valueName}</span> : null;
+                          })}
+                        </div>
+                        <span>{variant.skuCode || "SKU 미입력"}</span>
+                        <button type="button" disabled={disabled} onClick={() => handleVariantActiveChange(variant.clientId, true)}>판매 재개</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="seller-product-option-notice">
-              기존 SKU의 옵션 조합은 변경하지 않습니다. 조합을 변경해야 할 경우
-              기존 SKU를 판매 중지하고 새로운 조합을 등록합니다.
+              옵션값을 제거하면 연결된 기존 SKU는 삭제되지 않고 판매 중지됩니다.
+              판매 중지 옵션은 위 목록에서 확인하거나 다시 활성화할 수 있습니다.
             </p>
           </div>
         </>

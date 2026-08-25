@@ -9,6 +9,7 @@ import com.giftmarket.product.dto.response.ProductOptionResponse;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductOptionGroup;
 import com.giftmarket.product.entity.ProductOptionValue;
+import com.giftmarket.product.entity.ProductVariantOptionValue;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.product.repository.ProductOptionGroupRepository;
 import com.giftmarket.product.repository.ProductOptionValueRepository;
@@ -55,6 +56,53 @@ public class ProductOptionService {
         );
 
         return createResponse(product);
+    }
+
+    @Transactional
+    public void retireVariantsUsingRemovedOptions(
+            Long userId,
+            Long productId,
+            ProductOptionUpdateRequest request
+    ) {
+        Seller seller = getActiveSeller(userId);
+        getSellerProduct(productId, seller.getId());
+
+        Set<Long> requestedValueIds = request.normalizedOptionGroups().stream()
+                .flatMap(group -> group.normalizedValues().stream())
+                .map(ProductOptionValueRequest::id)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+
+        List<Long> groupIds = productOptionGroupRepository
+                .findAllByProductIdOrderBySortOrderAsc(productId).stream()
+                .map(ProductOptionGroup::getId)
+                .toList();
+
+        if (groupIds.isEmpty()) {
+            return;
+        }
+
+        List<Long> removedValueIds = productOptionValueRepository
+                .findAllByOptionGroupIdInOrderByOptionGroupIdAscSortOrderAsc(groupIds).stream()
+                .map(ProductOptionValue::getId)
+                .filter(id -> !requestedValueIds.contains(id))
+                .toList();
+
+        if (removedValueIds.isEmpty()) {
+            return;
+        }
+
+        List<ProductVariantOptionValue> removedMappings =
+                productVariantOptionValueRepository.findAllByOptionValueIdIn(removedValueIds);
+
+        removedMappings.stream()
+                .map(ProductVariantOptionValue::getVariant)
+                .filter(variant -> variant.getProduct().getId().equals(productId))
+                .distinct()
+                .forEach(variant -> variant.deactivate());
+
+        productVariantOptionValueRepository.deleteAll(removedMappings);
+        productVariantOptionValueRepository.flush();
     }
 
     @Transactional
