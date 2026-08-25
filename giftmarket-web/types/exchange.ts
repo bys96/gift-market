@@ -75,3 +75,10 @@ export interface ExchangeShippingPayment {
   amount: number; providerOrderId: string; idempotencyKey: string;
   paymentDueAt: string | null; userMessage: string;
 }
+export interface SellerExchangeRequestPage {
+  exchanges: ExchangeRequest[]; page: number; size: number; totalElements: number;
+  totalPages: number; first: boolean; last: boolean;
+}
+export interface SellerExchangeInspectRequest {
+  items: Array<{ orderItemId: number; inspectionResult: ExchangeInspectionResult }>;
+}

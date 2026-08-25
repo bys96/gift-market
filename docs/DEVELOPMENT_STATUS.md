@@ -1,12 +1,20 @@
 # Gift Market 개발 현황
 
+## Exchange Seller Frontend 2 완료 (2026-08-24)
+
+- 판매자센터에 `/seller/orders/exchanges` 목록과 `/seller/orders/exchanges/{exchangeRequestId}` 상세, 전체 상태 filter와 pagination을 추가했다.
+- REQUESTED 승인/거절과 OTHER 귀책 확정, PAYMENT_PENDING 결제 대기 안내를 실제 Backend 상태 전이에 맞춰 연결했다.
+- COLLECTING 회수 등록·입고, RECEIVED 전체 item 재입고 검수, INSPECTED 교환품 재배송, RESHIPPING 배송완료 처리를 구현했다.
+- 교환 대상 snapshot, 증빙 이미지 viewer, 회수지/재배송지, EXCHANGE_COLLECTION/EXCHANGE_OUTBOUND 정보를 판매자 화면에서 확인할 수 있다.
+- Exchange Buyer/Seller Frontend는 완료됐다. 실제 Exchange E2E와 staging Toss 추가결제 E2E는 아직 미검증이다.
+
 ## Exchange Buyer Frontend 1 완료 (2026-08-24)
 
 - 구매자 주문 상세에 SellerOrder별 교환 신청과 REQUESTED~COMPLETED 전체 이력 UI를 추가했다.
 - 동일 Product의 현재 Buyer 상품 API를 다시 조회해 동일 가격 Variant만 선택하고, 현재 가격·재고를 제출 직전에도 사전 검증한다. 최종 검증과 reservation은 Backend가 담당한다.
 - 회수지/재배송지 snapshot, UUID 멱등 요청, JPEG/PNG/WEBP 증빙 이미지 0~5장 presigned PUT 후 objectKey 제출을 연결했다.
 - BUYER `PAYMENT_PENDING`은 Backend 결제금액/기한/상태를 표시하고 주문 결제와 같은 Toss Widgets를 Exchange 전용 session/callback으로 연결했다. `REQUESTED`와 보상 필요 상태에서는 중복 결제를 막는다.
-- Buyer Exchange Frontend는 완료됐지만 Seller Exchange Frontend, 실제 Exchange E2E, staging Toss 추가결제 E2E는 아직 미구현/미검증이다.
+- Buyer Exchange Frontend가 완료됐고 이후 Seller Exchange Frontend도 연결됐다. 실제 Exchange E2E와 staging Toss 추가결제 E2E는 아직 미검증이다.
 
 ## Exchange 6 완료 - 정상 Backend workflow 완성 (2026-08-24)
 
