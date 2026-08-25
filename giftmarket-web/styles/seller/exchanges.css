@@ -32,7 +32,7 @@
 .seller-exchange-timeline div.is-active { border-color: #ded8f3; background: #f7f5ff; }
 .seller-exchange-timeline div.is-active span { color: #6550a4; font-weight: 800; }
 .seller-exchange-timeline div:not(.is-active) strong { color: var(--color-text-tertiary); font-weight: 500; }
-.seller-exchanges-page .seller-return-action-section { border: 1px solid #ded8f3; box-shadow: 0 8px 22px rgb(68 50 130 / 7%); }
+.seller-exchanges-page .seller-return-action-section { border-color: var(--color-border); box-shadow: 0 8px 24px rgb(0 0 0 / 3%); }
 @media (max-width: 1000px) { .seller-exchange-item { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }.seller-exchange-item dl { grid-column: 1 / -1; } }
 @media (max-width: 768px) { .seller-exchanges-table { min-width: 0; }.seller-exchange-product { min-width: 0; }.seller-exchange-item { grid-template-columns: 1fr; }.seller-exchange-arrow { transform: rotate(90deg); }.seller-exchange-item dl { grid-column: auto; grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 520px) { .seller-exchange-item dl { grid-template-columns: 1fr 1fr; }.seller-exchange-item dd { white-space: normal; } }
