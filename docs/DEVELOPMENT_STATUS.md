@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-08-25
+> 최종 갱신: 2026-08-26
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 한 배포 준비 기준점이다. 문서와 코드가 충돌하면 실제 코드가 우선한다.
 
@@ -9,7 +9,7 @@
 Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있다.
 
 - 인증/JWT/OAuth, 판매자 신청·승인
-- 상품·옵션·Variant, 장바구니, Wishlist
+- 상품·옵션·Variant, 장바구니, 회원별 Backend Wishlist
 - 주문, SellerOrder, Shipment, Toss 결제
 - 전체취소, 상품·수량 부분취소와 부분환불
 - Return 구매자·판매자 전체 workflow
@@ -48,7 +48,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 
 - Google OAuth/OIDC, Kakao OAuth
 - JWT Access Token과 Refresh Token cookie
-- 프로필, 배송지, Wishlist
+- 프로필, 배송지, 회원별 Backend Wishlist API와 Frontend 서버 동기화
 - 판매자 신청, 관리자 승인, SELLER 권한
 - 판매자센터와 상품·주문·클레임 관리
 - Seller Dashboard 실데이터 집계와 처리 필요 업무 Action Center
@@ -120,7 +120,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 ### Backend
 
-- 최신 전체 suite: **357 tests / 357 success / 0 failure / 0 error**
+- 최신 전체 suite: **399 tests / 399 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend

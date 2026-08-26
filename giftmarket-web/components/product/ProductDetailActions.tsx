@@ -7,7 +7,6 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
 import type {
-  Product,
   ProductDetailOptionGroup,
   ProductDetailVariant,
 } from "@/types/product";
@@ -48,7 +47,8 @@ export default function ProductDetailActions({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const wishlistItems = useWishlistStore((state) => state.items);
-  const wishlistHydrated = useWishlistStore((state) => state.hydrated);
+  const wishlistInitialized = useWishlistStore((state) => state.initialized);
+  const wishlistMutatingProductIds = useWishlistStore((state) => state.mutatingProductIds);
 
   const toggleWishlistItem = useWishlistStore((state) => state.toggleItem);
 
@@ -100,21 +100,12 @@ export default function ProductDetailActions({
     (!selectedVariant || !selectedVariant.available);
 
   const isWishlisted =
-    wishlistHydrated && wishlistItems.some((item) => item.id === product.id);
+    isAuthenticated && wishlistItems.some((item) => item.id === product.id);
 
   const totalPrice = useMemo(
     () => currentPrice * quantity,
     [currentPrice, quantity],
   );
-
-  const wishlistProduct: Product = {
-    id: product.id,
-    name: product.name,
-    brandName: product.brandName,
-    price: product.price,
-    imageUrl: product.imageUrl,
-    isFreeShipping: product.isFreeShipping,
-  };
 
   const getVariantOptionLabel = (variant: ProductDetailVariant) =>
     product.optionGroups
@@ -184,12 +175,17 @@ export default function ProductDetailActions({
     );
   };
 
-  const handleToggleWishlist = () => {
-    if (!wishlistHydrated) {
+  const handleToggleWishlist = async () => {
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
 
-    toggleWishlistItem(wishlistProduct);
+    try {
+      await toggleWishlistItem(product.id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "찜 상태를 변경하지 못했습니다.");
+    }
   };
 
   const validateVariantSelection = () => {
@@ -405,8 +401,13 @@ export default function ProductDetailActions({
             .join(" ")}
           aria-label={isWishlisted ? "찜 목록에서 제거" : "찜 목록에 추가"}
           aria-pressed={isWishlisted}
-          disabled={!wishlistHydrated || isAddingCart || isBuyingNow}
-          onClick={handleToggleWishlist}
+          disabled={
+            (isAuthenticated && !wishlistInitialized) ||
+            wishlistMutatingProductIds.includes(product.id) ||
+            isAddingCart ||
+            isBuyingNow
+          }
+          onClick={() => void handleToggleWishlist()}
         >
           <span aria-hidden="true">{isWishlisted ? "♥" : "♡"}</span>
 

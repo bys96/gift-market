@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/auth-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
 import type { Product, ProductSummary } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
@@ -21,8 +23,12 @@ function isProductSummary(
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const items = useWishlistStore((state) => state.items);
-  const hydrated = useWishlistStore((state) => state.hydrated);
+  const initialized = useWishlistStore((state) => state.initialized);
+  const mutatingProductIds = useWishlistStore((state) => state.mutatingProductIds);
   const toggleItem = useWishlistStore((state) => state.toggleItem);
 
   const isSummary = isProductSummary(product);
@@ -38,17 +44,12 @@ export default function ProductCard({ product }: ProductCardProps) {
     : product.isFreeShipping;
 
   const isSoldOut = isSummary && product.status === "SOLD_OUT";
+  const isSaleStopped =
+    isSummary && (product.status === "HIDDEN" || product.status === "DRAFT");
 
-  const wishlistProduct: Product = {
-    id: product.id,
-    name: product.name,
-    brandName,
-    price: product.price,
-    imageUrl: imageUrl ?? "",
-    isFreeShipping: freeShipping,
-  };
-
-  const isWishlisted = hydrated && items.some((item) => item.id === product.id);
+  const isWishlisted =
+    isAuthenticated && items.some((item) => item.id === product.id);
+  const isWishlistMutating = mutatingProductIds.includes(product.id);
 
   return (
     <article className="product-card">
@@ -73,6 +74,9 @@ export default function ProductCard({ product }: ProductCardProps) {
             )}
 
             {isSoldOut && <div className="product-card-sold-out">품절</div>}
+            {isSaleStopped && (
+              <div className="product-card-sold-out">판매중지</div>
+            )}
           </div>
         </Link>
 
@@ -84,13 +88,18 @@ export default function ProductCard({ product }: ProductCardProps) {
           aria-label={
             isWishlisted ? `${product.name} 찜 삭제` : `${product.name} 찜하기`
           }
-          disabled={!hydrated}
-          onClick={() => {
-            if (!hydrated) {
+          disabled={isAuthenticated && (!initialized || isWishlistMutating)}
+          onClick={async () => {
+            if (!isAuthenticated) {
+              router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
               return;
             }
 
-            toggleItem(wishlistProduct);
+            try {
+              await toggleItem(product.id);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : "찜 상태를 변경하지 못했습니다.");
+            }
           }}
         >
           {isWishlisted ? "♥" : "♡"}

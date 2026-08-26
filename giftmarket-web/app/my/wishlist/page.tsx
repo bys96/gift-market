@@ -11,20 +11,26 @@ import { useWishlistStore } from "@/stores/wishlist-store";
 export default function MyWishlistPage() {
   const router = useRouter();
 
+  const authInitialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const items = useWishlistStore((state) => state.items);
-  const hydrated = useWishlistStore((state) => state.hydrated);
-  const clearWishlist = useWishlistStore((state) => state.clearWishlist);
+  const initialized = useWishlistStore((state) => state.initialized);
+  const isLoading = useWishlistStore((state) => state.isLoading);
+  const errorMessage = useWishlistStore((state) => state.errorMessage);
+  const loadWishlist = useWishlistStore((state) => state.loadWishlist);
 
   useEffect(() => {
-    if (hydrated && (!isAuthenticated || !user)) {
-      router.replace("/login");
+    if (!authInitialized) return;
+    if (!isAuthenticated || !user) {
+      router.replace("/login?redirect=%2Fmy%2Fwishlist");
+      return;
     }
-  }, [hydrated, isAuthenticated, user, router]);
+    void loadWishlist();
+  }, [authInitialized, isAuthenticated, user, router, loadWishlist]);
 
-  if (!hydrated) {
+  if (!authInitialized || (isAuthenticated && !initialized)) {
     return null;
   }
 
@@ -49,20 +55,29 @@ export default function MyWishlistPage() {
         </Link>
       </div>
 
-      {items.length > 0 ? (
+      {isLoading && items.length === 0 ? (
+        <section className="my-wishlist-empty">
+          <h2>찜 목록을 불러오고 있습니다.</h2>
+        </section>
+      ) : errorMessage && items.length === 0 ? (
+        <section className="my-wishlist-empty">
+          <h2>찜 목록을 불러오지 못했습니다.</h2>
+          <p>{errorMessage}</p>
+          <button
+            type="button"
+            className="my-wishlist-empty-link"
+            onClick={() => void loadWishlist(true)}
+          >
+            다시 시도
+          </button>
+        </section>
+      ) : items.length > 0 ? (
         <>
           <div className="my-wishlist-toolbar">
             <p>
               총 <strong>{items.length}</strong>개의 상품
             </p>
 
-            <button
-              type="button"
-              className="my-wishlist-clear-button"
-              onClick={clearWishlist}
-            >
-              전체 삭제
-            </button>
           </div>
 
           <div className="product-list">

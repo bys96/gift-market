@@ -92,7 +92,8 @@ public class SecurityConfig {
                                 "/api/returns/**",
                                 "/api/exchanges/**",
                                 "/api/payments/**",
-                                "/api/addresses/**"
+                                "/api/addresses/**",
+                                "/api/wishlist/**"
                         )
                         .authenticated()
 

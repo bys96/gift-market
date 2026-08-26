@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useWishlistStore } from "@/stores/wishlist-store";
 import type { ApiResponse } from "@/types/api";
 import type { User } from "@/types/user";
 
@@ -62,6 +63,12 @@ export default function OAuthCallbackPage() {
 
         // 3. 사용자 정보를 Zustand에 저장
         setUser(userResponse.data);
+        useWishlistStore.getState().resetWishlist();
+        try {
+          await useWishlistStore.getState().loadWishlist(true);
+        } catch (error) {
+          console.error("찜 목록 초기화 실패:", error);
+        }
 
         // 4. 로그인 전에 있던 페이지 확인
         const redirectUrl = resolveRedirectUrl(
@@ -75,6 +82,8 @@ export default function OAuthCallbackPage() {
         router.replace(redirectUrl);
       } catch (error) {
         console.error("로그인 처리 실패:", error);
+
+        useWishlistStore.getState().resetWishlist();
 
         sessionStorage.removeItem(LOGIN_REDIRECT_STORAGE_KEY);
 

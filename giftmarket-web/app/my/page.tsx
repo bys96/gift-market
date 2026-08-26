@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getMyAddresses } from "@/lib/address-api";
 import { getMyOrders } from "@/lib/order-api";
+import { getWishlistCount } from "@/lib/wishlist-api";
 import MyMenuList from "@/components/my/MyMenuList";
 import MyProfileCard from "@/components/my/MyProfileCard";
 import MyQuickStats from "@/components/my/MyQuickStats";
@@ -32,8 +33,6 @@ export default function MyPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const clearAuth = useAuthStore((state) => state.clearAuth);
 
-  const wishlistItems = useWishlistStore((state) => state.items);
-  const wishlistHydrated = useWishlistStore((state) => state.hydrated);
   const [summary, setSummary] = useState<MySummary>(INITIAL_SUMMARY);
   const [summaryError, setSummaryError] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -56,9 +55,10 @@ export default function MyPage() {
     let cancelled = false;
 
     const loadSummary = async () => {
-      const [ordersResult, addressesResult] = await Promise.allSettled([
+      const [ordersResult, addressesResult, wishlistResult] = await Promise.allSettled([
         getMyOrders(),
         getMyAddresses(),
+        getWishlistCount(),
       ]);
 
       if (cancelled) {
@@ -68,7 +68,8 @@ export default function MyPage() {
       setSummary({
         orderCount:
           ordersResult.status === "fulfilled" ? ordersResult.value.length : null,
-        wishlistCount: wishlistHydrated ? wishlistItems.length : null,
+        wishlistCount:
+          wishlistResult.status === "fulfilled" ? wishlistResult.value : null,
         addressCount:
           addressesResult.status === "fulfilled"
             ? addressesResult.value.length
@@ -77,6 +78,7 @@ export default function MyPage() {
       setSummaryError(
         ordersResult.status === "rejected" ||
           addressesResult.status === "rejected"
+          || wishlistResult.status === "rejected"
           ? "일부 쇼핑 요약을 불러오지 못했습니다. 각 메뉴에서 다시 확인해주세요."
           : "",
       );
@@ -87,7 +89,7 @@ export default function MyPage() {
     return () => {
       cancelled = true;
     };
-  }, [initialized, isAuthenticated, user, wishlistHydrated, wishlistItems.length]);
+  }, [initialized, isAuthenticated, user]);
 
   const handleLogout = async () => {
     try {
@@ -102,6 +104,7 @@ export default function MyPage() {
       // 서버 요청이 실패해도 프론트 로그인 상태는 제거
       clearAuth();
       useCartStore.getState().resetCart();
+      useWishlistStore.getState().resetWishlist();
       router.replace("/");
       router.refresh();
       setIsLoggingOut(false);
