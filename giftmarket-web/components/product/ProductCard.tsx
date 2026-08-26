@@ -44,7 +44,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     name: product.name,
     brandName,
     price: product.price,
-    imageUrl: imageUrl ?? "/images/products/product-placeholder.png",
+    imageUrl: imageUrl ?? "",
     isFreeShipping: freeShipping,
   };
 
@@ -68,7 +68,7 @@ export default function ProductCard({ product }: ProductCardProps) {
               />
             ) : (
               <div className="product-card-image-placeholder">
-                이미지 준비 중
+                이미지 없음
               </div>
             )}
 

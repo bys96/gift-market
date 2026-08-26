@@ -536,7 +536,7 @@ function OrderContent() {
     }
 
     if (!process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY) {
-      setErrorMessage("결제 테스트 Client Key가 설정되지 않았습니다.");
+      setErrorMessage("결제를 시작할 수 없습니다. 잠시 후 다시 시도해주세요.");
       return;
     }
 

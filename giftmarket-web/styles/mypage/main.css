@@ -107,6 +107,14 @@
   background: #ffffff;
 }
 
+.my-summary-error {
+  margin: -8px 0 0;
+  color: var(--color-danger, #c53b3b);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .my-quick-stat {
   position: relative;
   display: flex;

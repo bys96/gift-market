@@ -305,10 +305,6 @@ export default function ProductDetailPage() {
 
           <a href="#seller-information">판매자 정보</a>
 
-          <button type="button" disabled>
-            리뷰 준비 중
-          </button>
-
           <a href="#shipping-information">배송·교환</a>
         </div>
 
@@ -363,10 +359,6 @@ export default function ProductDetailPage() {
               </p>
             )}
 
-            <div className="product-detail-seller-notice">
-              상품, 배송, 교환 및 반품에 관한 문의는 상품 문의 기능을 통해
-              판매자에게 전달할 수 있습니다.
-            </div>
           </div>
         </section>
 

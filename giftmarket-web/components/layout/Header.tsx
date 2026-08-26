@@ -89,7 +89,7 @@ export default function Header() {
 
     setIsMobileSearchOpen(false);
 
-    router.push(`/search?keyword=${encodeURIComponent(trimmedKeyword)}`);
+    router.push(`/products?keyword=${encodeURIComponent(trimmedKeyword)}`);
   };
 
   const handleMobileSearchToggle = () => {

@@ -205,7 +205,6 @@ export default function SellerDashboardPage() {
                 <Link href="/seller/products"><span>판매 중</span><strong>{dashboard.products.onSale}<small>개</small></strong></Link>
                 <Link href="/seller/products"><span>품절</span><strong>{dashboard.products.soldOut}<small>개</small></strong></Link>
               </div>
-              <p className="seller-dashboard-product-note">재고 부족은 공통 운영 기준이 정해진 뒤 제공할 예정입니다.</p>
               <button type="button" onClick={() => router.push("/seller/products/new")}>새 상품 등록</button>
             </section>
           </div>

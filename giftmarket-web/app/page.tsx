@@ -9,17 +9,6 @@ import type { ProductSummary } from "@/types/product";
 
 const HOME_PRODUCT_SIZE = 4;
 
-const categories = [
-  { name: "생일", emoji: "🎂" },
-  { name: "감사", emoji: "💛" },
-  { name: "축하", emoji: "🎉" },
-  { name: "응원", emoji: "💪" },
-  { name: "간식", emoji: "🍰" },
-  { name: "뷰티", emoji: "💄" },
-  { name: "패션", emoji: "👕" },
-  { name: "리빙", emoji: "🏠" },
-];
-
 export default function HomePage() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,35 +89,9 @@ export default function HomePage() {
       <section className="home-section">
         <div className="home-section-header">
           <div>
-            <p className="home-section-eyebrow">CATEGORY</p>
+            <p className="home-section-eyebrow">NEW PRODUCTS</p>
 
-            <h2 className="home-section-title">어떤 선물을 찾고 있나요?</h2>
-          </div>
-        </div>
-
-        <div className="home-category-list">
-          {categories.map((category) => (
-            <Link
-              key={category.name}
-              href={`/products?keyword=${encodeURIComponent(category.name)}`}
-              className="home-category-item"
-            >
-              <span className="home-category-icon" aria-hidden="true">
-                {category.emoji}
-              </span>
-
-              <span className="home-category-name">{category.name}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="home-section">
-        <div className="home-section-header">
-          <div>
-            <p className="home-section-eyebrow">RECOMMEND</p>
-
-            <h2 className="home-section-title">지금 만나볼 수 있는 선물</h2>
+            <h2 className="home-section-title">새로 등록된 상품</h2>
           </div>
 
           <Link
