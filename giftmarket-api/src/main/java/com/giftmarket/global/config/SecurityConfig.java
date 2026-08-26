@@ -82,6 +82,24 @@ public class SecurityConfig {
                         .requestMatchers("/api/seller/dashboard")
                         .hasRole("SELLER")
 
+                        .requestMatchers("/api/seller/product-inquiries/**")
+                        .hasRole("SELLER")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/products/*/inquiries/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/products/*/inquiries/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/products/*/inquiries/**"
+                        ).authenticated()
+
                         .requestMatchers(
                                 "/api/auth/me",
                                 "/api/users/me",

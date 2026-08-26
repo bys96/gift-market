@@ -4,6 +4,7 @@ import com.giftmarket.address.exception.AddressException;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
+import com.giftmarket.inquiry.exception.ProductInquiryException;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.exception.PaymentWebhookRetryableException;
@@ -99,6 +100,11 @@ public class GlobalExceptionHandler {
                                 exception.getMessage()
                         )
                 );
+    }
+
+    @ExceptionHandler(ProductInquiryException.class)
+    public ResponseEntity<ApiResponse<?>> handleProductInquiryException(ProductInquiryException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.fail(exception.getMessage()));
     }
 
     @ExceptionHandler(WishlistException.class)
