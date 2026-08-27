@@ -159,6 +159,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 현재 개발 설정은 Hibernate `ddl-auto:update`를 사용한다.
 - `docs/sql/*.sql`은 자동 실행 migration이 아니라 개발 DB 확인·backfill·수동 DDL 참고본이다.
+- 새 환경은 schema 생성 후 `docs/sql/category-seed.sql`을 적용해야 Seller 상품 등록과 Buyer 카테고리 필터에 사용할 최소 활성 카테고리가 생성된다.
 - Hibernate가 이미 반영한 변경을 같은 SQL로 중복 실행하지 않는다.
 - 운영 배포 전 Flyway/Liquibase 등 versioned migration 전략을 확정해야 한다.
 - 이번 기준점에서는 schema나 production profile을 변경하지 않는다.
