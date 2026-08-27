@@ -57,6 +57,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - 리뷰 본문/1~5 정수 별점/이미지 0~5장, soft delete, 상품별 최신순 pagination 및 활성 리뷰 평균·개수 집계
 - Review 이미지는 `reviews/{userId}/` objectKey만 DB에 저장하고 공개 상품 리뷰 조회 시 단기 presigned GET URL로 제공
 - 판매자 신청, 관리자 승인, SELLER 권한
+- 관리자 판매자 신청 목록은 `page`/`size` 기반 server pagination이며 `createdAt DESC, id DESC`로 정렬
 - 판매자센터와 상품·주문·클레임 관리
 - Seller Dashboard 실데이터 집계와 처리 필요 업무 Action Center
 
@@ -67,6 +68,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - 제거된 조합은 `ProductVariant`를 물리 삭제하지 않고 `active=false`로 보존
 - 과거 `OrderItem.variant` 참조와 `optionSnapshot` 유지
 - Buyer 상품 조회에는 active Variant만 노출
+- Buyer 상품 목록은 URL에서 페이지당 20/50/100개 선택을 유지하며 Backend는 최대 100개로 제한
 - Product 총재고는 active Variant 재고 합계로 동기화
 - 현재 옵션 구조와 같은 `combinationKey`의 inactive Variant는 기존 ID로 재활성화
 - `(product_id, combination_key)` unique로 중복 조합 방지
@@ -130,7 +132,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
 - 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 전체 suite: **498 tests / 498 success / 0 failure / 0 error**
+- 최신 전체 suite: **503 tests / 503 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend

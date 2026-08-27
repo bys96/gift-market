@@ -10,6 +10,10 @@ import {
 } from "@/lib/seller-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { SellerApplication } from "@/types/seller";
+import type { SellerApplicationPage } from "@/types/seller";
+import Pagination from "@/components/common/Pagination";
+
+const PAGE_SIZE = 10;
 
 function formatDateTime(dateTime: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -28,7 +32,9 @@ export default function AdminSellerApplicationsPage() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const [applications, setApplications] = useState<SellerApplication[]>([]);
+  const [applicationPage, setApplicationPage] =
+    useState<SellerApplicationPage | null>(null);
+  const [page, setPage] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [processingApplicationId, setProcessingApplicationId] = useState<
@@ -46,9 +52,21 @@ export default function AdminSellerApplicationsPage() {
       setIsLoading(true);
       setErrorMessage("");
 
-      const pendingApplications = await getPendingSellerApplications();
+      const pendingApplications = await getPendingSellerApplications(
+        page,
+        PAGE_SIZE,
+      );
 
-      setApplications(pendingApplications);
+      if (
+        page > 0 &&
+        (pendingApplications.totalPages === 0 ||
+          page >= pendingApplications.totalPages)
+      ) {
+        setPage(Math.max(0, pendingApplications.totalPages - 1));
+        return;
+      }
+
+      setApplicationPage(pendingApplications);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -58,7 +76,7 @@ export default function AdminSellerApplicationsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     if (!initialized) {
@@ -80,13 +98,7 @@ export default function AdminSellerApplicationsPage() {
     loadPendingApplications();
   }, [initialized, isAuthenticated, user, router, loadPendingApplications]);
 
-  const removeApplication = (applicationId: number) => {
-    setApplications((currentApplications) =>
-      currentApplications.filter(
-        (application) => application.id !== applicationId,
-      ),
-    );
-  };
+  const applications = applicationPage?.content ?? [];
 
   const handleApprove = async (application: SellerApplication) => {
     const isConfirmed = window.confirm(
@@ -103,7 +115,7 @@ export default function AdminSellerApplicationsPage() {
 
       await approveSellerApplication(application.id);
 
-      removeApplication(application.id);
+      await loadPendingApplications();
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -154,7 +166,7 @@ export default function AdminSellerApplicationsPage() {
         rejectionReason: trimmedReason,
       });
 
-      removeApplication(rejectTarget.id);
+      await loadPendingApplications();
       setRejectTarget(null);
       setRejectionReason("");
     } catch (error) {
@@ -190,7 +202,7 @@ export default function AdminSellerApplicationsPage() {
             <div className="admin-seller-count">
               <span className="admin-seller-count-label">심사 대기</span>
               <strong className="admin-seller-count-value">
-                {applications.length}
+                {applicationPage?.totalElements ?? 0}
               </strong>
               <span className="admin-seller-count-unit">건</span>
             </div>
@@ -210,12 +222,13 @@ export default function AdminSellerApplicationsPage() {
             </div>
           )}
 
-          {isLoading ? (
+          {isLoading && applicationPage === null ? (
             <div className="admin-seller-loading">
               <span className="admin-seller-loading-spinner" />
               <p>판매자 신청 목록을 불러오고 있습니다.</p>
             </div>
           ) : applications.length > 0 ? (
+            <>
             <div className="admin-seller-list">
               {applications.map((application) => {
                 const isProcessing = processingApplicationId === application.id;
@@ -297,6 +310,16 @@ export default function AdminSellerApplicationsPage() {
                 );
               })}
             </div>
+
+            <Pagination
+              currentPage={applicationPage?.page ?? page}
+              totalPages={applicationPage?.totalPages ?? 0}
+              ariaLabel="판매자 신청 목록 페이지"
+              disabled={isLoading || processingApplicationId !== null}
+              onPageChange={setPage}
+              className="admin-seller-pagination"
+            />
+            </>
           ) : (
             <div className="admin-seller-empty">
               <div className="admin-seller-empty-icon">✓</div>

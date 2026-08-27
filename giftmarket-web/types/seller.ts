@@ -22,6 +22,16 @@ export interface SellerApplication {
   reviewedAt: string | null;
 }
 
+export interface SellerApplicationPage {
+  content: SellerApplication[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
 export interface SellerApplicationCreateRequest {
   storeName: string;
   introduction: string;

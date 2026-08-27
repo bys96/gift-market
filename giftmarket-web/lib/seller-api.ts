@@ -5,16 +5,26 @@ import type {
   SellerApplication,
   SellerApplicationCreateRequest,
   SellerApplicationRejectRequest,
+  SellerApplicationPage,
 } from "@/types/seller";
 
-export async function getPendingSellerApplications(): Promise<
-  SellerApplication[]
-> {
-  const response = await apiFetch<ApiResponse<SellerApplication[]>>(
-    "/api/admin/seller-applications/pending",
+export async function getPendingSellerApplications(
+  page = 0,
+  size = 10,
+): Promise<SellerApplicationPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+  const response = await apiFetch<ApiResponse<SellerApplicationPage>>(
+    `/api/admin/seller-applications/pending?${params.toString()}`,
   );
 
-  return response.data ?? [];
+  if (!response.data) {
+    throw new Error("판매자 신청 목록을 불러오지 못했습니다.");
+  }
+
+  return response.data;
 }
 
 export async function approveSellerApplication(

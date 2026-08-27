@@ -279,6 +279,32 @@
   gap: 8px;
 }
 
+.product-page-filter-toolbar-right {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 20px;
+}
+
+.product-page-size-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #555555;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.product-page-size-select select {
+  min-height: 36px;
+  padding: 0 30px 0 10px;
+  border: 1px solid #dddddd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #333333;
+  font: inherit;
+}
+
 /* ========================================
    Selected Filter Chips
 ======================================== */
@@ -746,6 +772,19 @@
     gap: 6px;
   }
 
+  .product-page-filter-toolbar-right {
+    gap: 12px;
+  }
+
+  .product-page-size-select > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
   .product-page-selected-filter {
     min-height: 32px;
     padding: 0 10px;
@@ -829,6 +868,11 @@
 
   .product-page-filter-toolbar-left {
     width: 100%;
+  }
+
+  .product-page-filter-toolbar-right {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .product-page-sold-out-filter {

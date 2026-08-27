@@ -3,6 +3,7 @@ package com.giftmarket.admin.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.seller.dto.request.SellerApplicationRejectRequest;
 import com.giftmarket.seller.dto.response.SellerApplicationResponse;
+import com.giftmarket.seller.dto.response.SellerApplicationPageResponse;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerApplication;
 import com.giftmarket.seller.entity.SellerApplicationStatus;
@@ -15,30 +16,52 @@ import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @Service
 @RequiredArgsConstructor
 public class AdminSellerService {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final SellerApplicationRepository sellerApplicationRepository;
     private final SellerRepository sellerRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public List<SellerApplicationResponse> getPendingApplications(
-            Long adminUserId
+    public SellerApplicationPageResponse getPendingApplications(
+            Long adminUserId,
+            int page,
+            int size
     ) {
         getAdmin(adminUserId);
 
-        return sellerApplicationRepository
-                .findAllByStatusOrderByCreatedAtAsc(
-                        SellerApplicationStatus.PENDING
+        if (page < 0) {
+            throw new SellerException("페이지 번호는 0 이상이어야 합니다.");
+        }
+
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new SellerException("페이지 크기는 1 이상 100 이하이어야 합니다.");
+        }
+
+        var pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.desc("createdAt"),
+                        Sort.Order.desc("id")
                 )
-                .stream()
-                .map(SellerApplicationResponse::from)
-                .toList();
+        );
+
+        return SellerApplicationPageResponse.from(
+                sellerApplicationRepository
+                        .findAllByStatus(
+                                SellerApplicationStatus.PENDING,
+                                pageable
+                        )
+                        .map(SellerApplicationResponse::from)
+        );
     }
 
     @Transactional

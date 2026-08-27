@@ -17,13 +17,15 @@ import Pagination from "@/components/common/Pagination";
 import { getCategories, getProducts } from "@/lib/product-api";
 import type { Category, ProductPage } from "@/types/product";
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const PRODUCT_PAGE_SIZES = [20, 50, 100] as const;
 
 interface ProductsUrlOptions {
   categoryIds?: number[];
   keyword?: string;
   excludeSoldOut?: boolean;
   page?: number;
+  size?: number;
 }
 
 function parsePage(value: string | null) {
@@ -38,6 +40,16 @@ function parsePage(value: string | null) {
   }
 
   return parsedValue;
+}
+
+function parsePageSize(value: string | null) {
+  const parsedValue = Number(value);
+
+  return PRODUCT_PAGE_SIZES.includes(
+    parsedValue as (typeof PRODUCT_PAGE_SIZES)[number],
+  )
+    ? parsedValue
+    : DEFAULT_PAGE_SIZE;
 }
 
 function flattenCategories(categories: Category[]): Category[] {
@@ -93,6 +105,7 @@ function ProductsContent() {
   const excludeSoldOut = searchParams.get("excludeSoldOut") === "true";
 
   const page = parsePage(searchParams.get("page"));
+  const size = parsePageSize(searchParams.get("size"));
 
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -186,6 +199,7 @@ function ProductsContent() {
           : options.excludeSoldOut;
 
       const nextPage = options.page === undefined ? page : options.page;
+      const nextSize = options.size === undefined ? size : options.size;
 
       const params = new URLSearchParams();
 
@@ -207,11 +221,15 @@ function ProductsContent() {
         params.set("page", String(nextPage));
       }
 
+      if (nextSize !== DEFAULT_PAGE_SIZE) {
+        params.set("size", String(nextSize));
+      }
+
       const queryString = params.toString();
 
       return queryString ? `/products?${queryString}` : "/products";
     },
-    [categoryIds, excludeSoldOut, keyword, page],
+    [categoryIds, excludeSoldOut, keyword, page, size],
   );
 
   const loadProducts = useCallback(async () => {
@@ -226,7 +244,7 @@ function ProductsContent() {
         keyword,
         excludeSoldOut,
         page,
-        size: PAGE_SIZE,
+        size,
       });
 
       /*
@@ -284,7 +302,7 @@ function ProductsContent() {
         setIsLoading(false);
       }
     }
-  }, [categoryIds, createProductsUrl, excludeSoldOut, keyword, page, router]);
+  }, [categoryIds, createProductsUrl, excludeSoldOut, keyword, page, router, size]);
 
   /*
    * URL이 optimistic 상태를 따라오면
@@ -365,6 +383,18 @@ function ProductsContent() {
       createProductsUrl({
         excludeSoldOut: !excludeSoldOut,
         page: 0,
+      }),
+      {
+        scroll: false,
+      },
+    );
+  };
+
+  const handlePageSizeChange = (nextSize: number) => {
+    router.replace(
+      createProductsUrl({
+        page: 0,
+        size: nextSize,
       }),
       {
         scroll: false,
@@ -584,15 +614,33 @@ function ProductsContent() {
           )}
         </div>
 
-        <label className="product-page-sold-out-filter">
-          <input
-            type="checkbox"
-            checked={excludeSoldOut}
-            onChange={handleExcludeSoldOutChange}
-          />
+        <div className="product-page-filter-toolbar-right">
+          <label className="product-page-size-select">
+            <span>페이지당 상품 수</span>
+            <select
+              value={size}
+              onChange={(event) =>
+                handlePageSizeChange(Number(event.target.value))
+              }
+            >
+              {PRODUCT_PAGE_SIZES.map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize}개씩
+                </option>
+              ))}
+            </select>
+          </label>
 
-          <span>품절 상품 제외</span>
-        </label>
+          <label className="product-page-sold-out-filter">
+            <input
+              type="checkbox"
+              checked={excludeSoldOut}
+              onChange={handleExcludeSoldOutChange}
+            />
+
+            <span>품절 상품 제외</span>
+          </label>
+        </div>
       </div>
 
       {isInitialLoading && (
@@ -620,7 +668,11 @@ function ProductsContent() {
           <p>조건에 맞는 상품이 없습니다.</p>
 
           <Link
-            href="/products"
+            href={
+              size === DEFAULT_PAGE_SIZE
+                ? "/products"
+                : `/products?size=${size}`
+            }
             scroll={false}
             className="product-page-reset-link"
           >

@@ -4,6 +4,7 @@ import com.giftmarket.admin.service.AdminSellerService;
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.seller.dto.request.SellerApplicationRejectRequest;
 import com.giftmarket.seller.dto.response.SellerApplicationResponse;
+import com.giftmarket.seller.dto.response.SellerApplicationPageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,8 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/admin/seller-applications")
@@ -24,13 +24,17 @@ public class AdminSellerController {
     private final AdminSellerService adminSellerService;
 
     @GetMapping("/pending")
-    public ApiResponse<List<SellerApplicationResponse>>
+    public ApiResponse<SellerApplicationPageResponse>
     getPendingApplications(
-            @AuthenticationPrincipal Long adminUserId
+            @AuthenticationPrincipal Long adminUserId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
         return ApiResponse.success(
                 adminSellerService.getPendingApplications(
-                        adminUserId
+                        adminUserId,
+                        page,
+                        size
                 )
         );
     }
