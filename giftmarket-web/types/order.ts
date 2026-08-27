@@ -80,6 +80,8 @@ export interface OrderHistoryItem {
   quantity: number;
   canceledQuantity: number;
   availableCancellationQuantity: number;
+  confirmedQuantity: number;
+  confirmableQuantity: number;
   unitPrice: number;
   totalPrice: number;
 }
@@ -120,6 +122,12 @@ export interface OrderDetail {
 
   items: OrderHistoryItem[];
   sellerOrders: BuyerSellerOrder[];
+}
+
+export interface PurchaseConfirmation {
+  orderItemId: number;
+  confirmedQuantity: number;
+  confirmableQuantity: number;
 }
 
 export interface BuyerSellerOrder {

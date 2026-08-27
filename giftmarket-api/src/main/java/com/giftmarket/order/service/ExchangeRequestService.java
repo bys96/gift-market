@@ -241,6 +241,7 @@ public class ExchangeRequestService {
         for (OrderItem item : items) {
             long available = (long) item.getQuantity() - item.getCanceledQuantity()
                     - item.getReturnedQuantity() - item.getExchangedQuantity()
+                    - item.getConfirmedQuantity()
                     - returnHeld.getOrDefault(item.getId(), 0L)
                     - exchangeHeld.getOrDefault(item.getId(), 0L);
             if (requested.get(item.getId()).quantity() > available) {

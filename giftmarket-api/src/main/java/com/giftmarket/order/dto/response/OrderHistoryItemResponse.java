@@ -14,6 +14,8 @@ public record OrderHistoryItemResponse(
         Integer quantity,
         Integer canceledQuantity,
         Integer availableCancellationQuantity,
+        Integer confirmedQuantity,
+        Integer confirmableQuantity,
         Long unitPrice,
         Long totalPrice
 
@@ -34,7 +36,10 @@ public record OrderHistoryItemResponse(
                 orderItem.getRepresentativeImageKey(),
                 orderItem.getQuantity(),
                 orderItem.getCanceledQuantity(),
-                Math.max(0, orderItem.getQuantity() - orderItem.getCanceledQuantity()),
+                Math.max(0, orderItem.getQuantity() - orderItem.getCanceledQuantity()
+                        - orderItem.getConfirmedQuantity()),
+                orderItem.getConfirmedQuantity(),
+                0,
                 orderItem.getUnitPrice(),
                 orderItem.getTotalPrice()
         );
@@ -42,10 +47,12 @@ public record OrderHistoryItemResponse(
 
     public static OrderHistoryItemResponse from(
             OrderItem orderItem,
-            long pendingCancellationQuantity
+            long pendingCancellationQuantity,
+            int confirmableQuantity
     ) {
         long available = (long) orderItem.getQuantity()
                 - orderItem.getCanceledQuantity()
+                - orderItem.getConfirmedQuantity()
                 - pendingCancellationQuantity;
         return new OrderHistoryItemResponse(
                 orderItem.getId(), orderItem.getProduct().getId(),
@@ -53,6 +60,11 @@ public record OrderHistoryItemResponse(
                 orderItem.getProductName(), orderItem.getBrandName(), orderItem.getOptionSnapshot(),
                 orderItem.getRepresentativeImageKey(), orderItem.getQuantity(),
                 orderItem.getCanceledQuantity(), Math.toIntExact(Math.max(0L, available)),
+                orderItem.getConfirmedQuantity(), confirmableQuantity,
                 orderItem.getUnitPrice(), orderItem.getTotalPrice());
+    }
+
+    public static OrderHistoryItemResponse from(OrderItem orderItem, long pendingCancellationQuantity) {
+        return from(orderItem, pendingCancellationQuantity, 0);
     }
 }

@@ -77,6 +77,7 @@ public class OrderService {
     private final SellerOrderRepository sellerOrderRepository;
     private final OrderCancellationRepository orderCancellationRepository;
     private final ShipmentRepository shipmentRepository;
+    private final PurchaseConfirmationQuantities purchaseConfirmationQuantities;
 
     private final CartItemRepository cartItemRepository;
 
@@ -504,6 +505,17 @@ public class OrderService {
                         com.giftmarket.order.repository.PendingCancellationQuantityProjection::getOrderItemId,
                         com.giftmarket.order.repository.PendingCancellationQuantityProjection::getPendingQuantity));
 
+        var pendingClaims = purchaseConfirmationQuantities.load(
+                orderItems.stream().map(OrderItem::getId).toList());
+        Map<Long, Integer> confirmableQuantities = orderItems.stream()
+                .collect(Collectors.toMap(OrderItem::getId, item -> {
+                    Shipment original = originalShipments.get(item.getSellerOrder().getId());
+                    if (original == null
+                            || original.getStatus() != com.giftmarket.order.entity.ShipmentStatus.DELIVERED
+                            || original.getDeliveredAt() == null) return 0;
+                    return purchaseConfirmationQuantities.confirmable(item, pendingClaims);
+                }));
+
         PaymentRefundBalance refundBalance = paymentRepository
                 .findFirstByOrderIdAndOrderUserIdOrderByIdDesc(orderId, userId)
                 .map(paymentRefundBalanceService::getBalance)
@@ -524,6 +536,7 @@ public class OrderService {
                 sellerOrders,
                 originalShipments,
                 pendingCancellationQuantities,
+                confirmableQuantities,
                 refundedAmount,
                 remainingPaymentAmount
         );

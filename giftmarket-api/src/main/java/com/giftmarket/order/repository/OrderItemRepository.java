@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface OrderItemRepository
         extends JpaRepository<OrderItem, Long> {
@@ -54,6 +55,18 @@ public interface OrderItemRepository
             """)
     List<OrderItem> findAllByIdInForUpdate(
             @Param("orderItemIds") List<Long> orderItemIds
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select oi from OrderItem oi
+            join fetch oi.order o
+            join fetch oi.sellerOrder so
+            where oi.id = :orderItemId and o.id = :orderId
+            """)
+    Optional<OrderItem> findByIdAndOrderIdForUpdate(
+            @Param("orderItemId") Long orderItemId,
+            @Param("orderId") Long orderId
     );
 
     @Query("""

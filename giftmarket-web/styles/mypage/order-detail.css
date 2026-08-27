@@ -819,3 +819,29 @@
   .order-return-stepper { grid-column: 1 / -1; justify-self: end; }
   .order-return-actions button { flex: 1; }
 }
+.order-detail-confirmation-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.order-detail-confirmation-action span,
+.order-detail-confirmed-label {
+  color: #6750a4;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.order-detail-confirmation-action button {
+  border: 1px solid #6750a4;
+  border-radius: 8px;
+  background: #fff;
+  color: #6750a4;
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-detail-confirmation-action button:disabled { opacity: .55; cursor: default; }
+.order-detail-confirmation-error { margin: 0 0 12px; color: #c62828; font-size: 14px; }

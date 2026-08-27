@@ -123,7 +123,9 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 ### Backend
 
-- 최신 전체 suite: **430 tests / 430 success / 0 failure / 0 error**
+- 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
+- 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
+- 최신 전체 suite: **445 tests / 445 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend

@@ -6,6 +6,7 @@ import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
 import { createReturnRequest } from "@/lib/return-api";
 import { uploadImage } from "@/lib/storage-api";
 import type { BuyerSellerOrder } from "@/types/order";
+import type { ExchangeRequest, ExchangeRequestStatus } from "@/types/exchange";
 import {
   RETURN_INSPECTION_LABELS,
   RETURN_REASON_LABELS,
@@ -21,6 +22,7 @@ interface Props {
   orderId: number;
   sellerOrder: BuyerSellerOrder;
   returns: ReturnRequest[];
+  exchanges: ExchangeRequest[];
   isLoading: boolean;
   loadError: string;
   collectionAddress: {
@@ -52,6 +54,10 @@ const HOLDING_STATUSES = new Set<ReturnRequestStatus>([
   "INSPECTED",
   "REFUNDING",
 ]);
+const HOLDING_EXCHANGE_STATUSES = new Set<ExchangeRequestStatus>([
+  "REQUESTED", "APPROVED", "PAYMENT_PENDING", "COLLECTING",
+  "RECEIVED", "INSPECTED", "RESHIPPING",
+]);
 const formatPrice = (value: number | null | undefined) =>
   value == null ? "-" : `${value.toLocaleString("ko-KR")}원`;
 
@@ -74,6 +80,7 @@ export default function OrderReturnPanel({
   orderId,
   sellerOrder,
   returns,
+  exchanges,
   isLoading,
   loadError,
   collectionAddress,
@@ -135,19 +142,32 @@ export default function OrderReturnPanel({
           (sum, returnItem) => sum + normalizeCount(returnItem.quantity),
           0,
         );
+      const exchangeHeld = exchanges
+        .filter((request) => HOLDING_EXCHANGE_STATUSES.has(request.status))
+        .flatMap((request) => request.items)
+        .filter((exchangeItem) => exchangeItem.orderItemId === item.id)
+        .reduce((sum, exchangeItem) => sum + normalizeCount(exchangeItem.quantity), 0);
+      const exchanged = exchanges
+        .filter((request) => request.status === "COMPLETED")
+        .flatMap((request) => request.items)
+        .filter((exchangeItem) => exchangeItem.orderItemId === item.id)
+        .reduce((sum, exchangeItem) => sum + normalizeCount(exchangeItem.quantity), 0);
       result.set(
         item.id,
         Math.max(
           0,
           normalizeCount(item.quantity) -
             normalizeCount(item.canceledQuantity) -
+            normalizeCount(item.confirmedQuantity) -
             returned -
-            held,
+            held -
+            exchangeHeld -
+            exchanged,
         ),
       );
     }
     return result;
-  }, [returns, sellerOrder.items]);
+  }, [returns, exchanges, sellerOrder.items]);
   const returnableItems = sellerOrder.items.filter(
     (item) => (availableByItem.get(item.id) ?? 0) > 0,
   );

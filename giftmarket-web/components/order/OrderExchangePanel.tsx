@@ -115,7 +115,7 @@ export default function OrderExchangePanel({ orderId, sellerOrder, exchanges, re
     const returned = returns.flatMap((r) => r.items).filter((i) => i.orderItemId === item.id).reduce((m, i) => Math.max(m, count(i.returnedQuantity)), 0);
     const activeExchange = exchanges.filter((r) => ACTIVE_EXCHANGES.has(r.status)).flatMap((r) => r.items).filter((i) => i.orderItemId === item.id).reduce((s, i) => s + count(i.quantity), 0);
     const exchanged = exchanges.filter((r) => r.status === "COMPLETED").flatMap((r) => r.items).filter((i) => i.orderItemId === item.id).reduce((s, i) => s + count(i.quantity), 0);
-    return [item.id, Math.max(0, count(item.quantity) - count(item.canceledQuantity) - returned - exchanged - activeReturn - activeExchange)];
+    return [item.id, Math.max(0, count(item.quantity) - count(item.canceledQuantity) - count(item.confirmedQuantity) - returned - exchanged - activeReturn - activeExchange)];
   })), [sellerOrder.items, returns, exchanges]);
   const eligible = sellerOrder.items.filter((item) => (available.get(item.id) ?? 0) > 0);
   const invalidate = () => { requestKey.current = null; uploadedKeys.current = null; setError(""); };

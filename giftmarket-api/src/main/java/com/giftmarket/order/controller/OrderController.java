@@ -14,11 +14,13 @@ import com.giftmarket.order.dto.response.OrderCancelResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
 import com.giftmarket.order.dto.response.ExchangeRequestResponse;
+import com.giftmarket.order.dto.response.PurchaseConfirmationResponse;
 import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
 import com.giftmarket.order.service.OrderCancellationWorkflowService;
 import com.giftmarket.order.service.ReturnRequestService;
 import com.giftmarket.order.service.ExchangeRequestService;
+import com.giftmarket.order.service.PurchaseConfirmationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,6 +44,7 @@ public class OrderController {
     private final OrderCancellationWorkflowService orderCancellationWorkflowService;
     private final ReturnRequestService returnRequestService;
     private final ExchangeRequestService exchangeRequestService;
+    private final PurchaseConfirmationService purchaseConfirmationService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -100,6 +103,15 @@ public class OrderController {
         return ApiResponse.success(
                 paymentCancellationService.cancel(userId, orderId, request)
         );
+    }
+
+    @PostMapping("/{orderId}/items/{orderItemId}/confirm")
+    public ApiResponse<PurchaseConfirmationResponse> confirmPurchase(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long orderId,
+            @PathVariable Long orderItemId
+    ) {
+        return ApiResponse.success(purchaseConfirmationService.confirm(userId, orderId, orderItemId));
     }
 
     @PostMapping("/{orderId}/cancellations")

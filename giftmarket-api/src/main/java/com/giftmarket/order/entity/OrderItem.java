@@ -181,6 +181,13 @@ public class OrderItem extends BaseEntity {
     private int exchangedQuantity;
 
     @Column(
+            name = "confirmed_quantity",
+            nullable = false,
+            columnDefinition = "int default 0"
+    )
+    private int confirmedQuantity;
+
+    @Column(
             name = "total_price",
             nullable = false
     )
@@ -249,6 +256,7 @@ public class OrderItem extends BaseEntity {
         this.canceledQuantity = 0;
         this.returnedQuantity = 0;
         this.exchangedQuantity = 0;
+        this.confirmedQuantity = 0;
         this.totalPrice = this.unitPrice * quantity;
         this.freeShipping = freeShipping;
         this.shippingFee = freeShipping
@@ -301,7 +309,7 @@ public class OrderItem extends BaseEntity {
     }
 
     public int getRemainingQuantity() {
-        return quantity - canceledQuantity;
+        return quantity - canceledQuantity - confirmedQuantity;
     }
 
     public int getReturnableQuantity() {
@@ -309,12 +317,13 @@ public class OrderItem extends BaseEntity {
         return quantity
                 - canceledQuantity
                 - returnedQuantity
-                - exchangedQuantity;
+                - exchangedQuantity
+                - confirmedQuantity;
     }
 
     public int getExchangeableQuantity() {
         validateCompletedQuantityState();
-        return quantity - canceledQuantity - returnedQuantity - exchangedQuantity;
+        return quantity - canceledQuantity - returnedQuantity - exchangedQuantity - confirmedQuantity;
     }
 
     public void increaseCanceledQuantity(int cancelQuantity) {
@@ -332,7 +341,8 @@ public class OrderItem extends BaseEntity {
         } catch (ArithmeticException exception) {
             throw new IllegalArgumentException("Cancellation quantity overflow.", exception);
         }
-        if (sumCompletedQuantities(confirmedQuantity, returnedQuantity, exchangedQuantity) > quantity) {
+        if (sumCompletedQuantities(confirmedQuantity, returnedQuantity, exchangedQuantity) > quantity
+                || sumOwnershipQuantities(confirmedQuantity, returnedQuantity, this.confirmedQuantity) > quantity) {
             throw new IllegalArgumentException("취소 수량이 주문 상품의 잔여 수량을 초과합니다.");
         }
         canceledQuantity = confirmedQuantity;
@@ -361,11 +371,8 @@ public class OrderItem extends BaseEntity {
             );
         }
 
-        int unavailableQuantity = sumCompletedQuantities(
-                canceledQuantity, confirmedReturnedQuantity, exchangedQuantity
-        );
-
-        if (unavailableQuantity > quantity) {
+        if (sumCompletedQuantities(canceledQuantity, confirmedReturnedQuantity, exchangedQuantity) > quantity
+                || sumOwnershipQuantities(canceledQuantity, confirmedReturnedQuantity, confirmedQuantity) > quantity) {
             throw new IllegalArgumentException(
                     "반품 수량이 주문 상품의 반품 가능 수량을 초과합니다."
             );
@@ -399,10 +406,21 @@ public class OrderItem extends BaseEntity {
         return sumCompletedQuantities(canceledQuantity, returnedQuantity, exchangedQuantity) == quantity;
     }
 
+    public void confirmPurchase(int confirmQuantity) {
+        if (confirmQuantity <= 0) throw new IllegalArgumentException("구매확정 수량은 1개 이상이어야 합니다.");
+        validateCompletedQuantityState();
+        int updated = Math.addExact(confirmedQuantity, confirmQuantity);
+        if (sumOwnershipQuantities(canceledQuantity, returnedQuantity, updated) > quantity) {
+            throw new IllegalArgumentException("구매확정 수량이 실제 보유 수량을 초과합니다.");
+        }
+        confirmedQuantity = updated;
+    }
+
     private void validateCompletedQuantityState() {
         if (quantity == null || quantity < 0 || canceledQuantity < 0
-                || returnedQuantity < 0 || exchangedQuantity < 0
-                || sumCompletedQuantities(canceledQuantity, returnedQuantity, exchangedQuantity) > quantity) {
+                || returnedQuantity < 0 || exchangedQuantity < 0 || confirmedQuantity < 0
+                || sumCompletedQuantities(canceledQuantity, returnedQuantity, exchangedQuantity) > quantity
+                || sumOwnershipQuantities(canceledQuantity, returnedQuantity, confirmedQuantity) > quantity) {
             throw new IllegalStateException("Invalid completed order item quantity state.");
         }
     }
@@ -412,6 +430,14 @@ public class OrderItem extends BaseEntity {
             return Math.addExact(Math.addExact(canceled, returned), exchanged);
         } catch (ArithmeticException exception) {
             throw new IllegalArgumentException("Completed order item quantity overflow.", exception);
+        }
+    }
+
+    private int sumOwnershipQuantities(int canceled, int returned, int confirmed) {
+        try {
+            return Math.addExact(Math.addExact(canceled, returned), confirmed);
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("Order item quantity overflow.", exception);
         }
     }
 }

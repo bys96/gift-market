@@ -303,6 +303,7 @@ public class ReturnRequestService {
                     - item.getCanceledQuantity()
                     - item.getReturnedQuantity()
                     - item.getExchangedQuantity()
+                    - item.getConfirmedQuantity()
                     - held.getOrDefault(item.getId(), 0L)
                     - exchangeHeld.getOrDefault(item.getId(), 0L);
             if (requested.get(item.getId()) > available) {

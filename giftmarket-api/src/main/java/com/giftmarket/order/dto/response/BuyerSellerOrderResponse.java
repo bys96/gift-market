@@ -24,7 +24,8 @@ public record BuyerSellerOrderResponse(
             SellerOrder sellerOrder,
             Shipment originalShipment,
             List<OrderItem> orderItems,
-            Map<Long, Long> pendingCancellationQuantities
+            Map<Long, Long> pendingCancellationQuantities,
+            Map<Long, Integer> confirmableQuantities
     ) {
         return new BuyerSellerOrderResponse(
                 sellerOrder.getId(),
@@ -37,9 +38,19 @@ public record BuyerSellerOrderResponse(
                 originalShipment == null ? sellerOrder.getDeliveredAt() : originalShipment.getDeliveredAt(),
                 orderItems.stream()
                         .map(item -> OrderHistoryItemResponse.from(
-                                item, pendingCancellationQuantities.getOrDefault(item.getId(), 0L)))
+                                item, pendingCancellationQuantities.getOrDefault(item.getId(), 0L),
+                                confirmableQuantities.getOrDefault(item.getId(), 0)))
                         .toList()
         );
+    }
+
+    public static BuyerSellerOrderResponse from(
+            SellerOrder sellerOrder,
+            Shipment originalShipment,
+            List<OrderItem> orderItems,
+            Map<Long, Long> pendingCancellationQuantities
+    ) {
+        return from(sellerOrder, originalShipment, orderItems, pendingCancellationQuantities, Map.of());
     }
 
     public static BuyerSellerOrderResponse from(
@@ -47,6 +58,6 @@ public record BuyerSellerOrderResponse(
             List<OrderItem> orderItems,
             Map<Long, Long> pendingCancellationQuantities
     ) {
-        return from(sellerOrder, null, orderItems, pendingCancellationQuantities);
+        return from(sellerOrder, null, orderItems, pendingCancellationQuantities, Map.of());
     }
 }

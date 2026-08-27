@@ -9,6 +9,7 @@ import type {
   OrderCancelResponse,
   OrderCancellation,
   OrderCancellationCreateRequest,
+  PurchaseConfirmation,
 } from "@/types/order";
 
 export async function createOrder(
@@ -29,6 +30,20 @@ export async function createOrder(
     throw new Error(result.message || "결제 준비를 완료하지 못했습니다.");
   }
 
+  return result.data;
+}
+
+export async function confirmPurchase(
+  orderId: number,
+  orderItemId: number,
+): Promise<PurchaseConfirmation> {
+  const result = await apiFetch<ApiResponse<PurchaseConfirmation>>(
+    `/api/orders/${orderId}/items/${orderItemId}/confirm`,
+    { method: "POST" },
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.message || "구매확정을 처리하지 못했습니다.");
+  }
   return result.data;
 }
 

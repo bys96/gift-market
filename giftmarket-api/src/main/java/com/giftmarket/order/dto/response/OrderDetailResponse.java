@@ -43,6 +43,7 @@ public record OrderDetailResponse(
             List<SellerOrder> sellerOrders,
             Map<Long, Shipment> originalShipments,
             Map<Long, Long> pendingCancellationQuantities,
+            Map<Long, Integer> confirmableQuantities,
             long refundedAmount,
             long remainingPaymentAmount
     ) {
@@ -70,7 +71,8 @@ public record OrderDetailResponse(
                 order.getCancelledAt(),
                 orderItems.stream()
                         .map(item -> OrderHistoryItemResponse.from(
-                                item, pendingCancellationQuantities.getOrDefault(item.getId(), 0L)))
+                                item, pendingCancellationQuantities.getOrDefault(item.getId(), 0L),
+                                confirmableQuantities.getOrDefault(item.getId(), 0)))
                         .toList(),
                 sellerOrders.stream()
                         .map(sellerOrder -> BuyerSellerOrderResponse.from(
@@ -81,7 +83,8 @@ public record OrderDetailResponse(
                                                 .getId()
                                                 .equals(sellerOrder.getId()))
                                         .toList(),
-                                pendingCancellationQuantities
+                                pendingCancellationQuantities,
+                                confirmableQuantities
                         ))
                         .toList()
         );
@@ -99,6 +102,7 @@ public record OrderDetailResponse(
                 sellerOrders,
                 Map.of(),
                 pendingCancellationQuantities,
+                Map.of(),
                 0L,
                 order.getTotalAmount()
         );
@@ -112,6 +116,6 @@ public record OrderDetailResponse(
             Map<Long, Long> pendingCancellationQuantities
     ) {
         return from(order, orderItems, sellerOrders, originalShipments,
-                pendingCancellationQuantities, 0L, order.getTotalAmount());
+                pendingCancellationQuantities, Map.of(), 0L, order.getTotalAmount());
     }
 }

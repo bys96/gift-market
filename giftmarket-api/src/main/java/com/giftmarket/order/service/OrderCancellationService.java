@@ -278,6 +278,7 @@ public class OrderCancellationService {
         for (OrderItem orderItem : orderItems) {
             long availableQuantity = (long) orderItem.getQuantity()
                     - orderItem.getCanceledQuantity()
+                    - orderItem.getConfirmedQuantity()
                     - pendingQuantities.getOrDefault(orderItem.getId(), 0L);
             if (requestedQuantities.get(orderItem.getId()) > availableQuantity) {
                 throw new OrderException("취소 가능 수량을 초과한 상품이 있습니다.");

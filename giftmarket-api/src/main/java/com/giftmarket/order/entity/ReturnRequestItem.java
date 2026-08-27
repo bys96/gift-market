@@ -97,7 +97,8 @@ public class ReturnRequestItem extends BaseEntity {
                 orderItem.getQuantity()
                         - orderItem.getCanceledQuantity()
                         - orderItem.getReturnedQuantity()
-                        - orderItem.getExchangedQuantity();
+                        - orderItem.getExchangedQuantity()
+                        - orderItem.getConfirmedQuantity();
 
         if (quantity <= 0 || quantity > returnableQuantity) {
             throw new IllegalArgumentException(

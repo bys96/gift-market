@@ -336,6 +336,7 @@ public class SellerExchangeRequestService {
         for (OrderItem item : lockedItems) {
             long available = (long) item.getQuantity() - item.getCanceledQuantity()
                     - item.getReturnedQuantity() - item.getExchangedQuantity()
+                    - item.getConfirmedQuantity()
                     - returnHeld.getOrDefault(item.getId(), 0L)
                     - otherExchangeHeld.getOrDefault(item.getId(), 0L);
             ExchangeRequestItem requested = requestByOrderItem.get(item.getId());

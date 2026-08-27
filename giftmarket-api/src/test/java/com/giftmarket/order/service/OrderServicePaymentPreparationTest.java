@@ -97,6 +97,9 @@ class OrderServicePaymentPreparationTest {
     private ShipmentRepository shipmentRepository;
 
     @Mock
+    private PurchaseConfirmationQuantities purchaseConfirmationQuantities;
+
+    @Mock
     private CartItemRepository cartItemRepository;
 
     @Mock
@@ -135,6 +138,9 @@ class OrderServicePaymentPreparationTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(purchaseConfirmationQuantities.load(any()))
+                .thenReturn(new PurchaseConfirmationQuantities.PendingQuantities(
+                        Map.of(), Map.of(), Map.of()));
         lenient().when(userRepository.findByIdForUpdate(USER_ID))
                 .thenReturn(Optional.of(user));
         lenient().when(paymentProperties.getReservationMinutes())
