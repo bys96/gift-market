@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { getSellerOrders } from "@/lib/seller-order-api";
+import Pagination from "@/components/common/Pagination";
 import { useAuthStore } from "@/stores/auth-store";
 import {
   SELLER_ORDER_STATUS_LABEL,
@@ -183,11 +184,7 @@ export default function SellerOrdersPage() {
                 </table>
               </div>
 
-              <nav className="seller-orders-pagination" aria-label="주문 목록 페이지">
-                <button type="button" disabled={orderPage.first || loading} onClick={() => setPage((value) => Math.max(0, value - 1))}>이전</button>
-                <span>{orderPage.page + 1} / {Math.max(orderPage.totalPages, 1)}</span>
-                <button type="button" disabled={orderPage.last || loading} onClick={() => setPage((value) => value + 1)}>다음</button>
-              </nav>
+              <Pagination currentPage={orderPage.page} totalPages={orderPage.totalPages} ariaLabel="주문 목록 페이지" disabled={loading} onPageChange={setPage} className="seller-orders-pagination" />
             </>
           )}
         </section>

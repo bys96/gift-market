@@ -17,6 +17,7 @@ import type {
 } from "@/types/product";
 import type { ProductDraft, ProductDraftData } from "@/types/product-draft";
 import { resolveImageUrl } from "@/utils/image-url";
+import Pagination from "@/components/common/Pagination";
 
 const PAGE_SIZE = 20;
 
@@ -176,22 +177,6 @@ export default function SellerProductsPage() {
   const handleStatusChange = (status: ProductStatus | "ALL") => {
     setSelectedStatus(status);
     setCurrentPage(0);
-  };
-
-  const handlePreviousPage = () => {
-    if (!productPage || productPage.first) {
-      return;
-    }
-
-    setCurrentPage((page) => page - 1);
-  };
-
-  const handleNextPage = () => {
-    if (!productPage || productPage.last) {
-      return;
-    }
-
-    setCurrentPage((page) => page + 1);
   };
 
   const handleContinueDraft = (draftId: number) => {
@@ -536,28 +521,14 @@ export default function SellerProductsPage() {
                     </table>
                   </div>
 
-                  <div className="seller-products-pagination">
-                    <button
-                      type="button"
-                      disabled={productPage.first}
-                      onClick={handlePreviousPage}
-                    >
-                      이전
-                    </button>
-
-                    <span>
-                      {productPage.page + 1} /{" "}
-                      {Math.max(productPage.totalPages, 1)}
-                    </span>
-
-                    <button
-                      type="button"
-                      disabled={productPage.last}
-                      onClick={handleNextPage}
-                    >
-                      다음
-                    </button>
-                  </div>
+                  <Pagination
+                    currentPage={productPage.page}
+                    totalPages={productPage.totalPages}
+                    ariaLabel="판매자 상품 목록 페이지"
+                    disabled={isLoading}
+                    onPageChange={setCurrentPage}
+                    className="seller-products-pagination"
+                  />
                 </>
               )}
           </section>

@@ -8,3 +8,12 @@
     width: min(100% - 32px, 1200px);
   }
 }
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+}
+
+.pagination-page-item {
+  display: contents;
+}

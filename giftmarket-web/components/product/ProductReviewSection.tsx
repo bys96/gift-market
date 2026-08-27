@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
 import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
+import Pagination from "@/components/common/Pagination";
 import { getProductReviews } from "@/lib/review-api";
 import type { ReviewPage } from "@/types/review";
 
@@ -18,7 +19,7 @@ export default function ProductReviewSection({ productId }: { productId: number 
         <p className="product-review-content">{review.content}</p>
         {review.images.length>0 && <div className="product-review-images">{review.images.map((url,index)=><button key={url} type="button" aria-label={`리뷰 이미지 ${index+1} 크게 보기`} onClick={()=>setView({images:review.images.map((u,i)=>({imageId:i,url:u,sortOrder:i})),index})}><img src={url} alt="" /></button>)}</div>}
       </article>)}</div>
-      {data.totalPages>1 && <nav className="product-review-pagination" aria-label="리뷰 페이지">{Array.from({length:data.totalPages},(_,i)=><button key={i} type="button" aria-current={i===page?"page":undefined} onClick={()=>setPage(i)}>{i+1}</button>)}</nav>}
+      <Pagination currentPage={page} totalPages={data.totalPages} ariaLabel="리뷰 페이지" mode="numbers" pageWindowSize={data.totalPages} showPreviousNext={false} onPageChange={setPage} className="product-review-pagination" />
     </>}
     {view && <ReturnImageViewerModal images={view.images} initialIndex={view.index} label="리뷰 이미지" onClose={()=>setView(null)} />}
   </section>;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { getSellerOrderCancellations } from "@/lib/seller-order-cancellation-api";
+import Pagination from "@/components/common/Pagination";
 import { useAuthStore } from "@/stores/auth-store";
 import {
   SELLER_ORDER_CANCELLATION_STATUS_LABEL,
@@ -167,11 +168,7 @@ export default function SellerOrderCancellationsPage() {
                 </table>
               </div>
 
-              <nav className="seller-orders-pagination" aria-label="취소 요청 목록 페이지">
-                <button type="button" disabled={cancellationPage.first || loading} onClick={() => setPage((value) => Math.max(0, value - 1))}>이전</button>
-                <span>{cancellationPage.page + 1} / {Math.max(cancellationPage.totalPages, 1)}</span>
-                <button type="button" disabled={cancellationPage.last || loading} onClick={() => setPage((value) => value + 1)}>다음</button>
-              </nav>
+              <Pagination currentPage={cancellationPage.page} totalPages={cancellationPage.totalPages} ariaLabel="취소 요청 목록 페이지" disabled={loading} onPageChange={setPage} className="seller-orders-pagination" />
             </>
           )}
         </section>

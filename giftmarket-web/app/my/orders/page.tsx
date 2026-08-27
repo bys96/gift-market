@@ -6,31 +6,21 @@ import {
   Suspense,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 
 import OrderHistoryCard from "@/components/order/OrderHistoryCard";
+import Pagination from "@/components/common/Pagination";
 import { getMyOrders } from "@/lib/order-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { BuyerOrderPage } from "@/types/order";
 
 const PAGE_SIZE = 10;
-const PAGE_GROUP_SIZE = 5;
 
 function parsePage(value: string | null) {
   const parsed = Number(value ?? "0");
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-function createPageNumbers(currentPage: number, totalPages: number) {
-  const start = Math.floor(currentPage / PAGE_GROUP_SIZE) * PAGE_GROUP_SIZE;
-  const end = Math.min(start + PAGE_GROUP_SIZE, totalPages);
-  return Array.from(
-    { length: Math.max(0, end - start) },
-    (_, index) => start + index,
-  );
 }
 
 function MyOrdersContent() {
@@ -50,11 +40,6 @@ function MyOrdersContent() {
   const createOrdersUrl = useCallback((nextPage: number) => {
     return nextPage > 0 ? `/my/orders?page=${nextPage}` : "/my/orders";
   }, []);
-
-  const pageNumbers = useMemo(
-    () => createPageNumbers(orderPage?.page ?? 0, orderPage?.totalPages ?? 0),
-    [orderPage],
-  );
 
   useEffect(() => {
     if (!initialized) {
@@ -177,48 +162,17 @@ function MyOrdersContent() {
             ))}
           </div>
 
-          {orderPage.totalPages > 1 && (
-            <nav
-              className="order-history-pagination"
-              aria-label="주문 내역 페이지"
-            >
-              <Link
-                href={createOrdersUrl(Math.max(orderPage.page - 1, 0))}
-                scroll={false}
-                className={orderPage.first ? "is-disabled" : ""}
-                aria-disabled={orderPage.first}
-                tabIndex={orderPage.first ? -1 : undefined}
-                onClick={(event) => orderPage.first && event.preventDefault()}
-              >
-                이전
-              </Link>
-              {pageNumbers.map((pageNumber) => (
-                <Link
-                  key={pageNumber}
-                  href={createOrdersUrl(pageNumber)}
-                  scroll={false}
-                  className={pageNumber === orderPage.page ? "is-active" : ""}
-                  aria-current={
-                    pageNumber === orderPage.page ? "page" : undefined
-                  }
-                >
-                  {pageNumber + 1}
-                </Link>
-              ))}
-              <Link
-                href={createOrdersUrl(
-                  Math.min(orderPage.page + 1, orderPage.totalPages - 1),
-                )}
-                scroll={false}
-                className={orderPage.last ? "is-disabled" : ""}
-                aria-disabled={orderPage.last}
-                tabIndex={orderPage.last ? -1 : undefined}
-                onClick={(event) => orderPage.last && event.preventDefault()}
-              >
-                다음
-              </Link>
-            </nav>
-          )}
+          <Pagination
+            currentPage={orderPage.page}
+            totalPages={orderPage.totalPages}
+            ariaLabel="주문 내역 페이지"
+            mode="numbers"
+            pageWindowSize={5}
+            getPageHref={createOrdersUrl}
+            scroll={false}
+            disabled={isLoading}
+            className="order-history-pagination"
+          />
         </>
       ) : (
         <section className="order-history-empty">

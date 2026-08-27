@@ -13,11 +13,11 @@ import {
 } from "react";
 
 import ProductCard from "@/components/product/ProductCard";
+import Pagination from "@/components/common/Pagination";
 import { getCategories, getProducts } from "@/lib/product-api";
 import type { Category, ProductPage } from "@/types/product";
 
 const PAGE_SIZE = 20;
-const PAGE_GROUP_SIZE = 5;
 
 interface ProductsUrlOptions {
   categoryIds?: number[];
@@ -49,23 +49,6 @@ function flattenCategories(categories: Category[]): Category[] {
 
 function getDescendantIds(category: Category) {
   return flattenCategories(category.children ?? []).map((child) => child.id);
-}
-
-function createPageNumbers(currentPage: number, totalPages: number) {
-  if (totalPages <= 0) {
-    return [];
-  }
-
-  const currentGroup = Math.floor(currentPage / PAGE_GROUP_SIZE);
-  const startPage = currentGroup * PAGE_GROUP_SIZE;
-  const endPage = Math.min(startPage + PAGE_GROUP_SIZE, totalPages);
-
-  return Array.from(
-    {
-      length: endPage - startPage,
-    },
-    (_, index) => startPage + index,
-  );
 }
 
 function isSameNumberArray(first: number[], second: number[]) {
@@ -187,12 +170,6 @@ function ProductsContent() {
         })
         .map((category) => category.id),
     [categories, displayedCategoryIds],
-  );
-
-  const pageNumbers = useMemo(
-    () =>
-      createPageNumbers(productPage?.page ?? 0, productPage?.totalPages ?? 0),
-    [productPage],
   );
 
   const createProductsUrl = useCallback(
@@ -660,88 +637,16 @@ function ProductsContent() {
             ))}
           </div>
 
-          {productPage.totalPages > 1 && (
-            <nav
-              className="product-page-pagination"
-              aria-label="상품 목록 페이지"
-            >
-              <Link
-                href={createProductsUrl({
-                  page: Math.max(productPage.page - 1, 0),
-                })}
-                scroll={false}
-                className={[
-                  "product-page-pagination-button",
-                  productPage.first
-                    ? "product-page-pagination-button-disabled"
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                aria-disabled={productPage.first}
-                tabIndex={productPage.first ? -1 : undefined}
-                onClick={(event) => {
-                  if (productPage.first) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                이전
-              </Link>
-
-              <div className="product-page-pagination-pages">
-                {pageNumbers.map((pageNumber) => (
-                  <Link
-                    key={pageNumber}
-                    href={createProductsUrl({
-                      page: pageNumber,
-                    })}
-                    scroll={false}
-                    className={[
-                      "product-page-pagination-number",
-                      pageNumber === productPage.page
-                        ? "product-page-pagination-number-active"
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    aria-current={
-                      pageNumber === productPage.page ? "page" : undefined
-                    }
-                  >
-                    {pageNumber + 1}
-                  </Link>
-                ))}
-              </div>
-
-              <Link
-                href={createProductsUrl({
-                  page: Math.min(
-                    productPage.page + 1,
-                    productPage.totalPages - 1,
-                  ),
-                })}
-                scroll={false}
-                className={[
-                  "product-page-pagination-button",
-                  productPage.last
-                    ? "product-page-pagination-button-disabled"
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                aria-disabled={productPage.last}
-                tabIndex={productPage.last ? -1 : undefined}
-                onClick={(event) => {
-                  if (productPage.last) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                다음
-              </Link>
-            </nav>
-          )}
+          <Pagination
+            currentPage={productPage.page}
+            totalPages={productPage.totalPages}
+            ariaLabel="상품 목록 페이지"
+            mode="numbers"
+            pageWindowSize={5}
+            getPageHref={(pageNumber) => createProductsUrl({ page: pageNumber })}
+            scroll={false}
+            className="product-page-pagination"
+          />
         </>
       )}
     </main>

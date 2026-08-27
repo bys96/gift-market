@@ -577,7 +577,7 @@
   margin-top: 56px;
 }
 
-.product-page-pagination-button {
+.product-page-pagination > .pagination-control {
   display: inline-flex;
   min-width: 76px;
   height: 42px;
@@ -596,12 +596,12 @@
     color 0.2s ease;
 }
 
-.product-page-pagination-button:hover {
+.product-page-pagination > .pagination-control:hover {
   border-color: #999999;
   background: #fafafa;
 }
 
-.product-page-pagination-button-disabled {
+.product-page-pagination > .pagination-control.is-disabled {
   border-color: #eeeeee;
   background: #fafafa;
   color: #bbbbbb;
@@ -609,13 +609,13 @@
   pointer-events: none;
 }
 
-.product-page-pagination-pages {
+.product-page-pagination > .pagination-pages {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.product-page-pagination-number {
+.product-page-pagination .pagination-number {
   display: inline-flex;
   width: 42px;
   height: 42px;
@@ -634,20 +634,20 @@
     color 0.2s ease;
 }
 
-.product-page-pagination-number:hover {
+.product-page-pagination .pagination-number:hover {
   border-color: #dddddd;
   background: #fafafa;
   color: #222222;
 }
 
-.product-page-pagination-number-active {
+.product-page-pagination .pagination-number.is-active {
   border-color: #222222;
   background: #222222;
   color: #ffffff;
   pointer-events: none;
 }
 
-.product-page-pagination-number-active:hover {
+.product-page-pagination .pagination-number.is-active:hover {
   border-color: #222222;
   background: #222222;
   color: #ffffff;
@@ -805,17 +805,17 @@
     margin-top: 40px;
   }
 
-  .product-page-pagination-button {
+  .product-page-pagination > .pagination-control {
     min-width: 58px;
     height: 38px;
     font-size: 12px;
   }
 
-  .product-page-pagination-pages {
+  .product-page-pagination > .pagination-pages {
     gap: 3px;
   }
 
-  .product-page-pagination-number {
+  .product-page-pagination .pagination-number {
     width: 36px;
     height: 38px;
     font-size: 12px;
@@ -846,12 +846,12 @@
     gap: 5px;
   }
 
-  .product-page-pagination-button {
+  .product-page-pagination > .pagination-control {
     min-width: 50px;
     padding: 0 8px;
   }
 
-  .product-page-pagination-number {
+  .product-page-pagination .pagination-number {
     width: 32px;
   }
 }

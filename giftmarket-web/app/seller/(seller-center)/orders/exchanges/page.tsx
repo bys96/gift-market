@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getSellerExchangeRequests } from "@/lib/seller-exchange-api";
+import Pagination from "@/components/common/Pagination";
 import { useAuthStore } from "@/stores/auth-store";
 import { EXCHANGE_REASON_LABELS, EXCHANGE_RESPONSIBILITY_LABELS, EXCHANGE_STATUS_LABELS, type ExchangeRequestStatus, type SellerExchangeRequestPage } from "@/types/exchange";
 
@@ -33,7 +34,7 @@ export default function SellerExchangesPage() {
       {error && <div className="seller-orders-state seller-orders-state-error"><p>{error}</p><button type="button" onClick={() => void load()}>다시 시도</button></div>}
       {!error && result?.exchanges.length === 0 && <div className="seller-orders-state">조건에 맞는 교환 요청이 없습니다.</div>}
       {!error && result && result.exchanges.length > 0 && <><div className={`seller-orders-table-wrap ${loading ? "is-refreshing" : ""}`}><table className="seller-orders-table seller-exchanges-table"><thead><tr><th>요청번호</th><th>주문</th><th>요청일</th><th>원 상품 / 교환 대상</th><th>수량</th><th>사유</th><th>귀책</th><th>상태</th><th>관리</th></tr></thead><tbody>{result.exchanges.map((request) => { const item = request.items[0]; return <tr key={request.exchangeRequestId}><td data-label="요청번호"><strong>#{request.exchangeRequestId}</strong></td><td data-label="주문"><Link className="seller-return-order-link" href={`/seller/orders/${request.sellerOrderId}`}>주문 ID #{request.orderId}</Link></td><td data-label="요청일">{date(request.requestedAt)}</td><td data-label="상품"><span className="seller-exchange-product"><strong>{item?.originalProductName ?? "상품 정보 없음"}</strong><small>{item?.originalOptionSnapshot ?? "기본 상품"} → {item?.targetOptionSnapshot ?? "기본 상품"}{request.items.length > 1 ? ` 외 ${request.items.length - 1}건` : ""}</small></span></td><td data-label="수량">{request.items.reduce((sum, value) => sum + (Number.isFinite(value.quantity) ? value.quantity : 0), 0)}개</td><td data-label="사유"><span className="seller-return-reason">{EXCHANGE_REASON_LABELS[request.reasonType]}<small>{request.reason}</small></span></td><td data-label="귀책">{request.responsibility ? EXCHANGE_RESPONSIBILITY_LABELS[request.responsibility] : "확정 전"}</td><td data-label="상태"><span className={`seller-return-status seller-exchange-status-${request.status.toLowerCase()}`}>{EXCHANGE_STATUS_LABELS[request.status]}</span></td><td data-label="관리"><Link className="seller-orders-detail-link" href={`/seller/orders/exchanges/${request.exchangeRequestId}`}>{request.status === "REQUESTED" ? "요청 확인" : "상세보기"}</Link></td></tr>; })}</tbody></table></div>
-        <nav className="seller-orders-pagination" aria-label="교환 요청 목록 페이지"><button type="button" disabled={result.first || loading} onClick={() => setPage((v) => Math.max(0, v - 1))}>이전</button><span>{result.page + 1} / {Math.max(result.totalPages, 1)}</span><button type="button" disabled={result.last || loading} onClick={() => setPage((v) => v + 1)}>다음</button></nav></>}
+        <Pagination currentPage={result.page} totalPages={result.totalPages} ariaLabel="교환 요청 목록 페이지" disabled={loading} onPageChange={setPage} className="seller-orders-pagination" /></>}
     </section>
   </div></main>;
 }

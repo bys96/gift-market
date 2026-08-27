@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getSellerReturnRequests } from "@/lib/seller-return-api";
+import Pagination from "@/components/common/Pagination";
 import { useAuthStore } from "@/stores/auth-store";
 import {
   RETURN_REASON_LABELS,
@@ -72,7 +73,7 @@ export default function SellerReturnsPage() {
           const firstItem = request.items[0];
           return <tr key={request.returnRequestId}><td data-label="요청번호"><strong>#{request.returnRequestId}</strong></td><td data-label="주문"><Link className="seller-return-order-link" href={`/seller/orders/${request.sellerOrderId}`}>주문 ID #{request.orderId}</Link></td><td data-label="요청일시">{formatDate(request.requestedAt)}</td><td data-label="요청 상품"><span className="seller-orders-product-name">{firstItem?.productName ?? "상품 정보 없음"}{request.items.length > 1 ? ` 외 ${request.items.length - 1}건` : ""}</span></td><td data-label="반품 사유"><span className="seller-return-reason">{RETURN_REASON_LABELS[request.reasonType]}<small>{request.reason}</small></span></td><td data-label="귀책">{request.responsibility ? RETURN_RESPONSIBILITY_LABELS[request.responsibility] : "확인 전"}</td><td data-label="환불금액">{request.refundAmount === null ? "계산 전" : <strong>{formatPrice(request.refundAmount)}</strong>}</td><td data-label="상태"><span className={`seller-return-status seller-return-status-${request.status.toLowerCase()}`}>{RETURN_STATUS_LABELS[request.status]}</span></td><td data-label="관리"><Link className="seller-orders-detail-link" href={`/seller/orders/returns/${request.returnRequestId}`}>{request.status === "REQUESTED" ? "요청 확인" : "상세보기"}</Link></td></tr>;
         })}</tbody></table></div>
-        <nav className="seller-orders-pagination" aria-label="반품 요청 목록 페이지"><button type="button" disabled={returnPage.first || loading} onClick={() => setPage((value) => Math.max(0, value - 1))}>이전</button><span>{returnPage.page + 1} / {Math.max(returnPage.totalPages, 1)}</span><button type="button" disabled={returnPage.last || loading} onClick={() => setPage((value) => value + 1)}>다음</button></nav>
+        <Pagination currentPage={returnPage.page} totalPages={returnPage.totalPages} ariaLabel="반품 요청 목록 페이지" disabled={loading} onPageChange={setPage} className="seller-orders-pagination" />
       </>}
     </section>
   </div></main>;
