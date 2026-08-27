@@ -68,7 +68,7 @@ function LoginContent() {
     <main className="login-page">
       <section className="login-card">
         <header className="login-header">
-          <p className="login-brand">GIFT MARKET</p>
+          <p className="login-brand">Gift Market</p>
 
           <h1 className="login-title">로그인</h1>
 

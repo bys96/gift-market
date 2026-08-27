@@ -6,8 +6,8 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
 export const metadata: Metadata = {
-  title: "Open Market",
-  description: "Open Market",
+  title: "Gift Market",
+  description: "Gift Market",
 };
 
 export default function RootLayout({

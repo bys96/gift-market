@@ -109,9 +109,9 @@ export default function Header() {
           <Link
             href="/"
             className="layout-header-logo"
-            aria-label="Open Market 홈"
+            aria-label="Gift Market 홈"
           >
-            Open Market
+            Gift Market
           </Link>
 
           <form
