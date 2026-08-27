@@ -11,6 +11,7 @@ import com.giftmarket.payment.exception.PaymentWebhookRetryableException;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.wishlist.exception.WishlistException;
+import com.giftmarket.review.exception.ReviewException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -114,6 +115,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReviewException.class)
+    public ResponseEntity<ApiResponse<?>> handleReviewException(ReviewException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.fail(exception.getMessage()));
     }
 
     @ExceptionHandler(PaymentException.class)

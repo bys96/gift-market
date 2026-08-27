@@ -69,6 +69,17 @@ public interface OrderItemRepository
             @Param("orderId") Long orderId
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select oi from OrderItem oi
+            join fetch oi.order o
+            join fetch o.user
+            join fetch oi.product
+            left join fetch oi.variant
+            where oi.id = :orderItemId
+            """)
+    Optional<OrderItem> findByIdForReviewUpdate(@Param("orderItemId") Long orderItemId);
+
     @Query("""
             select oi.sellerOrder.id as sellerOrderId,
                    min(oi.productName) as representativeProductName,

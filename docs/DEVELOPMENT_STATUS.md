@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-08-26
+> 최종 갱신: 2026-08-27
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 한 배포 준비 기준점이다. 문서와 코드가 충돌하면 실제 코드가 우선한다.
 
@@ -51,7 +51,10 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - 프로필, 배송지, 회원별 Backend Wishlist API와 Frontend 서버 동기화
 - `ProductInquiry 1:0..1 ProductInquiryAnswer` 기반 Buyer 상품문의와 Seller 답변 관리
 - 답변 후 Buyer 수정은 차단하되 삭제는 허용하며, 문의 soft delete 후에도 Answer 이력은 보존
-- 리뷰 domain은 아직 미구현
+- 구매확정 기반 Buyer 리뷰 구현: OrderItem당 활성 리뷰 1개, 삭제 후 동일 행 복구 재작성
+- 완료 교환이 있으면 `completedAt DESC, id DESC` 최신 target 상품/Variant snapshot을 리뷰 대상으로 저장
+- 리뷰 본문/1~5 정수 별점/이미지 0~5장, soft delete, 상품별 최신순 pagination 및 활성 리뷰 평균·개수 집계
+- Review 이미지는 `reviews/{userId}/` objectKey만 DB에 저장하고 공개 상품 리뷰 조회 시 단기 presigned GET URL로 제공
 - 판매자 신청, 관리자 승인, SELLER 권한
 - 판매자센터와 상품·주문·클레임 관리
 - Seller Dashboard 실데이터 집계와 처리 필요 업무 Action Center
@@ -125,7 +128,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
 - 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 전체 suite: **445 tests / 445 success / 0 failure / 0 error**
+- 최신 전체 suite: **472 tests / 472 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend
@@ -133,7 +136,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 - `npm run lint`: **0 errors / 0 warnings**
 - `npx tsc --noEmit`: 성공
 - `npm run build`: 성공
-- Next.js 정적 페이지 **29개** 생성 성공
+- Next.js 정적 페이지 **30개** 생성 성공
 - `/products`, `/login`, `/order`, `/seller/products/new`의 `useSearchParams` 렌더링 경로는 Suspense boundary 적용 완료
 
 ### 실제 E2E

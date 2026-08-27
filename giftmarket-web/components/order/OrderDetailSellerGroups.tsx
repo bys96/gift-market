@@ -10,7 +10,9 @@ import type { ReturnRequest } from "@/types/return";
 import type { ExchangeRequest } from "@/types/exchange";
 import { resolveImageUrl } from "@/utils/image-url";
 import { confirmPurchase } from "@/lib/order-api";
-import { useState } from "react";
+import { getReviewIds } from "@/lib/review-api";
+import ReviewEditorModal from "@/components/review/ReviewEditorModal";
+import { useEffect, useMemo, useState } from "react";
 
 interface OrderDetailSellerGroupsProps {
   sellerOrders: BuyerSellerOrder[];
@@ -47,6 +49,10 @@ export default function OrderDetailSellerGroups({
 }: OrderDetailSellerGroupsProps) {
   const [confirmingItemId, setConfirmingItemId] = useState<number | null>(null);
   const [confirmationError, setConfirmationError] = useState("");
+  const itemIds = useMemo(() => sellerOrders.flatMap(group => group.items.map(item => item.id)), [sellerOrders]);
+  const [reviewIds, setReviewIds] = useState<Record<string, number>>({});
+  const [editing, setEditing] = useState<{ orderItemId:number; reviewId:number|null } | null>(null);
+  useEffect(() => { if(itemIds.length) void getReviewIds(itemIds).then(setReviewIds).catch(()=>setReviewIds({})); }, [itemIds]);
 
   const handleConfirm = async (itemId: number, quantity: number) => {
     if (!window.confirm(`구매확정 후에는 해당 ${quantity}개 상품의 취소·반품·교환을 신청할 수 없습니다.\n구매확정하시겠습니까?`)) return;
@@ -152,6 +158,11 @@ export default function OrderDetailSellerGroups({
                           </button>
                         </div>
                       )}
+                      {item.confirmedQuantity > 0 && (
+                        <button type="button" className="order-detail-review-button" onClick={()=>setEditing({orderItemId:item.id,reviewId:reviewIds[String(item.id)]??null})}>
+                          {reviewIds[String(item.id)] ? "리뷰 수정" : "리뷰 작성"}
+                        </button>
+                      )}
                     </div>
                   </article>
                 );
@@ -207,6 +218,7 @@ export default function OrderDetailSellerGroups({
           </section>
         );
       })}
+      {editing && <ReviewEditorModal orderItemId={editing.orderItemId} reviewId={editing.reviewId} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);void getReviewIds(itemIds).then(setReviewIds);}} />}
     </div>
   );
 }

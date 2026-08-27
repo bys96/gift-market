@@ -13,7 +13,7 @@ public enum StorageType {
     PRODUCT_CONTENT("products/content"),
     RETURN_EVIDENCE("returns"),
     EXCHANGE_EVIDENCE("exchanges"),
-    REVIEW("review"),
+    REVIEW("reviews"),
     BANNER("banner");
 
     private final String directory;

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import ProductDetailActions from "@/components/product/ProductDetailActions";
 import ProductImageModal from "@/components/product/ProductImageModal";
 import ProductInquirySection from "@/components/product/ProductInquirySection";
+import ProductReviewSection from "@/components/product/ProductReviewSection";
 import { getProduct } from "@/lib/product-api";
 import type { ProductDetail } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
@@ -306,6 +307,8 @@ export default function ProductDetailPage() {
 
           <a href="#seller-information">판매자 정보</a>
 
+          <a href="#product-reviews">리뷰</a>
+
           <a href="#product-inquiries">상품 문의</a>
 
           <a href="#shipping-information">배송·교환</a>
@@ -330,6 +333,8 @@ export default function ProductDetailPage() {
             </div>
           )}
         </article>
+
+        <ProductReviewSection productId={product.id} />
 
         <section
           id="seller-information"

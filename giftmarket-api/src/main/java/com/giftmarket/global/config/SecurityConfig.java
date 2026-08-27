@@ -100,6 +100,11 @@ public class SecurityConfig {
                                 "/api/products/*/inquiries/**"
                         ).authenticated()
 
+                        .requestMatchers(HttpMethod.POST, "/api/reviews/**").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/reviews/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/reviews/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/**").authenticated()
+
                         .requestMatchers(
                                 "/api/auth/me",
                                 "/api/users/me",

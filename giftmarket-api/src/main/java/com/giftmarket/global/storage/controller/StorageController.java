@@ -33,10 +33,11 @@ public class StorageController {
             @Valid @RequestBody PresignedUrlRequest request
     ) {
         if ((request.type() == StorageType.RETURN_EVIDENCE
-                || request.type() == StorageType.EXCHANGE_EVIDENCE)
+                || request.type() == StorageType.EXCHANGE_EVIDENCE
+                || request.type() == StorageType.REVIEW)
                 && !Set.of("image/jpeg", "image/png", "image/webp")
                 .contains(request.contentType().trim().toLowerCase())) {
-            throw new IllegalArgumentException("반품 증빙은 JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");
+            throw new IllegalArgumentException("첨부 이미지는 JPG, PNG, WEBP만 업로드할 수 있습니다.");
         }
         Long ownerId = resolveOwnerId(
                 userId,
