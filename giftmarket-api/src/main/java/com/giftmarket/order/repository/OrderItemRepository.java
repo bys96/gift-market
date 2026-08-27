@@ -25,7 +25,8 @@ public interface OrderItemRepository
     @EntityGraph(attributePaths = {
             "product",
             "variant",
-            "sellerOrder"
+            "sellerOrder",
+            "order"
     })
     List<OrderItem> findAllByOrderIdInOrderByOrderIdAscIdAsc(
             List<Long> orderIds

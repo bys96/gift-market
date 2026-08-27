@@ -15,6 +15,7 @@ import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
 import com.giftmarket.order.dto.response.ExchangeRequestResponse;
 import com.giftmarket.order.dto.response.PurchaseConfirmationResponse;
+import com.giftmarket.order.dto.response.BuyerOrderPageResponse;
 import com.giftmarket.payment.service.PaymentCancellationService;
 import com.giftmarket.order.service.OrderService;
 import com.giftmarket.order.service.OrderCancellationWorkflowService;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -73,11 +75,13 @@ public class OrderController {
     }
 
     @GetMapping
-    public ApiResponse<List<OrderSummaryResponse>> getMyOrders(
-            @AuthenticationPrincipal Long userId
+    public ApiResponse<BuyerOrderPageResponse> getMyOrders(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
         return ApiResponse.success(
-                orderService.getMyOrders(userId)
+                orderService.getMyOrders(userId, page, size)
         );
     }
 

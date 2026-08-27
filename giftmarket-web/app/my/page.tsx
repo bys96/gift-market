@@ -56,7 +56,7 @@ export default function MyPage() {
 
     const loadSummary = async () => {
       const [ordersResult, addressesResult, wishlistResult] = await Promise.allSettled([
-        getMyOrders(),
+        getMyOrders(0, 1),
         getMyAddresses(),
         getWishlistCount(),
       ]);
@@ -67,7 +67,9 @@ export default function MyPage() {
 
       setSummary({
         orderCount:
-          ordersResult.status === "fulfilled" ? ordersResult.value.length : null,
+          ordersResult.status === "fulfilled"
+            ? ordersResult.value.totalElements
+            : null,
         wishlistCount:
           wishlistResult.status === "fulfilled" ? wishlistResult.value : null,
         addressCount:

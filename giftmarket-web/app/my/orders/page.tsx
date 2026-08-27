@@ -1,24 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import OrderHistoryCard from "@/components/order/OrderHistoryCard";
 import { getMyOrders } from "@/lib/order-api";
 import { useAuthStore } from "@/stores/auth-store";
-import type { OrderSummary } from "@/types/order";
+import type { BuyerOrderPage } from "@/types/order";
 
-export default function MyOrdersPage() {
+const PAGE_SIZE = 10;
+const PAGE_GROUP_SIZE = 5;
+
+function parsePage(value: string | null) {
+  const parsed = Number(value ?? "0");
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function createPageNumbers(currentPage: number, totalPages: number) {
+  const start = Math.floor(currentPage / PAGE_GROUP_SIZE) * PAGE_GROUP_SIZE;
+  const end = Math.min(start + PAGE_GROUP_SIZE, totalPages);
+  return Array.from(
+    { length: Math.max(0, end - start) },
+    (_, index) => start + index,
+  );
+}
+
+function MyOrdersContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestIdRef = useRef(0);
+  const page = parsePage(searchParams.get("page"));
 
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [orderPage, setOrderPage] = useState<BuyerOrderPage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const createOrdersUrl = useCallback((nextPage: number) => {
+    return nextPage > 0 ? `/my/orders?page=${nextPage}` : "/my/orders";
+  }, []);
+
+  const pageNumbers = useMemo(
+    () => createPageNumbers(orderPage?.page ?? 0, orderPage?.totalPages ?? 0),
+    [orderPage],
+  );
 
   useEffect(() => {
     if (!initialized) {
@@ -35,22 +71,32 @@ export default function MyOrdersPage() {
       return;
     }
 
-    let cancelled = false;
+    const requestId = ++requestIdRef.current;
 
     const loadOrders = async () => {
       try {
         setIsLoading(true);
         setErrorMessage("");
 
-        const response = await getMyOrders();
+        const response = await getMyOrders(page, PAGE_SIZE);
 
-        if (cancelled) {
+        if (requestId !== requestIdRef.current) {
           return;
         }
 
-        setOrders(response);
+        if (
+          page > 0 &&
+          (response.totalPages === 0 || page >= response.totalPages)
+        ) {
+          router.replace(createOrdersUrl(Math.max(response.totalPages - 1, 0)), {
+            scroll: false,
+          });
+          return;
+        }
+
+        setOrderPage(response);
       } catch (error) {
-        if (cancelled) {
+        if (requestId !== requestIdRef.current) {
           return;
         }
 
@@ -60,7 +106,7 @@ export default function MyOrdersPage() {
             : "주문 내역을 불러오지 못했습니다.",
         );
       } finally {
-        if (!cancelled) {
+        if (requestId === requestIdRef.current) {
           setIsLoading(false);
         }
       }
@@ -69,9 +115,9 @@ export default function MyOrdersPage() {
     void loadOrders();
 
     return () => {
-      cancelled = true;
+      requestIdRef.current += 1;
     };
-  }, [initialized, isAuthenticated, user]);
+  }, [createOrdersUrl, initialized, isAuthenticated, page, router, user]);
 
   if (!initialized) {
     return null;
@@ -95,13 +141,13 @@ export default function MyOrdersPage() {
         </Link>
       </div>
 
-      {isLoading ? (
+      {isLoading && orderPage === null ? (
         <section className="order-history-empty">
           <h2>주문 내역을 불러오고 있습니다.</h2>
 
           <p>잠시 후 주문 정보를 확인할 수 있습니다.</p>
         </section>
-      ) : errorMessage ? (
+      ) : errorMessage && orderPage === null ? (
         <section className="order-history-empty">
           <h2>주문 내역을 불러오지 못했습니다.</h2>
 
@@ -115,12 +161,65 @@ export default function MyOrdersPage() {
             다시 시도
           </button>
         </section>
-      ) : orders.length > 0 ? (
-        <div className="order-history-list">
-          {orders.map((order) => (
-            <OrderHistoryCard key={order.id} order={order} />
-          ))}
-        </div>
+      ) : orderPage && orderPage.content.length > 0 ? (
+        <>
+          {errorMessage && (
+            <p className="order-history-page-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+          <div
+            className={`order-history-list ${isLoading ? "is-loading" : ""}`}
+            aria-busy={isLoading}
+          >
+            {orderPage.content.map((order) => (
+              <OrderHistoryCard key={order.id} order={order} />
+            ))}
+          </div>
+
+          {orderPage.totalPages > 1 && (
+            <nav
+              className="order-history-pagination"
+              aria-label="주문 내역 페이지"
+            >
+              <Link
+                href={createOrdersUrl(Math.max(orderPage.page - 1, 0))}
+                scroll={false}
+                className={orderPage.first ? "is-disabled" : ""}
+                aria-disabled={orderPage.first}
+                tabIndex={orderPage.first ? -1 : undefined}
+                onClick={(event) => orderPage.first && event.preventDefault()}
+              >
+                이전
+              </Link>
+              {pageNumbers.map((pageNumber) => (
+                <Link
+                  key={pageNumber}
+                  href={createOrdersUrl(pageNumber)}
+                  scroll={false}
+                  className={pageNumber === orderPage.page ? "is-active" : ""}
+                  aria-current={
+                    pageNumber === orderPage.page ? "page" : undefined
+                  }
+                >
+                  {pageNumber + 1}
+                </Link>
+              ))}
+              <Link
+                href={createOrdersUrl(
+                  Math.min(orderPage.page + 1, orderPage.totalPages - 1),
+                )}
+                scroll={false}
+                className={orderPage.last ? "is-disabled" : ""}
+                aria-disabled={orderPage.last}
+                tabIndex={orderPage.last ? -1 : undefined}
+                onClick={(event) => orderPage.last && event.preventDefault()}
+              >
+                다음
+              </Link>
+            </nav>
+          )}
+        </>
       ) : (
         <section className="order-history-empty">
           <div className="order-history-empty-icon" aria-hidden="true">
@@ -137,5 +236,13 @@ export default function MyOrdersPage() {
         </section>
       )}
     </div>
+  );
+}
+
+export default function MyOrdersPage() {
+  return (
+    <Suspense fallback={null}>
+      <MyOrdersContent />
+    </Suspense>
   );
 }

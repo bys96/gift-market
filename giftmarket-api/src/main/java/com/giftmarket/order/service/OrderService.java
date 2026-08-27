@@ -8,6 +8,7 @@ import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
+import com.giftmarket.order.dto.response.BuyerOrderPageResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
@@ -42,6 +43,11 @@ import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,6 +72,8 @@ public class OrderService {
             DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private static final String PAYMENT_CURRENCY = "KRW";
+
+    private static final int MAX_ORDER_PAGE_SIZE = 100;
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -417,16 +425,26 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderSummaryResponse> getMyOrders(
-            Long userId
+    public BuyerOrderPageResponse getMyOrders(
+            Long userId,
+            int page,
+            int size
     ) {
         getAuthenticatedUser(userId);
 
-        List<Order> orders = orderRepository
-                .findAllByUserIdOrderByCreatedAtDesc(userId);
+        Pageable pageable = createBuyerOrderPageable(page, size);
+        Page<Order> orderPage = orderRepository
+                .findAllByUserId(userId, pageable);
+        List<Order> orders = orderPage.getContent();
 
         if (orders.isEmpty()) {
-            return List.of();
+            return BuyerOrderPageResponse.from(
+                    new PageImpl<>(
+                            List.of(),
+                            pageable,
+                            orderPage.getTotalElements()
+                    )
+            );
         }
 
         List<Long> orderIds = orders.stream()
@@ -446,7 +464,7 @@ public class OrderService {
                                 sellerOrder -> sellerOrder.getOrder().getId()
                         ));
 
-        return orders.stream()
+        List<OrderSummaryResponse> content = orders.stream()
                 .map(order -> OrderSummaryResponse.from(
                         order,
                         itemsByOrderId.getOrDefault(order.getId(), List.of()),
@@ -457,6 +475,36 @@ public class OrderService {
                                 .toList()
                 ))
                 .toList();
+
+        return BuyerOrderPageResponse.from(
+                new PageImpl<>(
+                        content,
+                        pageable,
+                        orderPage.getTotalElements()
+                )
+        );
+    }
+
+    private Pageable createBuyerOrderPageable(
+            int page,
+            int size
+    ) {
+        if (page < 0) {
+            throw new OrderException("페이지 번호는 0 이상이어야 합니다.");
+        }
+
+        if (size < 1 || size > MAX_ORDER_PAGE_SIZE) {
+            throw new OrderException("페이지 크기는 1 이상 100 이하이어야 합니다.");
+        }
+
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.desc("orderedAt"),
+                        Sort.Order.desc("id")
+                )
+        );
     }
 
     @Transactional(readOnly = true)

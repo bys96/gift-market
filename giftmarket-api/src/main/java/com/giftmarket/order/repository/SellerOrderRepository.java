@@ -44,7 +44,7 @@ public interface SellerOrderRepository
 
     List<SellerOrder> findAllByOrderIdOrderByIdAsc(Long orderId);
 
-    @EntityGraph(attributePaths = {"seller"})
+    @EntityGraph(attributePaths = {"seller", "order"})
     List<SellerOrder> findAllByOrderIdInOrderByOrderIdAscIdAsc(
             List<Long> orderIds
     );

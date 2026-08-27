@@ -8,6 +8,7 @@ import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.BuyerOrderDeliveryStatus;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
+import com.giftmarket.order.dto.response.BuyerOrderPageResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
@@ -43,6 +44,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +55,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
@@ -438,7 +443,7 @@ class OrderServicePaymentPreparationTest {
     }
 
     @Test
-    void loadsBuyerOrderListAssociationsInTwoBulkQueries() {
+    void loadsOnlyBuyerOrderPageAssociationsInTwoBulkQueries() {
         Order firstOrder = mock(Order.class);
         Order secondOrder = mock(Order.class);
         OrderItem firstItem = mock(OrderItem.class);
@@ -455,8 +460,12 @@ class OrderServicePaymentPreparationTest {
         given(firstSellerOrder.getStatus()).willReturn(SellerOrderStatus.PREPARING);
         given(secondSellerOrder.getOrder()).willReturn(secondOrder);
         given(secondSellerOrder.getStatus()).willReturn(SellerOrderStatus.SHIPPED);
-        given(orderRepository.findAllByUserIdOrderByCreatedAtDesc(USER_ID))
-                .willReturn(List.of(firstOrder, secondOrder));
+        given(orderRepository.findAllByUserId(eq(USER_ID), any(Pageable.class)))
+                .willReturn(new PageImpl<>(
+                        List.of(firstOrder, secondOrder),
+                        PageRequest.of(1, 2),
+                        5
+                ));
         given(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(
                 List.of(1L, 2L)
         )).willReturn(List.of(firstItem, secondItem));
@@ -464,9 +473,16 @@ class OrderServicePaymentPreparationTest {
                 List.of(1L, 2L)
         )).willReturn(List.of(firstSellerOrder, secondSellerOrder));
 
-        List<OrderSummaryResponse> responses = orderService.getMyOrders(USER_ID);
+        BuyerOrderPageResponse response = orderService.getMyOrders(USER_ID, 1, 2);
+        List<OrderSummaryResponse> responses = response.content();
 
         assertThat(responses).hasSize(2);
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.size()).isEqualTo(2);
+        assertThat(response.totalElements()).isEqualTo(5);
+        assertThat(response.totalPages()).isEqualTo(3);
+        assertThat(response.first()).isFalse();
+        assertThat(response.last()).isFalse();
         assertThat(responses.get(0).deliveryStatus())
                 .isEqualTo(BuyerOrderDeliveryStatus.PREPARING);
         assertThat(responses.get(1).deliveryStatus())
@@ -476,6 +492,55 @@ class OrderServicePaymentPreparationTest {
         verify(sellerOrderRepository, times(1))
                 .findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(1L, 2L));
         verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(orderRepository).findAllByUserId(eq(USER_ID), pageable.capture());
+        assertThat(pageable.getValue().getPageNumber()).isEqualTo(1);
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(2);
+        assertThat(pageable.getValue().getSort().getOrderFor("orderedAt"))
+                .isNotNull()
+                .extracting(org.springframework.data.domain.Sort.Order::isDescending)
+                .isEqualTo(true);
+        assertThat(pageable.getValue().getSort().getOrderFor("id"))
+                .isNotNull()
+                .extracting(org.springframework.data.domain.Sort.Order::isDescending)
+                .isEqualTo(true);
+    }
+
+    @Test
+    void returnsEmptyBuyerOrderPageWithoutAssociationQueries() {
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+        given(orderRepository.findAllByUserId(eq(USER_ID), any(Pageable.class)))
+                .willReturn(new PageImpl<>(
+                        List.of(),
+                        PageRequest.of(3, 10),
+                        12
+                ));
+
+        BuyerOrderPageResponse response = orderService.getMyOrders(USER_ID, 3, 10);
+
+        assertThat(response.content()).isEmpty();
+        assertThat(response.page()).isEqualTo(3);
+        assertThat(response.totalElements()).isEqualTo(12);
+        assertThat(response.totalPages()).isEqualTo(2);
+        verify(orderItemRepository, never())
+                .findAllByOrderIdInOrderByOrderIdAscIdAsc(any());
+        verify(sellerOrderRepository, never())
+                .findAllByOrderIdInOrderByOrderIdAscIdAsc(any());
+    }
+
+    @Test
+    void rejectsInvalidBuyerOrderPagination() {
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> orderService.getMyOrders(USER_ID, -1, 10))
+                .isInstanceOf(OrderException.class)
+                .hasMessage("페이지 번호는 0 이상이어야 합니다.");
+        assertThatThrownBy(() -> orderService.getMyOrders(USER_ID, 0, 101))
+                .isInstanceOf(OrderException.class)
+                .hasMessage("페이지 크기는 1 이상 100 이하이어야 합니다.");
+
+        verify(orderRepository, never()).findAllByUserId(any(), any());
     }
 
     @Test

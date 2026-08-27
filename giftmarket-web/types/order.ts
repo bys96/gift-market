@@ -124,6 +124,16 @@ export interface OrderDetail {
   sellerOrders: BuyerSellerOrder[];
 }
 
+export interface BuyerOrderPage {
+  content: OrderSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
 export interface PurchaseConfirmation {
   orderItemId: number;
   confirmedQuantity: number;

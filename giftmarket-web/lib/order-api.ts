@@ -5,11 +5,11 @@ import type {
   OrderCreateResponse,
   DirectOrderCreateRequest,
   OrderDetail,
-  OrderSummary,
   OrderCancelResponse,
   OrderCancellation,
   OrderCancellationCreateRequest,
   PurchaseConfirmation,
+  BuyerOrderPage,
 } from "@/types/order";
 
 export async function createOrder(
@@ -68,10 +68,18 @@ export async function createDirectOrder(
   return result.data;
 }
 
-export async function getMyOrders(): Promise<OrderSummary[]> {
-  const result = await apiFetch<ApiResponse<OrderSummary[]>>("/api/orders", {
-    method: "GET",
+export async function getMyOrders(
+  page = 0,
+  size = 10,
+): Promise<BuyerOrderPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
   });
+  const result = await apiFetch<ApiResponse<BuyerOrderPage>>(
+    `/api/orders?${params.toString()}`,
+    { method: "GET" },
+  );
 
   if (!result.success || !result.data) {
     throw new Error(result.message || "주문 내역을 불러오지 못했습니다.");

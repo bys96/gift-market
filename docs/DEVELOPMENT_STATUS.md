@@ -81,6 +81,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - Toss 승인, CONFIRMING 결과 불명 reconciliation, webhook 중복 방지
 - 전체취소와 CANCELING reconciliation
 - 부분취소·부분환불, 환불 잔액, 부분 재고복원과 orphan recovery
+- Buyer 주문 목록은 `page`/`size` 기반 server pagination이며, `orderedAt DESC, id DESC`로 정렬하고 현재 page의 OrderItem/SellerOrder만 batch 조회
 
 ### Return
 
@@ -129,7 +130,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
 - 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 전체 suite: **495 tests / 495 success / 0 failure / 0 error**
+- 최신 전체 suite: **498 tests / 498 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend
@@ -137,7 +138,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 - `npm run lint`: **0 errors / 0 warnings**
 - `npx tsc --noEmit`: 성공
 - `npm run build`: 성공
-- Next.js 정적 페이지 **30개** 생성 성공
+- Next.js 정적 페이지 **34개** 생성 성공
 - `/products`, `/login`, `/order`, `/seller/products/new`의 `useSearchParams` 렌더링 경로는 Suspense boundary 적용 완료
 
 ### 실제 E2E
