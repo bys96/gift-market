@@ -49,6 +49,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - Google OAuth/OIDC, Kakao OAuth
 - JWT Access Token과 Refresh Token cookie
 - 프로필, 배송지, 회원별 Backend Wishlist API와 Frontend 서버 동기화
+- 신규 프로필 이미지는 `profiles/{userId}/{uuid}` key만 저장·삭제할 수 있으며, 기존 `profile/{uuid}` key는 조회 호환만 유지하고 자동 삭제하지 않음
 - `ProductInquiry 1:0..1 ProductInquiryAnswer` 기반 Buyer 상품문의와 Seller 답변 관리
 - 답변 후 Buyer 수정은 차단하되 삭제는 허용하며, 문의 soft delete 후에도 Answer 이력은 보존
 - 구매확정 기반 Buyer 리뷰 구현: OrderItem당 활성 리뷰 1개, 삭제 후 동일 행 복구 재작성
@@ -128,7 +129,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
 - 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 전체 suite: **472 tests / 472 success / 0 failure / 0 error**
+- 최신 전체 suite: **495 tests / 495 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend

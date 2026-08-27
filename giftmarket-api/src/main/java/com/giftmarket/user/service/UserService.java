@@ -43,6 +43,8 @@ public class UserService {
                 request.trimmedProfileImageUrl();
 
         if (newProfileImageKey != null) {
+            validateOwnedProfileImageKey(userId, newProfileImageKey);
+
             String previousProfileImageKey =
                     user.getProfileImageUrl();
 
@@ -50,6 +52,7 @@ public class UserService {
 
             if (!newProfileImageKey.equals(previousProfileImageKey)) {
                 registerProfileImageCleanup(
+                        userId,
                         previousProfileImageKey,
                         newProfileImageKey
                 );
@@ -60,6 +63,7 @@ public class UserService {
     }
 
     private void registerProfileImageCleanup(
+            Long userId,
             String previousProfileImageKey,
             String newProfileImageKey
     ) {
@@ -88,6 +92,7 @@ public class UserService {
                             );
 
                             deleteManagedProfileObject(
+                                    userId,
                                     previousProfileImageKey
                             );
                             return;
@@ -99,6 +104,7 @@ public class UserService {
                         );
 
                         deleteManagedProfileObject(
+                                userId,
                                 newProfileImageKey
                         );
                     }
@@ -106,10 +112,11 @@ public class UserService {
         );
     }
 
-    private void deleteManagedProfileObject(String objectKey) {
-        if (objectKey == null
-                || objectKey.isBlank()
-                || !objectKey.startsWith("profile/")) {
+    private void deleteManagedProfileObject(
+            Long userId,
+            String objectKey
+    ) {
+        if (!isOwnedProfileImageKey(userId, objectKey)) {
             return;
         }
 
@@ -123,5 +130,38 @@ public class UserService {
                     exception
             );
         }
+    }
+
+    private void validateOwnedProfileImageKey(
+            Long userId,
+            String objectKey
+    ) {
+        if (!isOwnedProfileImageKey(userId, objectKey)) {
+            throw new IllegalArgumentException(
+                    "본인이 업로드한 프로필 이미지만 사용할 수 있습니다."
+            );
+        }
+    }
+
+    private boolean isOwnedProfileImageKey(
+            Long userId,
+            String objectKey
+    ) {
+        if (userId == null || objectKey == null || objectKey.isBlank()) {
+            return false;
+        }
+
+        String expectedPrefix = "profiles/" + userId + "/";
+
+        if (!objectKey.startsWith(expectedPrefix)) {
+            return false;
+        }
+
+        String fileName = objectKey.substring(expectedPrefix.length());
+
+        return !fileName.isBlank()
+                && !fileName.contains("/")
+                && !fileName.contains("\\")
+                && !fileName.contains("..");
     }
 }

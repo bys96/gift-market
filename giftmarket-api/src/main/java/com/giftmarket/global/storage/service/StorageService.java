@@ -141,6 +141,13 @@ public class StorageService {
         String fileName = UUID.randomUUID() + extension;
 
         return switch (storageType) {
+            case PROFILE -> {
+                if (ownerId == null) {
+                    throw new IllegalArgumentException("프로필 이미지 업로드 소유자 정보가 필요합니다.");
+                }
+                yield "profiles/" + ownerId + "/" + fileName;
+            }
+
             case PRODUCT_REPRESENTATIVE -> {
                 validateProductOwnerId(ownerId);
 
