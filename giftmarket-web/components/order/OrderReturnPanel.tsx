@@ -1,6 +1,7 @@
 "use client";
 
 import Script from "next/script";
+import Link from "next/link";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
 import { createReturnRequest } from "@/lib/return-api";
@@ -418,7 +419,8 @@ export default function OrderReturnPanel({
             )}
             {request.status === "FAILED" && (
               <p className="order-return-rejected">
-                반품 처리 중 문제가 발생했습니다. 고객센터로 문의해주세요.
+                반품 처리 중 문제가 발생했습니다.{" "}
+                <Link href="/support">고객지원 안내를 확인해주세요.</Link>
               </p>
             )}
             <div className="order-return-detail-grid">

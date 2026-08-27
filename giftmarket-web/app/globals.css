@@ -15,6 +15,7 @@
 @import "../styles/seller.css";
 @import "../styles/return.css";
 @import "../styles/exchange.css";
+@import "../styles/policy.css";
 
 :root {
   --background: #ffffff;

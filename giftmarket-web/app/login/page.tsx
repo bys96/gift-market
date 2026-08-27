@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -110,8 +111,9 @@ function LoginContent() {
         </div>
 
         <p className="login-notice">
-          로그인하면 Gift Market의 서비스 이용약관 및 개인정보 처리방침에 동의한
-          것으로 간주됩니다.
+          로그인하면 Gift Market의 <Link href="/terms">이용약관</Link> 및{" "}
+          <Link href="/privacy">개인정보처리방침</Link>에 동의한 것으로
+          간주됩니다.
         </p>
       </section>
     </main>

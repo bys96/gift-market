@@ -461,6 +461,24 @@
   font-size: 14px;
 }
 
+.layout-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-bottom: 18px;
+}
+
+.layout-footer-links a {
+  color: #333333;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.layout-footer-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ========================================
    Hover
 ======================================== */

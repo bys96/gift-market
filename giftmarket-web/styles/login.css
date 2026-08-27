@@ -133,6 +133,12 @@
   word-break: keep-all;
 }
 
+.login-notice a {
+  color: #777777;
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
 .login-loading {
   margin: 0;
   padding: 36px 0;
