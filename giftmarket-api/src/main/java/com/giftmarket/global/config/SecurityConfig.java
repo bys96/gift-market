@@ -73,17 +73,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 
-                        .requestMatchers("/api/seller/products/**")
-                        .hasRole("SELLER")
-
-                        .requestMatchers("/api/seller/orders/**")
-                        .hasRole("SELLER")
-
-                        .requestMatchers("/api/seller/dashboard")
-                        .hasRole("SELLER")
-
-                        .requestMatchers("/api/seller/product-inquiries/**")
-                        .hasRole("SELLER")
+                        .requestMatchers(
+                                "/api/seller/**",
+                                "/api/sellers/**"
+                        )
+                        .authenticated()
 
                         .requestMatchers(
                                 HttpMethod.POST,

@@ -164,11 +164,6 @@ export default function SellerProductsPage() {
       return;
     }
 
-    if (user.role !== "SELLER" && user.role !== "ADMIN") {
-      router.replace("/seller");
-      return;
-    }
-
     // 인증 완료 후 상품과 임시저장 목록을 최초 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void Promise.all([loadProducts(), loadDrafts()]);
@@ -216,8 +211,7 @@ export default function SellerProductsPage() {
   if (
     !initialized ||
     !isAuthenticated ||
-    !user ||
-    (user.role !== "SELLER" && user.role !== "ADMIN")
+    !user
   ) {
     return (
       <main className="seller-products-page">

@@ -36,9 +36,6 @@ function SellerProductCreateContent() {
       return;
     }
 
-    if (user.role !== "SELLER") {
-      router.replace("/seller");
-    }
   }, [initialized, isAuthenticated, user, router]);
 
   useEffect(() => {
@@ -46,7 +43,6 @@ function SellerProductCreateContent() {
       !initialized ||
       !isAuthenticated ||
       !user ||
-      user.role !== "SELLER" ||
       !draftIdParam
     ) {
       return;
@@ -105,7 +101,7 @@ function SellerProductCreateContent() {
     };
   }, [initialized, isAuthenticated, user, draftIdParam]);
 
-  if (!initialized || !isAuthenticated || !user || user.role !== "SELLER") {
+  if (!initialized || !isAuthenticated || !user) {
     return (
       <main className="seller-product-form-page">
         <div className="common-inner">

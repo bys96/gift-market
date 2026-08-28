@@ -53,7 +53,6 @@ export default function SellerReturnsPage() {
   useEffect(() => {
     if (!initialized) return;
     if (!isAuthenticated || !user) { router.replace("/login"); return; }
-    if (user.role !== "SELLER" && user.role !== "ADMIN") { router.replace("/seller"); return; }
     const requestId = window.setTimeout(() => void loadReturns(), 0);
     return () => window.clearTimeout(requestId);
   }, [initialized, isAuthenticated, loadReturns, router, user]);

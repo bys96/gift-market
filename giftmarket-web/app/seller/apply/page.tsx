@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   createSellerApplication,
   getMyLatestSellerApplication,
+  getMySeller,
 } from "@/lib/seller-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { SellerApplication } from "@/types/seller";
@@ -42,20 +43,20 @@ export default function SellerApplyPage() {
       return;
     }
 
-    if (user.role === "ADMIN") {
-      router.replace("/admin/seller-applications");
-      return;
-    }
-
-    if (user.role === "SELLER") {
-      router.replace("/seller/dashboard");
-      return;
-    }
-
     const checkApplication = async () => {
       try {
         setIsChecking(true);
         setPageError("");
+
+        const seller = await getMySeller();
+        if (seller?.status === "ACTIVE") {
+          router.replace("/seller/dashboard");
+          return;
+        }
+        if (seller) {
+          setPageError("현재 판매자 상태에서는 판매자센터를 이용할 수 없습니다.");
+          return;
+        }
 
         const application = await getMyLatestSellerApplication();
 
@@ -123,12 +124,16 @@ export default function SellerApplyPage() {
       setIsSubmitting(true);
       setPageError("");
 
-      await createSellerApplication({
+      const application = await createSellerApplication({
         storeName: storeName.trim(),
         introduction: introduction.trim(),
       });
 
-      router.replace("/seller/application");
+      router.replace(
+        application.status === "APPROVED"
+          ? "/seller/dashboard"
+          : "/seller/application",
+      );
     } catch (error) {
       setPageError(
         error instanceof Error ? error.message : "판매자 신청에 실패했습니다.",
@@ -142,8 +147,7 @@ export default function SellerApplyPage() {
     !initialized ||
     isChecking ||
     !isAuthenticated ||
-    !user ||
-    user.role !== "USER"
+    !user
   ) {
     return (
       <main className="seller-apply-page">
@@ -170,8 +174,8 @@ export default function SellerApplyPage() {
             </h1>
 
             <p className="seller-apply-description">
-              스토어 정보를 입력해 판매자 신청을 완료하면 관리자 심사 후 상품을
-              등록하고 판매할 수 있습니다.
+              스토어 정보를 입력해 판매자 등록 절차를 완료하면 상품을 등록하고
+              판매할 수 있습니다.
             </p>
           </header>
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { getMyLatestSellerApplication } from "@/lib/seller-api";
+import { getMyLatestSellerApplication, getMySeller } from "@/lib/seller-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { SellerApplication } from "@/types/seller";
 
@@ -40,15 +40,20 @@ export default function SellerApplicationPage() {
       return;
     }
 
-    if (user.role === "SELLER" || user.role === "ADMIN") {
-      router.replace("/seller/dashboard");
-      return;
-    }
-
     const loadApplication = async () => {
       try {
         setIsLoading(true);
         setErrorMessage("");
+
+        const seller = await getMySeller();
+        if (seller?.status === "ACTIVE") {
+          router.replace("/seller/dashboard");
+          return;
+        }
+        if (seller) {
+          setErrorMessage("현재 판매자 상태에서는 판매자센터를 이용할 수 없습니다.");
+          return;
+        }
 
         const latestApplication = await getMyLatestSellerApplication();
 
@@ -86,7 +91,6 @@ export default function SellerApplicationPage() {
     !initialized ||
     !isAuthenticated ||
     !user ||
-    user.role !== "USER" ||
     isLoading
   ) {
     return (

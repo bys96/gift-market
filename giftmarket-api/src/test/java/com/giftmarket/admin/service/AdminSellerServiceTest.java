@@ -6,6 +6,7 @@ import com.giftmarket.seller.entity.SellerApplicationStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerApplicationRepository;
 import com.giftmarket.seller.repository.SellerRepository;
+import com.giftmarket.seller.service.SellerApprovalService;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.entity.UserRole;
 import com.giftmarket.user.repository.UserRepository;
@@ -45,6 +46,9 @@ class AdminSellerServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private SellerApprovalService sellerApprovalService;
+
     private AdminSellerService service;
     private User admin;
 
@@ -52,8 +56,8 @@ class AdminSellerServiceTest {
     void setUp() {
         service = new AdminSellerService(
                 applicationRepository,
-                sellerRepository,
-                userRepository
+                userRepository,
+                sellerApprovalService
         );
         admin = mock(User.class);
         given(userRepository.findById(ADMIN_ID)).willReturn(Optional.of(admin));
@@ -117,7 +121,6 @@ class AdminSellerServiceTest {
                 .willReturn(Optional.of(approved));
         given(applicationRepository.findByIdForUpdate(202L))
                 .willReturn(Optional.of(rejected));
-        given(sellerRepository.existsByUser(approved.getUser())).willReturn(false);
         given(applicationRepository.findAllByStatus(
                 eq(SellerApplicationStatus.PENDING),
                 any(Pageable.class)
@@ -132,7 +135,7 @@ class AdminSellerServiceTest {
         var refreshed = service.getPendingApplications(ADMIN_ID, 0, 10);
 
         assertThat(refreshed.content()).isEmpty();
-        verify(approved).approve(ADMIN_ID);
+        verify(sellerApprovalService).approve(approved, admin);
         verify(rejected).reject(ADMIN_ID, "정보 보완 필요");
         verify(applicationRepository).findAllByStatus(
                 eq(SellerApplicationStatus.PENDING),

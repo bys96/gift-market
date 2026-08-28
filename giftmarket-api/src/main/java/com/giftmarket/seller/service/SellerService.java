@@ -25,6 +25,7 @@ public class SellerService {
     private final SellerApplicationRepository sellerApplicationRepository;
     private final SellerRepository sellerRepository;
     private final UserRepository userRepository;
+    private final SellerApprovalService sellerApprovalService;
 
     @Transactional
     public SellerApplicationResponse apply(
@@ -33,9 +34,10 @@ public class SellerService {
     ) {
         User user = getAuthenticatedUser(userId);
 
-        if (user.getRole() != UserRole.USER) {
+        if (user.getRole() != UserRole.USER
+                && user.getRole() != UserRole.ADMIN) {
             throw new SellerException(
-                    "일반 회원만 판매자 신청이 가능합니다."
+                    "판매자 등록 신청이 가능한 계정이 아닙니다."
             );
         }
 
@@ -66,6 +68,10 @@ public class SellerService {
 
         SellerApplication savedApplication =
                 sellerApplicationRepository.save(application);
+
+        if (user.getRole() == UserRole.ADMIN) {
+            sellerApprovalService.approve(savedApplication, user);
+        }
 
         return SellerApplicationResponse.from(savedApplication);
     }
@@ -103,10 +109,9 @@ public class SellerService {
 
     @Transactional(readOnly = true)
     public SellerResponse getMySeller(Long userId) {
-
-        Seller seller = sellerRepository.findByUserId(userId)
-                .orElseThrow(() -> new SellerException("판매자 정보를 찾을 수 없습니다."));
-
-        return SellerResponse.from(seller);
+        getAuthenticatedUser(userId);
+        return sellerRepository.findByUserId(userId)
+                .map(SellerResponse::from)
+                .orElse(null);
     }
 }

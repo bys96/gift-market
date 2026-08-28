@@ -95,12 +95,7 @@ export async function getMyLatestSellerApplication(): Promise<SellerApplication 
   return response.data;
 }
 
-export async function getMySeller(): Promise<Seller> {
-  const response = await apiFetch<ApiResponse<Seller>>("/api/sellers/me");
-
-  if (!response.data) {
-    throw new Error("판매자 정보를 확인할 수 없습니다.");
-  }
-
+export async function getMySeller(): Promise<Seller | null> {
+  const response = await apiFetch<ApiResponse<Seller | null>>("/api/sellers/me");
   return response.data;
 }

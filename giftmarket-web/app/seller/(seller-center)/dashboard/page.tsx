@@ -79,10 +79,6 @@ export default function SellerDashboardPage() {
       router.replace("/login");
       return;
     }
-    if (user.role !== "SELLER") {
-      router.replace("/seller");
-      return;
-    }
     // 인증 초기화가 완료된 시점에 서버 집계 데이터를 조회하는 의도된 effect입니다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadDashboard();

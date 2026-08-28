@@ -4,12 +4,11 @@ import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.seller.dto.request.SellerApplicationRejectRequest;
 import com.giftmarket.seller.dto.response.SellerApplicationResponse;
 import com.giftmarket.seller.dto.response.SellerApplicationPageResponse;
-import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerApplication;
 import com.giftmarket.seller.entity.SellerApplicationStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerApplicationRepository;
-import com.giftmarket.seller.repository.SellerRepository;
+import com.giftmarket.seller.service.SellerApprovalService;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.entity.UserRole;
 import com.giftmarket.user.repository.UserRepository;
@@ -26,8 +25,8 @@ public class AdminSellerService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final SellerApplicationRepository sellerApplicationRepository;
-    private final SellerRepository sellerRepository;
     private final UserRepository userRepository;
+    private final SellerApprovalService sellerApprovalService;
 
     @Transactional(readOnly = true)
     public SellerApplicationPageResponse getPendingApplications(
@@ -74,24 +73,7 @@ public class AdminSellerService {
         SellerApplication application =
                 getPendingApplication(applicationId);
 
-        User applicant = application.getUser();
-
-        if (sellerRepository.existsByUser(applicant)) {
-            throw new SellerException(
-                    "이미 등록된 판매자입니다."
-            );
-        }
-
-        application.approve(admin.getId());
-        applicant.changeRole(UserRole.SELLER);
-
-        Seller seller = Seller.create(
-                applicant,
-                application.getStoreName(),
-                application.getIntroduction()
-        );
-
-        sellerRepository.save(seller);
+        sellerApprovalService.approve(application, admin);
 
         return SellerApplicationResponse.from(application);
     }
