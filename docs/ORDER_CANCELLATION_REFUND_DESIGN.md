@@ -1,6 +1,6 @@
 # Gift Market 주문 부분취소 / 부분환불 설계
 
-> 최종 갱신: 2026-08-25
+> 최종 갱신: 2026-08-28
 >
 > 최초 설계 문서를 현재 실제 구현에 맞게 갱신한 문서다. 아래의 "현재 구현"은 저장소 코드를 기준으로 한다.
 
@@ -107,10 +107,10 @@ OrderCancellation
 `OrderItem.quantity`는 원 주문 수량 snapshot으로 유지한다.
 
 ```text
-remainingQuantity = quantity - canceledQuantity
+remainingQuantity = quantity - canceledQuantity - confirmedQuantity
 ```
 
-REQUESTED/PROCESSING 중인 요청 수량은 새 요청의 `availableCancellationQuantity`에서 추가로 차감한다.
+REQUESTED/PROCESSING 중인 요청 수량은 새 요청의 `availableCancellationQuantity`에서 추가로 차감한다. `confirmedQuantity`는 구매가 확정된 수량이므로 이후 취소 가능 수량에 다시 포함하지 않는다.
 
 ## 6. Cancellation 업무 상태
 
@@ -552,6 +552,7 @@ SellerOrder 1 : N Shipment
 - orphan recovery
 - webhook 중복/부분취소 연계
 - 기존 FULL 취소 회귀
+- 구매확정 수량 취소 차단 및 구매확정/취소 동시성 회귀
 
 ## 29. 운영 전 필수 검증
 
@@ -590,3 +591,9 @@ Cancellation 자체의 핵심 기능은 구현 완료 상태다.
 - `OrderItem.confirmedQuantity`는 Buyer 취소 가능 수량에서 제외한다.
 - 취소 요청과 구매확정은 동일한 OrderItem pessimistic lock을 사용하여 같은 수량을 동시에 소비하지 않는다.
 - 진행 중 취소 요청 수량은 구매확정 가능 수량에서도 제외한다.
+
+
+## 31. 최신 회귀 기준
+
+- 2026-08-28 최신 작업 보고 기준 Backend 전체 suite는 **511/511 성공**이다.
+- 이 숫자는 Cancellation 전용 테스트 수가 아니라 전체 프로젝트 회귀 기준이며, 이후 변경 시 실제 실행 결과를 우선한다.

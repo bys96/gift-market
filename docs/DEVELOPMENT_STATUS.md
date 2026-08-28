@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-08-27
+> 최종 갱신: 2026-08-28
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 한 배포 준비 기준점이다. 문서와 코드가 충돌하면 실제 코드가 우선한다.
 
@@ -57,9 +57,12 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - 리뷰 본문/1~5 정수 별점/이미지 0~5장, soft delete, 상품별 최신순 pagination 및 활성 리뷰 평균·개수 집계
 - Review 이미지는 `reviews/{userId}/` objectKey만 DB에 저장하고 공개 상품 리뷰 조회 시 단기 presigned GET URL로 제공
 - 판매자 신청, 관리자 승인, SELLER 권한
+- ADMIN도 별도 Seller 등록이 가능하며, 동일 등록 폼 제출 후 Backend에서 같은 transaction으로 자동 APPROVED + ACTIVE Seller 생성. ADMIN role은 유지
+- Seller Center 접근의 최종 기준은 role이 아니라 `/api/sellers/me`의 ACTIVE Seller 여부이며, Backend Seller API는 인증 후 Service에서 ACTIVE Seller/ownership을 검증
 - 관리자 판매자 신청 목록은 `page`/`size` 기반 server pagination이며 `createdAt DESC, id DESC`로 정렬
 - 판매자센터와 상품·주문·클레임 관리
 - Seller Dashboard 실데이터 집계와 처리 필요 업무 Action Center
+- Seller Center redirect loop 및 ADMIN Seller API 403 불일치 정리
 
 ### 상품 / 옵션 / Variant
 
@@ -69,6 +72,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - 과거 `OrderItem.variant` 참조와 `optionSnapshot` 유지
 - Buyer 상품 조회에는 active Variant만 노출
 - Buyer 상품 목록은 URL에서 페이지당 20/50/100개 선택을 유지하며 Backend는 최대 100개로 제한
+- 공통 `Pagination`은 `<< < 숫자 최대 5개 > >>` 정책으로 통일하며 URL Link/local state/summary/scroll 동작을 유지
 - Product 총재고는 active Variant 재고 합계로 동기화
 - 현재 옵션 구조와 같은 `combinationKey`의 inactive Variant는 기존 ID로 재활성화
 - `(product_id, combination_key)` unique로 중복 조합 방지
@@ -132,7 +136,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
 - 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 전체 suite: **503 tests / 503 success / 0 failure / 0 error**
+- 최신 작업 보고 기준 전체 suite: **511 tests / 511 success / 0 failure / 0 error**
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend
@@ -141,6 +145,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 - `npx tsc --noEmit`: 성공
 - `npm run build`: 성공
 - Next.js 정적 페이지 **34개** 생성 성공
+- 공통 Pagination/조회 상태 UX 수정 후 lint/tsc/build 재검증 성공
 - `/products`, `/login`, `/order`, `/seller/products/new`의 `useSearchParams` 렌더링 경로는 Suspense boundary 적용 완료
 
 ### 실제 E2E
@@ -179,6 +184,9 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 8. EC2 등 staging 배포 후 Return/Exchange 포함 전체 E2E
 9. 운영 로그·지표·경보·백업과 장애 runbook
 10. SELLER 귀책 Exchange 및 실제 timeout/5xx 보상 흐름 E2E
+11. `NEXT_PUBLIC_STORAGE_BASE_URL` 누락/오설정을 단순 이미지 없음으로 숨기지 않도록 운영 설정 오류 관측성 개선
+12. Modal 키보드 접근성(Escape/focus)과 Seller Sidebar 모바일 UX 최종 점검
+13. `/support`, `/terms`, `/privacy`의 실제 사업자/문의/개인정보 담당 정보 배포 전 확정
 
 ## 7. 운영 전 주의사항
 
@@ -188,3 +196,14 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 - 기존 주문 Payment, PaymentCancellation, ExchangeShippingPayment의 역할을 섞지 않는다.
 - ProductVariant와 과거 주문 참조를 물리 삭제하지 않는다.
 - 운영환경에서 `ddl-auto:update`를 migration 전략으로 사용하지 않는다.
+
+
+## 8. 2026-08-28 마감 변경
+
+- ADMIN Seller 미등록 시 일반 Seller 등록 폼을 사용하며 ADMIN 신청은 자동 승인한다.
+- 일반 관리자 승인과 ADMIN 자동승인은 `SellerApprovalService` 공통 primitive를 사용한다.
+- `/api/seller/**`, `/api/sellers/**`는 authenticated matcher로 통과하고 실제 ACTIVE Seller/ownership 검증은 Service가 담당한다.
+- 공통 Pagination의 기본 page window는 최대 5개이며 처음/이전/다음/마지막 이동을 제공한다.
+- 리뷰, Buyer/Seller 문의, Admin 판매자 신청의 loading/error 숫자 표시는 실제 0과 구분한다.
+- Buyer 상품문의 삭제로 현재 페이지가 사라지는 경우 마지막 유효 페이지로 보정한다.
+- Backend schema/API 변경 없이 Frontend 마감 작업은 lint/TypeScript/build를 통과했다.

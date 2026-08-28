@@ -1,32 +1,85 @@
 # 문서 최신화 변경 요약
 
-기준 소스: 사용자가 2026-08-20 제공한 최신 `gift-market.zip` 실제 코드.
+> 갱신일: 2026-08-28
+>
+> 기준: 사용자가 2026-08-28 제공한 최신 `gift-market.zip` 실제 코드 + 같은 날 완료 보고된 회귀 검증 결과.
+> 문서와 코드가 충돌하면 실제 코드가 우선한다.
 
 ## 교체 대상
 
 - `AGENTS.md`
 - `docs/DEVELOPMENT_STATUS.md`
 - `docs/ORDER_CANCELLATION_REFUND_DESIGN.md`
+- `docs/ORDER_RETURN_EXCHANGE_DESIGN.md`
 - `docs/PAYMENT_ARCHITECTURE_DESIGN.md`
+- `docs/TROUBLESHOOTING.md`
+- `DOCS_UPDATE_NOTES.md`
 
-## 주요 정정
+## 2026-08-28 주요 최신화
 
-- `/api/orders/**`, `/api/payments/**`, `/api/addresses/**`가 authenticated가 아니라는 오래된 AGENTS 설명 제거
-- Payment READY 자동 만료가 미구현이라는 오래된 설명 제거
-- CONFIRMING reconciliation 미구현 설명 제거
-- Toss webhook 미구현 설명 제거
-- 전체취소/PaymentCancellation 미구현 설명 제거
-- 부분취소/부분환불 미구현 설명 제거
-- `PaymentStatus.PARTIALLY_CANCELED` 현재 구현 반영
-- `PaymentCancellationType.FULL/PARTIAL` 현재 구현 반영
-- Toss `cancelAmount`, `PARTIAL_CANCELED`, `isPartialCancelable`, `cancels[]` 처리 반영
-- 부분 재고복원 `restoreCancellationItems(...)` 반영
-- PARTIAL reconciliation/webhook/orphan recovery 반영
-- 구매자/판매자 cancellation UI 완료 반영
-- SHIPPED/DELIVERED 반품·교환은 미구현으로 유지
-- 운영 전 공개 staging + 상점용 Toss test key 통합 검증 TODO 유지
-- versioned DB migration 도입 TODO 유지
+### Seller / ADMIN
 
-## 검증 제한
+- ADMIN도 Seller 등록 가능
+- ADMIN은 Seller 등록 폼을 동일하게 사용하되 신청 transaction에서 자동 APPROVED
+- ADMIN role 유지 + ACTIVE Seller 생성
+- 일반 관리자 승인과 ADMIN 자동승인은 `SellerApprovalService` 공통 primitive 사용
+- Seller Center 최종 접근 기준은 role이 아니라 ACTIVE Seller 존재 여부
+- `/api/seller/**`, `/api/sellers/**`는 authenticated 후 Service에서 ACTIVE Seller/ownership 검증
+- 기존 `ADMIN + ACTIVE Seller` DB row 호환
+- redirect loop 및 Backend 403 정책 불일치 해결 반영
 
-문서 최신화 중 Backend 테스트를 다시 실행하려 했으나, 현재 실행 환경에 Gradle 9.5.1 배포본이 캐시되어 있지 않고 외부 네트워크가 차단되어 wrapper download 단계에서 실패했다. 코드 테스트 실패로 판단하지 않았다.
+### Pagination / 조회 UX
+
+- 공통 Pagination: `<< < 숫자 최대 5개 > >>`
+- 0-based, URL Link/local state/summary/scroll 호환 유지
+- 리뷰 전체 page 번호 override 제거
+- loading/API error를 `0건`, `0.0점`으로 오인하지 않게 수정
+- Buyer 상품문의 삭제 후 사라진 마지막 page 자동 보정
+
+### 주문 / Claim 정합성
+
+- `confirmedQuantity`를 Cancellation/Return/Exchange 가능 수량에서 제외하도록 문서 공식 보정
+- 완료 Exchange 수량은 최종 보유 수량으로 구매확정 가능하다는 기존 정책 유지
+- Return/Exchange는 구현 완료 상태 유지
+- PaymentCancellation PARTIAL, ExchangeShippingPayment, Shipment 1:N 구조 유지
+
+### 테스트 / 빌드 기준
+
+최신 작업 보고 기준:
+
+- Backend: **511 tests / 511 success**
+- Frontend lint: 성공
+- `npx tsc --noEmit`: 성공
+- Frontend build: 성공
+- Next.js 정적 페이지: **34개**
+
+이 숫자는 이후 변경 시 실제 실행 결과를 우선한다.
+
+## TROUBLESHOOTING 추가
+
+- ADMIN Seller redirect loop / 403 권한 불일치
+- Pagination page 번호 과다 렌더링
+- API 실패를 0건/0.0으로 오인
+- Buyer 문의 삭제 후 invalid page
+- `.next` stale cache의 CSS module resolution 사례
+- 상품 상세 새 진입 scroll / 목록 back-scroll 경계
+- Profile objectKey 사용자 prefix 보안
+- localStorage Wishlist의 사용자 간 공유/노후화 문제와 Backend 이전
+- `NEXT_PUBLIC_STORAGE_BASE_URL` 누락 시 이미지 설정 오류가 숨겨지는 미해결 후속
+
+## 여전히 배포 전 TODO
+
+- 공개 HTTPS staging
+- 실제 상점용 Toss test key/webhook 외부 회귀
+- SELLER 귀책 Exchange 실제 E2E
+- timeout/5xx 실제 장애 E2E
+- MinIO 외부 endpoint/bucket/CORS/영속성
+- production versioned DB migration
+- 운영 log/metric/alert/runbook
+- Storage base URL 설정 오류 관측성
+- Modal 접근성 / Seller Sidebar 모바일 UX
+- support/terms/privacy 실제 운영 정보 확정
+
+## 보안
+
+문서 최신화 및 코드 점검 시 실제 `.env`, secret, API key, token, credential은 읽거나 출력하지 않는다.

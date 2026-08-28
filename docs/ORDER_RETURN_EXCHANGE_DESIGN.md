@@ -16,7 +16,7 @@
 - 안전하게 미결제가 확정된 만료만 CANCELED로 전이하며 target stock 복원과 `releasedQuantity` 증가를 같은 transaction에서 수행한다.
 - release lock은 OrderItem id -> Product id -> Variant id 순서다. CANCELED 뒤 늦은 성공은 COLLECTING으로 되돌리지 않고 compensation 대상으로 기록한다.
 
-> 최종 갱신: 2026-08-25
+> 최종 갱신: 2026-08-28
 >
 > 기준 우선순위: 현재 실제 코드 > 최신 문서 > 인수인계 내용.
 > 이 문서는 현재 `gift-market` 코드의 주문/결제/취소/재고/배송 구조를 유지하면서 실제 운영 가능한 반품·교환 기능을 추가하기 위한 확정 설계다.
@@ -583,6 +583,7 @@ availableReturnQuantity
 = quantity
 - canceledQuantity
 - returnedQuantity
+- confirmedQuantity
 - activeReturnRequestQuantity
 - activeExchangeRequestQuantity
 ```
@@ -595,6 +596,7 @@ availableExchangeQuantity
 - canceledQuantity
 - returnedQuantity
 - exchangedQuantity (`OrderItem`의 COMPLETED 교환 누계 source of truth)
+- confirmedQuantity
 - activeReturnQuantity
 - activeExchangeQuantity
 ```
@@ -1558,6 +1560,7 @@ Frontend 단계 후:
 
 ```bash
 npm run lint
+npx tsc --noEmit
 npm run build
 ```
 
@@ -1668,7 +1671,7 @@ Shipment 핵심 테스트:
 ```
 
 Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증, Return Backend 1~7, Buyer/Seller Return Frontend, Return 증빙 이미지와 실제 Return 정상 E2E까지 완료됐다.
-Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 24시간 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환과 Toss 6,000원 추가결제를 포함한 실제 정상 E2E도 확인했다. 최신 Backend 전체 자동 테스트 기준은 357개 성공이며, SELLER 귀책 및 실제 timeout/5xx 장애 E2E와 공개 staging 검증은 남아 있다.
+Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 24시간 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환과 Toss 6,000원 추가결제를 포함한 실제 정상 E2E도 확인했다. 최신 작업 보고 기준 Backend 전체 자동 테스트는 511개 성공이며, SELLER 귀책 및 실제 timeout/5xx 장애 E2E와 공개 staging 검증은 남아 있다.
 # 구매확정과 반품·교환 수량
 
 - 구매확정은 `OrderItem.confirmedQuantity` 단위로 관리한다.
@@ -1676,3 +1679,11 @@ Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAY
 - 진행 중 반품·교환 수량은 구매확정 가능 수량에서도 제외한다.
 - 완료된 교환 수량은 구매가 소멸한 수량이 아니며, 교환 재배송 완료 후 구매확정 대상에 포함된다.
 - 구매확정 취소와 자동 구매확정은 현재 범위에 포함하지 않는다.
+
+
+## 35. 2026-08-28 회귀 메모
+
+- `confirmedQuantity`는 Return/Exchange 신청 가능 수량에서 제외한다.
+- 진행 중 Return/Exchange 점유 수량은 구매확정 가능 수량에서도 제외한다.
+- 완료 Exchange 수량은 최종 보유 수량이므로 구매확정 가능 수량 계산에서 별도 정책대로 다시 포함된다.
+- 최신 작업 보고 기준 전체 Backend suite는 **511/511 성공**이며, Frontend lint/tsc/build도 성공했다.

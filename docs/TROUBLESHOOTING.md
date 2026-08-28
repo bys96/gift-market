@@ -1,6 +1,6 @@
 # Gift Market 개발 트러블슈팅 기록
 
-> 최종 갱신: 2026-08-25
+> 최종 갱신: 2026-08-28
 >
 > 실제 코드, 기존 설계 문서와 git 이력에서 확인되는 문제와 해결 구조를 보존한다. 최종 운영 runbook이 아니며 운영 staging 검증 전 항목을 완료로 간주하지 않는다.
 
@@ -209,7 +209,7 @@ effectiveReserved = reservedQuantity - releasedQuantity - consumedQuantity
 
 Next.js production build의 정적 페이지 생성 단계에서 `useSearchParams() should be wrapped in a suspense boundary` 오류가 발생했다. query 처리 로직이나 SSR/cache 정책을 바꾸지 않고 `/products`, `/login`, `/order`, `/seller/products/new`의 query-dependent Client Content를 기존 page의 `Suspense` 경계 아래 배치했다.
 
-검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 정적 페이지 29개를 포함한 production build가 성공했다.
+검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 production build가 정상화됐고, 2026-08-28 최신 검증에서는 정적 페이지 34개 생성까지 성공했다.
 
 # DB / 개발환경
 
@@ -234,3 +234,126 @@ MySQL Safe Update Mode Error 1175 사례의 정확한 실행 쿼리와 해결 �
 - Return PARTIAL PG 환불, 결과 불명 reconciliation와 webhook 연결
 - Return returnedQuantity, RESTOCKABLE 재고복원, completion recovery와 COMPLETED 구현
 - 현재: Return과 Exchange Buyer/Seller workflow·Frontend 완료, Return 정상 E2E와 BUYER 귀책 Exchange/Toss 6,000원 추가결제 정상 E2E 확인. SELLER 귀책 및 실제 timeout/5xx 장애 E2E, 공개 staging 전체 회귀는 미검증
+
+
+# Seller / 권한
+
+## ADMIN Seller Center redirect loop와 403 불일치
+
+### 상황 / 증상
+
+ADMIN도 실제 판매자로 등록해 상점을 운영할 수 있는 정책인데, Frontend 일부 경로는 ADMIN을 Seller Center로 보내고 다른 경로는 SELLER만 허용해 `/seller` ↔ `/seller/dashboard` redirect loop가 발생할 수 있었다. 또한 Frontend가 ADMIN을 허용해도 Backend `/api/seller/**`가 `ROLE_SELLER` 전용이면 ADMIN + ACTIVE Seller가 403을 받았다.
+
+### 해결 / 현재 적용 구조
+
+- Seller Center의 최종 접근 기준을 user role이 아니라 현재 사용자 소유 `ACTIVE Seller` 존재 여부로 통일
+- `/api/seller/**`, `/api/sellers/**`는 authenticated matcher로 통과
+- 실제 Service에서 ACTIVE Seller 존재, Seller ownership, 상품/주문/문의/클레임 ownership을 검증
+- ADMIN이라는 이유만으로 Seller API를 허용하지 않음
+- ADMIN 미등록은 동일 Seller 등록 폼을 거치고 Backend에서 신청 row 저장 후 같은 transaction으로 자동 승인
+- ADMIN role은 유지하고 ACTIVE Seller만 생성
+- 일반 관리자 승인과 ADMIN 자동승인은 `SellerApprovalService`를 재사용하며 `Propagation.MANDATORY`로 신청 transaction 안에서 실행
+- 기존 SQL로 이미 생성된 `ADMIN + ACTIVE Seller`도 application 이력 없이 Seller Center 진입 가능
+
+Frontend 일부 상세 page에는 `SELLER || ADMIN` 보조 guard가 남아 있을 수 있으나 최종 권한 source of truth는 공통 Seller Center layout과 Backend Service 검증이다.
+
+# Frontend Pagination / 목록 상태
+
+## Pagination page 번호 과다 렌더링
+
+### 상황 / 증상
+
+상품 리뷰에서 `pageWindowSize={totalPages}`처럼 전체 page 번호를 렌더링하거나 일부 화면이 공통 기본 정책을 override해 page 수가 커질수록 Pagination이 길어질 수 있었다.
+
+### 해결 / 현재 적용 구조
+
+공통 `components/common/Pagination.tsx` 기본 정책을 다음으로 통일했다.
+
+```text
+<<  <  3  4  [5]  6  7  >  >>
+```
+
+- 내부 page 0-based 유지
+- 숫자 최대 5개
+- 처음/이전/다음/마지막 버튼 제공
+- 경계에서는 disabled
+- URL Link / local `onPageChange` / summary / scroll 호환 유지
+- 화면별 불필요한 `pageWindowSize` override 제거
+
+## API 실패를 0건/0.0점으로 오인
+
+### 상황 / 증상
+
+리뷰 평균·개수, Buyer/Seller 문의 개수, Admin 판매자 신청 개수가 loading 또는 API error에서도 `0`, `0.0`처럼 보이면 실제 데이터가 없는 것과 서버 조회 실패를 구분할 수 없었다.
+
+### 해결
+
+정상 응답의 실제 0일 때만 0을 표시하고 loading/error/미조회 상태는 `-` 또는 기존 error UI로 구분한다.
+
+## Buyer 상품문의 삭제 후 존재하지 않는 page 유지
+
+### 상황 / 증상
+
+마지막 page에 1개만 남은 문의를 삭제해 `totalPages`가 감소하면 현재 page가 범위를 벗어나 빈 목록에 남을 수 있었다.
+
+### 해결
+
+삭제 후 목록을 다시 조회하고 현재 page가 새 `totalPages` 범위를 벗어나면 마지막 유효 page로 이동한다. 유효한 page면 그대로 유지한다.
+
+# Frontend cache / navigation
+
+## `.next` stale cache로 존재하는 CSS import를 찾지 못함
+
+### 상황 / 증상
+
+실제 파일이 존재하는데 production/dev build에서 `Can't resolve './product/inquiry.css'` 같은 module resolution 오류가 발생한 사례가 있었다.
+
+### 확인 / 해결
+
+소스 import와 파일 경로가 실제로 일치하는지 먼저 확인한 뒤, 코드 문제가 아니라 stale `.next` cache로 판단되면 `.next`를 삭제하고 다시 build한다.
+
+```bash
+rm -rf .next
+npm run build
+```
+
+파일이 실제로 없거나 대소문자 경로가 틀린 경우까지 cache 문제로 단정하지 않는다.
+
+## 상품 상세 진입 시 이전 목록 scroll 위치가 남는 문제
+
+목록의 `scroll=false` 필터/페이지 이동과 브라우저 뒤로가기 scroll 복원은 유지하면서, 다른 상품 ID의 상세 page에 새로 진입할 때만 최초 진입 기준 scroll top을 적용한다. 전역적으로 scroll restoration을 끄지 않는다.
+
+# Storage / 사용자 데이터
+
+## Profile objectKey 소유권 경계
+
+### 위험
+
+프로필 objectKey를 단순 UUID 경로로만 저장/삭제하면 다른 사용자의 key를 잘못 참조하거나 삭제 대상으로 오인할 여지가 있다.
+
+### 현재 적용 구조
+
+- 신규 프로필 key: `profiles/{userId}/{uuid}.{ext}`
+- 저장/삭제 시 현재 사용자 prefix 검증
+- path traversal/subpath 형태 차단
+- legacy `profile/{uuid}`는 읽기 호환만 유지
+- legacy key는 신규 저장 또는 자동 삭제 대상으로 사용하지 않음
+
+## localStorage Wishlist의 사용자 간 공유/상태 노후화
+
+### 위험
+
+브라우저 localStorage만 source of truth로 사용하면 같은 브라우저에서 계정이 바뀔 때 wishlist가 섞일 수 있고, 상품의 최신 판매상태/가격과도 어긋날 수 있다.
+
+### 현재 적용 구조
+
+Wishlist를 user-scoped Backend API로 이전하고 서버를 source of truth로 사용한다. 비로그인 사용자는 로그인 흐름으로 보내며 상품 최신 상태는 Backend 조회 결과를 반영한다.
+
+## `NEXT_PUBLIC_STORAGE_BASE_URL` 누락 시 이미지가 조용히 사라짐 — 아직 후속
+
+현재 `resolveImageUrl()`은 objectKey인데 `NEXT_PUBLIC_STORAGE_BASE_URL`이 없으면 `null`을 반환한다. 배포 설정 오류가 실제 이미지 없음처럼 보일 수 있으므로, 배포 전 개발/운영 환경에서 설정 오류를 더 명확히 관측할 수 있는 방식으로 보완할 필요가 있다. 아직 해결 완료 항목으로 기록하지 않는다.
+
+# 최신 검증 메모
+
+- 2026-08-28 최신 작업 보고: Backend **511/511**, Frontend lint/tsc/build 성공, 정적 페이지 34개.
+- 실제 Secret 파일은 문서 점검 과정에서 읽거나 출력하지 않는다.

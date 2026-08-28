@@ -6,7 +6,7 @@
 
 PG 호출은 transaction 밖에서 수행한다. 명시 거절만 FAILED로 기록하고 Exchange는 PAYMENT_PENDING을 유지한다. 네트워크/5xx/빈 응답은 REQUESTED와 reservation을 유지하며 paymentKey 조회 reconciliation 대상으로 둔다. 예외적으로 REQUESTED에 paymentKey가 없으면 Toss orderId 조회로 복구하며 404/불명은 REQUESTED를 유지한다. 만료 처리도 reconciliation이 성공/불명확을 배제하기 전에는 release하지 않는다. 만료 뒤 늦은 성공은 `COMPENSATION_REQUIRED`로 기록하고 Exchange를 되살리지 않는다.
 
-> 최종 갱신: 2026-08-25
+> 최종 갱신: 2026-08-28
 >
 > 이 문서는 현재 실제 Payment 구현을 기준으로 정리한 아키텍처 문서다. 과거 단계별 TODO보다 현재 코드가 우선한다.
 
@@ -660,3 +660,10 @@ Payment 변경에서 다음을 동시에 보호한다.
 - SellerOrder 배송 lifecycle
 
 부분취소를 이유로 기존 FULL 취소 코드를 전면 재작성하지 않는다.
+
+
+## 33. 최신 회귀 기준
+
+- 2026-08-28 최신 작업 보고 기준 Backend 전체 suite는 **511/511 성공**이다.
+- Frontend `npm run lint`, `npx tsc --noEmit`, `npm run build`가 성공했고 정적 페이지 34개가 생성됐다.
+- 이 문서의 Payment/PG 구조에는 2026-08-28 Seller/Pagination 마감 작업으로 인한 API/DB 변경이 없다.
