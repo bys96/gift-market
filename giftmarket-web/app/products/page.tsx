@@ -694,7 +694,6 @@ function ProductsContent() {
             totalPages={productPage.totalPages}
             ariaLabel="상품 목록 페이지"
             mode="numbers"
-            pageWindowSize={5}
             getPageHref={(pageNumber) => createProductsUrl({ page: pageNumber })}
             scroll={false}
             className="product-page-pagination"

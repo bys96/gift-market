@@ -167,7 +167,6 @@ function MyOrdersContent() {
             totalPages={orderPage.totalPages}
             ariaLabel="주문 내역 페이지"
             mode="numbers"
-            pageWindowSize={5}
             getPageHref={createOrdersUrl}
             scroll={false}
             disabled={isLoading}

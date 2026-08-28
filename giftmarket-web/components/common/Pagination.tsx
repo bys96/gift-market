@@ -10,6 +10,7 @@ export interface PaginationProps {
   mode?: "numbers" | "summary";
   pageWindowSize?: number;
   showPreviousNext?: boolean;
+  showFirstLast?: boolean;
   onPageChange?: (page: number) => void;
   getPageHref?: (page: number) => string;
   scroll?: boolean;
@@ -24,6 +25,7 @@ export default function Pagination({
   mode = "summary",
   pageWindowSize = 5,
   showPreviousNext = true,
+  showFirstLast = true,
   onPageChange,
   getPageHref,
   scroll,
@@ -37,9 +39,11 @@ export default function Pagination({
     Math.max(0, currentPage),
     totalPages - 1,
   );
-  const safeWindowSize = Math.max(1, Math.floor(pageWindowSize));
-  const windowStart =
-    Math.floor(safeCurrentPage / safeWindowSize) * safeWindowSize;
+  const safeWindowSize = Math.min(5, Math.max(1, Math.floor(pageWindowSize)));
+  const windowStart = Math.min(
+    Math.max(0, safeCurrentPage - Math.floor(safeWindowSize / 2)),
+    Math.max(0, totalPages - safeWindowSize),
+  );
   const windowEnd = Math.min(windowStart + safeWindowSize, totalPages);
   const pageNumbers = Array.from(
     { length: windowEnd - windowStart },
@@ -49,7 +53,12 @@ export default function Pagination({
   const renderItem = (
     page: number,
     label: string | number,
-    options: { active?: boolean; unavailable?: boolean; className?: string } = {},
+    options: {
+      active?: boolean;
+      unavailable?: boolean;
+      className?: string;
+      ariaLabel: string;
+    },
   ) => {
     const unavailable = disabled || options.unavailable;
     const itemClassName = [
@@ -67,6 +76,7 @@ export default function Pagination({
           scroll={scroll}
           className={itemClassName || undefined}
           aria-current={options.active ? "page" : undefined}
+          aria-label={options.ariaLabel}
           aria-disabled={unavailable || undefined}
           tabIndex={unavailable ? -1 : undefined}
           onClick={(event) => {
@@ -86,6 +96,7 @@ export default function Pagination({
         className={itemClassName || undefined}
         disabled={unavailable || !onPageChange}
         aria-current={options.active ? "page" : undefined}
+        aria-label={options.ariaLabel}
         onClick={() => onPageChange?.(page)}
       >
         {label}
@@ -95,10 +106,18 @@ export default function Pagination({
 
   return (
     <nav className={className} aria-label={ariaLabel}>
+      {showFirstLast &&
+        renderItem(0, "<<", {
+          unavailable: safeCurrentPage === 0,
+          className: "pagination-control pagination-first",
+          ariaLabel: "첫 페이지",
+        })}
+
       {showPreviousNext &&
-        renderItem(Math.max(0, safeCurrentPage - 1), "이전", {
+        renderItem(Math.max(0, safeCurrentPage - 1), "<", {
           unavailable: safeCurrentPage === 0,
           className: "pagination-control",
+          ariaLabel: "이전 페이지",
         })}
 
       {mode === "summary" ? (
@@ -112,6 +131,7 @@ export default function Pagination({
               {renderItem(pageNumber, pageNumber + 1, {
                 active: pageNumber === safeCurrentPage,
                 className: "pagination-number",
+                ariaLabel: `${pageNumber + 1} 페이지`,
               })}
             </span>
           ))}
@@ -119,9 +139,17 @@ export default function Pagination({
       )}
 
       {showPreviousNext &&
-        renderItem(Math.min(totalPages - 1, safeCurrentPage + 1), "다음", {
+        renderItem(Math.min(totalPages - 1, safeCurrentPage + 1), ">", {
           unavailable: safeCurrentPage === totalPages - 1,
           className: "pagination-control",
+          ariaLabel: "다음 페이지",
+        })}
+
+      {showFirstLast &&
+        renderItem(totalPages - 1, ">>", {
+          unavailable: safeCurrentPage === totalPages - 1,
+          className: "pagination-control pagination-last",
+          ariaLabel: "마지막 페이지",
         })}
     </nav>
   );

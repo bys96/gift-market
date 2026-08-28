@@ -202,7 +202,9 @@ export default function AdminSellerApplicationsPage() {
             <div className="admin-seller-count">
               <span className="admin-seller-count-label">심사 대기</span>
               <strong className="admin-seller-count-value">
-                {applicationPage?.totalElements ?? 0}
+                {isLoading || errorMessage || !applicationPage
+                  ? "-"
+                  : applicationPage.totalElements}
               </strong>
               <span className="admin-seller-count-unit">건</span>
             </div>
