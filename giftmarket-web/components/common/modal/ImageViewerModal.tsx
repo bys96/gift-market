@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import Modal from "@/components/common/modal/Modal";
 
@@ -25,12 +25,6 @@ export default function ImageViewerModal({
     Math.min(Math.max(initialIndex, 0), images.length - 1),
   );
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    setCurrentIndex(
-      Math.min(Math.max(initialIndex, 0), Math.max(images.length - 1, 0)),
-    );
-  }, [images.length, initialIndex]);
 
   if (images.length === 0) return null;
 

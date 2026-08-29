@@ -55,7 +55,7 @@ type GalleryImageItem =
       id: string;
       kind: "existing";
       objectKey: string;
-      previewUrl: string;
+      previewUrl: string | null;
     }
   | {
       id: string;
@@ -188,22 +188,12 @@ function createInitialForm(product?: SellerProduct): ProductFormState {
 function createExistingGalleryImages(
   product?: SellerProduct,
 ): GalleryImageItem[] {
-  return (product?.galleryImageKeys ?? []).flatMap((objectKey) => {
-    const previewUrl = resolveImageUrl(objectKey);
-
-    if (!previewUrl) {
-      return [];
-    }
-
-    return [
-      {
-        id: createImageId(),
-        kind: "existing" as const,
-        objectKey,
-        previewUrl,
-      },
-    ];
-  });
+  return (product?.galleryImageKeys ?? []).map((objectKey) => ({
+    id: createImageId(),
+    kind: "existing" as const,
+    objectKey,
+    previewUrl: resolveImageUrl(objectKey),
+  }));
 }
 
 const INITIAL_OPTION_EDITOR_STATE: ProductOptionEditorState = {
@@ -904,10 +894,6 @@ export default function ProductForm({
 
       const previewUrl = resolveImageUrl(objectKey);
 
-      if (!previewUrl) {
-        continue;
-      }
-
       nextGalleryImages.push({
         id: createImageId(),
         kind: "existing",
@@ -1108,24 +1094,12 @@ export default function ProductForm({
       }
     });
 
-    const restoredGalleryImages = draft.galleryImageKeys.flatMap(
-      (objectKey) => {
-        const previewUrl = resolveImageUrl(objectKey);
-
-        if (!previewUrl) {
-          return [];
-        }
-
-        return [
-          {
-            id: createImageId(),
-            kind: "existing" as const,
-            objectKey,
-            previewUrl,
-          },
-        ];
-      },
-    );
+    const restoredGalleryImages = draft.galleryImageKeys.map((objectKey) => ({
+      id: createImageId(),
+      kind: "existing" as const,
+      objectKey,
+      previewUrl: resolveImageUrl(objectKey),
+    }));
 
     setGalleryImages(restoredGalleryImages);
 
@@ -1204,22 +1178,12 @@ export default function ProductForm({
     setRepresentativePreviewUrl(resolveImageUrl(draft.representativeImageKey));
 
     setGalleryImages(
-      draft.galleryImageKeys.flatMap((objectKey) => {
-        const previewUrl = resolveImageUrl(objectKey);
-
-        if (!previewUrl) {
-          return [];
-        }
-
-        return [
-          {
-            id: createImageId(),
-            kind: "existing" as const,
-            objectKey,
-            previewUrl,
-          },
-        ];
-      }),
+      draft.galleryImageKeys.map((objectKey) => ({
+        id: createImageId(),
+        kind: "existing" as const,
+        objectKey,
+        previewUrl: resolveImageUrl(objectKey),
+      })),
     );
 
     setDraftOptionState({
@@ -1259,7 +1223,7 @@ export default function ProductForm({
         optionConfiguration.totalStockQuantity,
       );
 
-      if (startSale && !representativePreviewUrl) {
+      if (startSale && !representativeFile && !representativeImageKey) {
         throw new Error("판매를 시작하려면 대표 이미지를 등록해주세요.");
       }
 
@@ -1528,16 +1492,18 @@ export default function ProductForm({
                     disabled={isSubmitting}
                   />
 
-                  {representativePreviewUrl ? (
+                  {representativeFile || representativeImageKey ? (
                     <div className="seller-product-representative-preview">
                       <div className="seller-product-representative-image">
-                        <Image
-                          src={representativePreviewUrl}
-                          alt="대표 이미지 미리보기"
-                          fill
-                          sizes="320px"
-                          unoptimized
-                        />
+                        {representativePreviewUrl && (
+                          <Image
+                            src={representativePreviewUrl}
+                            alt="대표 이미지 미리보기"
+                            fill
+                            sizes="320px"
+                            unoptimized
+                          />
+                        )}
                       </div>
 
                       <div className="seller-product-image-information">
@@ -1611,13 +1577,15 @@ export default function ProductForm({
                         className="seller-product-gallery-image-card"
                       >
                         <div className="seller-product-gallery-image-preview">
-                          <Image
-                            src={image.previewUrl}
-                            alt={`갤러리 이미지 ${index + 1}`}
-                            fill
-                            sizes="180px"
-                            unoptimized
-                          />
+                          {image.previewUrl && (
+                            <Image
+                              src={image.previewUrl}
+                              alt={`갤러리 이미지 ${index + 1}`}
+                              fill
+                              sizes="180px"
+                              unoptimized
+                            />
+                          )}
                           <span>{index + 1}</span>
                         </div>
 

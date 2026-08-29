@@ -87,9 +87,11 @@ export default function Modal({
   const initialFocusRefRef = useRef(initialFocusRef);
   const [isMounted, setIsMounted] = useState(false);
 
-  onCloseRef.current = onClose;
-  closeOnEscapeRef.current = closeOnEscape;
-  initialFocusRefRef.current = initialFocusRef;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    closeOnEscapeRef.current = closeOnEscape;
+    initialFocusRefRef.current = initialFocusRef;
+  }, [closeOnEscape, initialFocusRef, onClose]);
 
   useEffect(() => {
     const modalId = modalIdRef.current;
@@ -100,6 +102,8 @@ export default function Modal({
 
     modalStack.push(modalId);
     lockBodyScroll();
+    // Portal target은 client mount 이후에만 사용할 수 있다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
 
     const isTopmostModal = () => modalStack.at(-1) === modalId;
