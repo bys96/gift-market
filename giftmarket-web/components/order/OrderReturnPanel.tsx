@@ -3,7 +3,7 @@
 import Script from "next/script";
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
+import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import { createReturnRequest } from "@/lib/return-api";
 import { uploadImage } from "@/lib/storage-api";
 import type { BuyerSellerOrder } from "@/types/order";
@@ -675,7 +675,7 @@ export default function OrderReturnPanel({
         </div>
       )}
       {viewer && (
-        <ReturnImageViewerModal
+        <ImageViewerModal
           images={viewer.images}
           initialIndex={viewer.initialIndex}
           onClose={() => setViewer(null)}

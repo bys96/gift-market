@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect } from "react";
+import { useRef } from "react";
+
+import Modal from "@/components/common/modal/Modal";
 
 interface ProductImageModalProps {
   imageUrl: string;
@@ -14,33 +16,18 @@ export default function ProductImageModal({
   productName,
   onClose,
 }: ProductImageModalProps) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    const originalOverflow = document.body.style.overflow;
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div
-      className="product-image-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${productName} 이미지 확대`}
-      onClick={onClose}
+    <Modal
+      overlayClassName="product-image-modal"
+      contentClassName="product-image-modal-content"
+      ariaLabel={`${productName} 이미지 확대`}
+      initialFocusRef={closeButtonRef}
+      onClose={onClose}
     >
       <button
+        ref={closeButtonRef}
         type="button"
         className="product-image-modal-close"
         aria-label="이미지 확대 닫기"
@@ -49,19 +36,14 @@ export default function ProductImageModal({
         ×
       </button>
 
-      <div
-        className="product-image-modal-content"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <Image
-          src={imageUrl}
-          alt={`${productName} 확대 이미지`}
-          fill
-          priority
-          sizes="100vw"
-          className="product-image-modal-image"
-        />
-      </div>
-    </div>
+      <Image
+        src={imageUrl}
+        alt={`${productName} 확대 이미지`}
+        fill
+        priority
+        sizes="100vw"
+        className="product-image-modal-image"
+      />
+    </Modal>
   );
 }

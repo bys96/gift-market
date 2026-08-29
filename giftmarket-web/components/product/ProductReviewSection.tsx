@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
+import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import Pagination from "@/components/common/Pagination";
 import { getProductReviews } from "@/lib/review-api";
 import type { ReviewPage } from "@/types/review";
@@ -23,6 +23,6 @@ export default function ProductReviewSection({ productId }: { productId: number 
       </article>)}</div>
       <Pagination currentPage={page} totalPages={data.totalPages} ariaLabel="리뷰 페이지" mode="numbers" onPageChange={setPage} className="product-review-pagination" />
     </>}
-    {view && <ReturnImageViewerModal images={view.images} initialIndex={view.index} label="리뷰 이미지" onClose={()=>setView(null)} />}
+      {view && <ImageViewerModal images={view.images} initialIndex={view.index} label="리뷰 이미지" onClose={()=>setView(null)} />}
   </section>;
 }

@@ -4,7 +4,7 @@ import Script from "next/script";
 import Image from "next/image";
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
+import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import { createExchangeRequest, getExchangeShippingPayment, prepareExchangeShippingPayment } from "@/lib/exchange-api";
 import { saveExchangePaymentSession } from "@/lib/exchange-payment-session";
 import { getProduct } from "@/lib/product-api";
@@ -178,7 +178,7 @@ export default function OrderExchangePanel({ orderId, sellerOrder, exchanges, re
       <section className="order-exchange-form-section"><h4><b>3</b> 사진 <small>선택 · {images.length}/5</small></h4><div className="order-exchange-evidence"><input ref={inputRef} hidden type="file" multiple accept={IMAGE_TYPES.join(",")} onChange={selectImages} /><button type="button" className="order-exchange-image-add" disabled={busy || images.length >= 5} onClick={() => inputRef.current?.click()}>+ 사진 추가</button><div>{images.map((image, index) => <figure key={`${image.file.name}-${index}`}><Image src={image.previewUrl} alt={`${image.file.name} 미리보기`} width={88} height={88} unoptimized /><button type="button" aria-label={`${image.file.name} 삭제`} onClick={() => { invalidate(); URL.revokeObjectURL(image.previewUrl); setImages((v) => v.filter((_, i) => i !== index)); }}>×</button></figure>)}</div><p>JPEG, PNG, WEBP · 파일당 최대 5MB</p></div></section>
       <section className="order-exchange-form-section"><h4><b>4</b> 회수지 · 재배송지</h4><div className="order-exchange-addresses"><AddressEditor title="회수지" description="교환할 상품을 가져갈 주소" value={collection} onChange={(value) => { invalidate(); setCollection({ ...value, addressDetail: value.addressDetail ?? "" }); }} onSearch={() => searchAddress("collection")} /><div className="order-exchange-reshipping"><label className="order-exchange-same-address"><input type="checkbox" checked={useCollectionAddress} onChange={(e) => { invalidate(); setUseCollectionAddress(e.target.checked); }} />회수지와 동일</label>{!useCollectionAddress && <AddressEditor title="재배송지" description="새 교환 상품을 받을 주소" value={reshipping} onChange={(value) => { invalidate(); setReshipping({ ...value, addressDetail: value.addressDetail ?? "" }); }} onSearch={() => searchAddress("reshipping")} />}{useCollectionAddress && <div className="order-exchange-address-compact"><strong>재배송지</strong><span>새 교환 상품을 받을 주소</span><p>회수지와 동일한 주소로 배송합니다.</p></div>}</div></div></section>
       <div className={`order-exchange-fee-notice is-${reasonType === "OTHER" ? "other" : SELLER_REASON_TYPES.has(reasonType) ? "seller" : "buyer"}`}>{reasonType === "OTHER" ? "판매자 확인 후 교환 배송비가 발생할 수 있습니다." : SELLER_REASON_TYPES.has(reasonType) ? "판매자 귀책 사유는 교환 배송비 없이 진행됩니다." : "판매자 승인 후 교환 배송비 결제가 필요합니다."}</div>{error && <p className="order-exchange-error" role="alert">{error}</p>}<div className="order-exchange-actions"><button type="button" onClick={() => setOpen(false)} disabled={busy}>닫기</button><button type="button" onClick={() => void submit()} disabled={busy}>{busy ? "접수 중..." : "교환 신청"}</button></div></div>}
-    {viewer && <ReturnImageViewerModal images={viewer.images} initialIndex={viewer.initialIndex} label="교환 증빙 이미지" onClose={() => setViewer(null)} />}
+      {viewer && <ImageViewerModal images={viewer.images} initialIndex={viewer.initialIndex} label="교환 증빙 이미지" onClose={() => setViewer(null)} />}
   </div>;
 }
 

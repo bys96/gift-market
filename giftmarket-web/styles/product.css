@@ -5,3 +5,7 @@
 @import "./product/content.css";
 @import "./product/inquiry.css";
 @import "./product/review.css";
+
+.product-inquiry-modal-container {
+  width: min(560px, 100%);
+}

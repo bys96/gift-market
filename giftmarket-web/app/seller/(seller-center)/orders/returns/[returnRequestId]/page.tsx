@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
+import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import {
   approveSellerReturnRequest,
   getSellerReturnRequest,
@@ -140,6 +140,6 @@ export default function SellerReturnDetailPage() {
       {!["REQUESTED", "APPROVED", "COLLECTING", "RECEIVED"].includes(request.status) && <p className="seller-order-action-notice">{request.status === "COMPLETED" ? "반품 처리가 완료되었습니다." : request.status === "FAILED" ? "관리자 확인이 필요한 상태입니다." : `${RETURN_STATUS_LABELS[request.status]} 상태이며 판매자 추가 작업은 없습니다.`}</p>}
       {actionError && <p className="seller-order-action-error">{actionError}</p>}
     </section>
-    {viewerIndex !== null && <ReturnImageViewerModal images={request.images} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
+      {viewerIndex !== null && <ImageViewerModal images={request.images} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
   </div></main>;
 }

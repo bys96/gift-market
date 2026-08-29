@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import ReturnImageViewerModal from "@/components/return/ReturnImageViewerModal";
+import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import { approveSellerExchangeRequest, collectSellerExchange, deliverSellerExchange, getSellerExchangeRequest, inspectSellerExchange, receiveSellerExchange, rejectSellerExchangeRequest, reshipSellerExchange } from "@/lib/seller-exchange-api";
 import { useAuthStore } from "@/stores/auth-store";
 import { EXCHANGE_INSPECTION_LABELS, EXCHANGE_REASON_LABELS, EXCHANGE_RESPONSIBILITY_LABELS, EXCHANGE_SHIPMENT_STATUS_LABELS, EXCHANGE_STATUS_LABELS, type ExchangeInspectionResult, type ExchangeRequest, type ExchangeResponsibility } from "@/types/exchange";
@@ -61,7 +61,7 @@ export default function SellerExchangeDetailPage() {
       {!["REQUESTED", "COLLECTING", "RECEIVED", "INSPECTED", "RESHIPPING"].includes(request.status) && <p className="seller-order-action-notice">{request.status === "PAYMENT_PENDING" ? "구매자의 교환배송비 결제를 기다리고 있습니다." : request.status === "COMPLETED" ? "교환 처리가 완료되었습니다." : `${EXCHANGE_STATUS_LABELS[request.status]} 상태에는 판매자 추가 작업이 없습니다.`}</p>}
       {actionError && <p className="seller-order-action-error">{actionError}</p>}
     </section>
-    {viewer !== null && <ReturnImageViewerModal images={request.images} initialIndex={viewer} label="교환 증빙 이미지" onClose={() => setViewer(null)} />}
+      {viewer !== null && <ImageViewerModal images={request.images} initialIndex={viewer} label="교환 증빙 이미지" onClose={() => setViewer(null)} />}
   </div></main>;
 }
 

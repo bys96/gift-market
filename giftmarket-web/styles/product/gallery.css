@@ -127,7 +127,7 @@
 }
 
 .product-image-modal-close {
-  position: absolute;
+  position: fixed;
   top: 20px;
   right: 24px;
   z-index: 2;

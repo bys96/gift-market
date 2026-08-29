@@ -254,6 +254,16 @@ export default function MyAddressesPage() {
               </button>
             </div>
 
+            {isFormOpen && (
+              <AddressForm
+                address={editingAddress}
+                onSubmit={handleSaveAddress}
+                onCancel={handleCloseForm}
+                isSubmitting={isSaving}
+                submitErrorMessage={errorMessage}
+              />
+            )}
+
             {errorMessage && !isFormOpen && (
               <p className="address-page-error" role="alert">
                 {errorMessage}
@@ -303,15 +313,6 @@ export default function MyAddressesPage() {
         </div>
       </div>
 
-      {isFormOpen && (
-        <AddressForm
-          address={editingAddress}
-          onSubmit={handleSaveAddress}
-          onClose={handleCloseForm}
-          isSubmitting={isSaving}
-          submitErrorMessage={errorMessage}
-        />
-      )}
     </main>
   );
 }
