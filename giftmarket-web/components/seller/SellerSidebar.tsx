@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+
+import Modal from "@/components/common/modal/Modal";
 
 interface SellerMenuItem {
   label: string;
@@ -156,13 +158,25 @@ function isActiveMenu(pathname: string, menuItem: SellerMenuItem): boolean {
   );
 }
 
-export default function SellerSidebar() {
-  const pathname = usePathname();
+interface SidebarContentProps {
+  pathname: string;
+  onNavigate?: () => void;
+  closeButtonRef?: React.RefObject<HTMLButtonElement | null>;
+}
 
+function SidebarContent({
+  pathname,
+  onNavigate,
+  closeButtonRef,
+}: SidebarContentProps) {
   return (
-    <aside className="seller-center-sidebar">
+    <>
       <div className="seller-center-sidebar-header">
-        <Link href="/seller/dashboard" className="seller-center-sidebar-logo">
+        <Link
+          href="/seller/dashboard"
+          className="seller-center-sidebar-logo"
+          onClick={onNavigate}
+        >
           <span className="seller-center-sidebar-logo-mark">G</span>
 
           <div className="seller-center-sidebar-logo-content">
@@ -170,6 +184,18 @@ export default function SellerSidebar() {
             <span>Gift Market</span>
           </div>
         </Link>
+
+        {closeButtonRef && (
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="seller-sidebar-mobile-close"
+            aria-label="판매자센터 메뉴 닫기"
+            onClick={onNavigate}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       <nav className="seller-center-sidebar-menu" aria-label="판매자센터 메뉴">
@@ -189,6 +215,7 @@ export default function SellerSidebar() {
                       active ? "seller-center-sidebar-menu-item-active" : ""
                     }`}
                     aria-current={active ? "page" : undefined}
+                    onClick={onNavigate}
                   >
                     <span className="seller-center-sidebar-menu-icon">
                       {menuItem.icon}
@@ -213,7 +240,11 @@ export default function SellerSidebar() {
       </nav>
 
       <div className="seller-center-sidebar-footer">
-        <Link href="/" className="seller-center-store-link">
+        <Link
+          href="/"
+          className="seller-center-store-link"
+          onClick={onNavigate}
+        >
           <span className="seller-center-store-link-icon">
             <StoreIcon />
           </span>
@@ -227,6 +258,70 @@ export default function SellerSidebar() {
           </span>
         </Link>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export default function SellerSidebar() {
+  const pathname = usePathname();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const activeMenuLabel =
+    SELLER_MENU_GROUPS.flatMap((group) => group.items).find((menuItem) =>
+      isActiveMenu(pathname, menuItem),
+    )?.label ?? "메뉴 선택";
+
+  useEffect(() => {
+    const desktopMediaQuery = window.matchMedia("(min-width: 769px)");
+    const closeMobileMenuOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsMobileMenuOpen(false);
+    };
+
+    desktopMediaQuery.addEventListener("change", closeMobileMenuOnDesktop);
+    return () =>
+      desktopMediaQuery.removeEventListener("change", closeMobileMenuOnDesktop);
+  }, []);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="seller-sidebar-mobile-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={isMobileMenuOpen}
+        onClick={() => setIsMobileMenuOpen(true)}
+      >
+        <span className="seller-sidebar-mobile-trigger-icon" aria-hidden="true">
+          ☰
+        </span>
+        <span className="seller-sidebar-mobile-trigger-text">
+          <span>판매자센터 메뉴</span>
+          <strong>{activeMenuLabel}</strong>
+        </span>
+        <span className="seller-sidebar-mobile-trigger-arrow" aria-hidden="true">
+          ›
+        </span>
+      </button>
+
+      <aside className="seller-center-sidebar seller-center-sidebar-desktop">
+        <SidebarContent pathname={pathname} />
+      </aside>
+
+      {isMobileMenuOpen && (
+        <Modal
+          onClose={() => setIsMobileMenuOpen(false)}
+          overlayClassName="seller-sidebar-mobile-backdrop"
+          contentClassName="seller-sidebar-mobile-drawer"
+          ariaLabel="판매자센터 메뉴"
+          initialFocusRef={closeButtonRef}
+        >
+          <SidebarContent
+            pathname={pathname}
+            onNavigate={() => setIsMobileMenuOpen(false)}
+            closeButtonRef={closeButtonRef}
+          />
+        </Modal>
+      )}
+    </>
   );
 }
