@@ -127,7 +127,11 @@ public class ExchangeRequestService {
                         PendingExchangeQuantityProjection::getPendingQuantity));
         validateAvailableQuantities(orderItems, normalized.items(), returnHeld, exchangeHeld);
 
-        Map<Long, ProductVariant> targetVariants = loadAndValidateTargets(orderItems, normalized.items());
+        Map<Long, ProductVariant> targetVariants = loadAndValidateTargets(
+                orderItems,
+                normalized.items(),
+                normalized.reasonType().defaultResponsibility()
+        );
         Map<Long, String> optionSnapshots = optionSnapshots(targetVariants.values());
 
         ExchangeRequest exchangeRequest;
@@ -168,7 +172,9 @@ public class ExchangeRequestService {
     }
 
     private Map<Long, ProductVariant> loadAndValidateTargets(
-            List<OrderItem> orderItems, Map<Long, NormalizedItem> requested
+            List<OrderItem> orderItems,
+            Map<Long, NormalizedItem> requested,
+            ExchangeResponsibility responsibility
     ) {
         Map<Long, ProductVariant> result = new HashMap<>();
         for (OrderItem item : orderItems) {
@@ -202,6 +208,11 @@ public class ExchangeRequestService {
             }
             if (targetUnitPrice(product, variant) != item.getUnitPrice()) {
                 throw new OrderException("가격이 다른 옵션으로는 교환할 수 없습니다. 반품 후 다시 구매해 주세요.");
+            }
+            if (responsibility == ExchangeResponsibility.BUYER
+                    && (item.getVariant() == null
+                    || Objects.equals(item.getVariant().getId(), variant.getId()))) {
+                throw new OrderException("구매자 귀책 교환은 기존 옵션과 다른 옵션을 선택해야 합니다.");
             }
         }
         return result;

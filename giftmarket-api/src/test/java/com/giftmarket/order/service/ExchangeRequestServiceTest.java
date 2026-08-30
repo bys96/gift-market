@@ -8,7 +8,11 @@ import com.giftmarket.order.entity.*;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.*;
 import com.giftmarket.product.entity.Product;
+import com.giftmarket.product.entity.ProductOptionGroup;
+import com.giftmarket.product.entity.ProductOptionValue;
 import com.giftmarket.product.entity.ProductStatus;
+import com.giftmarket.product.entity.ProductVariant;
+import com.giftmarket.product.entity.ProductVariantOptionValue;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantRepository;
 import com.giftmarket.seller.entity.Seller;
@@ -113,12 +117,12 @@ class ExchangeRequestServiceTest {
     }
 
     @Test
-    void createsDeliveredOptionlessExchangeWithoutMutatingStockOrCompletedQuantity() {
+    void createsDeliveredSellerFaultOptionlessExchangeWithoutMutatingStockOrCompletedQuantity() {
         int productStock = product.getStockQuantity();
-        ExchangeRequestResponse response = create(request(ExchangeReasonType.CHANGE_OF_MIND, 2, List.of()));
+        ExchangeRequestResponse response = create(request(ExchangeReasonType.DEFECTIVE, 2, List.of()));
 
         assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REQUESTED);
-        assertThat(response.responsibility()).isEqualTo(ExchangeResponsibility.BUYER);
+        assertThat(response.responsibility()).isEqualTo(ExchangeResponsibility.SELLER);
         assertThat(response.items()).singleElement().satisfies(item -> {
             assertThat(item.quantity()).isEqualTo(2);
             assertThat(item.targetUnitPrice()).isEqualTo(10_000L);
@@ -130,17 +134,86 @@ class ExchangeRequestServiceTest {
     }
 
     @Test
+    void sellerFaultAllowsSameVariantWithEqualPrice() {
+        ProductVariant target = configureVariantOrder(501L, 501L, 0L);
+
+        ExchangeRequestResponse response = create(request(
+                ExchangeReasonType.DEFECTIVE, 1, 501L, List.of()
+        ));
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REQUESTED);
+        assertThat(response.responsibility()).isEqualTo(ExchangeResponsibility.SELLER);
+        assertSavedTargetVariant(target, 501L);
+    }
+
+    @Test
+    void buyerFaultRejectsSameVariantBeforeRequestPersistence() {
+        ProductVariant target = configureVariantOrder(501L, 501L, 0L);
+        int targetStock = target.getStockQuantity();
+
+        assertThatThrownBy(() -> create(request(
+                ExchangeReasonType.CHANGE_OF_MIND, 1, 501L, List.of()
+        )))
+                .isInstanceOf(OrderException.class)
+                .hasMessage("구매자 귀책 교환은 기존 옵션과 다른 옵션을 선택해야 합니다.");
+
+        verify(exchangeRequestRepository, never()).saveAndFlush(any());
+        verify(exchangeRequestItemRepository, never()).saveAll(anyList());
+        assertThat(target.getStockQuantity()).isEqualTo(targetStock);
+        assertThat(orderItem.getExchangedQuantity()).isZero();
+    }
+
+    @Test
+    void buyerFaultAllowsDifferentVariantWithEqualPrice() {
+        ProductVariant target = configureVariantOrder(501L, 502L, 0L);
+
+        ExchangeRequestResponse response = create(request(
+                ExchangeReasonType.OPTION_MISTAKE, 1, 502L, List.of()
+        ));
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REQUESTED);
+        assertSavedTargetVariant(target, 502L);
+    }
+
+    @Test
+    void buyerFaultRejectsDifferentVariantWithDifferentPrice() {
+        configureVariantOrder(501L, 502L, 1_000L);
+
+        assertThatThrownBy(() -> create(request(
+                ExchangeReasonType.OPTION_MISTAKE, 1, 502L, List.of()
+        )))
+                .isInstanceOf(OrderException.class)
+                .hasMessageContaining("가격이 다른 옵션");
+
+        verify(exchangeRequestRepository, never()).saveAndFlush(any());
+        verify(exchangeRequestItemRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void sellerFaultAllowsDifferentVariantWithEqualPrice() {
+        ProductVariant target = configureVariantOrder(501L, 502L, 0L);
+
+        ExchangeRequestResponse response = create(request(
+                ExchangeReasonType.WRONG_ITEM, 1, 502L, List.of()
+        ));
+
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REQUESTED);
+        assertSavedTargetVariant(target, 502L);
+    }
+
+    @Test
     void appliesExactBuyerBoundaryButNotSellerOrOtherDeadline() {
+        configureVariantOrder(501L, 502L, 0L);
         given(shipmentRepository.findBySellerOrderIdAndType(anyLong(), any()))
                 .willReturn(Optional.of(deliveredShipment(NOW.minusDays(7))));
-        assertThat(create(request(ExchangeReasonType.CHANGE_OF_MIND, 1, List.of()))).isNotNull();
+        assertThat(create(request(ExchangeReasonType.CHANGE_OF_MIND, 1, 502L, List.of()))).isNotNull();
 
         given(shipmentRepository.findBySellerOrderIdAndType(anyLong(), any()))
                 .willReturn(Optional.of(deliveredShipment(NOW.minusDays(7).minusNanos(1))));
-        assertThatThrownBy(() -> create(request(ExchangeReasonType.OPTION_MISTAKE, 1, List.of())))
+        assertThatThrownBy(() -> create(request(ExchangeReasonType.OPTION_MISTAKE, 1, 502L, List.of())))
                 .isInstanceOf(OrderException.class).hasMessageContaining("기간");
-        assertThat(create(request(ExchangeReasonType.DEFECTIVE, 1, List.of()))).isNotNull();
-        assertThat(create(request(ExchangeReasonType.OTHER, 1, List.of())).responsibility()).isNull();
+        assertThat(create(request(ExchangeReasonType.DEFECTIVE, 1, 502L, List.of()))).isNotNull();
+        assertThat(create(request(ExchangeReasonType.OTHER, 1, 502L, List.of())).responsibility()).isNull();
     }
 
     @Test
@@ -203,12 +276,68 @@ class ExchangeRequestServiceTest {
     }
 
     private ExchangeRequestCreateRequest request(ExchangeReasonType reason, int quantity, List<String> keys) {
+        return request(reason, quantity, null, keys);
+    }
+
+    private ExchangeRequestCreateRequest request(
+            ExchangeReasonType reason,
+            int quantity,
+            Long targetVariantId,
+            List<String> keys
+    ) {
         return new ExchangeRequestCreateRequest(
                 UUID.randomUUID().toString(), reason, " 교환 사유 ", " 구매자 ", " 010-1234-5678 ",
                 " 12345 ", " 서울 ", " 101호 ", " 구매자 ", " 010-1234-5678 ",
                 " 12345 ", " 서울 ", " 101호 ",
-                List.of(new ExchangeRequestItemRequest(ORDER_ITEM_ID, quantity, null)), keys
+                List.of(new ExchangeRequestItemRequest(ORDER_ITEM_ID, quantity, targetVariantId)), keys
         );
+    }
+
+    private ProductVariant configureVariantOrder(
+            Long originalVariantId,
+            Long targetVariantId,
+            long targetAdditionalPrice
+    ) {
+        ProductVariant original = mock(ProductVariant.class);
+        given(original.getId()).willReturn(originalVariantId);
+        orderItem = OrderItem.create(order, product, original, mock(Seller.class), sellerOrder, null,
+                "상품", null, "상점", null, "옵션: 원본", 10_000L, 0L,
+                3, true, 0L, 3_000L, 6_000L);
+        ReflectionTestUtils.setField(orderItem, "id", ORDER_ITEM_ID);
+        given(orderItemRepository.findAllByIdInForUpdate(List.of(ORDER_ITEM_ID)))
+                .willReturn(List.of(orderItem));
+
+        ProductVariant target = mock(ProductVariant.class);
+        given(target.getId()).willReturn(targetVariantId);
+        given(target.getProduct()).willReturn(product);
+        given(target.isActive()).willReturn(true);
+        given(target.getStockQuantity()).willReturn(10);
+        given(target.getAdditionalPrice()).willReturn(targetAdditionalPrice);
+        given(productVariantRepository.findById(targetVariantId)).willReturn(Optional.of(target));
+
+        ProductOptionGroup group = mock(ProductOptionGroup.class);
+        given(group.getName()).willReturn("옵션");
+        given(group.getSortOrder()).willReturn(0);
+        ProductOptionValue value = mock(ProductOptionValue.class);
+        given(value.getOptionGroup()).willReturn(group);
+        given(value.getValue()).willReturn("대상");
+        given(value.getSortOrder()).willReturn(0);
+        ProductVariantOptionValue relation = mock(ProductVariantOptionValue.class);
+        given(relation.getVariant()).willReturn(target);
+        given(relation.getOptionValue()).willReturn(value);
+        given(productVariantOptionValueRepository.findAllByVariantIdIn(List.of(targetVariantId)))
+                .willReturn(List.of(relation));
+        return target;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertSavedTargetVariant(ProductVariant target, Long targetVariantId) {
+        var items = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(exchangeRequestItemRepository).saveAll(items.capture());
+        assertThat((List<ExchangeRequestItem>) items.getValue()).singleElement().satisfies(item -> {
+            assertThat(item.getTargetVariant()).isSameAs(target);
+            assertThat(item.getTargetVariant().getId()).isEqualTo(targetVariantId);
+        });
     }
 
     private Shipment deliveredShipment(LocalDateTime deliveredAt) {
