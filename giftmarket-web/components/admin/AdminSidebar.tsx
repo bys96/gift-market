@@ -17,7 +17,7 @@ const ADMIN_MENU: AdminMenuItem[] = [
   { label: "회원 관리", href: "/admin/users", enabled: true },
   { label: "판매자 관리", href: "/admin/sellers", enabled: true },
   { label: "판매자 신청", href: "/admin/seller-applications", enabled: true },
-  { label: "상품 관리", href: "/admin/products", enabled: false },
+  { label: "상품 관리", href: "/admin/products", enabled: true },
   { label: "주문 관리", href: "/admin/orders", enabled: false },
   { label: "취소 관리", href: "/admin/cancellations", enabled: false },
   { label: "반품 관리", href: "/admin/returns", enabled: false },

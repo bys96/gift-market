@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,6 +36,50 @@ public interface ProductRepository extends
             @Param("sellerIds") Collection<Long> sellerIds,
             @Param("status") ProductStatus status
     );
+
+    @EntityGraph(attributePaths = {"seller", "category"})
+    @Query(
+            value = """
+                    select p
+                    from Product p
+                    join p.seller s
+                    where (:keyword is null
+                           or lower(p.name) like lower(concat('%', :keyword, '%'))
+                           or lower(s.storeName) like lower(concat('%', :keyword, '%')))
+                      and (:status is null or p.status = :status)
+                      and (:sellerId is null or s.id = :sellerId)
+                      and (:categoryId is null or p.category.id = :categoryId)
+                      and (:deleted is null
+                           or (:deleted = true and p.deletedAt is not null)
+                           or (:deleted = false and p.deletedAt is null))
+                    """,
+            countQuery = """
+                    select count(p.id)
+                    from Product p
+                    join p.seller s
+                    where (:keyword is null
+                           or lower(p.name) like lower(concat('%', :keyword, '%'))
+                           or lower(s.storeName) like lower(concat('%', :keyword, '%')))
+                      and (:status is null or p.status = :status)
+                      and (:sellerId is null or s.id = :sellerId)
+                      and (:categoryId is null or p.category.id = :categoryId)
+                      and (:deleted is null
+                           or (:deleted = true and p.deletedAt is not null)
+                           or (:deleted = false and p.deletedAt is null))
+                    """
+    )
+    Page<Product> findAdminProducts(
+            @Param("keyword") String keyword,
+            @Param("status") ProductStatus status,
+            @Param("sellerId") Long sellerId,
+            @Param("categoryId") Long categoryId,
+            @Param("deleted") Boolean deleted,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"seller", "seller.user", "category", "category.parent"})
+    @Query("select p from Product p where p.id = :productId")
+    Optional<Product> findAdminById(@Param("productId") Long productId);
 
     long countBySellerIdAndStatusAndDeletedAtIsNull(
             Long sellerId,

@@ -3,6 +3,7 @@ package com.giftmarket.global.exception;
 import com.giftmarket.address.exception.AddressException;
 import com.giftmarket.admin.exception.AdminUserException;
 import com.giftmarket.admin.exception.AdminSellerManagementException;
+import com.giftmarket.admin.exception.AdminProductException;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
@@ -43,6 +44,14 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(AdminProductException.class)
+    public ResponseEntity<ApiResponse<?>> handleAdminProductException(
+            AdminProductException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.fail(exception.getMessage()));
     }
 

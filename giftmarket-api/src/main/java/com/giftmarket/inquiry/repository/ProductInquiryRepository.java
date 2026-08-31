@@ -15,6 +15,7 @@ import java.util.Optional;
 
 public interface ProductInquiryRepository extends JpaRepository<ProductInquiry, Long> {
     long countByUserIdAndDeletedAtIsNull(Long userId);
+    long countByProductIdAndDeletedAtIsNull(Long productId);
     @EntityGraph(attributePaths = {"product", "product.seller", "product.seller.user", "user"})
     Page<ProductInquiry> findAllByProductIdAndDeletedAtIsNull(Long productId, Pageable pageable);
 

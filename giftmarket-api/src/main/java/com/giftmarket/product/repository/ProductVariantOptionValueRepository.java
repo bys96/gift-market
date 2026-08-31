@@ -2,6 +2,7 @@ package com.giftmarket.product.repository;
 
 import com.giftmarket.product.entity.ProductVariantOptionValue;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 import java.util.Collection;
 import java.util.List;
@@ -13,6 +14,7 @@ public interface ProductVariantOptionValueRepository
             Long variantId
     );
 
+    @EntityGraph(attributePaths = {"variant", "optionValue", "optionValue.optionGroup"})
     List<ProductVariantOptionValue> findAllByVariantIdIn(
             Collection<Long> variantIds
     );

@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ProductVariantRepository
         extends JpaRepository<ProductVariant, Long> {
@@ -17,6 +20,17 @@ public interface ProductVariantRepository
 
     List<ProductVariant> findAllByProductIdAndActiveTrueOrderByIdAsc(
             Long productId
+    );
+
+    @Query("""
+            select v.product.id as productId, coalesce(sum(v.stockQuantity), 0) as stockQuantity
+            from ProductVariant v
+            where v.product.id in :productIds
+              and v.active = true
+            group by v.product.id
+            """)
+    List<ProductStockProjection> sumActiveStockByProductIds(
+            @Param("productIds") Collection<Long> productIds
     );
 
     Optional<ProductVariant> findBySkuCode(

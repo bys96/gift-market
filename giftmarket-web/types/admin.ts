@@ -168,3 +168,59 @@ export interface AdminSellerSearchParams {
   keyword?: string;
   status?: AdminSellerStatus;
 }
+
+export type AdminProductStatus = "DRAFT" | "ON_SALE" | "SOLD_OUT" | "HIDDEN";
+export type AdminProductDeletedFilter = "ALL" | "ACTIVE" | "DELETED";
+
+export interface AdminProductSummary {
+  productId: number;
+  productName: string;
+  representativeImageKey: string | null;
+  status: AdminProductStatus;
+  deleted: boolean;
+  createdAt: string;
+  sellerId: number;
+  storeName: string;
+  price: number;
+  availableStock: number;
+}
+
+export interface AdminProductPage {
+  content: AdminProductSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface AdminProductDetail extends Omit<AdminProductSummary, "productName"> {
+  name: string;
+  brandName: string | null;
+  summary: string | null;
+  description: string | null;
+  deletedAt: string | null;
+  updatedAt: string;
+  freeShipping: boolean;
+  shippingFee: number;
+  shippingPreparationDays: number;
+  returnShippingFee: number;
+  exchangeShippingFee: number;
+  seller: { sellerId: number; storeName: string; status: AdminSellerStatus; ownerUserId: number };
+  category: { categoryId: number; categoryName: string; parentCategoryId: number | null; parentCategoryName: string | null };
+  galleryImageKeys: string[];
+  optionGroups: Array<{ optionGroupId: number; name: string; sortOrder: number; values: Array<{ optionValueId: number; value: string; sortOrder: number }> }>;
+  variants: Array<{ variantId: number; skuCode: string; combinationKey: string; additionalPrice: number; price: number; stockQuantity: number; active: boolean; optionValues: Array<{ optionValueId: number; groupName: string; value: string }> }>;
+  operationSummary: { reviewCount: number; averageRating: number; inquiryCount: number };
+}
+
+export interface AdminProductSearchParams {
+  page?: number;
+  size?: number;
+  keyword?: string;
+  status?: AdminProductStatus;
+  sellerId?: number;
+  categoryId?: number;
+  deleted?: AdminProductDeletedFilter;
+}
