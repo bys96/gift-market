@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 
 public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest, Long> {
+    long countByStatus(ExchangeRequestStatus status);
     long countBySellerOrderSellerIdAndStatus(
             Long sellerId,
             ExchangeRequestStatus status

@@ -26,11 +26,20 @@ public interface SellerApplicationRepository
             User user
     );
 
+    Optional<SellerApplication> findFirstByUserIdOrderByCreatedAtDescIdDesc(
+            Long userId
+    );
+
     @EntityGraph(attributePaths = "user")
     Page<SellerApplication> findAllByStatus(
             SellerApplicationStatus status,
             Pageable pageable
     );
+
+    long countByStatus(SellerApplicationStatus status);
+
+    @EntityGraph(attributePaths = "user")
+    Page<SellerApplication> findAllBy(Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

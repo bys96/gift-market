@@ -19,6 +19,8 @@ public interface ProductRepository extends
         JpaRepository<Product, Long>,
         JpaSpecificationExecutor<Product> {
 
+    long countByStatusAndDeletedAtIsNull(ProductStatus status);
+
     long countBySellerIdAndStatusAndDeletedAtIsNull(
             Long sellerId,
             ProductStatus status

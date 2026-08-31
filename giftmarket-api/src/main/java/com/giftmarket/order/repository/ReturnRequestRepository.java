@@ -16,6 +16,8 @@ import java.util.Optional;
 
 public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Long> {
 
+    long countByStatus(ReturnRequestStatus status);
+
     long countBySellerOrderSellerIdAndStatus(
             Long sellerId,
             ReturnRequestStatus status

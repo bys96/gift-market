@@ -1,14 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import {
   approveSellerApplication,
   getPendingSellerApplications,
   rejectSellerApplication,
 } from "@/lib/seller-api";
-import { useAuthStore } from "@/stores/auth-store";
 import type { SellerApplication } from "@/types/seller";
 import type { SellerApplicationPage } from "@/types/seller";
 import Pagination from "@/components/common/Pagination";
@@ -26,12 +24,6 @@ function formatDateTime(dateTime: string): string {
 }
 
 export default function AdminSellerApplicationsPage() {
-  const router = useRouter();
-
-  const initialized = useAuthStore((state) => state.initialized);
-  const user = useAuthStore((state) => state.user);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
   const [applicationPage, setApplicationPage] =
     useState<SellerApplicationPage | null>(null);
   const [page, setPage] = useState(0);
@@ -79,24 +71,10 @@ export default function AdminSellerApplicationsPage() {
   }, [page]);
 
   useEffect(() => {
-    if (!initialized) {
-      return;
-    }
-
-    if (!isAuthenticated || !user) {
-      router.replace("/login");
-      return;
-    }
-
-    if (user.role !== "ADMIN") {
-      router.replace("/");
-      return;
-    }
-
-    // 인증이 완료된 관리자의 pending 신청 목록을 최초 동기화한다.
+    // 공통 Admin Layout의 권한 확인 후 pending 목록을 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadPendingApplications();
-  }, [initialized, isAuthenticated, user, router, loadPendingApplications]);
+    void loadPendingApplications();
+  }, [loadPendingApplications]);
 
   const applications = applicationPage?.content ?? [];
 
@@ -179,10 +157,6 @@ export default function AdminSellerApplicationsPage() {
       setProcessingApplicationId(null);
     }
   };
-
-  if (!initialized || !isAuthenticated || !user || user.role !== "ADMIN") {
-    return null;
-  }
 
   return (
     <main className="admin-seller-main">

@@ -20,6 +20,10 @@ public interface OrderRepository
             Pageable pageable
     );
 
+    long countByUserId(Long userId);
+
+    Page<Order> findAllBy(Pageable pageable);
+
     Optional<Order> findByIdAndUserId(
             Long orderId,
             Long userId

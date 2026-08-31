@@ -1,6 +1,7 @@
 package com.giftmarket.global.exception;
 
 import com.giftmarket.address.exception.AddressException;
+import com.giftmarket.admin.exception.AdminUserException;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
@@ -20,10 +21,20 @@ import org.springframework.web.bind.ServletRequestBindingException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AdminUserException.class)
+    public ResponseEntity<ApiResponse<?>> handleAdminUserException(
+            AdminUserException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<?>> handleAuthenticationException(
@@ -166,7 +177,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             ServletRequestBindingException.class,
-            ConstraintViolationException.class
+            ConstraintViolationException.class,
+            MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ApiResponse<?>> handleInvalidRequest(Exception exception) {
         return ResponseEntity

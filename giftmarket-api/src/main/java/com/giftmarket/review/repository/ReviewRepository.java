@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
+    long countByUserIdAndDeletedAtIsNull(Long userId);
     @EntityGraph(attributePaths = {"user", "product", "variant", "orderItem"})
     Optional<Review> findByOrderItemId(Long orderItemId);
 
