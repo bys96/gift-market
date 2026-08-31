@@ -44,6 +44,15 @@
   .admin-product-detail-image { width: 72px; height: 72px; }
   .admin-product-media-card, .admin-product-options-card { grid-column: auto; }
 }
+.admin-cancellation-table { table-layout: auto; }
+.admin-cancellation-table th,.admin-cancellation-table td { width: auto !important; }
+.admin-cancellation-table a { color: #343a44; font-weight: 700; text-decoration: none; }
+.admin-cancellation-badge { display:inline-flex;padding:5px 9px;border-radius:999px;background:#eef0f3;color:#555c67;font-size:11px;font-weight:800;white-space:nowrap; }
+.admin-cancellation-badge.is-requested { background:#fff2d8;color:#8a5b13; }.admin-cancellation-badge.is-processing{background:#e8efff;color:#315caa}.admin-cancellation-badge.is-completed{background:#e7f7ed;color:#287548}.admin-cancellation-badge.is-rejected,.admin-cancellation-badge.is-failed{background:#fbe9e9;color:#a13c3c}
+.admin-cancellation-refund { margin-top:20px !important;padding-top:18px;border-top:1px solid #eceef1; }
+.admin-cancellation-items { display:grid;gap:12px; }.admin-cancellation-items article{display:grid;grid-template-columns:minmax(180px,1fr) 2fr;gap:20px;padding:16px;border:1px solid #e5e7eb;border-radius:10px}.admin-cancellation-items article>div{display:flex;flex-direction:column;gap:5px}.admin-cancellation-items a{color:#303640;font-weight:800;text-decoration:none}.admin-cancellation-items small{color:#858b95}.admin-cancellation-items dl{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.admin-cancellation-timeline{display:flex;margin:0;padding:0;list-style:none}.admin-cancellation-timeline li{position:relative;display:flex;flex:1;flex-direction:column;gap:5px;padding:12px 16px;border-left:3px solid #6b62ad;background:#f7f7fb}.admin-cancellation-timeline strong{font-size:13px}.admin-cancellation-timeline span{color:#777e89;font-size:11px}
+@media(max-width:768px){.admin-cancellation-items article{grid-template-columns:1fr}.admin-cancellation-items dl{grid-template-columns:repeat(2,minmax(0,1fr))!important}.admin-cancellation-timeline{flex-direction:column;gap:6px}}
 
 @media (max-width: 520px) {
   .admin-product-detail-header { align-items: flex-start; flex-wrap: wrap; }

@@ -13,8 +13,37 @@ import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 public interface OrderCancellationRepository extends JpaRepository<OrderCancellation, Long> {
+
+    @EntityGraph(attributePaths = {"order", "order.user", "sellerOrder", "sellerOrder.seller"})
+    @Query(value = """
+            select c from OrderCancellation c
+            where (:keyword is null
+                   or lower(c.order.orderNumber) like lower(concat('%', :keyword, '%'))
+                   or lower(c.order.user.name) like lower(concat('%', :keyword, '%'))
+                   or lower(c.order.user.email) like lower(concat('%', :keyword, '%'))
+                   or lower(c.sellerOrder.seller.storeName) like lower(concat('%', :keyword, '%')))
+              and (:status is null or c.status = :status)
+              and (:requiresApproval is null or c.requiresSellerApproval = :requiresApproval)
+            """, countQuery = """
+            select count(c.id) from OrderCancellation c
+            where (:keyword is null
+                   or lower(c.order.orderNumber) like lower(concat('%', :keyword, '%'))
+                   or lower(c.order.user.name) like lower(concat('%', :keyword, '%'))
+                   or lower(c.order.user.email) like lower(concat('%', :keyword, '%'))
+                   or lower(c.sellerOrder.seller.storeName) like lower(concat('%', :keyword, '%')))
+              and (:status is null or c.status = :status)
+              and (:requiresApproval is null or c.requiresSellerApproval = :requiresApproval)
+            """)
+    Page<OrderCancellation> findAdminCancellations(@Param("keyword") String keyword,
+            @Param("status") OrderCancellationStatus status,
+            @Param("requiresApproval") Boolean requiresApproval, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"order", "order.user", "sellerOrder", "sellerOrder.seller"})
+    @Query("select c from OrderCancellation c where c.id = :id")
+    Optional<OrderCancellation> findAdminById(@Param("id") Long id);
 
     long countByStatus(OrderCancellationStatus status);
     long countByOrderId(Long orderId);

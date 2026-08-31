@@ -11,6 +11,7 @@ import type {
   AdminProductPage,
   AdminProductSearchParams,
   AdminOrderDetail, AdminOrderPage, AdminOrderSearchParams,
+  AdminCancellationDetail, AdminCancellationPage, AdminCancellationSearchParams,
 } from "@/types/admin";
 import type { ApiResponse } from "@/types/api";
 
@@ -111,3 +112,5 @@ export async function getAdminOrder(orderId: number): Promise<AdminOrderDetail> 
   if (!response.data) throw new Error("주문 정보를 불러오지 못했습니다.");
   return response.data;
 }
+export async function getAdminCancellations(search:AdminCancellationSearchParams):Promise<AdminCancellationPage>{const p=new URLSearchParams({page:String(search.page??0),size:String(search.size??20)});if(search.keyword)p.set("keyword",search.keyword);if(search.status)p.set("status",search.status);if(search.requiresSellerApproval!==undefined)p.set("requiresSellerApproval",String(search.requiresSellerApproval));const r=await apiFetch<ApiResponse<AdminCancellationPage>>(`/api/admin/cancellations?${p}`);if(!r.data)throw new Error("취소 요청 목록을 불러오지 못했습니다.");return r.data;}
+export async function getAdminCancellation(id:number):Promise<AdminCancellationDetail>{const r=await apiFetch<ApiResponse<AdminCancellationDetail>>(`/api/admin/cancellations/${id}`);if(!r.data)throw new Error("취소 요청 정보를 불러오지 못했습니다.");return r.data;}
