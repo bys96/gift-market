@@ -1,3 +1,38 @@
+.admin-user-table.admin-seller-table th:nth-child(1) { width: 18%; }
+.admin-user-table.admin-seller-table th:nth-child(2) { width: 17%; }
+.admin-user-table.admin-seller-table th:nth-child(3) { width: 22%; }
+.admin-user-table.admin-seller-table th:nth-child(4) { width: 12%; }
+.admin-user-table.admin-seller-table th:nth-child(5) { width: 12%; }
+.admin-user-table.admin-seller-table th:nth-child(6) { width: 13%; }
+.admin-user-table.admin-seller-table th:last-child { width: 60px; }
+.admin-seller-owner-link { color: #4d5560; font-weight: 600; text-decoration: none; }
+.admin-seller-owner-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.admin-seller-detail-mark { display: grid; width: 72px; height: 72px; flex-shrink: 0; place-items: center; border-radius: 18px; background: #292e37; color: #ffd84d; font-size: 25px; font-weight: 800; }
+.admin-seller-owner-button { display: inline-block; margin-top: 20px; padding: 9px 12px; border: 1px solid #d9dde3; border-radius: 8px; color: #4d5560; font-size: 12px; font-weight: 700; text-decoration: none; }
+.admin-seller-orders-card { grid-column: 1 / -1; }
+.admin-seller-orders-card > header { display: flex; align-items: flex-end; justify-content: space-between; }
+.admin-seller-orders-card > header p { position: absolute; }
+.admin-seller-orders-card > header h2 { padding-top: 18px; }
+.admin-seller-orders-card > header span { color: #8a909a; font-size: 11px; }
+.admin-seller-recent-orders { overflow: hidden; border: 1px solid #e5e7ea; border-radius: 10px; }
+.admin-seller-recent-orders article { display: flex; min-height: 67px; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 16px; border-bottom: 1px solid #eceef1; }
+.admin-seller-recent-orders article:last-child { border-bottom: 0; }
+.admin-seller-recent-orders article > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.admin-seller-recent-orders article > div:last-child { align-items: flex-end; flex-shrink: 0; }
+.admin-seller-recent-orders strong { overflow: hidden; color: #343942; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-seller-recent-orders span { color: #888e98; font-size: 11px; }
+
+@media (max-width: 768px) {
+  .admin-seller-table th { width: auto; }
+  .admin-seller-detail-mark { width: 58px; height: 58px; border-radius: 14px; }
+  .admin-seller-orders-card { grid-column: auto; }
+}
+
+@media (max-width: 520px) {
+  .admin-seller-recent-orders article { align-items: flex-start; flex-direction: column; }
+  .admin-seller-recent-orders article > div:last-child { align-items: flex-start; }
+}
+
 .admin-center-layout {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);

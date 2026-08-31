@@ -99,3 +99,72 @@ export interface AdminUserSearchParams {
   provider?: AdminAuthProvider;
   status?: AdminUserStatus;
 }
+
+export type AdminSellerOrderStatus = "PENDING_PAYMENT" | "PAID" | "PREPARING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+
+export interface AdminSellerSummary {
+  sellerId: number;
+  storeName: string;
+  status: AdminSellerStatus;
+  createdAt: string;
+  userId: number;
+  userName: string;
+  userEmail: string | null;
+  onSaleProductCount: number;
+}
+
+export interface AdminSellerPage {
+  content: AdminSellerSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface AdminSellerDetail {
+  sellerId: number;
+  storeName: string;
+  introduction: string | null;
+  status: AdminSellerStatus;
+  approvedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  owner: {
+    userId: number;
+    name: string;
+    email: string | null;
+    role: AdminUserRole;
+    provider: AdminAuthProvider;
+    status: AdminUserStatus;
+    createdAt: string;
+  };
+  sellerApplication: {
+    applicationId: number;
+    status: AdminSellerApplicationStatus;
+    appliedAt: string;
+    reviewedAt: string | null;
+    reviewedBy: number | null;
+  } | null;
+  activity: {
+    totalProducts: number;
+    onSaleProducts: number;
+    totalOrders: number;
+  };
+  recentOrders: Array<{
+    sellerOrderId: number;
+    orderId: number;
+    orderNumber: string;
+    status: AdminSellerOrderStatus;
+    totalProductAmount: number;
+    orderedAt: string;
+  }>;
+}
+
+export interface AdminSellerSearchParams {
+  page?: number;
+  size?: number;
+  keyword?: string;
+  status?: AdminSellerStatus;
+}

@@ -18,6 +18,8 @@ import java.util.List;
 public interface SellerOrderRepository
         extends JpaRepository<SellerOrder, Long> {
 
+    long countBySellerId(Long sellerId);
+
     long countBySellerIdAndStatusIn(
             Long sellerId,
             Collection<SellerOrderStatus> statuses

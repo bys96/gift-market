@@ -21,6 +21,21 @@ public interface ProductRepository extends
 
     long countByStatusAndDeletedAtIsNull(ProductStatus status);
 
+    long countBySellerIdAndDeletedAtIsNull(Long sellerId);
+
+    @Query("""
+            select p.seller.id as sellerId, count(p.id) as productCount
+            from Product p
+            where p.seller.id in :sellerIds
+              and p.status = :status
+              and p.deletedAt is null
+            group by p.seller.id
+            """)
+    List<SellerProductCountProjection> countBySellerIdsAndStatus(
+            @Param("sellerIds") Collection<Long> sellerIds,
+            @Param("status") ProductStatus status
+    );
+
     long countBySellerIdAndStatusAndDeletedAtIsNull(
             Long sellerId,
             ProductStatus status

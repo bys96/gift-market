@@ -15,7 +15,7 @@ interface AdminMenuItem {
 const ADMIN_MENU: AdminMenuItem[] = [
   { label: "대시보드", href: "/admin", enabled: true },
   { label: "회원 관리", href: "/admin/users", enabled: true },
-  { label: "판매자 관리", href: "/admin/sellers", enabled: false },
+  { label: "판매자 관리", href: "/admin/sellers", enabled: true },
   { label: "판매자 신청", href: "/admin/seller-applications", enabled: true },
   { label: "상품 관리", href: "/admin/products", enabled: false },
   { label: "주문 관리", href: "/admin/orders", enabled: false },

@@ -4,6 +4,9 @@ import type {
   AdminUserDetail,
   AdminUserPage,
   AdminUserSearchParams,
+  AdminSellerDetail,
+  AdminSellerPage,
+  AdminSellerSearchParams,
 } from "@/types/admin";
 import type { ApiResponse } from "@/types/api";
 
@@ -43,5 +46,29 @@ export async function getAdminUser(userId: number): Promise<AdminUserDetail> {
     `/api/admin/users/${userId}`,
   );
   if (!response.data) throw new Error("회원 정보를 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function getAdminSellers(
+  search: AdminSellerSearchParams,
+): Promise<AdminSellerPage> {
+  const params = new URLSearchParams({
+    page: String(search.page ?? 0),
+    size: String(search.size ?? 20),
+  });
+  if (search.keyword) params.set("keyword", search.keyword);
+  if (search.status) params.set("status", search.status);
+  const response = await apiFetch<ApiResponse<AdminSellerPage>>(
+    `/api/admin/sellers?${params.toString()}`,
+  );
+  if (!response.data) throw new Error("판매자 목록을 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function getAdminSeller(sellerId: number): Promise<AdminSellerDetail> {
+  const response = await apiFetch<ApiResponse<AdminSellerDetail>>(
+    `/api/admin/sellers/${sellerId}`,
+  );
+  if (!response.data) throw new Error("판매자 정보를 불러오지 못했습니다.");
   return response.data;
 }
