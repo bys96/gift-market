@@ -4,6 +4,7 @@ import com.giftmarket.order.entity.ReturnRequest;
 import com.giftmarket.order.entity.ReturnRequestStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,17 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Long> {
+
+    @EntityGraph(attributePaths = {"order", "order.user", "sellerOrder", "sellerOrder.seller", "collectionShipment"})
+    @Query(value="""
+            select r from ReturnRequest r where (:keyword is null or lower(r.order.orderNumber) like lower(concat('%',:keyword,'%')) or lower(r.order.user.name) like lower(concat('%',:keyword,'%')) or lower(r.order.user.email) like lower(concat('%',:keyword,'%')) or lower(r.sellerOrder.seller.storeName) like lower(concat('%',:keyword,'%')) or exists(select ri.id from ReturnRequestItem ri where ri.returnRequest=r and lower(ri.orderItem.productName) like lower(concat('%',:keyword,'%')))) and (:status is null or r.status=:status) and (:responsibility is null or r.responsibility=:responsibility)
+            """,countQuery="""
+            select count(r.id) from ReturnRequest r where (:keyword is null or lower(r.order.orderNumber) like lower(concat('%',:keyword,'%')) or lower(r.order.user.name) like lower(concat('%',:keyword,'%')) or lower(r.order.user.email) like lower(concat('%',:keyword,'%')) or lower(r.sellerOrder.seller.storeName) like lower(concat('%',:keyword,'%')) or exists(select ri.id from ReturnRequestItem ri where ri.returnRequest=r and lower(ri.orderItem.productName) like lower(concat('%',:keyword,'%')))) and (:status is null or r.status=:status) and (:responsibility is null or r.responsibility=:responsibility)
+            """)
+    Page<ReturnRequest> findAdminReturns(@Param("keyword") String keyword,@Param("status") ReturnRequestStatus status,@Param("responsibility") com.giftmarket.order.entity.ReturnResponsibility responsibility,Pageable pageable);
+
+    @EntityGraph(attributePaths={"order","order.user","sellerOrder","sellerOrder.seller","collectionShipment"})
+    @Query("select r from ReturnRequest r where r.id=:id") Optional<ReturnRequest> findAdminById(@Param("id") Long id);
 
     long countByStatus(ReturnRequestStatus status);
     long countByOrderId(Long orderId);

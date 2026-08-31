@@ -1,0 +1,1 @@
+package com.giftmarket.order.repository;public interface AdminReturnItemSummaryProjection{Long getReturnId();String getRepresentativeProductName();Long getProductTypeCount();Long getRequestedQuantity();}

@@ -52,6 +52,7 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
     long countByPaymentIdAndStatus(Long paymentId, PaymentCancellationStatus status);
 
     List<PaymentCancellation> findAllByOrderCancellationIdIn(List<Long> orderCancellationIds);
+    List<PaymentCancellation> findAllByReturnRequestIdIn(List<Long> returnRequestIds);
 
     @Query("""
             select count(pc)
