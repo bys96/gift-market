@@ -4,6 +4,7 @@ import com.giftmarket.address.exception.AddressException;
 import com.giftmarket.admin.exception.AdminUserException;
 import com.giftmarket.admin.exception.AdminSellerManagementException;
 import com.giftmarket.admin.exception.AdminProductException;
+import com.giftmarket.admin.exception.AdminOrderException;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
@@ -28,6 +29,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AdminOrderException.class)
+    public ResponseEntity<ApiResponse<?>> handleAdminOrderException(AdminOrderException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(exception.getMessage()));
+    }
 
     @ExceptionHandler(AdminUserException.class)
     public ResponseEntity<ApiResponse<?>> handleAdminUserException(

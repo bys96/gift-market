@@ -94,4 +94,14 @@ public interface OrderItemRepository
     List<SellerOrderItemSummaryProjection> summarizeBySellerOrderIds(
             @Param("sellerOrderIds") List<Long> sellerOrderIds
     );
+
+    @Query("""
+            select oi.order.id as orderId, min(oi.productName) as representativeProductName,
+                   count(oi.id) as productTypeCount, sum(oi.quantity) as totalItemCount
+            from OrderItem oi where oi.order.id in :orderIds group by oi.order.id
+            """)
+    List<AdminOrderItemSummaryProjection> summarizeAdminOrders(@Param("orderIds") List<Long> orderIds);
+
+    @EntityGraph(attributePaths = {"product", "sellerOrder"})
+    List<OrderItem> findAllBySellerOrderIdInOrderBySellerOrderIdAscIdAsc(List<Long> sellerOrderIds);
 }

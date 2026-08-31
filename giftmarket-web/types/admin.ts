@@ -224,3 +224,29 @@ export interface AdminProductSearchParams {
   categoryId?: number;
   deleted?: AdminProductDeletedFilter;
 }
+
+export type AdminPaymentStatus = "READY" | "CONFIRMING" | "PAID" | "PARTIALLY_CANCELED" | "FAILED" | "EXPIRED" | "CANCELING" | "CANCELED";
+export type AdminShipmentType = "ORIGINAL_OUTBOUND" | "RETURN_COLLECTION" | "EXCHANGE_COLLECTION" | "EXCHANGE_OUTBOUND";
+export type AdminShipmentStatus = "READY" | "SHIPPED" | "DELIVERED" | "CANCELED";
+export interface AdminOrderSummary {
+  orderId: number; orderNumber: string; orderStatus: AdminOrderStatus; orderedAt: string | null;
+  totalProductAmount: number; totalShippingFee: number; totalAmount: number;
+  userId: number; userName: string; userEmail: string | null; paymentId: number | null; paymentStatus: AdminPaymentStatus | null;
+  representativeProductName: string | null; productTypeCount: number; totalItemCount: number;
+  sellerOrderCount: number; sellerOrderStatuses: AdminSellerOrderStatus[];
+}
+export interface AdminOrderPage { content: AdminOrderSummary[]; page: number; size: number; totalElements: number; totalPages: number; first: boolean; last: boolean; }
+export interface AdminOrderSearchParams { page?: number; size?: number; keyword?: string; orderStatus?: AdminOrderStatus; paymentStatus?: AdminPaymentStatus; sellerOrderStatus?: AdminSellerOrderStatus; }
+export interface AdminOrderDetail {
+  orderId: number; orderNumber: string; orderStatus: AdminOrderStatus; orderedAt: string | null;
+  totalProductAmount: number; totalShippingFee: number; totalAmount: number;
+  buyer: { userId: number; name: string; email: string | null; role: AdminUserRole; status: AdminUserStatus };
+  recipient: { name: string; phone: string; postalCode: string; address: string; detailAddress: string | null };
+  payment: null | { paymentId: number; provider: string; status: AdminPaymentStatus; amount: number; currency: string; method: string | null; easyPayProvider: string | null; providerStatus: string | null; requestedAt: string; approvedAt: string | null; cancelledAt: string | null };
+  sellerOrders: Array<{ sellerOrderId: number; sellerId: number; storeName: string; sellerStatus: AdminSellerStatus; status: AdminSellerOrderStatus; shippingCompany: string | null; trackingNumber: string | null; preparedAt: string | null; shippedAt: string | null; deliveredAt: string | null;
+    items: Array<{ orderItemId: number; productId: number; productName: string; optionSnapshot: string | null; unitPrice: number; quantity: number; totalPrice: number; shippingFee: number; canceledQuantity: number; returnedQuantity: number; exchangedQuantity: number; confirmedQuantity: number }>;
+    shipments: Array<{ shipmentId: number; type: AdminShipmentType; status: AdminShipmentStatus; shippingCompany: string; trackingNumber: string; shippedAt: string | null; deliveredAt: string | null }>;
+  }>;
+  claims: { cancellationCount: number; returnCount: number; exchangeCount: number };
+  refund: { succeededCount: number; succeededAmount: number };
+}

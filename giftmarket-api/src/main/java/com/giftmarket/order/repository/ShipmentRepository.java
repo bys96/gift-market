@@ -23,6 +23,8 @@ public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
             ShipmentType type
     );
 
+    List<Shipment> findAllBySellerOrderIdInOrderBySellerOrderIdAscIdAsc(List<Long> sellerOrderIds);
+
     boolean existsBySellerOrderIdAndType(
             Long sellerOrderId,
             ShipmentType type

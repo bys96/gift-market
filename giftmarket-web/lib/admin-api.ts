@@ -10,6 +10,7 @@ import type {
   AdminProductDetail,
   AdminProductPage,
   AdminProductSearchParams,
+  AdminOrderDetail, AdminOrderPage, AdminOrderSearchParams,
 } from "@/types/admin";
 import type { ApiResponse } from "@/types/api";
 
@@ -91,5 +92,22 @@ export async function getAdminProducts(search: AdminProductSearchParams): Promis
 export async function getAdminProduct(productId: number): Promise<AdminProductDetail> {
   const response = await apiFetch<ApiResponse<AdminProductDetail>>(`/api/admin/products/${productId}`);
   if (!response.data) throw new Error("상품 정보를 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function getAdminOrders(search: AdminOrderSearchParams): Promise<AdminOrderPage> {
+  const params = new URLSearchParams({ page: String(search.page ?? 0), size: String(search.size ?? 20) });
+  if (search.keyword) params.set("keyword", search.keyword);
+  if (search.orderStatus) params.set("orderStatus", search.orderStatus);
+  if (search.paymentStatus) params.set("paymentStatus", search.paymentStatus);
+  if (search.sellerOrderStatus) params.set("sellerOrderStatus", search.sellerOrderStatus);
+  const response = await apiFetch<ApiResponse<AdminOrderPage>>(`/api/admin/orders?${params.toString()}`);
+  if (!response.data) throw new Error("주문 목록을 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function getAdminOrder(orderId: number): Promise<AdminOrderDetail> {
+  const response = await apiFetch<ApiResponse<AdminOrderDetail>>(`/api/admin/orders/${orderId}`);
+  if (!response.data) throw new Error("주문 정보를 불러오지 못했습니다.");
   return response.data;
 }

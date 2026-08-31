@@ -17,6 +17,7 @@ import java.util.List;
 public interface OrderCancellationRepository extends JpaRepository<OrderCancellation, Long> {
 
     long countByStatus(OrderCancellationStatus status);
+    long countByOrderId(Long orderId);
 
     long countBySellerOrderSellerIdAndRequiresSellerApprovalTrueAndStatus(
             Long sellerId,

@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest, Long> {
     long countByStatus(ExchangeRequestStatus status);
+    long countByOrderId(Long orderId);
     long countBySellerOrderSellerIdAndStatus(
             Long sellerId,
             ExchangeRequestStatus status

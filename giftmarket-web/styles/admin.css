@@ -1087,3 +1087,31 @@
   font-size: 13px;
   font-weight: 700;
 }
+
+.admin-order-table { table-layout: auto; }
+.admin-order-table th, .admin-order-table td { width: auto !important; }
+.admin-order-table td a { color: #303640; font-weight: 700; text-decoration: none; }
+.admin-order-table td small { display: block; margin-top: 4px; color: #8a909a; }
+.admin-order-number { color: #40358b !important; }
+.admin-order-badge { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 999px; background: #eceafa; color: #554aa1; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.admin-order-groups { grid-column: 1 / -1; }
+.admin-order-group { overflow: hidden; margin-top: 14px; border: 1px solid #e2e5e9; border-radius: 11px; }
+.admin-order-group > header { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 15px 17px; background: #f7f8fa; }
+.admin-order-group > header div { display: flex; flex-direction: column; gap: 4px; }
+.admin-order-group > header a { color: #292d35; font-weight: 800; text-decoration: none; }
+.admin-order-group small { color: #858b95; }
+.admin-order-item-list { padding: 4px 17px; }
+.admin-order-item-list > div { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #eceef1; font-size: 12px; }
+.admin-order-item-list a { color: #343a44; font-weight: 800; text-decoration: none; }
+.admin-order-item-list div > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.admin-order-item-list > div > small { grid-column: 1 / -1; }
+.admin-order-shipments { padding: 14px 17px 17px; }
+.admin-order-shipments h3 { margin: 0 0 10px; font-size: 13px; }
+.admin-order-shipments > div { display: grid; grid-template-columns: 160px 1fr auto; gap: 12px; padding: 9px 0; color: #555c67; font-size: 12px; }
+.admin-order-shipments p { margin: 0; color: #8a909a; font-size: 12px; }
+.admin-order-refund { margin: 16px 0 0; padding: 12px; border-radius: 8px; background: #f7f8fa; color: #454b55; font-size: 13px; font-weight: 700; }
+@media (max-width: 768px) {
+  .admin-order-item-list > div { grid-template-columns: 1fr auto; }
+  .admin-order-item-list > div > strong { grid-column: 2; }
+  .admin-order-shipments > div { grid-template-columns: 1fr; gap: 4px; }
+}
