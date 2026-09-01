@@ -18,6 +18,11 @@ public final class ProductSpecifications {
                 );
     }
 
+    public static Specification<Product> notAdminHidden() {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.isFalse(root.get("adminHidden"));
+    }
+
     public static Specification<Product> statusIn(
             List<ProductStatus> statuses
     ) {

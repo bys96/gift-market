@@ -35,6 +35,12 @@ public class ProductResponse {
 
     private ProductStatus status;
 
+    private boolean adminHidden;
+
+    private String adminHiddenReason;
+
+    private LocalDateTime adminHiddenAt;
+
     private String representativeImageKey;
 
     private List<String> galleryImageKeys;
@@ -73,6 +79,9 @@ public class ProductResponse {
                 .price(product.getPrice())
                 .stockQuantity(product.getStockQuantity())
                 .status(product.getStatus())
+                .adminHidden(product.isAdminHidden())
+                .adminHiddenReason(product.getAdminHiddenReason())
+                .adminHiddenAt(product.getAdminHiddenAt())
                 .representativeImageKey(
                         product.getRepresentativeImageKey()
                 )

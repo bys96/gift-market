@@ -11,6 +11,7 @@ import type {
   AdminProductDetail,
   AdminProductPage,
   AdminProductSearchParams,
+  AdminProductStatusChangeRequest,
   AdminOrderDetail, AdminOrderPage, AdminOrderSearchParams,
   AdminCancellationDetail, AdminCancellationPage, AdminCancellationSearchParams,
   AdminReturnDetail, AdminReturnPage, AdminReturnSearchParams,
@@ -121,6 +122,26 @@ export async function getAdminProduct(productId: number): Promise<AdminProductDe
   const response = await apiFetch<ApiResponse<AdminProductDetail>>(`/api/admin/products/${productId}`);
   if (!response.data) throw new Error("상품 정보를 불러오지 못했습니다.");
   return response.data;
+}
+
+export async function hideAdminProduct(
+  productId: number,
+  request: AdminProductStatusChangeRequest,
+): Promise<void> {
+  await apiFetch<ApiResponse<null>>(`/api/admin/products/${productId}/hide`, {
+    method: "PATCH",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function unhideAdminProduct(
+  productId: number,
+  request: AdminProductStatusChangeRequest,
+): Promise<void> {
+  await apiFetch<ApiResponse<null>>(`/api/admin/products/${productId}/unhide`, {
+    method: "PATCH",
+    body: JSON.stringify(request),
+  });
 }
 
 export async function getAdminOrders(search: AdminOrderSearchParams): Promise<AdminOrderPage> {

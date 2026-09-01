@@ -50,7 +50,7 @@ public class WishlistService {
                 ));
 
         Product product = productRepository
-                .findByIdAndStatusInAndDeletedAtIsNull(productId, ADDABLE_STATUSES)
+                .findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(productId, ADDABLE_STATUSES)
                 .orElseThrow(() -> new WishlistException(
                         "찜할 수 있는 상품을 찾을 수 없습니다."
                 ));

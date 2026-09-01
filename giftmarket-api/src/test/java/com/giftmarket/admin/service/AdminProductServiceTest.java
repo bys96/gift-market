@@ -1,7 +1,11 @@
 package com.giftmarket.admin.service;
 
 import com.giftmarket.admin.dto.request.AdminProductDeletedFilter;
+import com.giftmarket.admin.entity.AdminActionLog;
+import com.giftmarket.admin.entity.AdminActionType;
 import com.giftmarket.admin.exception.AdminProductException;
+import com.giftmarket.admin.exception.AdminProductOperationException;
+import com.giftmarket.admin.repository.AdminActionLogRepository;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.product.entity.*;
@@ -47,6 +51,7 @@ class AdminProductServiceTest {
     @Mock ProductVariantOptionValueRepository variantValueRepository;
     @Mock ReviewRepository reviewRepository;
     @Mock ProductInquiryRepository inquiryRepository;
+    @Mock AdminActionLogRepository adminActionLogRepository;
     @Mock User admin;
 
     private AdminProductService service;
@@ -56,7 +61,7 @@ class AdminProductServiceTest {
         service = new AdminProductService(
                 userRepository, productRepository, imageRepository, groupRepository,
                 valueRepository, variantRepository, variantValueRepository,
-                reviewRepository, inquiryRepository
+                reviewRepository, inquiryRepository, adminActionLogRepository
         );
     }
 
@@ -196,6 +201,73 @@ class AdminProductServiceTest {
         assertThat(response.operationSummary().inquiryCount()).isEqualTo(2L);
     }
 
+    @Test
+    void hidesProductAndWritesTrimmedActionLog() {
+        givenAdmin();
+        Product product = operationProduct(false, false);
+        given(productRepository.findByIdForUpdate(PRODUCT_ID)).willReturn(Optional.of(product));
+
+        service.hideProduct(ADMIN_ID, PRODUCT_ID, "  운영 정책 위반  ");
+
+        verify(product).hideByAdmin("  운영 정책 위반  ");
+        ArgumentCaptor<AdminActionLog> captor = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getActionType()).isEqualTo(AdminActionType.PRODUCT_HIDDEN);
+        assertThat(captor.getValue().getTargetId()).isEqualTo(PRODUCT_ID);
+        assertThat(captor.getValue().getReason()).isEqualTo("운영 정책 위반");
+    }
+
+    @Test
+    void unhidesProductAndWritesActionLog() {
+        givenAdmin();
+        Product product = operationProduct(true, false);
+        given(productRepository.findByIdForUpdate(PRODUCT_ID)).willReturn(Optional.of(product));
+
+        service.unhideProduct(ADMIN_ID, PRODUCT_ID, "해제 승인");
+
+        verify(product).unhideByAdmin();
+        ArgumentCaptor<AdminActionLog> captor = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getActionType()).isEqualTo(AdminActionType.PRODUCT_UNHIDDEN);
+    }
+
+    @Test
+    void rejectsDuplicateHideAndUnhideWithoutLog() {
+        givenAdmin();
+        Product hidden = operationProduct(true, false);
+        given(productRepository.findByIdForUpdate(PRODUCT_ID)).willReturn(Optional.of(hidden));
+        assertThatThrownBy(() -> service.hideProduct(ADMIN_ID, PRODUCT_ID, "사유"))
+                .isInstanceOf(AdminProductOperationException.class);
+
+        Product visible = operationProduct(false, false);
+        given(productRepository.findByIdForUpdate(PRODUCT_ID)).willReturn(Optional.of(visible));
+        assertThatThrownBy(() -> service.unhideProduct(ADMIN_ID, PRODUCT_ID, "사유"))
+                .isInstanceOf(AdminProductOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsDeletedProductWithoutLog() {
+        givenAdmin();
+        Product product = operationProduct(false, true);
+        given(productRepository.findByIdForUpdate(PRODUCT_ID)).willReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> service.hideProduct(ADMIN_ID, PRODUCT_ID, "사유"))
+                .isInstanceOf(AdminProductOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsNonAdminProductOperation() {
+        given(userRepository.findById(ADMIN_ID)).willReturn(Optional.of(admin));
+        given(admin.getRole()).willReturn(UserRole.USER);
+
+        assertThatThrownBy(() -> service.hideProduct(ADMIN_ID, PRODUCT_ID, "사유"))
+                .isInstanceOf(AuthenticationException.class);
+        verify(productRepository, never()).findByIdForUpdate(any());
+        verify(adminActionLogRepository, never()).save(any());
+    }
+
     private void givenAdmin() {
         given(userRepository.findById(ADMIN_ID)).willReturn(Optional.of(admin));
         given(admin.getRole()).willReturn(UserRole.ADMIN);
@@ -237,5 +309,14 @@ class AdminProductServiceTest {
         given(variant.getStockQuantity()).willReturn(stock);
         given(variant.isActive()).willReturn(active);
         return variant;
+    }
+
+    private Product operationProduct(boolean adminHidden, boolean deleted) {
+        Product product = org.mockito.Mockito.mock(Product.class);
+        given(product.isDeleted()).willReturn(deleted);
+        if (!deleted) {
+            given(product.isAdminHidden()).willReturn(adminHidden);
+        }
+        return product;
     }
 }

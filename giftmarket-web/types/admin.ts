@@ -181,6 +181,7 @@ export interface AdminProductSummary {
   productName: string;
   representativeImageKey: string | null;
   status: AdminProductStatus;
+  adminHidden: boolean;
   deleted: boolean;
   createdAt: string;
   sellerId: number;
@@ -204,6 +205,8 @@ export interface AdminProductDetail extends Omit<AdminProductSummary, "productNa
   brandName: string | null;
   summary: string | null;
   description: string | null;
+  adminHiddenReason: string | null;
+  adminHiddenAt: string | null;
   deletedAt: string | null;
   updatedAt: string;
   freeShipping: boolean;
@@ -217,6 +220,10 @@ export interface AdminProductDetail extends Omit<AdminProductSummary, "productNa
   optionGroups: Array<{ optionGroupId: number; name: string; sortOrder: number; values: Array<{ optionValueId: number; value: string; sortOrder: number }> }>;
   variants: Array<{ variantId: number; skuCode: string; combinationKey: string; additionalPrice: number; price: number; stockQuantity: number; active: boolean; optionValues: Array<{ optionValueId: number; groupName: string; value: string }> }>;
   operationSummary: { reviewCount: number; averageRating: number; inquiryCount: number };
+}
+
+export interface AdminProductStatusChangeRequest {
+  reason: string;
 }
 
 export interface AdminProductSearchParams {

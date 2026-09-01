@@ -4,7 +4,12 @@ import com.giftmarket.admin.dto.request.AdminProductDeletedFilter;
 import com.giftmarket.admin.dto.response.AdminProductDetailResponse;
 import com.giftmarket.admin.dto.response.AdminProductPageResponse;
 import com.giftmarket.admin.dto.response.AdminProductSummaryResponse;
+import com.giftmarket.admin.entity.AdminActionLog;
+import com.giftmarket.admin.entity.AdminActionTargetType;
+import com.giftmarket.admin.entity.AdminActionType;
 import com.giftmarket.admin.exception.AdminProductException;
+import com.giftmarket.admin.exception.AdminProductOperationException;
+import com.giftmarket.admin.repository.AdminActionLogRepository;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.product.entity.*;
@@ -40,6 +45,7 @@ public class AdminProductService {
     private final ProductVariantOptionValueRepository productVariantOptionValueRepository;
     private final ReviewRepository reviewRepository;
     private final ProductInquiryRepository productInquiryRepository;
+    private final AdminActionLogRepository adminActionLogRepository;
 
     @Transactional(readOnly = true)
     public AdminProductPageResponse getProducts(
@@ -81,6 +87,51 @@ public class AdminProductService {
                 product, images, groups, values, variants, variantValues, reviewSummary,
                 productInquiryRepository.countByProductIdAndDeletedAtIsNull(productId)
         );
+    }
+
+    @Transactional
+    public void hideProduct(Long adminUserId, Long productId, String reason) {
+        getAdmin(adminUserId);
+        Product product = getProductForOperation(productId);
+        if (product.isAdminHidden()) {
+            throw new AdminProductOperationException("이미 관리자가 판매 중지한 상품입니다.");
+        }
+
+        product.hideByAdmin(reason);
+        adminActionLogRepository.save(AdminActionLog.create(
+                adminUserId,
+                AdminActionType.PRODUCT_HIDDEN,
+                AdminActionTargetType.PRODUCT,
+                productId,
+                reason
+        ));
+    }
+
+    @Transactional
+    public void unhideProduct(Long adminUserId, Long productId, String reason) {
+        getAdmin(adminUserId);
+        Product product = getProductForOperation(productId);
+        if (!product.isAdminHidden()) {
+            throw new AdminProductOperationException("관리자 판매중지 상태가 아닙니다.");
+        }
+
+        product.unhideByAdmin();
+        adminActionLogRepository.save(AdminActionLog.create(
+                adminUserId,
+                AdminActionType.PRODUCT_UNHIDDEN,
+                AdminActionTargetType.PRODUCT,
+                productId,
+                reason
+        ));
+    }
+
+    private Product getProductForOperation(Long productId) {
+        Product product = productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new AdminProductException("상품을 찾을 수 없습니다."));
+        if (product.isDeleted()) {
+            throw new AdminProductOperationException("삭제된 상품은 상태를 변경할 수 없습니다.");
+        }
+        return product;
     }
 
     private Map<Long, Long> availableStocks(List<Product> products) {

@@ -2191,6 +2191,13 @@
   margin: 0 auto;
 }
 
+.seller-product-admin-hidden-notice { margin: 0 0 24px; padding: 18px 20px; border: 1px solid #efb5b5; border-radius: 12px; background: #fff7f7; color: #5f4242; }
+.seller-product-admin-hidden-notice strong { display: block; margin-bottom: 7px; color: #c53030; font-size: 15px; }
+.seller-product-admin-hidden-notice p { margin: 0 0 7px; line-height: 1.6; }
+.seller-product-admin-hidden-notice span, .seller-product-admin-hidden-notice small { display: block; color: #876c6c; font-size: 12px; }
+.seller-product-admin-hidden-notice small { margin-top: 9px; }
+.seller-products-admin-hidden { display: inline-flex; margin-left: 6px; padding: 4px 7px; border-radius: 999px; background: #fff0f0; color: #c53030; font-size: 11px; font-weight: 800; }
+
 .seller-product-detail-header {
   margin-bottom: 28px;
 }

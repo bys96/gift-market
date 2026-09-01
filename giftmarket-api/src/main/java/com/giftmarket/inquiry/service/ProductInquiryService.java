@@ -74,7 +74,7 @@ public class ProductInquiryService {
     }
 
     private Product requireVisibleProduct(Long productId) {
-        return productRepository.findByIdAndStatusInAndDeletedAtIsNull(productId, VISIBLE_STATUSES)
+        return productRepository.findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(productId, VISIBLE_STATUSES)
                 .orElseThrow(() -> new ProductInquiryException("상품을 찾을 수 없습니다."));
     }
 

@@ -10,6 +10,7 @@ public record AdminProductSummaryResponse(
         String productName,
         String representativeImageKey,
         ProductStatus status,
+        boolean adminHidden,
         boolean deleted,
         LocalDateTime createdAt,
         Long sellerId,
@@ -20,7 +21,7 @@ public record AdminProductSummaryResponse(
     public static AdminProductSummaryResponse from(Product product, long availableStock) {
         return new AdminProductSummaryResponse(
                 product.getId(), product.getName(), product.getRepresentativeImageKey(),
-                product.getStatus(), product.isDeleted(), product.getCreatedAt(),
+                product.getStatus(), product.isAdminHidden(), product.isDeleted(), product.getCreatedAt(),
                 product.getSeller().getId(), product.getSeller().getStoreName(),
                 product.getPrice(), availableStock
         );

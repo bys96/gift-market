@@ -44,6 +44,9 @@ export interface SellerProduct {
   price: number;
   stockQuantity: number;
   status: ProductStatus;
+  adminHidden: boolean;
+  adminHiddenReason: string | null;
+  adminHiddenAt: string | null;
   representativeImageKey: string | null;
   galleryImageKeys: string[];
   freeShipping: boolean;
@@ -64,6 +67,9 @@ export interface SellerProductListItem {
   price: number;
   stockQuantity: number;
   status: ProductStatus;
+  adminHidden: boolean;
+  adminHiddenReason: string | null;
+  adminHiddenAt: string | null;
   representativeImageKey: string | null;
   createdAt: string;
   updatedAt: string;

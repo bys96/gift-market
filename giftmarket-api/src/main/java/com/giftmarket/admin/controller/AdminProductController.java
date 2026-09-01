@@ -1,6 +1,7 @@
 package com.giftmarket.admin.controller;
 
 import com.giftmarket.admin.dto.request.AdminProductDeletedFilter;
+import com.giftmarket.admin.dto.request.AdminProductStatusChangeRequest;
 import com.giftmarket.admin.dto.response.AdminProductDetailResponse;
 import com.giftmarket.admin.dto.response.AdminProductPageResponse;
 import com.giftmarket.admin.service.AdminProductService;
@@ -8,6 +9,7 @@ import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.product.entity.ProductStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -43,5 +45,25 @@ public class AdminProductController {
             @PathVariable Long productId
     ) {
         return ApiResponse.success(adminProductService.getProduct(adminUserId, productId));
+    }
+
+    @PatchMapping("/{productId}/hide")
+    public ApiResponse<Void> hideProduct(
+            @AuthenticationPrincipal Long adminUserId,
+            @PathVariable Long productId,
+            @Valid @RequestBody AdminProductStatusChangeRequest request
+    ) {
+        adminProductService.hideProduct(adminUserId, productId, request.trimmedReason());
+        return ApiResponse.success(null);
+    }
+
+    @PatchMapping("/{productId}/unhide")
+    public ApiResponse<Void> unhideProduct(
+            @AuthenticationPrincipal Long adminUserId,
+            @PathVariable Long productId,
+            @Valid @RequestBody AdminProductStatusChangeRequest request
+    ) {
+        adminProductService.unhideProduct(adminUserId, productId, request.trimmedReason());
+        return ApiResponse.success(null);
     }
 }

@@ -16,6 +16,9 @@ public record AdminProductDetailResponse(
         long price,
         long availableStock,
         ProductStatus status,
+        boolean adminHidden,
+        String adminHiddenReason,
+        LocalDateTime adminHiddenAt,
         boolean deleted,
         LocalDateTime deletedAt,
         LocalDateTime createdAt,
@@ -78,6 +81,7 @@ public record AdminProductDetailResponse(
         return new AdminProductDetailResponse(
                 product.getId(), product.getName(), product.getBrandName(), product.getSummary(),
                 product.getDescription(), product.getPrice(), availableStock, product.getStatus(),
+                product.isAdminHidden(), product.getAdminHiddenReason(), product.getAdminHiddenAt(),
                 product.isDeleted(), product.getDeletedAt(), product.getCreatedAt(), product.getUpdatedAt(),
                 product.isFreeShipping(), product.getShippingFee(), product.getShippingPreparationDays(),
                 product.getReturnShippingFee(), product.getExchangeShippingFee(),

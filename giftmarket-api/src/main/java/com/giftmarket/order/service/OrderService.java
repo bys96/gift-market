@@ -863,6 +863,14 @@ public class OrderService {
             );
         }
 
+        if (product.isAdminHidden()) {
+            throw new OrderException(
+                    directPurchase
+                            ? "현재 판매가 중지된 상품입니다."
+                            : "현재 판매가 중지된 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요."
+            );
+        }
+
         if (product.getStatus()
                 == ProductStatus.SOLD_OUT) {
             throw new OrderException(

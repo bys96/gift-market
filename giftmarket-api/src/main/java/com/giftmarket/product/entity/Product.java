@@ -103,6 +103,19 @@ public class Product extends BaseEntity {
     private ProductStatus status;
 
     @Column(
+            name = "admin_hidden",
+            nullable = false,
+            columnDefinition = "boolean default false"
+    )
+    private boolean adminHidden;
+
+    @Column(name = "admin_hidden_reason", length = 500)
+    private String adminHiddenReason;
+
+    @Column(name = "admin_hidden_at")
+    private LocalDateTime adminHiddenAt;
+
+    @Column(
             name = "representative_image_key",
             length = 1000
     )
@@ -299,6 +312,34 @@ public class Product extends BaseEntity {
 
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    public void hideByAdmin(String reason) {
+        if (adminHidden) {
+            throw new IllegalStateException("이미 관리자가 판매 중지한 상품입니다.");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("관리자 판매중지 사유가 필요합니다.");
+        }
+
+        String normalizedReason = reason.trim();
+        if (normalizedReason.length() > 500) {
+            throw new IllegalArgumentException("관리자 판매중지 사유는 500자 이하여야 합니다.");
+        }
+
+        this.adminHidden = true;
+        this.adminHiddenReason = normalizedReason;
+        this.adminHiddenAt = LocalDateTime.now();
+    }
+
+    public void unhideByAdmin() {
+        if (!adminHidden) {
+            throw new IllegalStateException("관리자 판매중지 상태가 아닙니다.");
+        }
+
+        this.adminHidden = false;
+        this.adminHiddenReason = null;
+        this.adminHiddenAt = null;
     }
 
     public void changeStockQuantity(Integer stockQuantity) {

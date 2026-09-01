@@ -323,6 +323,15 @@ export default function SellerProductDetailPage() {
             </div>
           </header>
 
+          {product.adminHidden && (
+            <div className="seller-product-admin-hidden-notice" role="status">
+              <strong>관리자 판매중지</strong>
+              <p>{product.adminHiddenReason}</p>
+              <span>{product.adminHiddenAt ? formatDate(product.adminHiddenAt) : "-"}</span>
+              <small>판매 상태를 변경해도 관리자 제재가 해제되기 전까지 구매자에게 노출되지 않습니다.</small>
+            </div>
+          )}
+
           {/* ========================================
               기본 정보
           ======================================== */}

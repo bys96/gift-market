@@ -156,7 +156,8 @@ public class CartItemResponse {
             int quantity,
             int stockQuantity
     ) {
-        if (product.getStatus() == ProductStatus.HIDDEN) {
+        if (product.isAdminHidden()
+                || product.getStatus() == ProductStatus.HIDDEN) {
             return CartItemAvailability.SALE_STOPPED;
         }
 

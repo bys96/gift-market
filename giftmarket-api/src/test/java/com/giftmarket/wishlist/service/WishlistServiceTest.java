@@ -80,7 +80,7 @@ class WishlistServiceTest {
     @Test
     void rejectsMissingOrNonBuyerVisibleProduct() {
         given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
-        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(eq(PRODUCT_ID), any()))
+        given(productRepository.findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(eq(PRODUCT_ID), any()))
                 .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addWishlist(USER_ID, PRODUCT_ID))
@@ -179,7 +179,7 @@ class WishlistServiceTest {
 
     private void givenAddableProduct() {
         givenProductSummary(ProductStatus.ON_SALE, 10_000L, "image.jpg");
-        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(eq(PRODUCT_ID), any()))
+        given(productRepository.findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(eq(PRODUCT_ID), any()))
                 .willReturn(Optional.of(product));
     }
 

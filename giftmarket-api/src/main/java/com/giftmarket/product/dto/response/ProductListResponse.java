@@ -27,6 +27,12 @@ public class ProductListResponse {
 
     private ProductStatus status;
 
+    private boolean adminHidden;
+
+    private String adminHiddenReason;
+
+    private LocalDateTime adminHiddenAt;
+
     private String representativeImageKey;
 
     private LocalDateTime createdAt;
@@ -43,6 +49,9 @@ public class ProductListResponse {
                 .price(product.getPrice())
                 .stockQuantity(product.getStockQuantity())
                 .status(product.getStatus())
+                .adminHidden(product.isAdminHidden())
+                .adminHiddenReason(product.getAdminHiddenReason())
+                .adminHiddenAt(product.getAdminHiddenAt())
                 .representativeImageKey(
                         product.getRepresentativeImageKey()
                 )

@@ -486,6 +486,9 @@ export default function SellerProductsPage() {
                                   >
                                     {PRODUCT_STATUS_LABEL[product.status]}
                                   </span>
+                                  {product.adminHidden && (
+                                    <span className="seller-products-admin-hidden">관리자 판매중지</span>
+                                  )}
                                 </td>
 
                                 <td>

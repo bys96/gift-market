@@ -22,6 +22,13 @@
 .admin-product-deleted-notice { margin-bottom: 18px; padding: 14px 17px; border: 1px solid #efc3c3; border-radius: 10px; background: #fff5f5; color: #934242; font-size: 13px; }
 .admin-product-detail-image { display: grid; width: 96px; height: 96px; place-items: center; border-radius: 13px; color: #68707b; font-size: 26px; font-weight: 800; }
 .admin-product-header-badges { display: flex; flex-shrink: 0; align-items: center; gap: 7px; }
+.admin-product-admin-hidden { display: inline-flex; margin-left: 6px; padding: 5px 8px; border-radius: 999px; background: #fff0f0; color: var(--color-error); font-size: 11px; font-weight: 800; }
+.admin-product-admin-hidden-notice { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 15px 18px; border: 1px solid #efb5b5; border-radius: 11px; background: #fff7f7; color: #5f4242; }
+.admin-product-admin-hidden-notice strong { color: var(--color-error); }
+.admin-product-admin-hidden-notice small { margin-left: auto; color: #8a6b6b; }
+.admin-product-hide-button, .admin-product-unhide-button { min-height: 38px; padding: 0 13px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; }
+.admin-product-hide-button { border: 1px solid #e5a8a8; background: #fff; color: var(--color-error); }
+.admin-product-unhide-button { border: 1px solid #292e37; background: #292e37; color: #fff; }
 .admin-product-store-link { display: inline-block; margin: 20px 0 0 8px; color: #656c77; font-size: 12px; font-weight: 700; text-decoration: none; }
 .admin-product-description { max-height: 330px; overflow: auto; color: #555c66; font-size: 13px; line-height: 1.7; }
 .admin-product-description img { max-width: 100%; height: auto; }

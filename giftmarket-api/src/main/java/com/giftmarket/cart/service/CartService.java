@@ -436,6 +436,12 @@ public class CartService {
                     "삭제된 상품은 구매할 수 없습니다."
             );
         }
+
+        if (product.isAdminHidden()) {
+            throw new CartException(
+                    "현재 판매가 중지된 상품입니다."
+            );
+        }
     }
 
     private void validateProductIsOnSale(

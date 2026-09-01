@@ -91,7 +91,7 @@ public interface ProductRepository extends
             Long sellerId
     );
 
-    Optional<Product> findByIdAndStatusInAndDeletedAtIsNull(
+    Optional<Product> findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(
             Long productId,
             Collection<ProductStatus> statuses
     );

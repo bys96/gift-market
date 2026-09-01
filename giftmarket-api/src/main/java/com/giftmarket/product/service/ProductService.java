@@ -189,6 +189,9 @@ public class ProductService {
                                 ProductSpecifications.notDeleted()
                         )
                         .and(
+                                ProductSpecifications.notAdminHidden()
+                        )
+                        .and(
                                 ProductSpecifications.statusIn(
                                         statuses
                                 )
@@ -220,7 +223,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public ProductDetailResponse getProduct(Long productId) {
         Product product = productRepository
-                .findByIdAndStatusInAndDeletedAtIsNull(
+                .findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(
                         productId,
                         List.of(
                                 ProductStatus.ON_SALE,

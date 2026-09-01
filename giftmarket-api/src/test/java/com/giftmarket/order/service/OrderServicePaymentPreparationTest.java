@@ -391,6 +391,46 @@ class OrderServicePaymentPreparationTest {
     }
 
     @Test
+    void adminHiddenProductDoesNotCreateDirectPreparationAfterProductLock() {
+        given(paymentRepository.findByClientRequestKeyAndOrderUserId(REQUEST_KEY, USER_ID))
+                .willReturn(Optional.empty());
+        given(productRepository.findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID))
+                .willReturn(Optional.of(product));
+        given(product.isDeleted()).willReturn(false);
+        given(product.isAdminHidden()).willReturn(true);
+
+        assertThatThrownBy(() -> orderService.createDirectOrder(USER_ID, createDirectRequest()))
+                .isInstanceOf(OrderException.class);
+
+        verify(productRepository).findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID);
+        verify(orderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+        verify(product, never()).decreaseStock(any());
+    }
+
+    @Test
+    void adminHiddenProductDoesNotCreateCartPreparationAfterProductLock() {
+        given(paymentRepository.findByClientRequestKeyAndOrderUserId(REQUEST_KEY, USER_ID))
+                .willReturn(Optional.empty());
+        given(cartItem.getProduct()).willReturn(product);
+        given(product.getId()).willReturn(PRODUCT_ID);
+        given(cartItemRepository.findAllByIdInAndUserId(List.of(CART_ITEM_ID), USER_ID))
+                .willReturn(List.of(cartItem));
+        given(productRepository.findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID))
+                .willReturn(Optional.of(product));
+        given(product.isDeleted()).willReturn(false);
+        given(product.isAdminHidden()).willReturn(true);
+
+        assertThatThrownBy(() -> orderService.createOrder(USER_ID, createCartRequest(REQUEST_KEY)))
+                .isInstanceOf(OrderException.class);
+
+        verify(productRepository).findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID);
+        verify(orderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+        verify(product, never()).decreaseStock(any());
+    }
+
+    @Test
     void missingRequiredOptionDoesNotCreatePreparation() {
         given(paymentRepository
                 .findByClientRequestKeyAndOrderUserId(
