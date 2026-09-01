@@ -27,4 +27,6 @@ public interface ExchangeRequestItemRepository extends JpaRepository<ExchangeReq
     List<ExchangeRequestItem> findAllByExchangeRequestIdInOrderByExchangeRequestIdAscOrderItemIdAsc(
             List<Long> exchangeRequestIds
     );
+    @Query("select ei.exchangeRequest.id as exchangeId,min(ei.orderItem.productName) as representativeProductName,count(ei.id) as productTypeCount,sum(ei.quantity) as requestedQuantity from ExchangeRequestItem ei where ei.exchangeRequest.id in :ids group by ei.exchangeRequest.id") List<AdminExchangeItemSummaryProjection> summarizeAdminExchanges(@Param("ids")List<Long>ids);
+    @EntityGraph(attributePaths={"orderItem","orderItem.product","orderItem.variant","targetProduct","targetVariant"}) List<ExchangeRequestItem> findAdminByExchangeRequestIdOrderByIdAsc(Long exchangeRequestId);
 }

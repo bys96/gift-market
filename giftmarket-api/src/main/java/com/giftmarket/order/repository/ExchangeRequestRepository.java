@@ -17,6 +17,13 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 
 public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest, Long> {
+    @EntityGraph(attributePaths={"order","order.user","sellerOrder","sellerOrder.seller","collectionShipment","outboundShipment"})
+    @Query(value="""
+            select e from ExchangeRequest e where (:keyword is null or lower(e.order.orderNumber) like lower(concat('%',:keyword,'%')) or lower(e.order.user.name) like lower(concat('%',:keyword,'%')) or lower(e.order.user.email) like lower(concat('%',:keyword,'%')) or lower(e.sellerOrder.seller.storeName) like lower(concat('%',:keyword,'%')) or exists(select ei.id from ExchangeRequestItem ei where ei.exchangeRequest=e and lower(ei.orderItem.productName) like lower(concat('%',:keyword,'%')))) and (:status is null or e.status=:status) and (:responsibility is null or e.responsibility=:responsibility)
+            """,countQuery="""
+            select count(e.id) from ExchangeRequest e where (:keyword is null or lower(e.order.orderNumber) like lower(concat('%',:keyword,'%')) or lower(e.order.user.name) like lower(concat('%',:keyword,'%')) or lower(e.order.user.email) like lower(concat('%',:keyword,'%')) or lower(e.sellerOrder.seller.storeName) like lower(concat('%',:keyword,'%')) or exists(select ei.id from ExchangeRequestItem ei where ei.exchangeRequest=e and lower(ei.orderItem.productName) like lower(concat('%',:keyword,'%')))) and (:status is null or e.status=:status) and (:responsibility is null or e.responsibility=:responsibility)
+            """) Page<ExchangeRequest> findAdminExchanges(@Param("keyword")String keyword,@Param("status")ExchangeRequestStatus status,@Param("responsibility")com.giftmarket.order.entity.ExchangeResponsibility responsibility,Pageable pageable);
+    @EntityGraph(attributePaths={"order","order.user","sellerOrder","sellerOrder.seller","collectionShipment","outboundShipment"}) @Query("select e from ExchangeRequest e where e.id=:id") Optional<ExchangeRequest> findAdminById(@Param("id")Long id);
     long countByStatus(ExchangeRequestStatus status);
     long countByOrderId(Long orderId);
     long countBySellerOrderSellerIdAndStatus(

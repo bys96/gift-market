@@ -1,0 +1,1 @@
+package com.giftmarket.order.repository;public interface AdminExchangeItemSummaryProjection{Long getExchangeId();String getRepresentativeProductName();Long getProductTypeCount();Long getRequestedQuantity();}

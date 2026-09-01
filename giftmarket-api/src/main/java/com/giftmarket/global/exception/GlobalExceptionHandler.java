@@ -7,6 +7,7 @@ import com.giftmarket.admin.exception.AdminProductException;
 import com.giftmarket.admin.exception.AdminOrderException;
 import com.giftmarket.admin.exception.AdminCancellationException;
 import com.giftmarket.admin.exception.AdminReturnException;
+import com.giftmarket.admin.exception.AdminExchangeException;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
@@ -31,6 +32,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(AdminExchangeException.class) public ResponseEntity<ApiResponse<?>> handleAdminExchangeException(AdminExchangeException e){return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(e.getMessage()));}
     @ExceptionHandler(AdminReturnException.class) public ResponseEntity<ApiResponse<?>> handleAdminReturnException(AdminReturnException e){return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(e.getMessage()));}
 
     @ExceptionHandler(AdminCancellationException.class)

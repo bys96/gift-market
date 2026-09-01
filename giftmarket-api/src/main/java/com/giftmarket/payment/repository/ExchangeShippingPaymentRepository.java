@@ -14,6 +14,7 @@ import java.util.Optional;
 
 public interface ExchangeShippingPaymentRepository extends JpaRepository<ExchangeShippingPayment, Long> {
     Optional<ExchangeShippingPayment> findByExchangeRequestId(Long exchangeRequestId);
+    List<ExchangeShippingPayment> findAllByExchangeRequestIdIn(List<Long> exchangeRequestIds);
     Optional<ExchangeShippingPayment> findByProviderOrderId(String providerOrderId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
