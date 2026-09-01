@@ -56,6 +56,20 @@ class ProductAdminHiddenTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.HIDDEN);
     }
 
+    @Test
+    void sellerStatusChangesNeverClearAdminHidden() {
+        Product product = product(ProductStatus.ON_SALE);
+        product.hideByAdmin("관리자 제재");
+
+        product.changeStatus(ProductStatus.HIDDEN);
+        assertThat(product.isAdminHidden()).isTrue();
+        product.changeStatus(ProductStatus.ON_SALE);
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+        assertThat(product.isAdminHidden()).isTrue();
+        assertThat(product.getAdminHiddenReason()).isEqualTo("관리자 제재");
+    }
+
     private Product product(ProductStatus status) {
         Product product = Product.createDraft(
                 mock(Seller.class), mock(Category.class), "상품", null, null, null,
