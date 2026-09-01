@@ -2,6 +2,7 @@ package com.giftmarket.product.repository;
 
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
+import com.giftmarket.seller.entity.SellerStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -91,9 +92,10 @@ public interface ProductRepository extends
             Long sellerId
     );
 
-    Optional<Product> findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(
+    Optional<Product> findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(
             Long productId,
-            Collection<ProductStatus> statuses
+            Collection<ProductStatus> statuses,
+            SellerStatus sellerStatus
     );
 
     Page<Product> findAllBySellerIdAndDeletedAtIsNull(

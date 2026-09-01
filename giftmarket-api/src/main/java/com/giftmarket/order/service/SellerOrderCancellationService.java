@@ -250,7 +250,8 @@ public class SellerOrderCancellationService {
         }
         Seller seller = sellerRepository.findByUserId(userId)
                 .orElseThrow(this::cancellationNotFound);
-        if (seller.getStatus() != SellerStatus.ACTIVE) {
+        if (seller.getStatus() != SellerStatus.ACTIVE
+                && seller.getStatus() != SellerStatus.SALES_SUSPENDED) {
             throw new SellerException("활성 상태의 판매자만 취소 요청을 처리할 수 있습니다.");
         }
         return seller;

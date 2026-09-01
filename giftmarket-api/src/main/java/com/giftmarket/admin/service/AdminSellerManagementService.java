@@ -4,6 +4,11 @@ import com.giftmarket.admin.dto.response.AdminSellerDetailResponse;
 import com.giftmarket.admin.dto.response.AdminSellerPageResponse;
 import com.giftmarket.admin.dto.response.AdminSellerSummaryResponse;
 import com.giftmarket.admin.exception.AdminSellerManagementException;
+import com.giftmarket.admin.exception.AdminSellerOperationException;
+import com.giftmarket.admin.entity.AdminActionLog;
+import com.giftmarket.admin.entity.AdminActionTargetType;
+import com.giftmarket.admin.entity.AdminActionType;
+import com.giftmarket.admin.repository.AdminActionLogRepository;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
@@ -48,6 +53,7 @@ public class AdminSellerManagementService {
     private final ProductRepository productRepository;
     private final SellerOrderRepository sellerOrderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final AdminActionLogRepository adminActionLogRepository;
 
     @Transactional(readOnly = true)
     public AdminSellerPageResponse getSellers(
@@ -91,6 +97,47 @@ public class AdminSellerManagementService {
                 sellerOrderRepository.countBySellerId(sellerId),
                 recentOrders(sellerId)
         );
+    }
+
+    @Transactional
+    public void suspendSales(Long adminUserId, Long sellerId, String reason) {
+        getAdmin(adminUserId);
+        Seller seller = getSellerForSalesOperation(sellerId);
+        if (seller.getStatus() != SellerStatus.ACTIVE) {
+            throw new AdminSellerOperationException("활성 판매자만 판매 정지할 수 있습니다.");
+        }
+
+        seller.suspendSales();
+        adminActionLogRepository.save(AdminActionLog.create(
+                adminUserId,
+                AdminActionType.SELLER_SALES_SUSPENDED,
+                AdminActionTargetType.SELLER,
+                sellerId,
+                reason
+        ));
+    }
+
+    @Transactional
+    public void reactivateSales(Long adminUserId, Long sellerId, String reason) {
+        getAdmin(adminUserId);
+        Seller seller = getSellerForSalesOperation(sellerId);
+        if (seller.getStatus() != SellerStatus.SALES_SUSPENDED) {
+            throw new AdminSellerOperationException("판매 정지 상태만 해제할 수 있습니다.");
+        }
+
+        seller.reactivateSales();
+        adminActionLogRepository.save(AdminActionLog.create(
+                adminUserId,
+                AdminActionType.SELLER_SALES_REACTIVATED,
+                AdminActionTargetType.SELLER,
+                sellerId,
+                reason
+        ));
+    }
+
+    private Seller getSellerForSalesOperation(Long sellerId) {
+        return sellerRepository.findByIdForUpdate(sellerId)
+                .orElseThrow(() -> new AdminSellerManagementException("판매자를 찾을 수 없습니다."));
     }
 
     private Map<Long, Long> onSaleProductCounts(List<Long> sellerIds) {

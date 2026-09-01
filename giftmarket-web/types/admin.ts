@@ -45,7 +45,7 @@ export interface AdminRecentSellerApplication {
 export type AdminUserRole = "USER" | "SELLER" | "ADMIN";
 export type AdminAuthProvider = "GOOGLE" | "KAKAO";
 export type AdminUserStatus = "ACTIVE" | "SUSPENDED" | "WITHDRAWN";
-export type AdminSellerStatus = "ACTIVE" | "SUSPENDED" | "WITHDRAWN";
+export type AdminSellerStatus = "ACTIVE" | "SALES_SUSPENDED" | "SUSPENDED" | "WITHDRAWN";
 
 export interface AdminUserSummary {
   id: number;
@@ -171,6 +171,10 @@ export interface AdminSellerSearchParams {
   size?: number;
   keyword?: string;
   status?: AdminSellerStatus;
+}
+
+export interface AdminSellerSalesStatusChangeRequest {
+  reason: string;
 }
 
 export type AdminProductStatus = "DRAFT" | "ON_SALE" | "SOLD_OUT" | "HIDDEN";

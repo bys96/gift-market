@@ -192,6 +192,9 @@ public class ProductService {
                                 ProductSpecifications.notAdminHidden()
                         )
                         .and(
+                                ProductSpecifications.activeSeller()
+                        )
+                        .and(
                                 ProductSpecifications.statusIn(
                                         statuses
                                 )
@@ -223,12 +226,13 @@ public class ProductService {
     @Transactional(readOnly = true)
     public ProductDetailResponse getProduct(Long productId) {
         Product product = productRepository
-                .findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(
+                .findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(
                         productId,
                         List.of(
                                 ProductStatus.ON_SALE,
                                 ProductStatus.SOLD_OUT
-                        )
+                        ),
+                        SellerStatus.ACTIVE
                 )
                 .orElseThrow(() -> new ProductException(
                         "상품을 찾을 수 없습니다."

@@ -4,6 +4,7 @@ import com.giftmarket.address.exception.AddressException;
 import com.giftmarket.admin.exception.AdminUserException;
 import com.giftmarket.admin.exception.AdminUserOperationException;
 import com.giftmarket.admin.exception.AdminSellerManagementException;
+import com.giftmarket.admin.exception.AdminSellerOperationException;
 import com.giftmarket.admin.exception.AdminProductException;
 import com.giftmarket.admin.exception.AdminProductOperationException;
 import com.giftmarket.admin.exception.AdminOrderException;
@@ -71,6 +72,14 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(AdminSellerOperationException.class)
+    public ResponseEntity<ApiResponse<?>> handleAdminSellerOperationException(
+            AdminSellerOperationException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(exception.getMessage()));
     }
 

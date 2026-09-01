@@ -71,7 +71,10 @@ public class SellerProductInquiryService {
     private Seller activeSeller(Long userId) {
         if (userId == null) throw new AuthenticationException("인증이 필요합니다.");
         Seller seller = sellerRepository.findByUserId(userId).orElseThrow(() -> new ProductInquiryException("판매자 정보를 찾을 수 없습니다."));
-        if (seller.getStatus() != SellerStatus.ACTIVE) throw new ProductInquiryException("활성 판매자만 상품 문의를 관리할 수 있습니다.");
+        if (seller.getStatus() != SellerStatus.ACTIVE
+                && seller.getStatus() != SellerStatus.SALES_SUSPENDED) {
+            throw new ProductInquiryException("상품 문의를 관리할 수 없는 판매자 상태입니다.");
+        }
         return seller;
     }
 

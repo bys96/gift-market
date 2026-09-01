@@ -73,7 +73,7 @@ class SellerDashboardServiceTest {
         );
         given(sellerRepository.findByUserId(USER_ID)).willReturn(Optional.of(seller));
         lenient().when(seller.getId()).thenReturn(SELLER_ID);
-        given(seller.getStatus()).willReturn(SellerStatus.ACTIVE);
+        lenient().when(seller.getStatus()).thenReturn(SellerStatus.ACTIVE);
         lenient().when(seller.getStoreName()).thenReturn("선물 상점");
         lenient().when(sellerOrderRepository.findRecentSellerOrders(
                 eq(SELLER_ID), eq(SellerOrderStatus.PENDING_PAYMENT), any()
@@ -150,6 +150,15 @@ class SellerDashboardServiceTest {
                 .countBySellerOrderSellerIdAndStatus(
                         SELLER_ID, ExchangeRequestStatus.COMPLETED
                 );
+    }
+
+    @Test
+    void salesSuspendedSellerCanAccessDashboardForExistingBusiness() {
+        given(seller.getStatus()).willReturn(SellerStatus.SALES_SUSPENDED);
+
+        SellerDashboardResponse response = service.getDashboard(USER_ID);
+
+        assertThat(response.storeName()).isEqualTo("선물 상점");
     }
 
     @Test

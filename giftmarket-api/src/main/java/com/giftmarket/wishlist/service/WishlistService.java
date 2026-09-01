@@ -5,6 +5,7 @@ import com.giftmarket.product.dto.response.ProductSummaryResponse;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.repository.ProductRepository;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import com.giftmarket.wishlist.entity.WishlistItem;
@@ -50,7 +51,8 @@ public class WishlistService {
                 ));
 
         Product product = productRepository
-                .findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(productId, ADDABLE_STATUSES)
+                .findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(
+                        productId, ADDABLE_STATUSES, SellerStatus.ACTIVE)
                 .orElseThrow(() -> new WishlistException(
                         "찜할 수 있는 상품을 찾을 수 없습니다."
                 ));

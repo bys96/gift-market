@@ -362,7 +362,8 @@ public class SellerReturnRequestService {
     private Seller getActiveSeller(Long userId) {
         if (userId == null) throw new AuthenticationException("인증이 필요합니다.");
         Seller seller = sellerRepository.findByUserId(userId).orElseThrow(this::returnNotFound);
-        if (seller.getStatus() != SellerStatus.ACTIVE) {
+        if (seller.getStatus() != SellerStatus.ACTIVE
+                && seller.getStatus() != SellerStatus.SALES_SUSPENDED) {
             throw new SellerException("활성 상태의 판매자만 반품 요청을 처리할 수 있습니다.");
         }
         return seller;

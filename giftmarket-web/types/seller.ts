@@ -1,6 +1,6 @@
 export type SellerApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
 
-export type SellerStatus = "ACTIVE" | "SUSPENDED" | "WITHDRAWN";
+export type SellerStatus = "ACTIVE" | "SALES_SUSPENDED" | "SUSPENDED" | "WITHDRAWN";
 
 export interface Seller {
   id: number;
@@ -52,6 +52,7 @@ export const sellerApplicationStatusLabel: Record<
 
 export const sellerStatusLabel: Record<SellerStatus, string> = {
   ACTIVE: "운영 중",
-  SUSPENDED: "운영 정지",
+  SALES_SUSPENDED: "판매 정지",
+  SUSPENDED: "계정 정지",
   WITHDRAWN: "탈퇴",
 };

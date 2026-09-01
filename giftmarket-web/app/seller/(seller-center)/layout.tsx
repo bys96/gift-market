@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import SellerSidebar from "@/components/seller/SellerSidebar";
 import { getMySeller } from "@/lib/seller-api";
@@ -18,6 +18,7 @@ export default function SellerCenterLayout({
   children,
 }: SellerCenterLayoutProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const initialized = useAuthStore((state) => state.initialized);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
@@ -66,15 +67,24 @@ export default function SellerCenterLayout({
 
   if (!seller) return null;
 
-  if (seller.status !== "ACTIVE") {
+  if (seller.status !== "ACTIVE" && seller.status !== "SALES_SUSPENDED") {
     return <div className="seller-center-layout"><div className="seller-center-content"><div className="seller-orders-state seller-orders-state-error"><p>현재 판매자 상태에서는 판매자센터를 이용할 수 없습니다.</p><Link href="/">쇼핑몰로 돌아가기</Link></div></div></div>;
+  }
+
+  const isSalesManagementRoute = pathname === "/seller/products/new" || pathname.endsWith("/edit");
+
+  if (seller.status === "SALES_SUSPENDED" && isSalesManagementRoute) {
+    return <div className="seller-center-layout"><SellerSidebar /><div className="seller-center-content"><div className="seller-sales-suspended-block"><strong>현재 판매가 정지된 상태입니다.</strong><p>상품 등록·수정 등 신규 판매 관련 기능은 이용할 수 없습니다. 기존 주문 및 클레임 처리는 계속할 수 있습니다.</p><Link href="/seller/products">상품 목록으로 돌아가기</Link></div></div></div>;
   }
 
   return (
     <div className="seller-center-layout">
       <SellerSidebar />
 
-      <div className="seller-center-content">{children}</div>
+      <div className={`seller-center-content${seller.status === "SALES_SUSPENDED" ? " seller-center-content-sales-suspended" : ""}`}>
+        {seller.status === "SALES_SUSPENDED" && <div className="seller-sales-suspended-notice" role="status"><strong>현재 판매가 정지된 상태입니다.</strong><span>신규 판매 관련 기능은 제한되며 기존 주문 및 클레임 처리는 계속할 수 있습니다.</span></div>}
+        {children}
+      </div>
     </div>
   );
 }

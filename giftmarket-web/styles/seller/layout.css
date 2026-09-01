@@ -482,3 +482,26 @@
     width: min(300px, calc(100vw - 40px));
   }
 }
+.seller-sales-suspended-notice,
+.seller-sales-suspended-block {
+  margin: 18px 24px 0;
+  padding: 16px 18px;
+  border: 1px solid #f0c36a;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #694b10;
+}
+
+.seller-sales-suspended-notice { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.seller-sales-suspended-notice span, .seller-sales-suspended-block p { font-size: 13px; }
+.seller-sales-suspended-block a { color: #59418c; font-size: 13px; font-weight: 700; }
+
+.seller-center-content-sales-suspended .seller-products-create-button,
+.seller-center-content-sales-suspended .seller-products-draft-actions button,
+.seller-center-content-sales-suspended .seller-products-empty button,
+.seller-center-content-sales-suspended .seller-product-detail-edit-button,
+.seller-center-content-sales-suspended .seller-product-detail-status-button,
+.seller-center-content-sales-suspended .seller-product-detail-delete-button {
+  pointer-events: none;
+  opacity: 0.45;
+}

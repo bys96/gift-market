@@ -1,6 +1,10 @@
 package com.giftmarket.admin.service;
 
 import com.giftmarket.admin.exception.AdminSellerManagementException;
+import com.giftmarket.admin.exception.AdminSellerOperationException;
+import com.giftmarket.admin.entity.AdminActionLog;
+import com.giftmarket.admin.entity.AdminActionType;
+import com.giftmarket.admin.repository.AdminActionLogRepository;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.SellerOrder;
@@ -58,6 +62,7 @@ class AdminSellerManagementServiceTest {
     @Mock ProductRepository productRepository;
     @Mock SellerOrderRepository sellerOrderRepository;
     @Mock OrderItemRepository orderItemRepository;
+    @Mock AdminActionLogRepository adminActionLogRepository;
     @Mock User admin;
 
     private AdminSellerManagementService service;
@@ -66,7 +71,8 @@ class AdminSellerManagementServiceTest {
     void setUp() {
         service = new AdminSellerManagementService(
                 userRepository, sellerRepository, sellerApplicationRepository,
-                productRepository, sellerOrderRepository, orderItemRepository
+                productRepository, sellerOrderRepository, orderItemRepository,
+                adminActionLogRepository
         );
     }
 
@@ -201,6 +207,66 @@ class AdminSellerManagementServiceTest {
                 eq(SELLER_ID), eq(SellerOrderStatus.PENDING_PAYMENT), pageable.capture()
         );
         assertThat(pageable.getValue().getPageSize()).isEqualTo(5);
+    }
+
+    @Test
+    void suspendsSalesAndWritesTrimmedAuditLog() {
+        givenAdmin();
+        Seller seller = Seller.create(org.mockito.Mockito.mock(User.class), "선물 상점", null);
+        given(sellerRepository.findByIdForUpdate(SELLER_ID)).willReturn(Optional.of(seller));
+
+        service.suspendSales(ADMIN_ID, SELLER_ID, "  운영 정책 위반  ");
+
+        assertThat(seller.getStatus()).isEqualTo(SellerStatus.SALES_SUSPENDED);
+        ArgumentCaptor<AdminActionLog> log = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(log.capture());
+        assertThat(log.getValue().getActionType()).isEqualTo(AdminActionType.SELLER_SALES_SUSPENDED);
+        assertThat(log.getValue().getTargetId()).isEqualTo(SELLER_ID);
+        assertThat(log.getValue().getReason()).isEqualTo("운영 정책 위반");
+    }
+
+    @Test
+    void reactivatesSalesAndWritesAuditLog() {
+        givenAdmin();
+        Seller seller = Seller.create(org.mockito.Mockito.mock(User.class), "선물 상점", null);
+        seller.suspendSales();
+        given(sellerRepository.findByIdForUpdate(SELLER_ID)).willReturn(Optional.of(seller));
+
+        service.reactivateSales(ADMIN_ID, SELLER_ID, "판매 재개 승인");
+
+        assertThat(seller.getStatus()).isEqualTo(SellerStatus.ACTIVE);
+        ArgumentCaptor<AdminActionLog> log = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(log.capture());
+        assertThat(log.getValue().getActionType()).isEqualTo(AdminActionType.SELLER_SALES_REACTIVATED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SellerStatus.class, names = {"SALES_SUSPENDED", "SUSPENDED", "WITHDRAWN"})
+    void rejectsSalesSuspensionUnlessSellerIsActive(SellerStatus status) {
+        givenAdmin();
+        Seller seller = Seller.create(org.mockito.Mockito.mock(User.class), "선물 상점", null);
+        if (status == SellerStatus.SALES_SUSPENDED) seller.suspendSales();
+        else if (status == SellerStatus.SUSPENDED) seller.suspend();
+        else seller.withdraw();
+        given(sellerRepository.findByIdForUpdate(SELLER_ID)).willReturn(Optional.of(seller));
+
+        assertThatThrownBy(() -> service.suspendSales(ADMIN_ID, SELLER_ID, "사유"))
+                .isInstanceOf(AdminSellerOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SellerStatus.class, names = {"ACTIVE", "SUSPENDED", "WITHDRAWN"})
+    void rejectsSalesReactivationUnlessSellerIsSalesSuspended(SellerStatus status) {
+        givenAdmin();
+        Seller seller = Seller.create(org.mockito.Mockito.mock(User.class), "선물 상점", null);
+        if (status == SellerStatus.SUSPENDED) seller.suspend();
+        else if (status == SellerStatus.WITHDRAWN) seller.withdraw();
+        given(sellerRepository.findByIdForUpdate(SELLER_ID)).willReturn(Optional.of(seller));
+
+        assertThatThrownBy(() -> service.reactivateSales(ADMIN_ID, SELLER_ID, "사유"))
+                .isInstanceOf(AdminSellerOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
     }
 
     private void givenAdmin() {

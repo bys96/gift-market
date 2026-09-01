@@ -5,6 +5,7 @@ import com.giftmarket.product.entity.Category;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.repository.ProductRepository;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import com.giftmarket.wishlist.entity.WishlistItem;
@@ -80,7 +81,7 @@ class WishlistServiceTest {
     @Test
     void rejectsMissingOrNonBuyerVisibleProduct() {
         given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
-        given(productRepository.findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(eq(PRODUCT_ID), any()))
+        given(productRepository.findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(eq(PRODUCT_ID), any(), eq(SellerStatus.ACTIVE)))
                 .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addWishlist(USER_ID, PRODUCT_ID))
@@ -179,7 +180,7 @@ class WishlistServiceTest {
 
     private void givenAddableProduct() {
         givenProductSummary(ProductStatus.ON_SALE, 10_000L, "image.jpg");
-        given(productRepository.findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(eq(PRODUCT_ID), any()))
+        given(productRepository.findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(eq(PRODUCT_ID), any(), eq(SellerStatus.ACTIVE)))
                 .willReturn(Optional.of(product));
     }
 

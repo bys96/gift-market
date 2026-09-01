@@ -10,7 +10,7 @@ import { getAdminProduct, hideAdminProduct, unhideAdminProduct } from "@/lib/adm
 import type { AdminProductDetail } from "@/types/admin";
 
 const productStatusLabel = { DRAFT: "작성 중", ON_SALE: "판매 중", SOLD_OUT: "품절", HIDDEN: "숨김" } as const;
-const sellerStatusLabel = { ACTIVE: "운영 중", SUSPENDED: "운영 정지", WITHDRAWN: "탈퇴" } as const;
+const sellerStatusLabel = { ACTIVE: "정상", SALES_SUSPENDED: "판매 정지", SUSPENDED: "계정 정지", WITHDRAWN: "탈퇴" } as const;
 const formatDateTime = (value: string | null) => value ? new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "-";
 
 export default function AdminProductDetailPage() {

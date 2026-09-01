@@ -10,6 +10,7 @@ import com.giftmarket.inquiry.entity.ProductInquiryAnswer;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.repository.ProductRepository;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -74,7 +75,8 @@ public class ProductInquiryService {
     }
 
     private Product requireVisibleProduct(Long productId) {
-        return productRepository.findByIdAndStatusInAndAdminHiddenFalseAndDeletedAtIsNull(productId, VISIBLE_STATUSES)
+        return productRepository.findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(
+                        productId, VISIBLE_STATUSES, SellerStatus.ACTIVE)
                 .orElseThrow(() -> new ProductInquiryException("상품을 찾을 수 없습니다."));
     }
 

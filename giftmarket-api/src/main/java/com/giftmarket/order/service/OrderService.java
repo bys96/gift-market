@@ -38,6 +38,7 @@ import com.giftmarket.product.repository.ProductRepository;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantRepository;
 import com.giftmarket.seller.entity.Seller;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -882,6 +883,14 @@ public class OrderService {
 
         if (product.getStatus()
                 != ProductStatus.ON_SALE) {
+            throw new OrderException(
+                    directPurchase
+                            ? "현재 판매가 중지된 상품입니다."
+                            : "현재 판매가 중지된 상품이 포함되어 있습니다. 장바구니를 다시 확인해주세요."
+            );
+        }
+
+        if (product.getSeller().getStatus() != SellerStatus.ACTIVE) {
             throw new OrderException(
                     directPurchase
                             ? "현재 판매가 중지된 상품입니다."

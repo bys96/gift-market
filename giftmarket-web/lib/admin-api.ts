@@ -8,6 +8,7 @@ import type {
   AdminSellerDetail,
   AdminSellerPage,
   AdminSellerSearchParams,
+  AdminSellerSalesStatusChangeRequest,
   AdminProductDetail,
   AdminProductPage,
   AdminProductSearchParams,
@@ -104,6 +105,26 @@ export async function getAdminSeller(sellerId: number): Promise<AdminSellerDetai
   );
   if (!response.data) throw new Error("판매자 정보를 불러오지 못했습니다.");
   return response.data;
+}
+
+export async function suspendAdminSellerSales(
+  sellerId: number,
+  request: AdminSellerSalesStatusChangeRequest,
+): Promise<void> {
+  await apiFetch<ApiResponse<null>>(`/api/admin/sellers/${sellerId}/suspend-sales`, {
+    method: "PATCH",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function reactivateAdminSellerSales(
+  sellerId: number,
+  request: AdminSellerSalesStatusChangeRequest,
+): Promise<void> {
+  await apiFetch<ApiResponse<null>>(`/api/admin/sellers/${sellerId}/reactivate-sales`, {
+    method: "PATCH",
+    body: JSON.stringify(request),
+  });
 }
 
 export async function getAdminProducts(search: AdminProductSearchParams): Promise<AdminProductPage> {

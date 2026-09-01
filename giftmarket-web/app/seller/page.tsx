@@ -30,7 +30,7 @@ export default function SellerPage() {
         setErrorMessage("");
 
         const seller = await getMySeller();
-        if (seller?.status === "ACTIVE") {
+        if (seller?.status === "ACTIVE" || seller?.status === "SALES_SUSPENDED") {
           router.replace("/seller/dashboard");
           return;
         }

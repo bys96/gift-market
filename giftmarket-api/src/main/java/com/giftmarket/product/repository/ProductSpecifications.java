@@ -2,6 +2,7 @@ package com.giftmarket.product.repository;
 
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
+import com.giftmarket.seller.entity.SellerStatus;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
@@ -21,6 +22,14 @@ public final class ProductSpecifications {
     public static Specification<Product> notAdminHidden() {
         return (root, query, criteriaBuilder) ->
                 criteriaBuilder.isFalse(root.get("adminHidden"));
+    }
+
+    public static Specification<Product> activeSeller() {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(
+                        root.get("seller").get("status"),
+                        SellerStatus.ACTIVE
+                );
     }
 
     public static Specification<Product> statusIn(

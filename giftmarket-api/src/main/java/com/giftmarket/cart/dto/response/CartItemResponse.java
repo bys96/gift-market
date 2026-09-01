@@ -6,6 +6,7 @@ import com.giftmarket.product.entity.ProductOptionValue;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.entity.ProductVariant;
 import com.giftmarket.product.entity.ProductVariantOptionValue;
+import com.giftmarket.seller.entity.SellerStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -156,7 +157,8 @@ public class CartItemResponse {
             int quantity,
             int stockQuantity
     ) {
-        if (product.isAdminHidden()
+        if (product.getSeller().getStatus() != SellerStatus.ACTIVE
+                || product.isAdminHidden()
                 || product.getStatus() == ProductStatus.HIDDEN) {
             return CartItemAvailability.SALE_STOPPED;
         }

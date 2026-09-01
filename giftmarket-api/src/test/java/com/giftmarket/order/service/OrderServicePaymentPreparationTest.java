@@ -35,6 +35,7 @@ import com.giftmarket.product.repository.ProductRepository;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantRepository;
 import com.giftmarket.seller.entity.Seller;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -431,6 +432,45 @@ class OrderServicePaymentPreparationTest {
     }
 
     @Test
+    void salesSuspendedSellerProductDoesNotCreateDirectPreparationAfterProductLock() {
+        given(paymentRepository.findByClientRequestKeyAndOrderUserId(REQUEST_KEY, USER_ID)).willReturn(Optional.empty());
+        given(product.isDeleted()).willReturn(false);
+        given(product.isAdminHidden()).willReturn(false);
+        given(product.getStatus()).willReturn(ProductStatus.ON_SALE);
+        given(product.getSeller()).willReturn(seller);
+        given(seller.getStatus()).willReturn(SellerStatus.SALES_SUSPENDED);
+        given(productRepository.findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> orderService.createDirectOrder(USER_ID, createDirectRequest()))
+                .isInstanceOf(OrderException.class);
+
+        verify(productRepository).findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID);
+        verify(orderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void salesSuspendedSellerProductDoesNotCreateCartPreparationAfterProductLock() {
+        given(paymentRepository.findByClientRequestKeyAndOrderUserId(REQUEST_KEY, USER_ID)).willReturn(Optional.empty());
+        given(cartItem.getProduct()).willReturn(product);
+        given(product.getId()).willReturn(PRODUCT_ID);
+        given(cartItemRepository.findAllByIdInAndUserId(List.of(CART_ITEM_ID), USER_ID)).willReturn(List.of(cartItem));
+        given(productRepository.findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.of(product));
+        given(product.isDeleted()).willReturn(false);
+        given(product.isAdminHidden()).willReturn(false);
+        given(product.getStatus()).willReturn(ProductStatus.ON_SALE);
+        given(product.getSeller()).willReturn(seller);
+        given(seller.getStatus()).willReturn(SellerStatus.SALES_SUSPENDED);
+
+        assertThatThrownBy(() -> orderService.createOrder(USER_ID, createCartRequest(REQUEST_KEY)))
+                .isInstanceOf(OrderException.class);
+
+        verify(productRepository).findWithLockByIdAndDeletedAtIsNull(PRODUCT_ID);
+        verify(orderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
     void missingRequiredOptionDoesNotCreatePreparation() {
         given(paymentRepository
                 .findByClientRequestKeyAndOrderUserId(
@@ -443,6 +483,8 @@ class OrderServicePaymentPreparationTest {
         given(product.getId()).willReturn(PRODUCT_ID);
         given(product.isDeleted()).willReturn(false);
         given(product.getStatus()).willReturn(ProductStatus.ON_SALE);
+        given(product.getSeller()).willReturn(seller);
+        given(seller.getStatus()).willReturn(SellerStatus.ACTIVE);
         given(productOptionGroupRepository
                 .findAllByProductIdOrderBySortOrderAsc(PRODUCT_ID))
                 .willReturn(List.of(productOptionGroup));
@@ -699,6 +741,7 @@ class OrderServicePaymentPreparationTest {
         given(product.getName()).willReturn("테스트 상품");
         given(product.getBrandName()).willReturn("테스트 브랜드");
         given(product.getSeller()).willReturn(seller);
+        given(seller.getStatus()).willReturn(SellerStatus.ACTIVE);
         given(product.isFreeShipping()).willReturn(true);
         given(product.getReturnShippingFee()).willReturn(3_000L);
         given(product.getExchangeShippingFee()).willReturn(6_000L);

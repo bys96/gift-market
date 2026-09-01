@@ -9,8 +9,8 @@ import { getAdminSellers } from "@/lib/admin-api";
 import type { AdminSellerPage, AdminSellerStatus } from "@/types/admin";
 
 const PAGE_SIZE = 20;
-const statuses: AdminSellerStatus[] = ["ACTIVE", "SUSPENDED", "WITHDRAWN"];
-const statusLabel: Record<AdminSellerStatus, string> = { ACTIVE: "운영 중", SUSPENDED: "운영 정지", WITHDRAWN: "탈퇴" };
+const statuses: AdminSellerStatus[] = ["ACTIVE", "SALES_SUSPENDED", "SUSPENDED", "WITHDRAWN"];
+const statusLabel: Record<AdminSellerStatus, string> = { ACTIVE: "정상", SALES_SUSPENDED: "판매 정지", SUSPENDED: "계정 정지", WITHDRAWN: "탈퇴" };
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));

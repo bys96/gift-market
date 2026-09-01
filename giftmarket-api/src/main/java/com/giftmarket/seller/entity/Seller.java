@@ -96,6 +96,20 @@ public class Seller extends BaseEntity {
         this.status = SellerStatus.SUSPENDED;
     }
 
+    public void suspendSales() {
+        if (status != SellerStatus.ACTIVE) {
+            throw new IllegalStateException("활성 판매자만 판매 정지할 수 있습니다.");
+        }
+        this.status = SellerStatus.SALES_SUSPENDED;
+    }
+
+    public void reactivateSales() {
+        if (status != SellerStatus.SALES_SUSPENDED) {
+            throw new IllegalStateException("판매 정지 상태만 해제할 수 있습니다.");
+        }
+        this.status = SellerStatus.ACTIVE;
+    }
+
     public void activate() {
         this.status = SellerStatus.ACTIVE;
     }

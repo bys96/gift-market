@@ -16,6 +16,7 @@ import com.giftmarket.product.repository.ProductOptionGroupRepository;
 import com.giftmarket.product.repository.ProductRepository;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantRepository;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -438,6 +439,12 @@ public class CartService {
         }
 
         if (product.isAdminHidden()) {
+            throw new CartException(
+                    "현재 판매가 중지된 상품입니다."
+            );
+        }
+
+        if (product.getSeller().getStatus() != SellerStatus.ACTIVE) {
             throw new CartException(
                     "현재 판매가 중지된 상품입니다."
             );

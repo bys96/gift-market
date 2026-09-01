@@ -305,7 +305,8 @@ public class SellerOrderManagementService {
         }
         Seller seller = sellerRepository.findByUserId(userId)
                 .orElseThrow(() -> new SellerException("판매자 정보를 찾을 수 없습니다."));
-        if (seller.getStatus() != SellerStatus.ACTIVE) {
+        if (seller.getStatus() != SellerStatus.ACTIVE
+                && seller.getStatus() != SellerStatus.SALES_SUSPENDED) {
             throw new SellerException("활성 상태의 판매자만 주문을 관리할 수 있습니다.");
         }
         return seller;

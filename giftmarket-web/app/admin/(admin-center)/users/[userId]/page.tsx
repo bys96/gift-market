@@ -14,7 +14,7 @@ const labels = {
   role: { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자" },
   provider: { GOOGLE: "Google", KAKAO: "Kakao" },
   userStatus: { ACTIVE: "활성", SUSPENDED: "정지", WITHDRAWN: "탈퇴" },
-  sellerStatus: { ACTIVE: "운영 중", SUSPENDED: "운영 정지", WITHDRAWN: "탈퇴" },
+  sellerStatus: { ACTIVE: "정상", SALES_SUSPENDED: "판매 정지", SUSPENDED: "계정 정지", WITHDRAWN: "탈퇴" },
   applicationStatus: { PENDING: "심사 대기", APPROVED: "승인", REJECTED: "거절" },
 } as const;
 
