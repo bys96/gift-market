@@ -100,6 +100,10 @@ export interface AdminUserSearchParams {
   status?: AdminUserStatus;
 }
 
+export interface AdminUserStatusChangeRequest {
+  reason: string;
+}
+
 export type AdminSellerOrderStatus = "PENDING_PAYMENT" | "PAID" | "PREPARING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 
 export interface AdminSellerSummary {

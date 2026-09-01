@@ -4,6 +4,7 @@ import type {
   AdminUserDetail,
   AdminUserPage,
   AdminUserSearchParams,
+  AdminUserStatusChangeRequest,
   AdminSellerDetail,
   AdminSellerPage,
   AdminSellerSearchParams,
@@ -53,6 +54,30 @@ export async function getAdminUser(userId: number): Promise<AdminUserDetail> {
     `/api/admin/users/${userId}`,
   );
   if (!response.data) throw new Error("회원 정보를 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function suspendAdminUser(
+  userId: number,
+  request: AdminUserStatusChangeRequest,
+): Promise<AdminUserDetail> {
+  const response = await apiFetch<ApiResponse<AdminUserDetail>>(
+    `/api/admin/users/${userId}/suspend`,
+    { method: "PATCH", body: JSON.stringify(request) },
+  );
+  if (!response.data) throw new Error("회원 이용 정지에 실패했습니다.");
+  return response.data;
+}
+
+export async function reactivateAdminUser(
+  userId: number,
+  request: AdminUserStatusChangeRequest,
+): Promise<AdminUserDetail> {
+  const response = await apiFetch<ApiResponse<AdminUserDetail>>(
+    `/api/admin/users/${userId}/reactivate`,
+    { method: "PATCH", body: JSON.stringify(request) },
+  );
+  if (!response.data) throw new Error("회원 정지 해제에 실패했습니다.");
   return response.data;
 }
 

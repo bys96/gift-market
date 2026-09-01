@@ -1,7 +1,12 @@
 package com.giftmarket.admin.service;
 
+import com.giftmarket.admin.entity.AdminActionLog;
+import com.giftmarket.admin.entity.AdminActionType;
 import com.giftmarket.admin.exception.AdminUserException;
+import com.giftmarket.admin.exception.AdminUserOperationException;
+import com.giftmarket.admin.repository.AdminActionLogRepository;
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.auth.repository.RefreshTokenRepository;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.review.repository.ReviewRepository;
@@ -50,6 +55,8 @@ class AdminUserServiceTest {
     @Mock OrderRepository orderRepository;
     @Mock ReviewRepository reviewRepository;
     @Mock ProductInquiryRepository productInquiryRepository;
+    @Mock RefreshTokenRepository refreshTokenRepository;
+    @Mock AdminActionLogRepository adminActionLogRepository;
     @Mock User admin;
 
     private AdminUserService service;
@@ -62,7 +69,9 @@ class AdminUserServiceTest {
                 sellerApplicationRepository,
                 orderRepository,
                 reviewRepository,
-                productInquiryRepository
+                productInquiryRepository,
+                refreshTokenRepository,
+                adminActionLogRepository
         );
     }
 
@@ -194,6 +203,83 @@ class AdminUserServiceTest {
         assertThat(response.latestSellerApplication().status()).isEqualTo(SellerApplicationStatus.APPROVED);
     }
 
+    @Test
+    void suspendsActiveUserDeletesRefreshTokenAndWritesTrimmedLog() {
+        givenAdmin();
+        User user = statusChangeUser(UserRole.USER, UserStatus.ACTIVE);
+        given(user.getId()).willReturn(USER_ID);
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        service.suspendUser(ADMIN_ID, USER_ID, "  운영 정책 위반  ");
+
+        verify(user).suspend();
+        verify(refreshTokenRepository).deleteByUserId(USER_ID);
+        ArgumentCaptor<AdminActionLog> logCaptor = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getAdminUserId()).isEqualTo(ADMIN_ID);
+        assertThat(logCaptor.getValue().getActionType()).isEqualTo(AdminActionType.USER_SUSPENDED);
+        assertThat(logCaptor.getValue().getTargetId()).isEqualTo(USER_ID);
+        assertThat(logCaptor.getValue().getReason()).isEqualTo("운영 정책 위반");
+    }
+
+    @Test
+    void reactivatesSuspendedUserAndWritesLogWithoutIssuingRefreshToken() {
+        givenAdmin();
+        User user = statusChangeUser(UserRole.USER, UserStatus.SUSPENDED);
+        given(user.getId()).willReturn(USER_ID);
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        service.reactivateUser(ADMIN_ID, USER_ID, "정지 해제 승인");
+
+        verify(user).activate();
+        verify(refreshTokenRepository, never()).deleteByUserId(any());
+        ArgumentCaptor<AdminActionLog> logCaptor = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getActionType()).isEqualTo(AdminActionType.USER_REACTIVATED);
+    }
+
+    @Test
+    void rejectsChangingOwnStatusWithoutLog() {
+        givenAdmin();
+        given(userRepository.findByIdForUpdate(ADMIN_ID)).willReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> service.suspendUser(ADMIN_ID, ADMIN_ID, "사유"))
+                .isInstanceOf(AdminUserOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsChangingAnotherAdminWithoutLog() {
+        givenAdmin();
+        User user = org.mockito.Mockito.mock(User.class);
+        given(user.getRole()).willReturn(UserRole.ADMIN);
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.suspendUser(ADMIN_ID, USER_ID, "사유"))
+                .isInstanceOf(AdminUserOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsSuspendingWithdrawnUserWithoutLog() {
+        assertSuspendRejected(UserStatus.WITHDRAWN);
+    }
+
+    @Test
+    void rejectsReactivatingWithdrawnUserWithoutLog() {
+        assertReactivateRejected(UserStatus.WITHDRAWN);
+    }
+
+    @Test
+    void rejectsSuspendingAlreadySuspendedUserWithoutLog() {
+        assertSuspendRejected(UserStatus.SUSPENDED);
+    }
+
+    @Test
+    void rejectsReactivatingAlreadyActiveUserWithoutLog() {
+        assertReactivateRejected(UserStatus.ACTIVE);
+    }
+
     private void givenAdmin() {
         given(userRepository.findById(ADMIN_ID)).willReturn(Optional.of(admin));
         given(admin.getRole()).willReturn(UserRole.ADMIN);
@@ -215,5 +301,33 @@ class AdminUserServiceTest {
         given(user.getProvider()).willReturn(AuthProvider.KAKAO);
         given(user.getStatus()).willReturn(UserStatus.ACTIVE);
         return user;
+    }
+
+    private User statusChangeUser(UserRole role, UserStatus status) {
+        User user = org.mockito.Mockito.mock(User.class);
+        given(user.getRole()).willReturn(role);
+        given(user.getStatus()).willReturn(status);
+        return user;
+    }
+
+    private void assertSuspendRejected(UserStatus status) {
+        givenAdmin();
+        User user = statusChangeUser(UserRole.USER, status);
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.suspendUser(ADMIN_ID, USER_ID, "사유"))
+                .isInstanceOf(AdminUserOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
+        verify(refreshTokenRepository, never()).deleteByUserId(any());
+    }
+
+    private void assertReactivateRejected(UserStatus status) {
+        givenAdmin();
+        User user = statusChangeUser(UserRole.USER, status);
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.reactivateUser(ADMIN_ID, USER_ID, "사유"))
+                .isInstanceOf(AdminUserOperationException.class);
+        verify(adminActionLogRepository, never()).save(any());
     }
 }

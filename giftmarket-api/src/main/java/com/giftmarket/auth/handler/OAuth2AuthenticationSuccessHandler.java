@@ -5,6 +5,7 @@ import com.giftmarket.auth.service.RefreshTokenService;
 import com.giftmarket.auth.util.RefreshTokenCookieManager;
 import com.giftmarket.user.entity.AuthProvider;
 import com.giftmarket.user.entity.User;
+import com.giftmarket.user.entity.UserStatus;
 import com.giftmarket.user.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -58,6 +59,10 @@ public class OAuth2AuthenticationSuccessHandler
                 .orElseThrow(() -> new AuthenticationException(
                         "로그인 사용자를 찾을 수 없습니다."
                 ));
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new AuthenticationException("이용할 수 없는 회원 계정입니다.");
+        }
 
         String refreshToken = refreshTokenService.issue(user);
 

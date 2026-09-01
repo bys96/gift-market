@@ -7,6 +7,7 @@ import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.auth.jwt.JwtTokenProvider;
 import com.giftmarket.auth.repository.RefreshTokenRepository;
 import com.giftmarket.user.entity.User;
+import com.giftmarket.user.entity.UserStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +65,7 @@ public class RefreshTokenService {
      * Refresh Token 검증, 회전, Access Token 발급을
      * 하나의 트랜잭션에서 처리한다.
      */
-    @Transactional
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public TokenReissueResult reissue(String rawToken) {
         RefreshToken refreshToken = findValidToken(rawToken);
 
@@ -73,6 +74,11 @@ public class RefreshTokenService {
          * Access Token을 생성하므로 정상적으로 조회된다.
          */
         User user = refreshToken.getUser();
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            refreshTokenRepository.delete(refreshToken);
+            throw new AuthenticationException("이용할 수 없는 회원 계정입니다.");
+        }
 
         String newRawToken = generateToken();
         String newTokenHash = hash(newRawToken);

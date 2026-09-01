@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
-import { getAdminUser } from "@/lib/admin-api";
+import Modal from "@/components/common/modal/Modal";
+import { getAdminUser, reactivateAdminUser, suspendAdminUser } from "@/lib/admin-api";
 import type { AdminUserDetail } from "@/types/admin";
 import { resolveImageUrl } from "@/utils/image-url";
 
@@ -31,6 +32,11 @@ export default function AdminUserDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [imageFailed, setImageFailed] = useState(false);
+  const [action, setAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [reason, setReason] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
 
   const loadUser = useCallback(async () => {
     if (!Number.isSafeInteger(userId) || userId < 1) {
@@ -58,6 +64,39 @@ export default function AdminUserDetailPage() {
 
   const imageUrl = user ? resolveImageUrl(user.profileImageUrl) : null;
 
+  const closeActionModal = () => {
+    if (isSubmitting) return;
+    setAction(null);
+    setReason("");
+    setActionError("");
+  };
+
+  const submitStatusChange = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) {
+      setActionError("사유를 입력해주세요.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setActionError("");
+      if (action === "suspend") {
+        await suspendAdminUser(userId, { reason: normalizedReason });
+      } else if (action === "reactivate") {
+        await reactivateAdminUser(userId, { reason: normalizedReason });
+      }
+      await loadUser();
+      setAction(null);
+      setReason("");
+    } catch (failure) {
+      setActionError(failure instanceof Error ? failure.message : "회원 상태를 변경하지 못했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <main className="admin-user-detail-page">
       <Link href="/admin/users" className="admin-user-back-link">← 회원 목록으로 돌아가기</Link>
@@ -68,7 +107,11 @@ export default function AdminUserDetailPage() {
           <header className="admin-user-detail-header">
             <div className="admin-user-profile-image">{imageUrl && !imageFailed ? <Image src={imageUrl} alt={`${user.name} 프로필 이미지`} fill sizes="72px" onError={() => setImageFailed(true)} /> : <span>{user.name.slice(0, 1)}</span>}</div>
             <div><p>USER DETAIL · #{user.id}</p><h1>{user.name}</h1><span>{user.email ?? "이메일 정보 없음"}</span></div>
-            <span className={`admin-user-status admin-user-status-${user.status.toLowerCase()}`}>{labels.userStatus[user.status]}</span>
+            <div className="admin-user-detail-actions">
+              <span className={`admin-user-status admin-user-status-${user.status.toLowerCase()}`}>{labels.userStatus[user.status]}</span>
+              {user.role !== "ADMIN" && user.status === "ACTIVE" && <button type="button" className="admin-user-suspend-button" onClick={() => setAction("suspend")}>이용 정지</button>}
+              {user.role !== "ADMIN" && user.status === "SUSPENDED" && <button type="button" className="admin-user-reactivate-button" onClick={() => setAction("reactivate")}>정지 해제</button>}
+            </div>
           </header>
 
           <div className="admin-user-detail-grid">
@@ -84,6 +127,47 @@ export default function AdminUserDetailPage() {
           </div>
         </>
       ) : null}
+
+      {action && (
+        <Modal
+          onClose={closeActionModal}
+          overlayClassName="admin-user-modal-backdrop"
+          contentClassName="admin-user-modal"
+          ariaLabelledBy="admin-user-action-title"
+          ariaDescribedBy="admin-user-action-description"
+          initialFocusRef={reasonRef}
+          closeOnEscape={!isSubmitting}
+          closeOnBackdrop={!isSubmitting}
+        >
+          <form onSubmit={submitStatusChange}>
+            <header>
+              <h2 id="admin-user-action-title">{action === "suspend" ? "회원 이용 정지" : "회원 정지 해제"}</h2>
+              <button type="button" aria-label="닫기" onClick={closeActionModal} disabled={isSubmitting}>×</button>
+            </header>
+            <p id="admin-user-action-description">
+              {action === "suspend"
+                ? "정지 사유를 입력해주세요. 정지 후 기존 Access Token 및 Refresh Token을 통한 인증이 차단됩니다."
+                : "정지 해제 사유를 입력해주세요."}
+            </p>
+            <label htmlFor="admin-user-action-reason">사유</label>
+            <textarea
+              ref={reasonRef}
+              id="admin-user-action-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={500}
+              disabled={isSubmitting}
+              required
+            />
+            <div className="admin-user-reason-meta"><span>{reason.length}/500</span></div>
+            {actionError && <p className="admin-user-action-error" role="alert">{actionError}</p>}
+            <footer>
+              <button type="button" onClick={closeActionModal} disabled={isSubmitting}>취소</button>
+              <button type="submit" className={action === "suspend" ? "danger" : "primary"} disabled={isSubmitting || !reason.trim()}>{isSubmitting ? "처리 중..." : "확인"}</button>
+            </footer>
+          </form>
+        </Modal>
+      )}
     </main>
   );
 }

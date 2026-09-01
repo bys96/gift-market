@@ -1,5 +1,7 @@
 package com.giftmarket.admin.controller;
 
+import com.giftmarket.admin.dto.request.AdminUserStatusChangeRequest;
+
 import com.giftmarket.admin.dto.response.AdminUserDetailResponse;
 import com.giftmarket.admin.dto.response.AdminUserPageResponse;
 import com.giftmarket.admin.service.AdminUserService;
@@ -7,6 +9,7 @@ import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.user.entity.AuthProvider;
 import com.giftmarket.user.entity.UserRole;
 import com.giftmarket.user.entity.UserStatus;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +17,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,5 +52,27 @@ public class AdminUserController {
             @PathVariable Long userId
     ) {
         return ApiResponse.success(adminUserService.getUser(adminUserId, userId));
+    }
+
+    @PatchMapping("/{userId}/suspend")
+    public ApiResponse<AdminUserDetailResponse> suspendUser(
+            @AuthenticationPrincipal Long adminUserId,
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminUserStatusChangeRequest request
+    ) {
+        return ApiResponse.success(adminUserService.suspendUser(
+                adminUserId, userId, request.trimmedReason()
+        ));
+    }
+
+    @PatchMapping("/{userId}/reactivate")
+    public ApiResponse<AdminUserDetailResponse> reactivateUser(
+            @AuthenticationPrincipal Long adminUserId,
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminUserStatusChangeRequest request
+    ) {
+        return ApiResponse.success(adminUserService.reactivateUser(
+                adminUserId, userId, request.trimmedReason()
+        ));
     }
 }
