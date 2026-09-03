@@ -20,4 +20,6 @@ public class JwtProperties {
     private String refreshCookieName;
 
     private boolean secureCookie;
+
+    private String refreshCookieSameSite;
 }

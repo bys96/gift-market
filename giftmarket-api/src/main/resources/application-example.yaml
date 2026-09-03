@@ -52,6 +52,7 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
@@ -64,6 +65,8 @@ app:
     refresh-token-expiration-seconds: 1209600
     refresh-cookie-name: gift_refresh_token
     secure-cookie: ${REFRESH_COOKIE_SECURE:false}
+    refresh-cookie-same-site: ${REFRESH_COOKIE_SAME_SITE:Lax}
+
 
 logging:
   level:

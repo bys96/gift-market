@@ -26,7 +26,7 @@ public class RefreshTokenCookieManager {
                 )
                 .httpOnly(true)
                 .secure(jwtProperties.isSecureCookie())
-                .sameSite("Lax")
+                .sameSite(jwtProperties.getRefreshCookieSameSite())
                 .path("/api/auth")
                 .maxAge(Duration.ofSeconds(
                         jwtProperties.getRefreshTokenExpirationSeconds()
@@ -49,7 +49,7 @@ public class RefreshTokenCookieManager {
                 )
                 .httpOnly(true)
                 .secure(jwtProperties.isSecureCookie())
-                .sameSite("Lax")
+                .sameSite(jwtProperties.getRefreshCookieSameSite())
                 .path("/api/auth")
                 .maxAge(Duration.ZERO)
                 .build();
