@@ -70,14 +70,20 @@ app:
 
 logging:
   level:
-    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:debug}
-    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:info}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:warn}
+    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:warn}
 
 minio:
   endpoint: ${MINIO_ENDPOINT}
   access-key: ${MINIO_ACCESS_KEY}
   secret-key: ${MINIO_SECRET_KEY}
   bucket: ${MINIO_BUCKET:gift-market}
+
+s3:
+  region: ${S3_REGION:ap-northeast-2}
+  bucket: ${S3_BUCKET:gift-market-storage}
+  access-key: ${S3_ACCESS_KEY}
+  secret-key: ${S3_SECRET_KEY}
 
 payment:
   reservation-minutes: 30
@@ -97,3 +103,6 @@ payment:
     base-url: https://api.tosspayments.com
     connect-timeout-millis: 3000
     read-timeout-millis: 10000
+
+storage:
+  provider: ${STORAGE_PROVIDER:minio}

@@ -1,13 +1,9 @@
 package com.giftmarket.global.storage.service;
 
-import com.giftmarket.global.storage.config.MinioProperties;
 import com.giftmarket.global.storage.dto.PresignedUrlRequest;
 import com.giftmarket.global.storage.dto.PresignedUrlResponse;
+import com.giftmarket.global.storage.provider.StorageProvider;
 import com.giftmarket.global.storage.type.StorageType;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.MinioClient;
-import io.minio.RemoveObjectArgs;
-import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,8 +37,7 @@ public class StorageService {
                     ".gif"
             );
 
-    private final MinioClient minioClient;
-    private final MinioProperties minioProperties;
+    private final StorageProvider storageProvider;
 
     public PresignedUrlResponse createPresignedUrl(
             Long ownerId,
@@ -61,75 +56,37 @@ public class StorageService {
                 request.fileName()
         );
 
-        try {
-            String uploadUrl = minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.PUT)
-                            .bucket(minioProperties.bucket())
-                            .object(objectKey)
-                            .expiry(PRESIGNED_URL_EXPIRATION_SECONDS)
-                            .build()
-            );
+        String uploadUrl = storageProvider.createUploadUrl(
+                objectKey,
+                PRESIGNED_URL_EXPIRATION_SECONDS
+        );
 
-            return new PresignedUrlResponse(
-                    uploadUrl,
-                    objectKey
-            );
-        } catch (Exception exception) {
-            throw new IllegalStateException(
-                    "파일 업로드 URL 생성에 실패했습니다.",
-                    exception
-            );
-        }
+        return new PresignedUrlResponse(
+                uploadUrl,
+                objectKey
+        );
     }
 
     public void deleteObject(String objectKey) {
         if (objectKey == null || objectKey.isBlank()) {
-            log.warn("MinIO 삭제 생략: objectKey가 비어 있습니다.");
+            log.warn("스토리지 객체 삭제 생략: objectKey가 비어 있습니다.");
             return;
         }
 
-        try {
-            log.info("MinIO 객체 삭제 시작. objectKey={}", objectKey);
-
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(minioProperties.bucket())
-                            .object(objectKey)
-                            .build()
-            );
-
-            log.info("MinIO 객체 삭제 요청 완료. objectKey={}", objectKey);
-        } catch (Exception exception) {
-            log.error(
-                    "MinIO 객체 삭제 실패. objectKey={}",
-                    objectKey,
-                    exception
-            );
-
-            throw new IllegalStateException(
-                    "파일 삭제에 실패했습니다.",
-                    exception
-            );
-        }
+        storageProvider.deleteObject(objectKey);
     }
 
     public String createReadUrl(String objectKey) {
         if (objectKey == null || objectKey.isBlank()) {
-            throw new IllegalArgumentException("조회할 파일 정보가 필요합니다.");
-        }
-        try {
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(minioProperties.bucket())
-                            .object(objectKey)
-                            .expiry(PRESIGNED_URL_EXPIRATION_SECONDS)
-                            .build()
+            throw new IllegalArgumentException(
+                    "조회할 파일 정보가 필요합니다."
             );
-        } catch (Exception exception) {
-            throw new IllegalStateException("파일 조회 URL 생성에 실패했습니다.", exception);
         }
+
+        return storageProvider.createReadUrl(
+                objectKey,
+                PRESIGNED_URL_EXPIRATION_SECONDS
+        );
     }
 
     private String createObjectKey(
