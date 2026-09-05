@@ -8,6 +8,7 @@ import {
   clearCompletedPaymentSession,
   getPaymentSession,
 } from "@/lib/payment-session";
+import { useAuthStore } from "@/stores/auth-store";
 import type { PaymentResponse } from "@/types/payment";
 
 const POLLING_INTERVAL_MS = 1_500;
@@ -16,13 +17,16 @@ const MAX_POLLING_COUNT = 10;
 function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const initialized = useAuthStore((state) => state.initialized);
   const startedRef = useRef(false);
   const [message, setMessage] = useState("결제 승인을 확인하고 있습니다.");
   const [orderId, setOrderId] = useState<number | null>(null);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    if (!initialized) return;
     if (startedRef.current) return;
+
     startedRef.current = true;
 
     const providerPaymentKey = searchParams.get("paymentKey");
@@ -52,7 +56,9 @@ function PaymentSuccessContent() {
     ) {
       window.setTimeout(() => {
         setHasError(true);
-        setMessage("저장된 결제 정보와 일치하지 않습니다. 주문 내역을 확인해주세요.");
+        setMessage(
+          "저장된 결제 정보와 일치하지 않습니다. 주문 내역을 확인해주세요.",
+        );
       }, 0);
       return;
     }
@@ -128,7 +134,7 @@ function PaymentSuccessContent() {
     return () => {
       disposed = true;
     };
-  }, [router, searchParams]);
+  }, [initialized, router, searchParams]);
 
   return (
     <div className="payment-result-page">
