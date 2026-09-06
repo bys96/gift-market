@@ -5,6 +5,7 @@ type RemotePattern = NonNullable<
 >[number];
 
 const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL?.trim();
+const backendApiOrigin = process.env.BACKEND_API_ORIGIN?.trim().replace(/\/+$/, "");
 
 function createStorageRemotePattern(): RemotePattern | null {
   if (!storageBaseUrl) return null;
@@ -72,6 +73,24 @@ const remotePatterns: RemotePattern[] = [
 if (storageRemotePattern) remotePatterns.push(storageRemotePattern);
 
 const nextConfig: NextConfig = {
+  async rewrites() {
+    if (process.env.NODE_ENV !== "production" || !backendApiOrigin) return [];
+
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${backendApiOrigin}/api/:path*`,
+      },
+      {
+        source: "/oauth2/:path*",
+        destination: `${backendApiOrigin}/oauth2/:path*`,
+      },
+      {
+        source: "/login/oauth2/:path*",
+        destination: `${backendApiOrigin}/login/oauth2/:path*`,
+      },
+    ];
+  },
   images: {
     dangerouslyAllowLocalIP:
       process.env.NODE_ENV !== "production" || isLocalOrPrivateStorageUrl(),

@@ -10,11 +10,8 @@ interface ApiErrorResponse {
   message?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-if (!API_BASE_URL) {
-  throw new Error("NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.");
-}
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") ?? "";
 
 // 여러 API 요청이 동시에 401을 받아도 토큰 재발급은 한 번만 실행한다.
 let refreshPromise: Promise<string | null> | null = null;
