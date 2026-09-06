@@ -264,6 +264,11 @@ export default function Header() {
           }`}
           aria-label="모바일 메뉴"
           aria-hidden={!isMobileMenuOpen}
+          onClick={(event) => {
+            if (event.target instanceof Element && event.target.closest("a[href]")) {
+              setIsMobileMenuOpen(false);
+            }
+          }}
         >
           <div className="layout-mobile-drawer-header">
             <strong>메뉴</strong>

@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -56,7 +58,7 @@ export default function CartPage() {
     }
 
     if (!isAuthenticated) {
-      router.replace("/");
+      router.replace(getLoginRedirectUrl());
       return;
     }
 

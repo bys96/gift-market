@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -69,7 +71,7 @@ export default function SellerProductDetailPage() {
     }
 
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
       return;
     }
   }, [initialized, isAuthenticated, user, router]);

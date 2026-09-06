@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -94,7 +96,7 @@ export default function SellerOrderDetailPage() {
   useEffect(() => {
     if (!initialized) return;
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
       return;
     }
     const requestId = window.setTimeout(() => void loadOrder(), 0);

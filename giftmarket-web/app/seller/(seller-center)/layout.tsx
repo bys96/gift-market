@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -29,7 +31,7 @@ export default function SellerCenterLayout({
   useEffect(() => {
     if (!initialized) return;
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
       return;
     }
 

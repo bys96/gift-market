@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -75,7 +77,7 @@ export default function SellerOrderCancellationsPage() {
   useEffect(() => {
     if (!initialized) return;
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
       return;
     }
     const requestId = window.setTimeout(() => void loadCancellations(), 0);

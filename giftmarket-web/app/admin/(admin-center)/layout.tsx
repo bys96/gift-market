@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import { type ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -15,7 +17,7 @@ export default function AdminCenterLayout({ children }: { children: ReactNode })
   useEffect(() => {
     if (!initialized) return;
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
       return;
     }
     if (user.role !== "ADMIN") router.replace("/");

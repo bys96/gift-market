@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -76,7 +78,7 @@ export default function SellerDashboardPage() {
   useEffect(() => {
     if (!initialized) return;
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
       return;
     }
     // 인증 초기화가 완료된 시점에 서버 집계 데이터를 조회하는 의도된 effect입니다.

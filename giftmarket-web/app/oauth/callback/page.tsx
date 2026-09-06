@@ -22,7 +22,11 @@ function resolveRedirectUrl(redirect: string | null): string {
   }
 
   // 외부 URL redirect 방지
-  if (!redirect.startsWith("/") || redirect.startsWith("//")) {
+  if (
+    !redirect.startsWith("/") ||
+    redirect.startsWith("//") ||
+    /[\\\u0000-\u0020\u007f]/.test(redirect)
+  ) {
     return DEFAULT_REDIRECT_URL;
   }
 

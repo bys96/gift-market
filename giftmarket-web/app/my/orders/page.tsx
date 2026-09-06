@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -47,7 +49,7 @@ function MyOrdersContent() {
     }
 
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
     }
   }, [initialized, isAuthenticated, user, router]);
 

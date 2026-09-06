@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -12,7 +14,7 @@ export default function SellerInquiryDetailPage() {
   const initialized = useAuthStore((s) => s.initialized); const user = useAuthStore((s) => s.user); const authenticated = useAuthStore((s) => s.isAuthenticated);
   const [inquiry, setInquiry] = useState<ProductInquiry | null>(null); const [answer, setAnswer] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const load = useCallback(async () => { try { setLoading(true); setError(""); const value = await getSellerProductInquiry(id); setInquiry(value); setAnswer(value.answerContent ?? ""); } catch (e) { setError(e instanceof Error ? e.message : "문의를 불러오지 못했습니다."); } finally { setLoading(false); } }, [id]);
-  useEffect(() => { if (!initialized) return; if (!authenticated || !user) { router.replace("/login"); return; }
+  useEffect(() => { if (!initialized) return; if (!authenticated || !user) { router.replace(getLoginRedirectUrl()); return; }
     // 인증 확인 후 문의 상세를 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load(); }, [authenticated, initialized, load, router, user]);

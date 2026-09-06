@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -38,7 +40,7 @@ export default function MyAddressesPage() {
     }
 
     if (!isAuthenticated || !user) {
-      router.replace("/login");
+      router.replace(getLoginRedirectUrl());
     }
   }, [initialized, isAuthenticated, user, router]);
 

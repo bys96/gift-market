@@ -16,7 +16,11 @@ function resolveRedirectUrl(redirect: string | null): string {
     return DEFAULT_REDIRECT_URL;
   }
 
-  if (!redirect.startsWith("/") || redirect.startsWith("//")) {
+  if (
+    !redirect.startsWith("/") ||
+    redirect.startsWith("//") ||
+    /[\\\u0000-\u0020\u007f]/.test(redirect)
+  ) {
     return DEFAULT_REDIRECT_URL;
   }
 

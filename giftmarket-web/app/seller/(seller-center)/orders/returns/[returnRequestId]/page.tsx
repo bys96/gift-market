@@ -1,5 +1,7 @@
 "use client";
 
+import { getLoginRedirectUrl } from "@/lib/login-redirect";
+
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -58,7 +60,7 @@ export default function SellerReturnDetailPage() {
 
   useEffect(() => {
     if (!initialized) return;
-    if (!isAuthenticated || !user) { router.replace("/login"); return; }
+    if (!isAuthenticated || !user) { router.replace(getLoginRedirectUrl()); return; }
     const requestId = window.setTimeout(() => void loadRequest(), 0);
     return () => window.clearTimeout(requestId);
   }, [initialized, isAuthenticated, loadRequest, router, user]);
