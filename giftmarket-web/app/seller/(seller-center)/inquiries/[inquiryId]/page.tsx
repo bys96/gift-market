@@ -12,12 +12,12 @@ export default function SellerInquiryDetailPage() {
   const initialized = useAuthStore((s) => s.initialized); const user = useAuthStore((s) => s.user); const authenticated = useAuthStore((s) => s.isAuthenticated);
   const [inquiry, setInquiry] = useState<ProductInquiry | null>(null); const [answer, setAnswer] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const load = useCallback(async () => { try { setLoading(true); setError(""); const value = await getSellerProductInquiry(id); setInquiry(value); setAnswer(value.answerContent ?? ""); } catch (e) { setError(e instanceof Error ? e.message : "문의를 불러오지 못했습니다."); } finally { setLoading(false); } }, [id]);
-  useEffect(() => { if (!initialized) return; if (!authenticated || !user) { router.replace("/login"); return; } if (user.role !== "SELLER") { router.replace("/seller"); return; }
+  useEffect(() => { if (!initialized) return; if (!authenticated || !user) { router.replace("/login"); return; }
     // 인증 확인 후 문의 상세를 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load(); }, [authenticated, initialized, load, router, user]);
   const submit = async (e: FormEvent) => { e.preventDefault(); if (!answer.trim()) { setError("답변 내용을 입력해주세요."); return; } try { setBusy(true); setError(""); const value = await answerProductInquiry(id, answer); setInquiry(value); setAnswer(value.answerContent ?? ""); } catch (err) { setError(err instanceof Error ? err.message : "답변을 저장하지 못했습니다."); } finally { setBusy(false); } };
-  if (!initialized || !authenticated || !user || user.role !== "SELLER") return null;
+  if (!initialized || !authenticated || !user) return null;
   if (loading) return <main className="seller-inquiries-page"><div className="seller-inquiry-state">문의를 불러오고 있습니다.</div></main>;
   if (error && !inquiry) return <main className="seller-inquiries-page"><div className="seller-inquiry-state"><p>{error}</p><Link href="/seller/inquiries">목록으로</Link></div></main>;
   if (!inquiry) return null;

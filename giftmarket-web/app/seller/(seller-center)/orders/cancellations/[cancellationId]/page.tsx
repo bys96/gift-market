@@ -74,10 +74,6 @@ export default function SellerOrderCancellationDetailPage() {
       router.replace("/login");
       return;
     }
-    if (user.role !== "SELLER" && user.role !== "ADMIN") {
-      router.replace("/seller");
-      return;
-    }
     const requestId = window.setTimeout(() => void loadCancellation(), 0);
     return () => window.clearTimeout(requestId);
   }, [initialized, isAuthenticated, loadCancellation, router, user]);

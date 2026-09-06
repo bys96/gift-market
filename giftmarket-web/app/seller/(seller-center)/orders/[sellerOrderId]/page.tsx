@@ -97,10 +97,6 @@ export default function SellerOrderDetailPage() {
       router.replace("/login");
       return;
     }
-    if (user.role !== "SELLER" && user.role !== "ADMIN") {
-      router.replace("/seller");
-      return;
-    }
     const requestId = window.setTimeout(() => void loadOrder(), 0);
 
     return () => window.clearTimeout(requestId);

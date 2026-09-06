@@ -72,18 +72,13 @@ export default function SellerProductDetailPage() {
       router.replace("/login");
       return;
     }
-
-    if (user.role !== "SELLER" && user.role !== "ADMIN") {
-      router.replace("/seller");
-    }
   }, [initialized, isAuthenticated, user, router]);
 
   useEffect(() => {
     if (
       !initialized ||
       !isAuthenticated ||
-      !user ||
-      (user.role !== "SELLER" && user.role !== "ADMIN")
+      !user
     ) {
       return;
     }
@@ -239,8 +234,7 @@ export default function SellerProductDetailPage() {
   if (
     !initialized ||
     !isAuthenticated ||
-    !user ||
-    (user.role !== "SELLER" && user.role !== "ADMIN")
+    !user
   ) {
     return (
       <main className="seller-product-detail-page">
