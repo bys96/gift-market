@@ -1,6 +1,6 @@
 # Gift Market 개발 트러블슈팅 기록
 
-> 최종 갱신: 2026-08-28
+> 최종 갱신: 2026-09-06
 >
 > 실제 코드, 기존 설계 문서와 git 이력에서 확인되는 문제와 해결 구조를 보존한다. 최종 운영 runbook이 아니며 운영 staging 검증 전 항목을 완료로 간주하지 않는다.
 
@@ -352,6 +352,137 @@ Wishlist를 user-scoped Backend API로 이전하고 서버를 source of truth로
 ## `NEXT_PUBLIC_STORAGE_BASE_URL` 누락 시 이미지가 조용히 사라짐 — 아직 후속
 
 현재 `resolveImageUrl()`은 objectKey인데 `NEXT_PUBLIC_STORAGE_BASE_URL`이 없으면 `null`을 반환한다. 배포 설정 오류가 실제 이미지 없음처럼 보일 수 있으므로, 배포 전 개발/운영 환경에서 설정 오류를 더 명확히 관측할 수 있는 방식으로 보완할 필요가 있다. 아직 해결 완료 항목으로 기록하지 않는다.
+
+# Authentication / OAuth / 운영 Proxy
+
+## Samsung Internet OAuth 로그인 후 Refresh Token 쿠키 유지 실패
+
+### 상황 / 증상
+
+운영 Frontend는 Vercel(`https://gift-market-test.vercel.app`), Backend는 Render(`https://gift-market-api.onrender.com`)에 배포되어 있다. 기존에는 브라우저가 Render를 직접 호출하는 cross-origin이자 cross-site 구조였다. Refresh Token은 HttpOnly Cookie로 관리하고 Access Token 재발급 요청에 `credentials: "include"`를 사용했다.
+
+PC·모바일 Chrome에서는 로그인과 토큰 재발급이 정상이었지만 Samsung Internet에서는 OAuth 인증 성공 이후 Refresh Token Cookie가 기대대로 유지되지 않거나 Access Token 재발급을 통한 로그인 상태 복구가 실패했다.
+
+### 원인 또는 위험
+
+Frontend와 Backend가 다른 site에 있어 인증 흐름이 브라우저별 쿠키 정책, SameSite 처리, tracking prevention에 영향을 받을 수 있었다. 당시 운영 Refresh Cookie는 `Secure=true`, `SameSite=None` 설정이었다. `credentials: "include"`를 지정해도 브라우저의 cross-site 쿠키 제한을 해제하지는 않는다.
+
+특정 쿠키 차단 정책이 직접 원인이었는지는 확정하지 않았다. 단순한 Samsung Internet 버그로 단정하지 않고, cross-site 인증 구조의 브라우저 정책 의존도를 줄이는 방향으로 해결했다.
+
+기존 요청 흐름:
+
+```text
+Browser (https://gift-market-test.vercel.app)
+→ https://gift-market-api.onrender.com/api/... 직접 호출
+
+OAuth 시작: https://gift-market-api.onrender.com/oauth2/authorization/google
+OAuth callback: https://gift-market-api.onrender.com/login/oauth2/code/google
+```
+
+### 해결 / 현재 적용 구조
+
+브라우저별 예외 처리 대신 Production의 API/OAuth 요청을 Next.js rewrite 기반 same-origin proxy로 변경했다. 브라우저는 Vercel origin의 기존 경로를 사용하고 Vercel이 동일 경로의 Render Backend로 전달한다. `/backend` 등 별도 prefix는 추가하지 않았다.
+
+rewrite는 서버 내부에서 요청을 전달하므로 브라우저의 요청 URL을 Render로 바꾸지 않는다. redirect는 브라우저에 다른 URL로 새 요청을 하도록 응답하는 방식이다. OAuth 제공자(Google/Kakao)로의 이동과 인증 성공 후 Frontend로의 redirect는 기존대로 유지된다.
+
+`giftmarket-web/lib/api.ts`:
+
+```typescript
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") ?? "";
+```
+
+- 환경변수 미설정 시 오류를 발생시키던 처리를 제거하고 빈 문자열을 사용한다.
+- 값이 있으면 공백과 끝 `/`를 제거해 기존처럼 직접 호출 URL로 사용한다.
+- Production에서는 빈 값으로 `/api/...` 상대경로를 사용하고 Local에서는 `http://localhost:8080`을 사용한다.
+- `apiFetch`, `refreshAccessToken`, `credentials: "include"`, Authorization 처리와 JWT 로직은 유지한다.
+
+`giftmarket-web/next.config.ts`는 `NODE_ENV === "production"`이고 `BACKEND_API_ORIGIN`이 설정된 경우에만 다음 rewrite를 생성한다. Backend origin의 공백과 끝 `/`도 정규화한다.
+
+| 브라우저 요청 경로 | rewrite 목적지 |
+| --- | --- |
+| `/api/:path*` | `${BACKEND_API_ORIGIN}/api/:path*` |
+| `/oauth2/:path*` | `${BACKEND_API_ORIGIN}/oauth2/:path*` |
+| `/login/oauth2/:path*` | `${BACKEND_API_ORIGIN}/login/oauth2/:path*` |
+
+기존 image remotePatterns, Storage URL 처리와 `dangerouslyAllowLocalIP` 설정은 유지한다. 로그인 페이지와 `AuthInitializer`는 기존 `API_BASE_URL` 조합을, OAuth callback 페이지는 기존 `apiFetch("/api/auth/token")` 호출을 그대로 사용한다.
+
+### 환경변수 / OAuth Redirect URI
+
+`NEXT_PUBLIC_API_BASE_URL`은 브라우저 요청의 기본 URL이고, `BACKEND_API_ORIGIN`은 Next.js/Vercel 서버의 rewrite 목적지다. 후자는 브라우저 공개용이 아니므로 `NEXT_PUBLIC_` 접두사를 사용하지 않는다.
+
+Vercel Production에 추가:
+
+```dotenv
+BACKEND_API_ORIGIN=https://gift-market-api.onrender.com
+```
+
+Vercel Production의 `NEXT_PUBLIC_API_BASE_URL`은 삭제·미등록 또는 빈 값으로 설정한다. Render URL이 남으면 브라우저가 계속 Backend를 직접 호출한다. Storage/Toss 환경변수는 유지하고 설정 변경 후 재배포한다.
+
+Local은 기존 설정을 유지하며 `BACKEND_API_ORIGIN`이 필요 없다.
+
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+운영 OAuth callback도 Vercel을 거치도록 Render에 다음 환경변수를 추가한다. Spring Boot OAuth registration의 `redirect-uri` property를 override하며 Backend Java와 `application-example.yaml`은 변경하지 않았다.
+
+```dotenv
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT_URI=https://gift-market-test.vercel.app/login/oauth2/code/google
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=https://gift-market-test.vercel.app/login/oauth2/code/kakao
+```
+
+기존 `FRONTEND_URL=https://gift-market-test.vercel.app`은 유지한다.
+
+| OAuth 설정 위치 | 등록할 Redirect URI |
+| --- | --- |
+| Google Cloud Console Authorized Redirect URI | `https://gift-market-test.vercel.app/login/oauth2/code/google` |
+| Kakao Developers Redirect URI | `https://gift-market-test.vercel.app/login/oauth2/code/kakao` |
+
+### 최종 요청 흐름
+
+```text
+Local API:
+Browser → http://localhost:8080/api/... → Spring Boot
+
+Production API:
+Browser → https://gift-market-test.vercel.app/api/...
+→ Next.js/Vercel Rewrite → https://gift-market-api.onrender.com/api/...
+→ Spring Boot
+
+Production OAuth (Google):
+Browser → https://gift-market-test.vercel.app/oauth2/authorization/google
+→ Vercel Rewrite → Spring Security → Google
+→ https://gift-market-test.vercel.app/login/oauth2/code/google
+→ Vercel Rewrite → Spring Security
+→ https://gift-market-test.vercel.app/oauth/callback
+
+Refresh Token 기반 Access Token 재발급:
+Browser → POST https://gift-market-test.vercel.app/api/auth/token
+        (HttpOnly Refresh Token Cookie 포함)
+→ Vercel Rewrite → Render/Spring → Access Token 재발급
+```
+
+`OAuth2AuthenticationSuccessHandler`의 `frontendUrl + "/oauth/callback"` redirect와 `RefreshTokenCookieManager`의 HttpOnly Cookie 방식을 유지한다. Cookie에는 별도 Domain을 지정하지 않으며 Path는 `/api/auth`다. proxy 응답으로 설정된 쿠키는 브라우저 기준 Vercel origin의 `/api/auth` 요청에 사용된다. Secure/SameSite는 기존 Backend 설정을 따르며 이번 proxy 변경에서 Java/YAML이나 Cookie 정책을 바꾸지 않았다. Refresh Token을 localStorage/sessionStorage에 저장하지 않는다.
+
+### 결과 / 검증
+
+- 사용자 제공 배포 확인 결과: PC Chrome, 모바일 Chrome, Samsung Internet에서 로그인·토큰 재발급 정상.
+- 구현 당시 검증: Frontend lint/build 성공, rewrite 조건 및 API URL 정규화 9개 케이스 통과.
+- Frontend와 Backend 배포 서버를 합치지 않고 브라우저 기준 API/OAuth Backend 요청을 same-origin으로 전환했다.
+- 기존 API 경로·HttpOnly Refresh Token·인증 구조를 유지하면서 브라우저별 cross-site Cookie 정책 차이에 대한 의존도를 줄였다.
+
+### 관련 코드 / 문서
+
+- `giftmarket-web/lib/api.ts`
+- `giftmarket-web/next.config.ts`
+- `giftmarket-web/.env.sample`
+- `giftmarket-web/app/login/page.tsx`
+- `giftmarket-web/components/auth/AuthInitializer.tsx`
+- `giftmarket-web/app/oauth/callback/page.tsx`
+- `giftmarket-api/src/main/java/com/giftmarket/auth/handler/OAuth2AuthenticationSuccessHandler.java`
+- `giftmarket-api/src/main/java/com/giftmarket/auth/util/RefreshTokenCookieManager.java`
+- `giftmarket-api/src/main/java/com/giftmarket/auth/controller/AuthController.java`
 
 # 최신 검증 메모
 
