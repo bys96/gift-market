@@ -131,7 +131,7 @@ class ProductVariantServiceTest {
     }
 
     @Test
-    void optionlessProductDeactivatesAllVariantsAndUsesZeroVariantStock() {
+    void optionlessProductDeactivatesAllVariantsAndPreservesDirectStock() {
         Seller seller = mock(Seller.class);
         Product product = mock(Product.class);
         ProductVariant first = mock(ProductVariant.class);
@@ -149,7 +149,7 @@ class ProductVariantServiceTest {
 
         verify(first).deactivate();
         verify(second).deactivate();
-        verify(product).changeStockQuantity(0);
+        verify(product, never()).changeStockQuantity(org.mockito.ArgumentMatchers.anyInt());
         verify(variantRepository, never()).delete(first);
         verify(variantRepository, never()).delete(second);
     }

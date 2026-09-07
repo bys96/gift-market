@@ -102,7 +102,8 @@ public class ProductVariantService {
 
             productVariantRepository.flush();
 
-            product.changeStockQuantity(0);
+            // 옵션 없는 상품의 재고는 Product에서 직접 관리하므로
+            // 기존 SKU만 비활성화하고 판매자가 입력한 재고는 유지합니다.
 
             return createResponse(product);
         }
