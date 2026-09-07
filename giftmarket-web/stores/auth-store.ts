@@ -7,11 +7,13 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   initialized: boolean;
+  initializationError: string | null;
 
   setAccessToken: (accessToken: string) => void;
   setUser: (user: User) => void;
   clearAuth: () => void;
   setInitialized: (initialized: boolean) => void;
+  setInitializationError: (message: string | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -19,6 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   initialized: false,
+  initializationError: null,
 
   setAccessToken: (accessToken) =>
     set({
@@ -37,10 +40,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       accessToken: null,
       user: null,
       isAuthenticated: false,
+      initializationError: null,
     }),
 
   setInitialized: (initialized) =>
     set({
       initialized,
     }),
+  setInitializationError: (initializationError) => set({ initializationError }),
 }));

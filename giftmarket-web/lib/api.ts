@@ -15,6 +15,15 @@ const API_BASE_URL =
 
 // 여러 API 요청이 동시에 401을 받아도 토큰 재발급은 한 번만 실행한다.
 let refreshPromise: Promise<string | null> | null = null;
+let refreshFailure: Error | null = null;
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+  }
+}
+
+type ApiRequestOptions = RequestInit & { skipAuthRefresh?: boolean };
 
 function createRequestHeaders(
   headersInit: HeadersInit | undefined,
@@ -57,15 +66,18 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const errorResponse = parsedBody as ApiErrorResponse | null;
 
-    throw new Error(
+    throw new ApiError(
       errorResponse?.message ?? `API 요청에 실패했습니다. (${response.status})`,
+      response.status,
     );
   }
 
   return parsedBody as T;
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
+  // rotation 이후 응답만 유실됐을 수 있어 같은 문서에서 자동 재시도하지 않는다.
+  if (refreshFailure) throw refreshFailure;
   if (refreshPromise) {
     return refreshPromise;
   }
@@ -77,15 +89,13 @@ async function refreshAccessToken(): Promise<string | null> {
         credentials: "include",
       });
 
-      if (!response.ok) {
-        return null;
-      }
+      if (response.status === 401) return null;
 
       const result = await parseResponse<ApiResponse<TokenResponse>>(response);
 
-      if (!result.success || !result.data?.accessToken) {
-        return null;
-      }
+      if (result?.success === true && result.data === null) return null;
+      if (result?.success !== true || typeof result.data?.accessToken !== "string"
+        || !result.data.accessToken) throw new Error("인증 응답을 확인하지 못했습니다.");
 
       const accessToken = result.data.accessToken;
 
@@ -93,9 +103,8 @@ async function refreshAccessToken(): Promise<string | null> {
 
       return accessToken;
     } catch (error) {
-      console.error("Access Token 재발급 실패:", error);
-
-      return null;
+      refreshFailure = error instanceof Error ? error : new Error("인증 서버에 연결하지 못했습니다.");
+      throw refreshFailure;
     } finally {
       refreshPromise = null;
     }
@@ -106,19 +115,23 @@ async function refreshAccessToken(): Promise<string | null> {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
+  options: ApiRequestOptions = {},
 ): Promise<T> {
+  const { skipAuthRefresh = false, ...requestOptions } = options;
   const accessToken = useAuthStore.getState().accessToken;
 
-  let response = await request(path, options, accessToken);
+  let response = await request(path, requestOptions, accessToken);
 
   const shouldRefreshToken =
     response.status === 401 &&
+    !skipAuthRefresh &&
     path !== "/api/auth/token" &&
     path !== "/api/auth/logout";
 
   if (shouldRefreshToken) {
-    const refreshedAccessToken = await refreshAccessToken();
+    const currentAccessToken = useAuthStore.getState().accessToken;
+    const refreshedAccessToken = currentAccessToken && currentAccessToken !== accessToken
+      ? currentAccessToken : await refreshAccessToken();
 
     if (!refreshedAccessToken) {
       useAuthStore.getState().clearAuth();
@@ -126,7 +139,7 @@ export async function apiFetch<T>(
       throw new Error("로그인이 만료되었습니다.");
     }
 
-    response = await request(path, options, refreshedAccessToken);
+    response = await request(path, requestOptions, refreshedAccessToken);
   }
 
   return parseResponse<T>(response);

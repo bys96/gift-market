@@ -52,6 +52,32 @@ test("login and OAuth callback reject external and browser-normalized external d
   }
 });
 
+test("OAuth callback delegates token refresh to the shared initializer exactly once", () => {
+  const callback = read("app/oauth/callback/page.tsx");
+  const initializer = read("components/auth/AuthInitializer.tsx");
+  const authInitialization = read("lib/auth-initialization.ts");
+
+  assert.equal((callback.match(/\/api\/auth\/token/g) ?? []).length, 0);
+  assert.equal((initializer.match(/\/api\/auth\/token/g) ?? []).length, 0);
+  assert.equal((authInitialization.match(/refreshAccessToken\(\)/g) ?? []).length, 1);
+  assert.match(callback, /initializeAuth\(\)/);
+  assert.match(initializer, /initializeAuth\(\)/);
+  assert.match(authInitialization, /if \(initializationPromise\) return initializationPromise/);
+});
+
+test("token refresh distinguishes invalid sessions from transient failures without retrying token rotation", () => {
+  const api = read("lib/api.ts");
+  const authInitialization = read("lib/auth-initialization.ts");
+
+  assert.match(api, /result\?\.success === true && result\.data === null/);
+  assert.match(api, /if \(response\.status === 401\) return null/);
+  assert.equal((api.match(/fetch\(`\$\{API_BASE_URL\}\/api\/auth\/token`/g) ?? []).length, 1);
+  assert.match(authInitialization, /\[502, 503, 504\]/);
+  assert.match(authInitialization, /attempt >= 1/);
+  assert.match(authInitialization, /skipAuthRefresh: true/);
+  assert.match(authInitialization, /auth\.setInitializationError/);
+});
+
 function pages(dir) {
   return readdirSync(resolve(root, dir), { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory() ? pages(`${dir}/${entry.name}`) : [`${dir}/${entry.name}`],
