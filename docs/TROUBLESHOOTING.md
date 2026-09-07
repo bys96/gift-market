@@ -1,6 +1,6 @@
 # Gift Market 개발 트러블슈팅 기록
 
-> 최종 갱신: 2026-09-06
+> 최종 갱신: 2026-09-07
 >
 > 실제 코드, 기존 설계 문서와 git 이력에서 확인되는 문제와 해결 구조를 보존한다. 최종 운영 runbook이 아니며 운영 staging 검증 전 항목을 완료로 간주하지 않는다.
 
@@ -209,7 +209,7 @@ effectiveReserved = reservedQuantity - releasedQuantity - consumedQuantity
 
 Next.js production build의 정적 페이지 생성 단계에서 `useSearchParams() should be wrapped in a suspense boundary` 오류가 발생했다. query 처리 로직이나 SSR/cache 정책을 바꾸지 않고 `/products`, `/login`, `/order`, `/seller/products/new`의 query-dependent Client Content를 기존 page의 `Suspense` 경계 아래 배치했다.
 
-검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 production build가 정상화됐고, 2026-08-28 최신 검증에서는 정적 페이지 34개 생성까지 성공했다.
+검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 production build가 정상화됐고, 2026-09-07 최신 검증에서는 정적 페이지 34개 생성까지 성공했다.
 
 # DB / 개발환경
 
@@ -543,5 +543,5 @@ app:
 
 # 최신 검증 메모
 
-- 2026-08-28 최신 작업 보고: Backend **511/511**, Frontend lint/tsc/build 성공, 정적 페이지 34개.
+- 2026-09-07 최신 작업 보고: Backend **711 tests / 710 success / 1 environment-dependent failure** (contextLoads JDBC metadata/dialect 오류), Frontend lint/tsc/build 성공, 정적 페이지 34개.
 - 실제 Secret 파일은 문서 점검 과정에서 읽거나 출력하지 않는다.

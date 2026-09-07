@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-08-28
+> 최종 갱신: 2026-09-07
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 한 배포 준비 기준점이다. 문서와 코드가 충돌하면 실제 코드가 우선한다.
 
@@ -19,7 +19,39 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 
 현재 기능 개발 기준으로 Return과 Exchange를 미구현 범위로 취급하지 않는다. 남은 큰 범위는 운영환경 분리, migration 전략, staging 배포와 외부 연동 회귀 검증이다.
 
-## 2. 기술 기준
+## 2. 현재 구현 상태 요약
+
+### 현재 완료된 기능
+
+- Google/Kakao OAuth, JWT Access Token과 HttpOnly Refresh Token cookie 인증
+- OAuth Callback과 `AuthInitializer`의 공통 인증 초기화 및 보호 페이지 로그인 redirect 흐름
+- Samsung Internet을 포함한 same-origin `/api`, `/oauth2`, `/login/oauth2` proxy 흐름
+- Refresh Token Rotation 동시성 처리: row `PESSIMISTIC_WRITE` 잠금, 이전 token hash 10초 grace, current Refresh Token AES-GCM 암호화 저장
+- JWT 서명 키와 분리된 `REFRESH_TOKEN_ENCRYPTION_KEY` 환경변수 및 Render Secret File 매핑
+- 상품 대표/갤러리 이미지 최대 20MB, 상세 설명 MP4 최대 50MB 및 최대 3개
+- Presigned Upload의 `Content-Length`와 `Content-Type` 검증
+- 옵션 없는 상품 수정 시 판매자가 입력한 재고가 0으로 덮어써지지 않도록 처리
+- Product/Variant, 주문·결제·취소·반품·교환, 문의·리뷰, Wishlist, Seller Center와 Dashboard
+
+### 부분 구현 또는 운영 검증이 필요한 기능
+
+- Refresh Token 컬럼(`previous_token_hash`, `previous_token_expires_at`, `token_value_encrypted`)은 운영 DB에 명시적 DDL 적용이 필요하다.
+- 운영 Render 환경변수와 Secret File, HTTPS cookie/SameSite, OAuth redirect URI, S3/MinIO 및 Toss 외부 연동은 staging/production 환경 검증이 필요하다.
+- SELLER 귀책 Exchange, 외부 timeout/5xx 보상 흐름과 전체 production E2E는 추가 검증 범위다.
+- 상세 미디어 legacy localhost URL은 `docs/sql/product-description-media-key-migration.sql` 절차에 따라 object 존재 확인과 백업 후 수동 migration해야 한다.
+
+### 아직 미구현된 기능
+
+- Seller 리뷰 관리/답글
+- 알림, 쿠폰·포인트, 랭킹·추천 고도화, 정산 관리, 스토어 설정
+- 회원 탈퇴 및 전체 Admin 운영 Backoffice
+
+### 다음 개발 우선순위
+
+1. 운영 DB 백업·컬럼 검증과 versioned migration 관리 방식 확정
+2. Render/S3/Toss/OAuth 운영 설정 및 장애·보상 E2E 검증
+3. 관측성(로그·지표·알림)과 운영 runbook 보완
+4. Seller 리뷰 관리와 운영 Backoffice 등 후속 기능
 
 ### Backend
 
@@ -136,7 +168,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 
 - 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
 - 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 작업 보고 기준 전체 suite: **511 tests / 511 success / 0 failure / 0 error**
+- 최신 작업 보고 기준 전체 suite: **711 tests / 710 success / 1 environment-dependent failure** (contextLoads의 JDBC metadata/dialect 오류)
 - Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
 
 ### Frontend
@@ -198,7 +230,7 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 - 운영환경에서 `ddl-auto:update`를 migration 전략으로 사용하지 않는다.
 
 
-## 8. 2026-08-28 마감 변경
+## 8. 2026-09-07 마감 변경
 
 - ADMIN Seller 미등록 시 일반 Seller 등록 폼을 사용하며 ADMIN 신청은 자동 승인한다.
 - 일반 관리자 승인과 ADMIN 자동승인은 `SellerApprovalService` 공통 primitive를 사용한다.
