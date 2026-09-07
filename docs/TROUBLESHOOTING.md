@@ -484,6 +484,63 @@ Browser → POST https://gift-market-test.vercel.app/api/auth/token
 - `giftmarket-api/src/main/java/com/giftmarket/auth/util/RefreshTokenCookieManager.java`
 - `giftmarket-api/src/main/java/com/giftmarket/auth/controller/AuthController.java`
 
+# Refresh Token Rotation 환경에서 동시 갱신 Race Condition으로 인한 간헐적 로그아웃 해결
+
+### 상황 / 증상
+
+- 로그인 후 새로고침할 때 간헐적으로 로그아웃된다.
+- `/api/auth/token`이 HTTP 200을 반환하지만 응답 `data`가 `null`이다.
+- 빠른 연속 새로고침에서 한 요청이 `aborted`/`unknown` 상태가 된 뒤 세션이 풀릴 수 있었다.
+
+### 원인 분석
+
+1. OAuth Callback과 `AuthInitializer`가 각각 Refresh Token 갱신을 호출했다.
+2. Refresh Token Rotation으로 첫 요청이 기존 토큰을 폐기한 뒤, 동시 요청이 이전 토큰을 사용하면서 race condition이 발생했다.
+3. Frontend 중복 호출을 제거한 뒤에도 빠른 F5나 멀티탭처럼 서로 다른 document에서 동시 요청은 발생할 수 있다.
+4. Refresh 성공 후 브라우저가 `Set-Cookie` 응답을 받기 전에 navigation으로 요청이 취소되면, 서버는 회전했지만 브라우저에는 이전 Refresh Token이 남을 수 있다.
+
+### Frontend 해결 / 현재 적용 구조
+
+- OAuth Callback과 `AuthInitializer`의 인증 초기화 흐름을 공통 `initializeAuth`로 통합하고 하나의 Promise를 공유한다.
+- `/api/auth/token`은 자동 재시도하지 않는다. Rotation 성공 후 응답만 유실된 경우 재시도하면 race가 커질 수 있기 때문이다.
+- `/api/auth/me`는 네트워크 오류 또는 HTTP 502/503/504일 때만 제한적으로 한 번 재시도한다.
+- 일시적 서버 오류에서는 즉시 인증 상태를 삭제하지 않고 초기화 실패 상태를 유지한다.
+
+### Backend 해결 / 현재 적용 구조
+
+- Refresh Token row 조회에 `PESSIMISTIC_WRITE` 잠금을 적용해 같은 사용자의 동시 갱신을 직렬화한다.
+- 회전 직전의 Refresh Token hash와 만료 시각을 10초 grace period 동안 보존한다.
+- grace 요청에서는 저장된 현재 Refresh Token 원문을 복호화해 Access Token과 함께 현재 Refresh Cookie를 다시 발급한다.
+- 현재 Refresh Token 원문은 평문이 아니라 AES-GCM으로 암호화해 저장한다.
+- 암호화 키는 JWT 서명 키와 분리된 `REFRESH_TOKEN_ENCRYPTION_KEY` 환경변수를 사용한다.
+
+### DB 변경
+
+운영 환경이 `ddl-auto: validate`이므로 다음 컬럼을 운영 DB에 명시적으로 추가했다.
+
+- `previous_token_hash VARCHAR(64)`
+- `previous_token_expires_at DATETIME(6)`
+- `token_value_encrypted VARCHAR(512)`
+
+첫 배포에서는 `previous_token_expires_at` 등 신규 컬럼이 없어 schema validation이 실패했다. 배포 전에 운영 DB에 nullable 컬럼 DDL을 적용해야 한다.
+
+### Render 배포 이슈
+
+- Render Environment Variable에 `REFRESH_TOKEN_ENCRYPTION_KEY`를 추가한다.
+- Render Secret File로 사용하는 `application.yaml`에도 다음 매핑이 필요하다.
+
+```yaml
+app:
+  jwt:
+    refreshTokenEncryptionKey: ${REFRESH_TOKEN_ENCRYPTION_KEY}
+```
+
+- 로컬 `application.yaml`은 gitignore 대상이므로 로컬 파일만 수정해서는 Render Secret File이 갱신되지 않는다.
+
+### 결과 / 검증
+
+일반 새로고침, 빠른 연속 새로고침, grace period 이후 새로고침, 멀티탭 동시 갱신에서도 서버가 같은 rotation 상태를 기준으로 처리하고 세션을 유지할 수 있는 구조로 개선했다.
+
 # 최신 검증 메모
 
 - 2026-08-28 최신 작업 보고: Backend **511/511**, Frontend lint/tsc/build 성공, 정적 페이지 34개.
