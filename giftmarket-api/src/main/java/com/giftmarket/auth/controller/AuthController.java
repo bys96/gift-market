@@ -47,10 +47,12 @@ public class AuthController {
             TokenReissueResult result =
                     refreshTokenService.reissue(refreshToken);
 
-            refreshTokenCookieManager.addRefreshTokenCookie(
-                    response,
-                    result.refreshToken()
-            );
+            if (result.refreshToken() != null) {
+                refreshTokenCookieManager.addRefreshTokenCookie(
+                        response,
+                        result.refreshToken()
+                );
+            }
 
             return ApiResponse.success(
                     TokenResponse.bearer(

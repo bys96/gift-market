@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +37,8 @@ class RefreshTokenServiceTest {
     @BeforeEach
     void setUp() {
         JwtProperties properties = new JwtProperties();
+        properties.setSecret("QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=");
+        properties.setRefreshTokenEncryptionKey("QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=");
         properties.setRefreshTokenExpirationSeconds(3600);
         service = new RefreshTokenService(refreshTokenRepository, properties, jwtTokenProvider);
     }
@@ -43,7 +47,7 @@ class RefreshTokenServiceTest {
     void reissuesTokensForActiveUser() {
         RefreshToken refreshToken = validRefreshToken();
         given(user.getStatus()).willReturn(UserStatus.ACTIVE);
-        given(refreshTokenRepository.findByTokenHash(anyString()))
+        given(refreshTokenRepository.findByTokenHashOrPreviousTokenHashForUpdate(anyString()))
                 .willReturn(Optional.of(refreshToken));
         given(jwtTokenProvider.createAccessToken(user)).willReturn("new-access-token");
 
@@ -67,7 +71,7 @@ class RefreshTokenServiceTest {
     private void assertInactiveUserRejected(UserStatus status) {
         RefreshToken refreshToken = validRefreshToken();
         given(user.getStatus()).willReturn(status);
-        given(refreshTokenRepository.findByTokenHash(anyString()))
+        given(refreshTokenRepository.findByTokenHashOrPreviousTokenHashForUpdate(anyString()))
                 .willReturn(Optional.of(refreshToken));
 
         assertThatThrownBy(() -> service.reissue("valid-refresh-token"))
@@ -80,8 +84,19 @@ class RefreshTokenServiceTest {
     private RefreshToken validRefreshToken() {
         return RefreshToken.create(
                 user,
-                "a".repeat(64),
+                hash("valid-refresh-token"),
                 Instant.now().plusSeconds(3600)
         );
+    }
+
+    private String hash(String token) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(token.getBytes(StandardCharsets.UTF_8))
+            );
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
     }
 }

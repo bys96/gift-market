@@ -27,6 +27,8 @@ import java.time.Instant;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseEntity {
 
+    private static final long PREVIOUS_TOKEN_GRACE_SECONDS = 10;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,6 +46,15 @@ public class RefreshToken extends BaseEntity {
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
+
+    @Column(name = "previous_token_hash", length = 64)
+    private String previousTokenHash;
+
+    @Column(name = "previous_token_expires_at")
+    private Instant previousTokenExpiresAt;
+
+    @Column(name = "token_value_encrypted", length = 512)
+    private String tokenValueEncrypted;
 
     private RefreshToken(
             User user,
@@ -65,10 +76,35 @@ public class RefreshToken extends BaseEntity {
 
     public void rotate(
             String tokenHash,
-            Instant expiresAt
+            Instant expiresAt,
+            String tokenValueEncrypted
     ) {
+        this.previousTokenHash = this.tokenHash;
+        this.previousTokenExpiresAt = Instant.now().plusSeconds(
+                PREVIOUS_TOKEN_GRACE_SECONDS
+        );
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
+        this.tokenValueEncrypted = tokenValueEncrypted;
+    }
+
+    public void setTokenValueEncrypted(String tokenValueEncrypted) {
+        this.tokenValueEncrypted = tokenValueEncrypted;
+    }
+
+    public String getTokenValueEncrypted() {
+        return tokenValueEncrypted;
+    }
+
+    public boolean matchesCurrentToken(String tokenHash) {
+        return this.tokenHash.equals(tokenHash);
+    }
+
+    public boolean matchesPreviousToken(String tokenHash) {
+        return previousTokenHash != null
+                && previousTokenHash.equals(tokenHash)
+                && previousTokenExpiresAt != null
+                && previousTokenExpiresAt.isAfter(Instant.now());
     }
 
     public boolean isExpired() {
