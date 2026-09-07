@@ -67,7 +67,7 @@ public class StorageController {
 
         if (seller.getStatus() != SellerStatus.ACTIVE) {
             throw new ProductException(
-                    "활성 상태의 판매자만 상품 이미지를 업로드할 수 있습니다."
+                    "활성 상태의 판매자만 상품 미디어를 업로드할 수 있습니다."
             );
         }
 
@@ -78,6 +78,7 @@ public class StorageController {
         return storageType
                 == StorageType.PRODUCT_REPRESENTATIVE
                 || storageType == StorageType.PRODUCT_GALLERY
-                || storageType == StorageType.PRODUCT_CONTENT;
+                || storageType == StorageType.PRODUCT_CONTENT
+                || storageType == StorageType.PRODUCT_CONTENT_VIDEO;
     }
 }

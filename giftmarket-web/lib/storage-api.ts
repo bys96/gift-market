@@ -70,3 +70,14 @@ export async function uploadGalleryImage(file: File): Promise<string> {
 export async function uploadContentImage(file: File): Promise<string> {
   return uploadImage(file, "PRODUCT_CONTENT");
 }
+
+export async function uploadContentVideo(file: File): Promise<string> {
+  const presignedUrl = await createPresignedUrl({
+    type: "PRODUCT_CONTENT_VIDEO",
+    fileName: file.name,
+    contentType: file.type,
+    fileSize: file.size,
+  });
+  await uploadFileToStorage(presignedUrl.uploadUrl, file);
+  return presignedUrl.objectKey;
+}

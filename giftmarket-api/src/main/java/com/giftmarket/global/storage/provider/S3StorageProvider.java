@@ -31,12 +31,16 @@ public class S3StorageProvider implements StorageProvider {
     @Override
     public String createUploadUrl(
             String objectKey,
-            int expirationSeconds
+            int expirationSeconds,
+            long contentLength,
+            String contentType
     ) {
         try {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(s3Properties.bucket())
                     .key(objectKey)
+                    .contentLength(contentLength)
+                    .contentType(contentType)
                     .build();
 
             PutObjectPresignRequest presignRequest =
@@ -47,10 +51,13 @@ public class S3StorageProvider implements StorageProvider {
                             .putObjectRequest(putObjectRequest)
                             .build();
 
-            return s3Presigner
-                    .presignPutObject(presignRequest)
-                    .url()
-                    .toString();
+            var signedRequest = s3Presigner.presignPutObject(presignRequest);
+            // SDK 변경 시 크기/MIME 제약 없는 URL을 발급하지 않는다.
+            if (!signedRequest.signedHeaders().containsKey("content-length")
+                    || !signedRequest.signedHeaders().containsKey("content-type")) {
+                throw new IllegalStateException("업로드 크기와 Content-Type 서명이 필요합니다.");
+            }
+            return signedRequest.url().toString();
         } catch (Exception exception) {
             throw new IllegalStateException(
                     "파일 업로드 URL 생성에 실패했습니다.",

@@ -15,7 +15,7 @@ class StorageServiceProfileTest {
     @Test
     void profilePresignCreatesUserScopedObjectKey() {
         StorageProvider storageProvider = mock(StorageProvider.class);
-        when(storageProvider.createUploadUrl(anyString(), anyInt()))
+        when(storageProvider.createUploadUrl(anyString(), anyInt(), anyLong(), anyString()))
                 .thenReturn("https://upload");
 
         StorageService service = service(storageProvider);

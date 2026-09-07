@@ -9,29 +9,23 @@ import {
 } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 
-import { uploadContentImage } from "@/lib/storage-api";
+import { uploadContentImage, uploadContentVideo } from "@/lib/storage-api";
 import { resolveImageUrl } from "@/utils/image-url";
+import { MAX_PRODUCT_VIDEO_COUNT, validateProductImage, validateProductVideo } from "@/lib/product-media";
+import { countProductVideos, ProductContentImage, ProductContentVideo } from "@/components/seller/ProductMediaNodes";
 
-const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_IMAGE_SELECTION_COUNT = 20;
-
-const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-];
 
 interface ProductEditorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 interface ToolbarButtonProps {
@@ -83,10 +77,15 @@ export default function ProductEditor({
   value,
   onChange,
   disabled = false,
+  onUploadingChange,
 }: ProductEditorProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const uploadInProgressRef = useRef(false);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const isUploadingMedia = isUploadingImage || isUploadingVideo;
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const editor = useEditor({
@@ -107,13 +106,14 @@ export default function ProductEditor({
           target: "_blank",
         },
       }),
-      Image.configure({
+      ProductContentImage.configure({
         inline: false,
         allowBase64: false,
         HTMLAttributes: {
           class: "seller-product-editor-content-image",
         },
       }),
+      ProductContentVideo,
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
@@ -132,7 +132,7 @@ export default function ProductEditor({
     onUpdate: ({ editor: currentEditor }) => {
       const html = currentEditor.getHTML();
       const hasContent =
-        currentEditor.getText().trim().length > 0 || html.includes("<img");
+        currentEditor.getText().trim().length > 0 || /<(img|video)\b/.test(html);
 
       onChange(hasContent ? html : "");
     },
@@ -143,8 +143,8 @@ export default function ProductEditor({
       return;
     }
 
-    editor.setEditable(!disabled);
-  }, [disabled, editor]);
+    editor.setEditable(!disabled && !isUploadingMedia);
+  }, [disabled, editor, isUploadingMedia]);
 
   useEffect(() => {
     if (!editor) {
@@ -156,7 +156,7 @@ export default function ProductEditor({
     const currentHtml = editor.getHTML();
 
     const currentValue =
-      editor.getText().trim().length > 0 || currentHtml.includes("<img")
+      editor.getText().trim().length > 0 || /<(img|video)\b/.test(currentHtml)
         ? currentHtml
         : "";
 
@@ -178,19 +178,12 @@ export default function ProductEditor({
   };
 
   const validateImageFile = (file: File): string | null => {
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      return `${file.name}: JPG, PNG, WEBP, GIF 이미지만 업로드할 수 있습니다.`;
-    }
-
-    if (file.size > MAX_IMAGE_FILE_SIZE) {
-      return `${file.name}: 이미지는 파일당 최대 5MB까지 업로드할 수 있습니다.`;
-    }
-
-    return null;
+    const error = validateProductImage(file);
+    return error ? `${file.name}: ${error}` : null;
   };
 
   const handleImageButtonClick = () => {
-    if (disabled || isUploadingImage || !editor) {
+    if (disabled || uploadInProgressRef.current || !editor) {
       return;
     }
 
@@ -203,7 +196,7 @@ export default function ProductEditor({
 
     event.target.value = "";
 
-    if (files.length === 0 || !editor) {
+    if (files.length === 0 || !editor || disabled || uploadInProgressRef.current) {
       return;
     }
 
@@ -224,11 +217,13 @@ export default function ProductEditor({
     }
 
     try {
+      uploadInProgressRef.current = true;
+      onUploadingChange?.(true);
       setIsUploadingImage(true);
       setUploadError(null);
 
       const uploadedImages: Array<{
-        src: string;
+        storageKey: string;
         alt: string;
         title: string;
       }> = [];
@@ -244,7 +239,7 @@ export default function ProductEditor({
           }
 
           uploadedImages.push({
-            src: imageUrl,
+            storageKey: objectKey,
             alt: file.name,
             title: file.name,
           });
@@ -253,7 +248,7 @@ export default function ProductEditor({
         }
       }
 
-      if (uploadedImages.length > 0) {
+      if (uploadedImages.length > 0 && !editor.isDestroyed) {
         const content = uploadedImages.flatMap((image) => [
           {
             type: "image",
@@ -273,7 +268,50 @@ export default function ProductEditor({
         );
       }
     } finally {
+      uploadInProgressRef.current = false;
+      onUploadingChange?.(false);
       setIsUploadingImage(false);
+    }
+  };
+
+  const handleVideoButtonClick = () => {
+    if (disabled || uploadInProgressRef.current || !editor) return;
+    if (countProductVideos(editor.state.doc) >= MAX_PRODUCT_VIDEO_COUNT) {
+      setUploadError("상세 설명에는 동영상을 최대 3개까지 등록할 수 있습니다.");
+      return;
+    }
+    setUploadError(null);
+    videoInputRef.current?.click();
+  };
+
+  const handleVideoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !editor || disabled || uploadInProgressRef.current) return;
+    const error = validateProductVideo(file, countProductVideos(editor.state.doc));
+    if (error) { setUploadError(error); return; }
+    const position = editor.state.selection.from;
+    try {
+      uploadInProgressRef.current = true;
+      onUploadingChange?.(true);
+      setIsUploadingVideo(true);
+      setUploadError(null);
+      const objectKey = await uploadContentVideo(file);
+      if (editor.isDestroyed) return;
+      if (!resolveImageUrl(objectKey)) throw new Error("동영상 주소를 생성할 수 없습니다. Storage URL 설정을 확인해주세요.");
+      const latestError = validateProductVideo(file, countProductVideos(editor.state.doc));
+      if (latestError) throw new Error(latestError);
+      editor.chain().focus(null, { scrollIntoView: false }).insertContentAt(
+        Math.min(position, editor.state.doc.content.size),
+        [{ type: "productVideo", attrs: { storageKey: objectKey } }, { type: "paragraph" }],
+      ).run();
+    } catch (failure) {
+      setUploadError(failure instanceof Error ? failure.message : "동영상 업로드에 실패했습니다.");
+    } finally {
+      // TODO: 상품 저장 취소/업로드 후 이탈 시 남는 object는 기존 상세 이미지와 함께 cleanup 대상으로 관리한다.
+      uploadInProgressRef.current = false;
+      onUploadingChange?.(false);
+      setIsUploadingVideo(false);
     }
   };
 
@@ -325,8 +363,16 @@ export default function ProductEditor({
         multiple
         accept="image/jpeg,image/png,image/webp,image/gif"
         className="seller-product-editor-image-input"
-        disabled={disabled || isUploadingImage}
+        disabled={disabled || isUploadingMedia}
         onChange={handleImageChange}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4"
+        className="seller-product-editor-image-input"
+        disabled={disabled || isUploadingMedia}
+        onChange={handleVideoChange}
       />
 
       <div className="seller-product-editor-toolbar">
@@ -335,7 +381,7 @@ export default function ProductEditor({
             label="본문"
             title="본문"
             active={editor.isActive("paragraph")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.setParagraph().run();
             }}
@@ -344,7 +390,7 @@ export default function ProductEditor({
             label="제목 1"
             title="제목 1"
             active={editor.isActive("heading", { level: 1 })}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleHeading({ level: 1 }).run();
             }}
@@ -353,7 +399,7 @@ export default function ProductEditor({
             label="제목 2"
             title="제목 2"
             active={editor.isActive("heading", { level: 2 })}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleHeading({ level: 2 }).run();
             }}
@@ -362,7 +408,7 @@ export default function ProductEditor({
             label="제목 3"
             title="제목 3"
             active={editor.isActive("heading", { level: 3 })}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleHeading({ level: 3 }).run();
             }}
@@ -374,7 +420,7 @@ export default function ProductEditor({
             label="굵게"
             title="굵게"
             active={editor.isActive("bold")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleBold().run();
             }}
@@ -383,7 +429,7 @@ export default function ProductEditor({
             label="기울임"
             title="기울임"
             active={editor.isActive("italic")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleItalic().run();
             }}
@@ -392,7 +438,7 @@ export default function ProductEditor({
             label="밑줄"
             title="밑줄"
             active={editor.isActive("underline")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleUnderline().run();
             }}
@@ -401,7 +447,7 @@ export default function ProductEditor({
             label="취소선"
             title="취소선"
             active={editor.isActive("strike")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleStrike().run();
             }}
@@ -413,7 +459,7 @@ export default function ProductEditor({
             label="왼쪽"
             title="왼쪽 정렬"
             active={editor.isActive({ textAlign: "left" })}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.setTextAlign("left").run();
             }}
@@ -422,7 +468,7 @@ export default function ProductEditor({
             label="가운데"
             title="가운데 정렬"
             active={editor.isActive({ textAlign: "center" })}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.setTextAlign("center").run();
             }}
@@ -431,7 +477,7 @@ export default function ProductEditor({
             label="오른쪽"
             title="오른쪽 정렬"
             active={editor.isActive({ textAlign: "right" })}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.setTextAlign("right").run();
             }}
@@ -443,7 +489,7 @@ export default function ProductEditor({
             label="목록"
             title="글머리 기호 목록"
             active={editor.isActive("bulletList")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleBulletList().run();
             }}
@@ -452,7 +498,7 @@ export default function ProductEditor({
             label="번호"
             title="번호 목록"
             active={editor.isActive("orderedList")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleOrderedList().run();
             }}
@@ -461,7 +507,7 @@ export default function ProductEditor({
             label="인용"
             title="인용문"
             active={editor.isActive("blockquote")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.toggleBlockquote().run();
             }}
@@ -469,7 +515,7 @@ export default function ProductEditor({
           <ToolbarButton
             label="구분선"
             title="구분선 삽입"
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={() => {
               focusWithoutScroll()?.setHorizontalRule().run();
             }}
@@ -481,14 +527,20 @@ export default function ProductEditor({
             label="링크"
             title="링크 설정"
             active={editor.isActive("link")}
-            disabled={disabled}
+            disabled={disabled || isUploadingMedia}
             onClick={handleSetLink}
           />
           <ToolbarButton
             label={isUploadingImage ? "업로드 중" : "이미지"}
             title="본문 이미지 추가"
-            disabled={disabled || isUploadingImage}
+            disabled={disabled || isUploadingMedia}
             onClick={handleImageButtonClick}
+          />
+          <ToolbarButton
+            label={isUploadingVideo ? "업로드 중" : "동영상"}
+            title="본문 MP4 동영상 추가"
+            disabled={disabled || isUploadingMedia}
+            onClick={handleVideoButtonClick}
           />
         </div>
 
@@ -496,7 +548,7 @@ export default function ProductEditor({
           <ToolbarButton
             label="실행 취소"
             title="실행 취소"
-            disabled={disabled || !editor.can().undo()}
+            disabled={disabled || isUploadingMedia || !editor.can().undo()}
             onClick={() => {
               focusWithoutScroll()?.undo().run();
             }}
@@ -521,9 +573,9 @@ export default function ProductEditor({
       )}
 
       <div className="seller-product-editor-footer">
-        <span>텍스트, 이미지, GIF, 링크를 자유롭게 배치할 수 있습니다.</span>
+        <span>텍스트, 이미지, GIF, MP4, 링크를 자유롭게 배치할 수 있습니다.</span>
         <span>
-          이미지는 한 번에 최대 {MAX_IMAGE_SELECTION_COUNT}장, 파일당 최대 5MB
+          이미지: 한 번에 최대 {MAX_IMAGE_SELECTION_COUNT}장·파일당 20MB / 동영상: 최대 3개·파일당 50MB
         </span>
       </div>
     </div>

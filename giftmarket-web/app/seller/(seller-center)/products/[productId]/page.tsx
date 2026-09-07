@@ -21,6 +21,7 @@ import type {
   SellerProduct,
 } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
+import { resolveProductDescriptionMedia } from "@/lib/product-media";
 
 const PRODUCT_STATUS_LABEL: Record<ProductStatus, string> = {
   DRAFT: "임시 상태",
@@ -479,7 +480,7 @@ export default function SellerProductDetailPage() {
               <div
                 className="seller-product-detail-content product-content"
                 dangerouslySetInnerHTML={{
-                  __html: product.description,
+                  __html: resolveProductDescriptionMedia(product.description),
                 }}
               />
             ) : (

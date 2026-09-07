@@ -4,7 +4,9 @@ public interface StorageProvider {
 
     String createUploadUrl(
             String objectKey,
-            int expirationSeconds
+            int expirationSeconds,
+            long contentLength,
+            String contentType
     );
 
     String createReadUrl(

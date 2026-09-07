@@ -15,7 +15,7 @@ class StorageServiceReviewTest {
     @Test
     void reviewPresignCreatesOwnerScopedObjectKey() {
         StorageProvider storageProvider = mock(StorageProvider.class);
-        when(storageProvider.createUploadUrl(anyString(), anyInt()))
+        when(storageProvider.createUploadUrl(anyString(), anyInt(), anyLong(), anyString()))
                 .thenReturn("https://upload");
 
         StorageService service = new StorageService(storageProvider);

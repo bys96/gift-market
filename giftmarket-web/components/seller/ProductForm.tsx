@@ -33,20 +33,13 @@ import type {
 } from "@/types/product";
 import type { ProductDraft, ProductDraftData } from "@/types/product-draft";
 import { resolveImageUrl } from "@/utils/image-url";
+import { validateProductImage as validateImageFile } from "@/lib/product-media";
 
-const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_GALLERY_IMAGE_COUNT = 10;
 
 const DEFAULT_SHIPPING_PREPARATION_DAYS = "3";
 const DEFAULT_RETURN_SHIPPING_FEE = "3000";
 const DEFAULT_EXCHANGE_SHIPPING_FEE = "6000";
-
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
 
 type ProductFormMode = "create" | "edit";
 
@@ -109,22 +102,6 @@ function createImageId(): string {
   }
 
   return `${Date.now()}-${Math.random()}`;
-}
-
-function validateImageFile(file: File): string | null {
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    return "JPG, PNG, WEBP, GIF 이미지만 업로드할 수 있습니다.";
-  }
-
-  if (file.size <= 0) {
-    return "비어 있는 파일은 업로드할 수 없습니다.";
-  }
-
-  if (file.size > MAX_IMAGE_FILE_SIZE) {
-    return "이미지 파일은 최대 5MB까지 업로드할 수 있습니다.";
-  }
-
-  return null;
 }
 
 function parseRequiredNumber(value: string, fieldName: string): number {
@@ -260,6 +237,7 @@ export default function ProductForm({
   const [selectedRootCategoryId, setSelectedRootCategoryId] = useState("");
 
   const [editorRevision, setEditorRevision] = useState(0);
+  const [isUploadingContent, setIsUploadingContent] = useState(false);
 
   const selectedRootCategory = useMemo(
     () =>
@@ -988,7 +966,7 @@ export default function ProductForm({
   };
 
   const handleDraftSave = async () => {
-    if (isSubmitting || isSavingDraft) {
+    if (isSubmitting || isSavingDraft || isUploadingContent) {
       return;
     }
 
@@ -1210,7 +1188,7 @@ export default function ProductForm({
   }, [mode, initialDraft]);
 
   const handleSave = async (startSale: boolean) => {
-    if (isSubmitting) {
+    if (isSubmitting || isUploadingContent) {
       return;
     }
 
@@ -1477,7 +1455,7 @@ export default function ProductForm({
                   <span className="seller-product-form-section-number">02</span>
                   <h2>상품 이미지</h2>
                 </div>
-                <p>JPG, PNG, WEBP, GIF 형식의 5MB 이하 이미지</p>
+                <p>JPG, PNG, WEBP, GIF 형식의 20MB 이하 이미지</p>
               </header>
 
               <div className="seller-product-form-fields">
@@ -1641,19 +1619,20 @@ export default function ProductForm({
                   <span className="seller-product-form-section-number">03</span>
                   <h2>상품 상세 설명</h2>
                 </div>
-                <p>텍스트와 이미지를 자유롭게 배치할 수 있습니다.</p>
+                <p>텍스트, 이미지와 MP4 동영상을 배치할 수 있습니다.</p>
               </header>
 
               <ProductEditor
                 key={editorRevision}
                 value={form.description}
+                onUploadingChange={setIsUploadingContent}
                 onChange={(description) =>
                   setForm((currentForm) => ({
                     ...currentForm,
                     description,
                   }))
                 }
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSavingDraft}
               />
             </section>
 
@@ -1668,7 +1647,7 @@ export default function ProductForm({
 
               <ProductOptionManager
                 productId={initialProduct?.id}
-                disabled={isSubmitting || isSavingDraft}
+                disabled={isSubmitting || isSavingDraft || isUploadingContent}
                 draftState={draftOptionState}
                 draftRevision={draftOptionRevision}
                 onChange={setOptionEditorState}
@@ -1939,6 +1918,7 @@ export default function ProductForm({
                   disabled={
                     isSubmitting ||
                     isSavingDraft ||
+                    isUploadingContent ||
                     !optionEditorState.initialized
                   }
                 >
@@ -1949,7 +1929,7 @@ export default function ProductForm({
                     type="button"
                     className="seller-product-form-draft-button"
                     onClick={handleLoadDraft}
-                    disabled={isSubmitting || isSavingDraft}
+                    disabled={isSubmitting || isSavingDraft || isUploadingContent}
                   >
                     임시저장 불러오기
                   </button>
@@ -1968,7 +1948,7 @@ export default function ProductForm({
 
                     router.push("/seller/products");
                   }}
-                  disabled={isSubmitting || isSavingDraft}
+                  disabled={isSubmitting || isSavingDraft || isUploadingContent}
                 >
                   취소
                 </button>
@@ -1979,6 +1959,7 @@ export default function ProductForm({
                   disabled={
                     isSubmitting ||
                     isSavingDraft ||
+                    isUploadingContent ||
                     !optionEditorState.initialized
                   }
                 >

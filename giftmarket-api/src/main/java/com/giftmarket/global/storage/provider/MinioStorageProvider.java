@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -26,7 +28,9 @@ public class MinioStorageProvider implements StorageProvider {
     @Override
     public String createUploadUrl(
             String objectKey,
-            int expirationSeconds
+            int expirationSeconds,
+            long contentLength,
+            String contentType
     ) {
         try {
             return minioClient.getPresignedObjectUrl(
@@ -35,6 +39,10 @@ public class MinioStorageProvider implements StorageProvider {
                             .bucket(minioProperties.bucket())
                             .object(objectKey)
                             .expiry(expirationSeconds)
+                            .extraHeaders(Map.of(
+                                    "Content-Length", Long.toString(contentLength),
+                                    "Content-Type", contentType
+                            ))
                             .build()
             );
         } catch (Exception exception) {

@@ -80,6 +80,15 @@
   border-collapse: collapse;
 }
 
+.product-detail-editor-content video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 24px auto;
+  border-radius: 16px;
+}
+
 .product-detail-editor-content th,
 .product-detail-editor-content td {
   padding: 12px;

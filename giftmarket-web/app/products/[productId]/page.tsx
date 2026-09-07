@@ -12,6 +12,7 @@ import ProductReviewSection from "@/components/product/ProductReviewSection";
 import { getProduct } from "@/lib/product-api";
 import type { ProductDetail } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
+import { resolveProductDescriptionMedia } from "@/lib/product-media";
 
 export default function ProductDetailPage() {
   const params = useParams<{ productId: string }>();
@@ -328,7 +329,7 @@ export default function ProductDetailPage() {
             <div
               className="product-detail-editor-content"
               dangerouslySetInnerHTML={{
-                __html: product.description,
+                __html: resolveProductDescriptionMedia(product.description),
               }}
             />
           ) : (

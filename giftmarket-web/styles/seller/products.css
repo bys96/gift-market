@@ -1471,6 +1471,16 @@
   border-radius: 10px;
 }
 
+.seller-product-editor-content video,
+.seller-product-detail-content video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 20px auto;
+  border-radius: 12px;
+}
+
 .seller-product-editor-content .ProseMirror-selectednode {
   outline: 3px solid rgb(255 86 120 / 24%);
   outline-offset: 3px;

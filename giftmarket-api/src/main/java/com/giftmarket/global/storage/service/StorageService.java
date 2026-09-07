@@ -19,6 +19,8 @@ public class StorageService {
 
     private static final int PRESIGNED_URL_EXPIRATION_SECONDS = 300;
     private static final long MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024L;
+    private static final long MAX_PRODUCT_IMAGE_FILE_SIZE = 20 * 1024 * 1024L;
+    private static final long MAX_PRODUCT_VIDEO_FILE_SIZE = 50 * 1024 * 1024L;
 
     private static final Map<String, String> ALLOWED_IMAGE_CONTENT_TYPES =
             Map.of(
@@ -43,12 +45,17 @@ public class StorageService {
             Long ownerId,
             PresignedUrlRequest request
     ) {
-        validateImageFile(
-                request.fileName(),
-                request.contentType()
-        );
-
-        validateFileSize(request.fileSize());
+        if (request.type() == StorageType.PRODUCT_CONTENT_VIDEO) {
+            validateVideoFile(request.fileName(), request.contentType());
+            validateFileSize(request.fileSize(), MAX_PRODUCT_VIDEO_FILE_SIZE, "동영상");
+        } else {
+            validateImageFile(request.fileName(), request.contentType());
+            long maxSize = switch (request.type()) {
+                case PRODUCT_REPRESENTATIVE, PRODUCT_GALLERY, PRODUCT_CONTENT -> MAX_PRODUCT_IMAGE_FILE_SIZE;
+                default -> MAX_IMAGE_FILE_SIZE;
+            };
+            validateFileSize(request.fileSize(), maxSize, "이미지");
+        }
 
         String objectKey = createObjectKey(
                 ownerId,
@@ -58,7 +65,9 @@ public class StorageService {
 
         String uploadUrl = storageProvider.createUploadUrl(
                 objectKey,
-                PRESIGNED_URL_EXPIRATION_SECONDS
+                PRESIGNED_URL_EXPIRATION_SECONDS,
+                request.fileSize(),
+                request.contentType().trim().toLowerCase(java.util.Locale.ROOT)
         );
 
         return new PresignedUrlResponse(
@@ -130,6 +139,11 @@ public class StorageService {
                         + ownerId
                         + "/content/"
                         + fileName;
+            }
+
+            case PRODUCT_CONTENT_VIDEO -> {
+                validateProductOwnerId(ownerId);
+                yield "products/" + ownerId + "/content/video/" + fileName;
             }
 
             case RETURN_EVIDENCE -> {
@@ -220,16 +234,23 @@ public class StorageService {
         }
     }
 
-    private void validateFileSize(Long fileSize) {
+    private void validateVideoFile(String fileName, String contentType) {
+        if (!"video/mp4".equals(contentType.trim().toLowerCase())
+                || !".mp4".equals(extractExtension(fileName))) {
+            throw new IllegalArgumentException("동영상은 MP4 형식만 업로드할 수 있습니다.");
+        }
+    }
+
+    private void validateFileSize(Long fileSize, long maxSize, String mediaName) {
         if (fileSize == null || fileSize <= 0) {
             throw new IllegalArgumentException(
                     "올바른 파일 크기를 입력해주세요."
             );
         }
 
-        if (fileSize > MAX_IMAGE_FILE_SIZE) {
+        if (fileSize > maxSize) {
             throw new IllegalArgumentException(
-                    "이미지 파일은 최대 5MB까지 업로드할 수 있습니다."
+                    mediaName + " 파일은 최대 " + (maxSize / (1024 * 1024)) + "MB까지 업로드할 수 있습니다."
             );
         }
     }
