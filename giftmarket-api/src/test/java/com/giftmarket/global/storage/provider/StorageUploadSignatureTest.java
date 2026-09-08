@@ -69,6 +69,7 @@ class StorageUploadSignatureTest {
         long max = switch (type) {
             case PRODUCT_CONTENT_VIDEO -> 50 * MB;
             case PRODUCT_REPRESENTATIVE, PRODUCT_GALLERY, PRODUCT_CONTENT -> 20 * MB;
+            case STORE_BANNER -> 10 * MB;
             default -> 5 * MB;
         };
         var service = new StorageService(provider);

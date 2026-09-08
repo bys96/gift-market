@@ -6,6 +6,8 @@ import type {
   SellerApplicationCreateRequest,
   SellerApplicationRejectRequest,
   SellerApplicationPage,
+  SellerStore,
+  SellerStoreUpdateRequest,
 } from "@/types/seller";
 
 export async function getPendingSellerApplications(
@@ -24,6 +26,20 @@ export async function getPendingSellerApplications(
     throw new Error("판매자 신청 목록을 불러오지 못했습니다.");
   }
 
+  return response.data;
+}
+
+export async function getSellerStore(): Promise<SellerStore> {
+  const response = await apiFetch<ApiResponse<SellerStore>>("/api/seller/store");
+  if (!response.data) throw new Error("스토어 정보를 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function updateSellerStore(request: SellerStoreUpdateRequest): Promise<SellerStore> {
+  const response = await apiFetch<ApiResponse<SellerStore>>("/api/seller/store", {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request),
+  });
+  if (!response.data) throw new Error("스토어 저장 결과를 확인하지 못했습니다.");
   return response.data;
 }
 

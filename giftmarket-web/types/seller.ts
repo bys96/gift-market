@@ -22,6 +22,21 @@ export interface SellerApplication {
   reviewedAt: string | null;
 }
 
+export interface SellerStore {
+  id: number;
+  storeName: string;
+  introduction: string | null;
+  logoImageKey: string | null;
+  bannerImageKey: string | null;
+  customerServicePhone: string | null;
+  customerServiceEmail: string | null;
+  customerServiceHours: string | null;
+  shippingGuide: string | null;
+  returnExchangeGuide: string | null;
+}
+
+export type SellerStoreUpdateRequest = Omit<SellerStore, "id">;
+
 export interface SellerApplicationPage {
   content: SellerApplication[];
   page: number;

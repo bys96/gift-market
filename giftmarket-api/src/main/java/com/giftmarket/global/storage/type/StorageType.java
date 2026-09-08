@@ -15,7 +15,9 @@ public enum StorageType {
     RETURN_EVIDENCE("returns"),
     EXCHANGE_EVIDENCE("exchanges"),
     REVIEW("reviews"),
-    BANNER("banner");
+    BANNER("banner"),
+    STORE_LOGO("stores/logo"),
+    STORE_BANNER("stores/banner");
 
     private final String directory;
 }

@@ -13,6 +13,8 @@ export type StorageType =
   | "RETURN_EVIDENCE"
   | "EXCHANGE_EVIDENCE"
   | "REVIEW"
+  | "STORE_LOGO"
+  | "STORE_BANNER"
   | "BANNER";
 
 export interface PresignedUrlRequest {

@@ -81,3 +81,11 @@ export async function uploadContentVideo(file: File): Promise<string> {
   await uploadFileToStorage(presignedUrl.uploadUrl, file);
   return presignedUrl.objectKey;
 }
+
+export function uploadStoreLogo(file: File): Promise<string> {
+  return uploadImage(file, "STORE_LOGO");
+}
+
+export function uploadStoreBanner(file: File): Promise<string> {
+  return uploadImage(file, "STORE_BANNER");
+}

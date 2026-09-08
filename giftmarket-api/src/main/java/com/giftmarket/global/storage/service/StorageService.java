@@ -52,6 +52,8 @@ public class StorageService {
             validateImageFile(request.fileName(), request.contentType());
             long maxSize = switch (request.type()) {
                 case PRODUCT_REPRESENTATIVE, PRODUCT_GALLERY, PRODUCT_CONTENT -> MAX_PRODUCT_IMAGE_FILE_SIZE;
+                case STORE_LOGO -> 5 * 1024 * 1024L;
+                case STORE_BANNER -> 10 * 1024 * 1024L;
                 default -> MAX_IMAGE_FILE_SIZE;
             };
             validateFileSize(request.fileSize(), maxSize, "이미지");
@@ -158,6 +160,14 @@ public class StorageService {
                     throw new IllegalArgumentException("교환 이미지 업로드 소유자 정보가 필요합니다.");
                 }
                 yield "exchanges/" + ownerId + "/" + fileName;
+            }
+
+            case STORE_LOGO, STORE_BANNER -> {
+                if (ownerId == null) {
+                    throw new IllegalArgumentException("스토어 이미지 업로드 소유자 정보가 필요합니다.");
+                }
+                String folder = storageType == StorageType.STORE_LOGO ? "logo" : "banner";
+                yield "stores/" + ownerId + "/" + folder + "/" + fileName;
             }
 
             case REVIEW -> {

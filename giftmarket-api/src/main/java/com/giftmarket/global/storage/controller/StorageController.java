@@ -34,7 +34,9 @@ public class StorageController {
     ) {
         if ((request.type() == StorageType.RETURN_EVIDENCE
                 || request.type() == StorageType.EXCHANGE_EVIDENCE
-                || request.type() == StorageType.REVIEW)
+                || request.type() == StorageType.REVIEW
+                || request.type() == StorageType.STORE_LOGO
+                || request.type() == StorageType.STORE_BANNER)
                 && !Set.of("image/jpeg", "image/png", "image/webp")
                 .contains(request.contentType().trim().toLowerCase())) {
             throw new IllegalArgumentException("첨부 이미지는 JPG, PNG, WEBP만 업로드할 수 있습니다.");
@@ -56,6 +58,14 @@ public class StorageController {
             Long userId,
             StorageType storageType
     ) {
+        if (storageType == StorageType.STORE_LOGO || storageType == StorageType.STORE_BANNER) {
+            Seller seller = sellerRepository.findByUserId(userId)
+                    .orElseThrow(() -> new ProductException("판매자 정보를 찾을 수 없습니다."));
+            if (seller.getStatus() != SellerStatus.ACTIVE) {
+                throw new ProductException("활성 상태의 판매자만 스토어 이미지를 업로드할 수 있습니다.");
+            }
+            return seller.getId();
+        }
         if (!isProductStorageType(storageType)) {
             return userId;
         }
