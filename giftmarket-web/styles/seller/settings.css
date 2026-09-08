@@ -1,0 +1,21 @@
+.seller-center-page {
+  padding: 32px;
+  max-width: 960px;
+}
+
+.seller-center-page h1 { margin: 0 0 24px; }
+.seller-center-page form { display: grid; gap: 16px; }
+.seller-center-page label { display: grid; gap: 8px; font-weight: 600; }
+.seller-center-page input,
+.seller-center-page textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font: inherit; }
+.seller-center-page textarea { min-height: 100px; resize: vertical; }
+.seller-center-page button { width: fit-content; padding: 10px 20px; border: 0; border-radius: 6px; background: #222; color: #fff; cursor: pointer; }
+.seller-center-page button:disabled { opacity: .6; cursor: wait; }
+.seller-store-preview { margin-bottom: 24px; padding: 16px; border: 1px solid #eee; border-radius: 8px; }
+.seller-store-preview > div { margin-bottom: 12px; min-height: 40px; background: #f7f7f7; }
+.seller-store-preview img { display: block; max-width: 100%; height: auto; }
+.seller-center-page small { color: #777; font-weight: 400; }
+
+@media (max-width: 768px) {
+  .seller-center-page { padding: 20px 16px; }
+}
