@@ -25,15 +25,22 @@ public class SellerStore extends BaseEntity {
     @Column(name = "banner_image_key", length = 500) private String bannerImageKey;
     @Column(name = "customer_service_phone", length = 30) private String customerServicePhone;
     @Column(name = "customer_service_email", length = 255) private String customerServiceEmail;
-    @Column(name = "customer_service_hours", length = 255) private String customerServiceHours;
+    @Column(name = "customer_service_open_time", length = 5) private String customerServiceOpenTime;
+    @Column(name = "customer_service_close_time", length = 5) private String customerServiceCloseTime;
+    @Column(name = "customer_service_closed_days", length = 255) private String customerServiceClosedDays;
+    @Column(name = "customer_service_note", length = 500) private String customerServiceNote;
 
     public static SellerStore create(Seller seller, String storeName, String introduction) {
         SellerStore store = new SellerStore(); store.seller = seller; store.storeName = storeName; store.introduction = introduction; return store;
     }
     public void update(String storeName, String introduction, String logoImageKey, String bannerImageKey,
-                       String phone, String email, String hours) {
+                       String phone, String email, String openTime, String closeTime,
+                       String closedDays, String note) {
         this.storeName = storeName; this.introduction = introduction; this.logoImageKey = logoImageKey;
         this.bannerImageKey = bannerImageKey; this.customerServicePhone = phone; this.customerServiceEmail = email;
-        this.customerServiceHours = hours;
+        this.customerServiceOpenTime = openTime;
+        this.customerServiceCloseTime = closeTime;
+        this.customerServiceClosedDays = closedDays;
+        this.customerServiceNote = note;
     }
 }

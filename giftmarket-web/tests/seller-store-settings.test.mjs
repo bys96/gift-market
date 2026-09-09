@@ -20,6 +20,14 @@ const code = ts.transpileModule(
     },
   },
 ).outputText;
+const phoneUtils = {};
+vm.runInNewContext(
+  ts.transpileModule(
+    fs.readFileSync(resolve(import.meta.dirname, "../utils/phone.ts"), "utf8"),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+  ).outputText,
+  { exports: phoneUtils },
+);
 const store = {
   id: 7,
   storeName: "original",
@@ -28,7 +36,10 @@ const store = {
   bannerImageKey: "banner",
   customerServicePhone: null,
   customerServiceEmail: null,
-  customerServiceHours: null,
+  customerServiceOpenTime: null,
+  customerServiceCloseTime: null,
+  customerServiceClosedDays: null,
+  customerServiceNote: null,
 };
 function deferred() {
   let resolve, reject;
@@ -91,6 +102,7 @@ function mount(overrides = {}) {
         };
       if (name === "@/utils/image-url")
         return { resolveImageUrl: (k) => k || null };
+      if (name === "@/utils/phone") return phoneUtils;
       throw Error(name);
     },
   });
@@ -141,12 +153,68 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   );
   h.click("수정");
   h.render();
+  assert.equal(
+    h.find((n) => n.props?.id === "customerServiceEmail").props.type,
+    "email",
+  );
+  for (const [value, expected] of [
+    ["01012345678", "010-1234-5678"],
+    ["0212345678", "02-1234-5678"],
+    ["0311234567", "031-123-4567"],
+    ["15881234", "1588-1234"],
+    ["010 abc 1234 5678", "010-1234-5678"],
+    ["", ""],
+  ]) {
+    h.input("customerServicePhone", value);
+    h.render();
+    assert.equal(
+      h.find((n) => n.props?.id === "customerServicePhone").props.value,
+      expected,
+    );
+  }
+  for (const [field, label] of [
+    ["logoImageKey", "로고"],
+    ["bannerImageKey", "배너"],
+  ]) {
+    let selected = false;
+    h.find((n) => n.props?.id === field).props.ref({
+      click: () => {
+        selected = true;
+      },
+    });
+    h.click(`${label} 변경`);
+    assert.equal(selected, true);
+  }
+  h.input("customerServiceOpenTime", "09:00");
+  h.render();
+  h.input("customerServiceCloseTime", "18:00");
+  h.render();
+  h.input("customerServiceClosedDays", "weekends");
+  h.render();
+  h.input("customerServiceNote", "lunch break");
+  h.render();
   h.input("storeName", "changed");
   h.render();
   h.click("로고 삭제");
   h.render();
   h.click("배너 삭제");
   h.render();
+  assert.ok(
+    h
+      .all()
+      .some(
+        (n) =>
+          n.type === "button" && n.props.children.join?.("") === "로고 추가",
+      ),
+  );
+  assert.ok(
+    h
+      .all()
+      .some(
+        (n) =>
+          n.type === "button" && n.props.children.join?.("") === "배너 추가",
+      ),
+  );
   h.click("취소");
   h.render();
   h.click("수정");
@@ -157,6 +225,14 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   );
   assert.ok(h.all().some((n) => n.props?.src === "logo"));
   assert.ok(h.all().some((n) => n.props?.src === "banner"));
+  for (const field of [
+    "customerServiceOpenTime",
+    "customerServiceCloseTime",
+    "customerServiceClosedDays",
+    "customerServiceNote",
+  ]) {
+    assert.equal(h.find((n) => n.props?.id === field).props.value, "");
+  }
 
   const d = deferred(),
     u = mount({ upload: () => d.promise });
@@ -212,10 +288,22 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   s.render();
   s.input("storeName", "  trimmed  ");
   s.render();
+  s.input("customerServiceOpenTime", "09:00");
+  s.render();
+  s.input("customerServiceCloseTime", "18:00");
+  s.render();
+  s.input("customerServiceClosedDays", "weekends");
+  s.render();
+  s.input("customerServiceNote", "lunch break");
+  s.render();
   const pending = s.save();
   s.render();
   assert.equal(s.find((n) => n.type === "fieldset").props.disabled, true);
   assert.equal(request.storeName, "trimmed");
+  assert.equal(request.customerServiceOpenTime, "09:00");
+  assert.equal(request.customerServiceCloseTime, "18:00");
+  assert.equal(request.customerServiceClosedDays, "weekends");
+  assert.equal(request.customerServiceNote, "lunch break");
   assert.equal(Object.hasOwn(request, "id"), false);
   d2.resolve({ ...store, storeName: "server response" });
   await pending;
@@ -246,8 +334,11 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   }
   assert.deepEqual(Object.keys(request).sort(), [
     "bannerImageKey",
+    "customerServiceCloseTime",
+    "customerServiceClosedDays",
     "customerServiceEmail",
-    "customerServiceHours",
+    "customerServiceNote",
+    "customerServiceOpenTime",
     "customerServicePhone",
     "introduction",
     "logoImageKey",

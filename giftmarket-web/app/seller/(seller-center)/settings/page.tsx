@@ -7,6 +7,7 @@ import { getSellerStore, updateSellerStore } from "@/lib/seller-api";
 import { uploadStoreBanner, uploadStoreLogo } from "@/lib/storage-api";
 import type { SellerStore, SellerStoreUpdateRequest } from "@/types/seller";
 import { resolveImageUrl } from "@/utils/image-url";
+import { formatKoreanPhoneNumber } from "@/utils/phone";
 
 type ImageField = "logoImageKey" | "bannerImageKey";
 type TextField = Exclude<keyof SellerStoreUpdateRequest, ImageField>;
@@ -16,7 +17,7 @@ const contactFields = [
     name: "customerServicePhone",
     label: "전화번호",
     type: "tel",
-    maxLength: 30,
+    maxLength: 13,
   },
   {
     name: "customerServiceEmail",
@@ -25,10 +26,16 @@ const contactFields = [
     maxLength: 255,
   },
   {
-    name: "customerServiceHours",
-    label: "운영시간",
-    type: "text",
-    maxLength: 255,
+    name: "customerServiceOpenTime",
+    label: "상담 시작 시간",
+    type: "time",
+    maxLength: 5,
+  },
+  {
+    name: "customerServiceCloseTime",
+    label: "상담 종료 시간",
+    type: "time",
+    maxLength: 5,
   },
 ] as const;
 
@@ -43,14 +50,30 @@ function toEditForm(store: SellerStore): SellerStoreUpdateRequest {
     introduction: store.introduction,
     logoImageKey: store.logoImageKey,
     bannerImageKey: store.bannerImageKey,
-    customerServicePhone: store.customerServicePhone,
+    customerServicePhone: store.customerServicePhone
+      ? formatStorePhoneNumber(store.customerServicePhone)
+      : null,
     customerServiceEmail: store.customerServiceEmail,
-    customerServiceHours: store.customerServiceHours,
+    customerServiceOpenTime: store.customerServiceOpenTime,
+    customerServiceCloseTime: store.customerServiceCloseTime,
+    customerServiceClosedDays: store.customerServiceClosedDays,
+    customerServiceNote: store.customerServiceNote,
   };
 }
 
 function displayValue(value: string | null) {
   return value?.trim() ? value : "등록된 정보가 없습니다.";
+}
+
+function formatStorePhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  // 고객센터 대표번호는 지역번호/휴대폰과 달리 4-4 형식이다.
+  if (digits.startsWith("1")) {
+    return digits.length <= 4
+      ? digits
+      : `${digits.slice(0, 4)}-${digits.slice(4, 8)}`;
+  }
+  return formatKoreanPhoneNumber(value);
 }
 
 export default function SellerStoreSettingsPage() {
@@ -65,6 +88,10 @@ export default function SellerStoreSettingsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const uploadVersion = useRef(0);
+  const imageInputs = useRef<Record<ImageField, HTMLInputElement | null>>({
+    logoImageKey: null,
+    bannerImageKey: null,
+  });
 
   useEffect(() => {
     let active = true;
@@ -112,7 +139,10 @@ export default function SellerStoreSettingsPage() {
 
   function handleInputChange(field: TextField) {
     return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const value = event.currentTarget.value;
+      const value =
+        field === "customerServicePhone"
+          ? formatStorePhoneNumber(event.currentTarget.value)
+          : event.currentTarget.value;
       setEditForm((form) => (form ? { ...form, [field]: value } : null));
     };
   }
@@ -186,16 +216,27 @@ export default function SellerStoreSettingsPage() {
   }: (typeof imageFields)[number]) {
     return (
       <div className="seller-settings-upload">
-        <label htmlFor={name}>{label} 이미지</label>
         <input
           id={name}
           type="file"
+          hidden
+          ref={(element) => {
+            imageInputs.current[name] = element;
+          }}
+          aria-label={`${label} 이미지 선택`}
           accept="image/jpeg,image/png,image/webp"
           aria-describedby={`${name}-help`}
           disabled={isSaving || uploadingField !== null}
           onChange={(event) => void handleImageUpload(name, event)}
         />
-        <small id={`${name}-help`}>JPG, PNG, WebP · {help}</small>
+        <button
+          type="button"
+          className="seller-settings-secondary"
+          disabled={isSaving || uploadingField !== null}
+          onClick={() => imageInputs.current[name]?.click()}
+        >
+          {label} {editForm?.[name] ? "변경" : "추가"}
+        </button>
         {editForm?.[name] && (
           <button
             type="button"
@@ -206,6 +247,7 @@ export default function SellerStoreSettingsPage() {
             {label} 삭제
           </button>
         )}
+        <small id={`${name}-help`}>JPG, PNG, WebP · {help}</small>
         {uploadingField === name && (
           <span role="status">{label} 업로드 중...</span>
         )}
@@ -377,12 +419,38 @@ export default function SellerStoreSettingsPage() {
                         <input
                           id={name}
                           type={type}
+                          inputMode={type === "tel" ? "tel" : undefined}
                           value={editForm[name] ?? ""}
                           maxLength={maxLength}
                           onChange={handleInputChange(name)}
                         />
                       </div>
                     ))}
+                    <div className="seller-product-form-field seller-settings-contact-wide">
+                      <label htmlFor="customerServiceClosedDays">휴무일</label>
+                      <input
+                        id="customerServiceClosedDays"
+                        value={editForm.customerServiceClosedDays ?? ""}
+                        maxLength={255}
+                        placeholder="예: 토요일, 일요일, 공휴일"
+                        onChange={handleInputChange(
+                          "customerServiceClosedDays",
+                        )}
+                      />
+                    </div>
+                    <div className="seller-product-form-field seller-settings-contact-wide">
+                      <label htmlFor="customerServiceNote">추가 안내</label>
+                      <textarea
+                        id="customerServiceNote"
+                        value={editForm.customerServiceNote ?? ""}
+                        maxLength={500}
+                        placeholder="예: 점심시간 12:00~13:00에는 상담이 어렵습니다."
+                        onChange={handleInputChange("customerServiceNote")}
+                      />
+                      <small className="seller-product-form-counter">
+                        {(editForm.customerServiceNote ?? "").length}/500
+                      </small>
+                    </div>
                   </div>
                 ) : (
                   <dl className="seller-settings-details">
@@ -392,6 +460,14 @@ export default function SellerStoreSettingsPage() {
                         <dd>{displayValue(current[name])}</dd>
                       </div>
                     ))}
+                    <div>
+                      <dt>휴무일</dt>
+                      <dd>{displayValue(current.customerServiceClosedDays)}</dd>
+                    </div>
+                    <div>
+                      <dt>추가 안내</dt>
+                      <dd>{displayValue(current.customerServiceNote)}</dd>
+                    </div>
                   </dl>
                 )}
               </section>

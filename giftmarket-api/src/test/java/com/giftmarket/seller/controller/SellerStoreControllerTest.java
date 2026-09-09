@@ -51,7 +51,8 @@ class SellerStoreControllerTest {
                 .introduction("소개").logoImageKey("stores/10/logo/abc.jpg")
                 .bannerImageKey("stores/10/banner/def.webp")
                 .customerServicePhone("02-123-4567").customerServiceEmail("store@example.com")
-                .customerServiceHours("09:00~18:00").build();
+                .customerServiceOpenTime("09:00").customerServiceCloseTime("18:00")
+                .customerServiceClosedDays("weekends").customerServiceNote("lunch 12:00~13:00").build();
         given(service.get(1L)).willReturn(response);
         given(service.update(eq(1L), any(SellerStoreUpdateRequest.class))).willReturn(response);
 
@@ -60,23 +61,61 @@ class SellerStoreControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.keys()", containsInAnyOrder(
                         "id", "storeName", "introduction", "logoImageKey", "bannerImageKey",
-                        "customerServicePhone", "customerServiceEmail", "customerServiceHours")));
+                        "customerServicePhone", "customerServiceEmail", "customerServiceOpenTime", "customerServiceCloseTime",
+                        "customerServiceClosedDays", "customerServiceNote")));
 
         mvc.perform(patch("/api/seller/store").contentType(MediaType.APPLICATION_JSON).content("""
                 {"storeName":"스토어","introduction":"소개","logoImageKey":"stores/10/logo/abc.jpg",
                  "bannerImageKey":"stores/10/banner/def.webp","customerServicePhone":"02-123-4567",
-                 "customerServiceEmail":"store@example.com","customerServiceHours":"09:00~18:00"}
+                 "customerServiceEmail":"store@example.com","customerServiceOpenTime":"09:00","customerServiceCloseTime":"18:00",
+                 "customerServiceClosedDays":"weekends","customerServiceNote":"lunch 12:00~13:00"}
                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.storeName").value("스토어"))
                 .andExpect(jsonPath("$.data.keys()", containsInAnyOrder(
                         "id", "storeName", "introduction", "logoImageKey", "bannerImageKey",
-                        "customerServicePhone", "customerServiceEmail", "customerServiceHours")));
+                        "customerServicePhone", "customerServiceEmail", "customerServiceOpenTime", "customerServiceCloseTime",
+                        "customerServiceClosedDays", "customerServiceNote")));
 
         verify(service).update(1L, new SellerStoreUpdateRequest("스토어", "소개",
                 "stores/10/logo/abc.jpg", "stores/10/banner/def.webp",
-                "02-123-4567", "store@example.com", "09:00~18:00"));
+                "02-123-4567", "store@example.com", "09:00", "18:00", "weekends", "lunch 12:00~13:00"));
+    }
+
+    @Test
+    void patchRejectsInvalidTimesAndOversizedContactText() throws Exception {
+        for (String field : new String[]{"customerServiceOpenTime", "customerServiceCloseTime"}) {
+            for (String time : new String[]{"24:00", "09:60", "9:00", "09:00:00"}) {
+                mvc.perform(patch("/api/seller/store").contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"storeName\":\"스토어\",\"" + field + "\":\"" + time + "\"}"))
+                        .andExpect(status().isBadRequest());
+            }
+        }
+        mvc.perform(patch("/api/seller/store").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeName\":\"스토어\",\"customerServiceClosedDays\":\"" + "x".repeat(256) + "\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch("/api/seller/store").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeName\":\"스토어\",\"customerServiceNote\":\"" + "x".repeat(501) + "\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void patchAcceptsOptionalAndBoundaryTimes() throws Exception {
+        for (String time : new String[]{"", "00:00", "23:59"}) {
+            mvc.perform(patch("/api/seller/store").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"storeName\":\"스토어\",\"customerServiceOpenTime\":\"" + time
+                                    + "\",\"customerServiceCloseTime\":\"" + time + "\"}"))
+                    .andExpect(status().isOk());
+            verify(service).update(1L, new SellerStoreUpdateRequest("스토어", null, null, null,
+                    null, null, time, time, null, null));
+        }
+        mvc.perform(patch("/api/seller/store").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeName\":\"스토어\"}"))
+                .andExpect(status().isOk());
+        verify(service).update(1L, new SellerStoreUpdateRequest("스토어", null, null, null,
+                null, null, null, null, null, null));
     }
 
     @Test

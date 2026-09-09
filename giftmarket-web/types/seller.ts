@@ -31,7 +31,10 @@ export interface SellerStore {
   bannerImageKey: string | null;
   customerServicePhone: string | null;
   customerServiceEmail: string | null;
-  customerServiceHours: string | null;
+  customerServiceOpenTime: string | null;
+  customerServiceCloseTime: string | null;
+  customerServiceClosedDays: string | null;
+  customerServiceNote: string | null;
 }
 
 export type SellerStoreUpdateRequest = Omit<SellerStore, "id">;

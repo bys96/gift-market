@@ -54,7 +54,10 @@ class SellerStoreServiceTest {
         assertThat(initial.getBannerImageKey()).isNull();
         assertThat(initial.getCustomerServicePhone()).isNull();
         assertThat(initial.getCustomerServiceEmail()).isNull();
-        assertThat(initial.getCustomerServiceHours()).isNull();
+        assertThat(initial.getCustomerServiceOpenTime()).isNull();
+        assertThat(initial.getCustomerServiceCloseTime()).isNull();
+        assertThat(initial.getCustomerServiceClosedDays()).isNull();
+        assertThat(initial.getCustomerServiceNote()).isNull();
 
         var existing = SellerStore.create(seller, "스토어명", "스토어 소개");
         given(storeRepository.findBySellerIdForUpdate(10L)).willReturn(Optional.of(existing));
@@ -77,7 +80,10 @@ class SellerStoreServiceTest {
         assertThat(response.getBannerImageKey()).isEqualTo("stores/10/banner/def.webp");
         assertThat(response.getCustomerServicePhone()).isEqualTo("02-123-4567");
         assertThat(response.getCustomerServiceEmail()).isEqualTo("store@example.com");
-        assertThat(response.getCustomerServiceHours()).isEqualTo("09:00~18:00");
+        assertThat(response.getCustomerServiceOpenTime()).isEqualTo("09:00");
+        assertThat(response.getCustomerServiceCloseTime()).isEqualTo("18:00");
+        assertThat(response.getCustomerServiceClosedDays()).isEqualTo("weekends");
+        assertThat(response.getCustomerServiceNote()).isEqualTo("lunch 12:00~13:00");
         assertThat(seller.getStoreName()).isEqualTo("판매자명");
         assertThat(seller.getIntroduction()).isEqualTo("판매자 소개");
         verify(storeRepository).existsByStoreNameAndIdNot("새 스토어", 20L);
@@ -90,7 +96,7 @@ class SellerStoreServiceTest {
         given(storeRepository.findBySellerId(10L)).willReturn(Optional.empty());
         given(storeRepository.save(any(SellerStore.class))).willAnswer(call -> call.getArgument(0));
 
-        var response = service.update(1L, new SellerStoreUpdateRequest("스토어", " ", null, "", null, "", " "));
+        var response = service.update(1L, new SellerStoreUpdateRequest("스토어", " ", null, "", null, "", "", null, " ", " "));
 
         assertThat(response.getStoreName()).isEqualTo("스토어");
         assertThat(response.getIntroduction()).isNull();
@@ -98,7 +104,10 @@ class SellerStoreServiceTest {
         assertThat(response.getBannerImageKey()).isNull();
         assertThat(response.getCustomerServicePhone()).isNull();
         assertThat(response.getCustomerServiceEmail()).isNull();
-        assertThat(response.getCustomerServiceHours()).isNull();
+        assertThat(response.getCustomerServiceOpenTime()).isNull();
+        assertThat(response.getCustomerServiceCloseTime()).isNull();
+        assertThat(response.getCustomerServiceClosedDays()).isNull();
+        assertThat(response.getCustomerServiceNote()).isNull();
     }
 
     @Test
@@ -147,6 +156,6 @@ class SellerStoreServiceTest {
 
     private SellerStoreUpdateRequest request(String logo, String banner) {
         return new SellerStoreUpdateRequest(" 새 스토어 ", " 새 소개 ", logo, banner,
-                " 02-123-4567 ", "store@example.com", " 09:00~18:00 ");
+                " 02-123-4567 ", "store@example.com", "09:00", "18:00", " weekends ", " lunch 12:00~13:00 ");
     }
 }
