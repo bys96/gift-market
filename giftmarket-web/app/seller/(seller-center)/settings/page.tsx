@@ -1,27 +1,436 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { getSellerStore, updateSellerStore } from "@/lib/seller-api";
 import { uploadStoreBanner, uploadStoreLogo } from "@/lib/storage-api";
-import { resolveImageUrl } from "@/utils/image-url";
 import type { SellerStore, SellerStoreUpdateRequest } from "@/types/seller";
+import { resolveImageUrl } from "@/utils/image-url";
 
-const empty: SellerStore = { id: 0, storeName: "", introduction: null, logoImageKey: null, bannerImageKey: null, customerServicePhone: null, customerServiceEmail: null, customerServiceHours: null, shippingGuide: null, returnExchangeGuide: null };
-const display = (value: string | null) => value || "등록된 정보가 없습니다.";
+type ImageField = "logoImageKey" | "bannerImageKey";
+type TextField = Exclude<keyof SellerStoreUpdateRequest, ImageField>;
+
+const contactFields = [
+  {
+    name: "customerServicePhone",
+    label: "전화번호",
+    type: "tel",
+    maxLength: 30,
+  },
+  {
+    name: "customerServiceEmail",
+    label: "이메일",
+    type: "email",
+    maxLength: 255,
+  },
+  {
+    name: "customerServiceHours",
+    label: "운영시간",
+    type: "text",
+    maxLength: 255,
+  },
+] as const;
+
+const guideFields = [
+  { name: "shippingGuide", label: "배송 안내" },
+  { name: "returnExchangeGuide", label: "반품/교환 안내" },
+] as const;
+
+const imageFields = [
+  { name: "logoImageKey", label: "로고", help: "최대 5MB · 1:1 권장" },
+  { name: "bannerImageKey", label: "배너", help: "최대 10MB · 가로형 권장" },
+] as const;
+
+function toEditForm(store: SellerStore): SellerStoreUpdateRequest {
+  return {
+    storeName: store.storeName,
+    introduction: store.introduction,
+    logoImageKey: store.logoImageKey,
+    bannerImageKey: store.bannerImageKey,
+    customerServicePhone: store.customerServicePhone,
+    customerServiceEmail: store.customerServiceEmail,
+    customerServiceHours: store.customerServiceHours,
+    shippingGuide: store.shippingGuide,
+    returnExchangeGuide: store.returnExchangeGuide,
+  };
+}
+
+function displayValue(value: string | null) {
+  return value?.trim() ? value : "등록된 정보가 없습니다.";
+}
 
 export default function SellerStoreSettingsPage() {
-  const [saved, setSaved] = useState(empty); const [draft, setDraft] = useState(empty); const [editing, setEditing] = useState(false); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState("");
-  useEffect(() => { void getSellerStore().then((store) => { setSaved(store); setDraft(store); }).catch((e) => setError(e instanceof Error ? e.message : "스토어 정보를 불러오지 못했습니다.")).finally(() => setLoading(false)); }, []);
-  const change = (field: keyof SellerStore) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft((v) => ({ ...v, [field]: e.target.value }));
-  const cancel = () => { setDraft(saved); setEditing(false); setError(""); };
-  const upload = async (field: "logoImageKey" | "bannerImageKey", file?: File) => { if (!file) return; try { const key = field === "logoImageKey" ? await uploadStoreLogo(file) : await uploadStoreBanner(file); setDraft((v) => ({ ...v, [field]: key })); } catch (e) { setError(e instanceof Error ? e.message : "이미지 업로드에 실패했습니다."); } };
-  const submit = async (e: FormEvent) => { e.preventDefault(); setError(""); const request: SellerStoreUpdateRequest = { ...draft, storeName: draft.storeName.trim() }; if (request.storeName.length < 2 || request.storeName.length > 30) { setError("스토어명은 2~30자로 입력해 주세요."); return; } setSaving(true); try { const next = await updateSellerStore(request); setSaved(next); setDraft(next); setEditing(false); setMessage("스토어 설정을 저장했습니다."); } catch (e) { setError(e instanceof Error ? e.message : "저장에 실패했습니다."); } finally { setSaving(false); } };
-  if (loading) return <main className="seller-settings-page"><div className="seller-settings-container"><p>스토어 정보를 불러오는 중입니다.</p></div></main>;
-  const current = editing ? draft : saved;
-  return <main className="seller-settings-page"><div className="seller-settings-container"><header className="seller-settings-header"><div><p className="seller-settings-eyebrow">스토어 관리</p><h1>스토어 설정</h1><p>구매자에게 노출되는 스토어 정보와 고객 안내 정보를 관리합니다.</p></div><div className="seller-settings-actions">{editing ? <><button type="button" className="seller-settings-secondary" onClick={cancel} disabled={saving}>취소</button><button type="submit" form="seller-settings-form" className="seller-settings-primary" disabled={saving}>{saving ? "저장 중..." : "저장"}</button></> : <button type="button" className="seller-settings-primary" onClick={() => { setDraft(saved); setEditing(true); }}>수정</button>}</div></header>{message && <p className="seller-settings-success" role="status">{message}</p>}{error && <p className="seller-settings-error" role="alert">{error}</p>}
-    <section className="seller-settings-card"><div className="seller-settings-card-heading"><h2>스토어 정보</h2><span>기본 공개 정보</span></div><div className="seller-settings-store-info"><div className="seller-settings-logo">{current.logoImageKey ? <Image src={resolveImageUrl(current.logoImageKey) ?? ""} alt="스토어 로고" width={96} height={96} /> : <span>{current.storeName.charAt(0) || "G"}</span>}</div>{editing ? <div className="seller-settings-fields"><label>스토어명<input value={draft.storeName} maxLength={30} onChange={change("storeName")} /><small>{draft.storeName.length}/30</small></label><label>스토어 소개<textarea value={draft.introduction ?? ""} maxLength={500} onChange={change("introduction")} /><small>{(draft.introduction ?? "").length}/500</small></label></div> : <div className="seller-settings-values"><div><b>스토어명</b><p>{display(current.storeName)}</p></div><div><b>스토어 소개</b><p className="seller-settings-preline">{display(current.introduction)}</p></div></div>}</div>{editing && <div className="seller-settings-upload"><label>로고<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => void upload("logoImageKey", e.target.files?.[0])} /></label><small>JPG, PNG, WebP · 최대 5MB · 1:1 권장</small>{draft.logoImageKey && <button type="button" className="seller-settings-link" onClick={() => setDraft((v) => ({ ...v, logoImageKey: null }))}>로고 삭제</button>}</div>}</section>
-    <section className="seller-settings-card"><div className="seller-settings-card-heading"><h2>스토어 배너</h2><span>구매자 미리보기</span></div><div className="seller-settings-banner">{current.bannerImageKey ? <Image src={resolveImageUrl(current.bannerImageKey) ?? ""} alt="스토어 배너" width={880} height={220} /> : <span>등록된 배너가 없습니다.</span>}</div>{editing && <div className="seller-settings-upload"><label>배너<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => void upload("bannerImageKey", e.target.files?.[0])} /></label><small>JPG, PNG, WebP · 최대 10MB · 가로형 권장</small>{draft.bannerImageKey && <button type="button" className="seller-settings-link" onClick={() => setDraft((v) => ({ ...v, bannerImageKey: null }))}>배너 삭제</button>}</div>}</section>
-    <form id="seller-settings-form" onSubmit={submit}><section className="seller-settings-card"><div className="seller-settings-card-heading"><h2>고객센터 정보</h2></div>{editing ? <div className="seller-settings-grid"><label>전화번호<input value={draft.customerServicePhone ?? ""} maxLength={30} onChange={change("customerServicePhone")} /></label><label>이메일<input type="email" value={draft.customerServiceEmail ?? ""} maxLength={255} onChange={change("customerServiceEmail")} /></label><label>운영시간<input value={draft.customerServiceHours ?? ""} maxLength={255} onChange={change("customerServiceHours")} /></label></div> : <div className="seller-settings-grid">{[["전화번호", current.customerServicePhone], ["이메일", current.customerServiceEmail], ["운영시간", current.customerServiceHours]].map(([label, item]) => <div key={label as string}><b>{label}</b><p>{display(item as string | null)}</p></div>)}</div>}</section><section className="seller-settings-card"><div className="seller-settings-card-heading"><h2>배송 안내</h2></div>{editing ? <label className="seller-settings-full-field"><textarea value={draft.shippingGuide ?? ""} maxLength={1000} onChange={change("shippingGuide")} /><small>{(draft.shippingGuide ?? "").length}/1000</small></label> : <p className="seller-settings-read-text">{display(current.shippingGuide)}</p>}</section><section className="seller-settings-card"><div className="seller-settings-card-heading"><h2>반품/교환 안내</h2></div>{editing ? <label className="seller-settings-full-field"><textarea value={draft.returnExchangeGuide ?? ""} maxLength={1000} onChange={change("returnExchangeGuide")} /><small>{(draft.returnExchangeGuide ?? "").length}/1000</small></label> : <p className="seller-settings-read-text">{display(current.returnExchangeGuide)}</p>}</section></form>
-  </div></main>;
+  const [serverStore, setServerStore] = useState<SellerStore | null>(null);
+  // null이면 조회 모드. 편집 시작 시 마지막 서버 응답으로 초안을 만든다.
+  const [editForm, setEditForm] = useState<SellerStoreUpdateRequest | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadingField, setUploadingField] = useState<ImageField | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const uploadVersion = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadStore() {
+      try {
+        const store = await getSellerStore();
+        if (active) setServerStore(store);
+      } catch (failure) {
+        if (active) {
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : "스토어 정보를 불러오지 못했습니다.",
+          );
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    void loadStore();
+    return () => {
+      active = false;
+      uploadVersion.current += 1;
+    };
+  }, []);
+
+  function handleEdit() {
+    if (!serverStore) return;
+    setEditForm(toEditForm(serverStore));
+    setMessage("");
+    setError("");
+  }
+
+  function handleCancel() {
+    if (isSaving) return;
+    // 업로드 API는 중단을 지원하지 않으므로 취소된 편집의 응답을 무시한다.
+    uploadVersion.current += 1;
+    setUploadingField(null);
+    setEditForm(null);
+    setError("");
+    setMessage("");
+  }
+
+  function handleInputChange(field: TextField) {
+    return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const value = event.currentTarget.value;
+      setEditForm((form) => (form ? { ...form, [field]: value } : null));
+    };
+  }
+
+  async function handleImageUpload(
+    field: ImageField,
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || !editForm || isSaving || uploadingField) return;
+
+    const version = ++uploadVersion.current;
+    setUploadingField(field);
+    setError("");
+    try {
+      const key =
+        field === "logoImageKey"
+          ? await uploadStoreLogo(file)
+          : await uploadStoreBanner(file);
+      if (version !== uploadVersion.current) return;
+      setEditForm((form) => (form ? { ...form, [field]: key } : null));
+    } catch (failure) {
+      if (version === uploadVersion.current) {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "이미지 업로드에 실패했습니다.",
+        );
+      }
+    } finally {
+      if (version === uploadVersion.current) setUploadingField(null);
+    }
+  }
+
+  function handleImageRemove(field: ImageField) {
+    if (isSaving || uploadingField) return;
+    setEditForm((form) => (form ? { ...form, [field]: null } : null));
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editForm || isSaving || uploadingField) return;
+
+    setError("");
+    const request = { ...editForm, storeName: editForm.storeName.trim() };
+    if (request.storeName.length < 2 || request.storeName.length > 30) {
+      setError("스토어명은 2~30자로 입력해 주세요.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const store = await updateSellerStore(request);
+      setServerStore(store);
+      setEditForm(null);
+      setMessage("스토어 설정을 저장했습니다.");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "저장에 실패했습니다.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function renderImageUpload({
+    name,
+    label,
+    help,
+  }: (typeof imageFields)[number]) {
+    return (
+      <div className="seller-settings-upload">
+        <label htmlFor={name}>{label} 이미지</label>
+        <input
+          id={name}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          aria-describedby={`${name}-help`}
+          disabled={isSaving || uploadingField !== null}
+          onChange={(event) => void handleImageUpload(name, event)}
+        />
+        <small id={`${name}-help`}>JPG, PNG, WebP · {help}</small>
+        {editForm?.[name] && (
+          <button
+            type="button"
+            className="seller-settings-link"
+            disabled={isSaving || uploadingField !== null}
+            onClick={() => handleImageRemove(name)}
+          >
+            {label} 삭제
+          </button>
+        )}
+        {uploadingField === name && (
+          <span role="status">{label} 업로드 중...</span>
+        )}
+      </div>
+    );
+  }
+
+  const current = editForm ?? serverStore;
+  const logoUrl = resolveImageUrl(current?.logoImageKey);
+  const bannerUrl = resolveImageUrl(current?.bannerImageKey);
+
+  return (
+    <main className="seller-settings-page">
+      <div className="common-inner">
+        <header className="seller-settings-header">
+          <div>
+            <p className="seller-settings-eyebrow">스토어 관리</p>
+            <h1>스토어 설정</h1>
+            <p className="seller-settings-description">
+              구매자에게 노출되는 스토어 정보와 고객 안내 정보를 관리합니다.
+            </p>
+          </div>
+          {serverStore && (
+            <div className="seller-settings-actions">
+              {editForm ? (
+                <>
+                  <button
+                    type="button"
+                    className="seller-settings-secondary"
+                    onClick={handleCancel}
+                    disabled={isSaving}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="submit"
+                    form="seller-settings-form"
+                    className="seller-settings-primary"
+                    disabled={isSaving || uploadingField !== null}
+                  >
+                    {isSaving ? "저장 중..." : "저장"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="seller-settings-primary"
+                  onClick={handleEdit}
+                >
+                  수정
+                </button>
+              )}
+            </div>
+          )}
+        </header>
+
+        {isLoading && <p role="status">스토어 정보를 불러오는 중입니다.</p>}
+        {message && (
+          <p className="seller-settings-success" role="status">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p className="seller-settings-error" role="alert">
+            {error}
+          </p>
+        )}
+
+        {current && (
+          <form id="seller-settings-form" onSubmit={handleSave}>
+            <fieldset className="seller-settings-sections" disabled={isSaving}>
+              <legend className="seller-settings-sr-only">
+                스토어 설정 정보
+              </legend>
+              <section className="seller-settings-card">
+                <div className="seller-settings-card-heading">
+                  <h2>스토어 정보</h2>
+                  <span>기본 공개 정보</span>
+                </div>
+                <div className="seller-settings-store-info">
+                  <div className="seller-settings-logo">
+                    {logoUrl ? (
+                      <Image
+                        src={logoUrl}
+                        alt="스토어 로고"
+                        width={96}
+                        height={96}
+                      />
+                    ) : (
+                      <span>{current.storeName.charAt(0) || "G"}</span>
+                    )}
+                  </div>
+                  {editForm ? (
+                    <div className="seller-settings-fields">
+                      <div className="seller-product-form-field">
+                        <label htmlFor="storeName">스토어명</label>
+                        <input
+                          id="storeName"
+                          value={editForm.storeName}
+                          maxLength={30}
+                          onChange={handleInputChange("storeName")}
+                        />
+                        <small className="seller-product-form-counter">
+                          {editForm.storeName.length}/30
+                        </small>
+                      </div>
+                      <div className="seller-product-form-field">
+                        <label htmlFor="introduction">스토어 소개</label>
+                        <textarea
+                          id="introduction"
+                          value={editForm.introduction ?? ""}
+                          maxLength={500}
+                          onChange={handleInputChange("introduction")}
+                        />
+                        <small className="seller-product-form-counter">
+                          {(editForm.introduction ?? "").length}/500
+                        </small>
+                      </div>
+                    </div>
+                  ) : (
+                    <dl className="seller-settings-details">
+                      <div>
+                        <dt>스토어명</dt>
+                        <dd>{displayValue(current.storeName)}</dd>
+                      </div>
+                      <div>
+                        <dt>스토어 소개</dt>
+                        <dd>{displayValue(current.introduction)}</dd>
+                      </div>
+                    </dl>
+                  )}
+                </div>
+                {editForm && renderImageUpload(imageFields[0])}
+              </section>
+
+              <section className="seller-settings-card">
+                <div className="seller-settings-card-heading">
+                  <h2>스토어 배너</h2>
+                  <span>구매자 미리보기</span>
+                </div>
+                <div className="seller-settings-banner">
+                  {bannerUrl ? (
+                    <Image
+                      src={bannerUrl}
+                      alt="스토어 배너"
+                      width={880}
+                      height={220}
+                    />
+                  ) : (
+                    <p>
+                      {current.bannerImageKey
+                        ? "배너 이미지를 표시할 수 없습니다."
+                        : "등록된 배너가 없습니다."}
+                    </p>
+                  )}
+                </div>
+                {editForm && renderImageUpload(imageFields[1])}
+              </section>
+
+              <section className="seller-settings-card">
+                <div className="seller-settings-card-heading">
+                  <h2>고객센터 정보</h2>
+                </div>
+                {editForm ? (
+                  <div className="seller-settings-contact-fields">
+                    {contactFields.map(({ name, label, type, maxLength }) => (
+                      <div className="seller-product-form-field" key={name}>
+                        <label htmlFor={name}>{label}</label>
+                        <input
+                          id={name}
+                          type={type}
+                          value={editForm[name] ?? ""}
+                          maxLength={maxLength}
+                          onChange={handleInputChange(name)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <dl className="seller-settings-details">
+                    {contactFields.map(({ name, label }) => (
+                      <div key={name}>
+                        <dt>{label}</dt>
+                        <dd>{displayValue(current[name])}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </section>
+
+              {guideFields.map(({ name, label }) => (
+                <section className="seller-settings-card" key={name}>
+                  <div className="seller-settings-card-heading">
+                    <h2 id={`${name}-heading`}>{label}</h2>
+                  </div>
+                  {editForm ? (
+                    <div className="seller-product-form-field">
+                      <textarea
+                        aria-labelledby={`${name}-heading`}
+                        value={editForm[name] ?? ""}
+                        maxLength={1000}
+                        onChange={handleInputChange(name)}
+                      />
+                      <small className="seller-product-form-counter">
+                        {(editForm[name] ?? "").length}/1000
+                      </small>
+                    </div>
+                  ) : (
+                    <p className="seller-settings-read-text">
+                      {displayValue(current[name])}
+                    </p>
+                  )}
+                </section>
+              ))}
+            </fieldset>
+          </form>
+        )}
+      </div>
+    </main>
+  );
 }
