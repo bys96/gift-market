@@ -1,6 +1,7 @@
 export type SellerApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
 
-export type SellerStatus = "ACTIVE" | "SALES_SUSPENDED" | "SUSPENDED" | "WITHDRAWN";
+export type SellerStatus =
+  "ACTIVE" | "SALES_SUSPENDED" | "SUSPENDED" | "WITHDRAWN";
 
 export interface Seller {
   id: number;
@@ -31,8 +32,6 @@ export interface SellerStore {
   customerServicePhone: string | null;
   customerServiceEmail: string | null;
   customerServiceHours: string | null;
-  shippingGuide: string | null;
-  returnExchangeGuide: string | null;
 }
 
 export type SellerStoreUpdateRequest = Omit<SellerStore, "id">;

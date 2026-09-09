@@ -38,7 +38,7 @@ public class SellerStoreService {
             throw new SellerException("스토어 이미지 키가 올바르지 않습니다.");
         }
         if (store == null) store = storeRepository.save(SellerStore.create(seller, name, trim(request.introduction())));
-        store.update(name, trim(request.introduction()), trim(request.logoImageKey()), trim(request.bannerImageKey()), trim(request.customerServicePhone()), trim(request.customerServiceEmail()), trim(request.customerServiceHours()), trim(request.shippingGuide()), trim(request.returnExchangeGuide()));
+        store.update(name, trim(request.introduction()), trim(request.logoImageKey()), trim(request.bannerImageKey()), trim(request.customerServicePhone()), trim(request.customerServiceEmail()), trim(request.customerServiceHours()));
         return SellerStoreResponse.from(store);
     }
     private Seller seller(Long userId) {

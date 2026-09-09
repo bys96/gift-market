@@ -9,7 +9,5 @@ public record SellerStoreUpdateRequest(
         @Size(max = 500) String bannerImageKey,
         @Size(max = 30) String customerServicePhone,
         @Email @Size(max = 255) String customerServiceEmail,
-        @Size(max = 255) String customerServiceHours,
-        @Size(max = 1000) String shippingGuide,
-        @Size(max = 1000) String returnExchangeGuide
+        @Size(max = 255) String customerServiceHours
 ) {}

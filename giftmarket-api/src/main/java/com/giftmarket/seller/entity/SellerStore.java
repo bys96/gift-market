@@ -26,16 +26,14 @@ public class SellerStore extends BaseEntity {
     @Column(name = "customer_service_phone", length = 30) private String customerServicePhone;
     @Column(name = "customer_service_email", length = 255) private String customerServiceEmail;
     @Column(name = "customer_service_hours", length = 255) private String customerServiceHours;
-    @Column(name = "shipping_guide", length = 1000) private String shippingGuide;
-    @Column(name = "return_exchange_guide", length = 1000) private String returnExchangeGuide;
 
     public static SellerStore create(Seller seller, String storeName, String introduction) {
         SellerStore store = new SellerStore(); store.seller = seller; store.storeName = storeName; store.introduction = introduction; return store;
     }
     public void update(String storeName, String introduction, String logoImageKey, String bannerImageKey,
-                       String phone, String email, String hours, String shippingGuide, String returnExchangeGuide) {
+                       String phone, String email, String hours) {
         this.storeName = storeName; this.introduction = introduction; this.logoImageKey = logoImageKey;
         this.bannerImageKey = bannerImageKey; this.customerServicePhone = phone; this.customerServiceEmail = email;
-        this.customerServiceHours = hours; this.shippingGuide = shippingGuide; this.returnExchangeGuide = returnExchangeGuide;
+        this.customerServiceHours = hours;
     }
 }

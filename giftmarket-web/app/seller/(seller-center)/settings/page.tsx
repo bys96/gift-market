@@ -32,11 +32,6 @@ const contactFields = [
   },
 ] as const;
 
-const guideFields = [
-  { name: "shippingGuide", label: "배송 안내" },
-  { name: "returnExchangeGuide", label: "반품/교환 안내" },
-] as const;
-
 const imageFields = [
   { name: "logoImageKey", label: "로고", help: "최대 5MB · 1:1 권장" },
   { name: "bannerImageKey", label: "배너", help: "최대 10MB · 가로형 권장" },
@@ -51,8 +46,6 @@ function toEditForm(store: SellerStore): SellerStoreUpdateRequest {
     customerServicePhone: store.customerServicePhone,
     customerServiceEmail: store.customerServiceEmail,
     customerServiceHours: store.customerServiceHours,
-    shippingGuide: store.shippingGuide,
-    returnExchangeGuide: store.returnExchangeGuide,
   };
 }
 
@@ -402,31 +395,6 @@ export default function SellerStoreSettingsPage() {
                   </dl>
                 )}
               </section>
-
-              {guideFields.map(({ name, label }) => (
-                <section className="seller-settings-card" key={name}>
-                  <div className="seller-settings-card-heading">
-                    <h2 id={`${name}-heading`}>{label}</h2>
-                  </div>
-                  {editForm ? (
-                    <div className="seller-product-form-field">
-                      <textarea
-                        aria-labelledby={`${name}-heading`}
-                        value={editForm[name] ?? ""}
-                        maxLength={1000}
-                        onChange={handleInputChange(name)}
-                      />
-                      <small className="seller-product-form-counter">
-                        {(editForm[name] ?? "").length}/1000
-                      </small>
-                    </div>
-                  ) : (
-                    <p className="seller-settings-read-text">
-                      {displayValue(current[name])}
-                    </p>
-                  )}
-                </section>
-              ))}
             </fieldset>
           </form>
         )}

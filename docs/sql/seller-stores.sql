@@ -10,8 +10,6 @@ CREATE TABLE seller_stores (
     customer_service_phone VARCHAR(30) NULL,
     customer_service_email VARCHAR(255) NULL,
     customer_service_hours VARCHAR(255) NULL,
-    shipping_guide VARCHAR(1000) NULL,
-    return_exchange_guide VARCHAR(1000) NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
