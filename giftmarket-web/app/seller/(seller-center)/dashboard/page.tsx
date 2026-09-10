@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
@@ -7,7 +8,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { getSellerDashboard } from "@/lib/seller-dashboard-api";
+import { getSellerStore } from "@/lib/seller-api";
 import { useAuthStore } from "@/stores/auth-store";
+import type { SellerStore } from "@/types/seller";
 import type { SellerDashboard } from "@/types/seller-dashboard";
 import { SELLER_ORDER_STATUS_LABEL } from "@/types/seller-order";
 
@@ -57,6 +60,7 @@ export default function SellerDashboardPage() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [dashboard, setDashboard] = useState<SellerDashboard | null>(null);
+  const [sellerStore, setSellerStore] = useState<SellerStore | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -66,7 +70,17 @@ export default function SellerDashboardPage() {
     else setIsLoading(true);
     setErrorMessage("");
     try {
-      setDashboard(await getSellerDashboard());
+      const [dashboardResult, storeResult] = await Promise.allSettled([
+        getSellerDashboard(),
+        getSellerStore(),
+      ]);
+      if (dashboardResult.status === "rejected") {
+        throw dashboardResult.reason;
+      }
+      setDashboard(dashboardResult.value);
+      if (storeResult.status === "fulfilled") {
+        setSellerStore(storeResult.value);
+      }
     } catch {
       setErrorMessage("대시보드 정보를 불러오지 못했습니다.");
     } finally {
@@ -116,6 +130,8 @@ export default function SellerDashboardPage() {
 
   const returns = dashboard.actionRequired.returns;
   const exchanges = dashboard.actionRequired.exchanges;
+  const storeName = sellerStore?.storeName ?? dashboard.storeName;
+  const logoUrl = sellerStore?.logoImageUrl;
 
   return (
     <main className="seller-dashboard-page">
@@ -132,9 +148,19 @@ export default function SellerDashboardPage() {
             <div className="seller-dashboard-header-actions">
               <div className="seller-dashboard-store">
                 <div className="seller-dashboard-store-icon">
-                  {dashboard.storeName.charAt(0)}
+                  {logoUrl ? (
+                    <Image
+                      src={logoUrl}
+                      alt=""
+                      width={38}
+                      height={38}
+                      unoptimized
+                    />
+                  ) : (
+                    storeName.charAt(0)
+                  )}
                 </div>
-                <div><strong>{dashboard.storeName}</strong><span>정상 운영 중</span></div>
+                <div><strong>{storeName}</strong><span>정상 운영 중</span></div>
               </div>
               <button
                 type="button"

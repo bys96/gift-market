@@ -177,12 +177,7 @@ function SidebarContent({
           className="seller-center-sidebar-logo"
           onClick={onNavigate}
         >
-          <span className="seller-center-sidebar-logo-mark">G</span>
-
-          <div className="seller-center-sidebar-logo-content">
-            <strong>판매자센터</strong>
-            <span>Gift Market</span>
-          </div>
+          <strong>판매자센터</strong>
         </Link>
 
         {closeButtonRef && (
