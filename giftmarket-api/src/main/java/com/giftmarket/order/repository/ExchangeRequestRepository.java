@@ -26,10 +26,18 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
     @EntityGraph(attributePaths={"order","order.user","sellerOrder","sellerOrder.seller","collectionShipment","outboundShipment"}) @Query("select e from ExchangeRequest e where e.id=:id") Optional<ExchangeRequest> findAdminById(@Param("id")Long id);
     long countByStatus(ExchangeRequestStatus status);
     long countByOrderId(Long orderId);
+
+    @Query("select case when count(e) > 0 then true else false end from ExchangeRequest e where e.order.user.id = :userId and e.status in :statuses")
+    boolean existsByOrderUserIdAndStatusIn(@Param("userId") Long userId,
+                                           @Param("statuses") Collection<ExchangeRequestStatus> statuses);
     long countBySellerOrderSellerIdAndStatus(
             Long sellerId,
             ExchangeRequestStatus status
     );
+
+    @Query("select case when count(e) > 0 then true else false end from ExchangeRequest e where e.sellerOrder.seller.id = :sellerId and e.status in :statuses")
+    boolean existsBySellerIdAndStatusIn(@Param("sellerId") Long sellerId,
+                                        @Param("statuses") Collection<ExchangeRequestStatus> statuses);
 
     Optional<ExchangeRequest> findByClientRequestKey(String clientRequestKey);
 

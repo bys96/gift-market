@@ -10,6 +10,7 @@ import { resolveImageUrl } from "@/utils/image-url";
 interface ProfileFormProps {
   user: User;
   onSave: (name: string, profileImageFile: File | null) => Promise<void>;
+  onWithdraw: () => Promise<void>;
 }
 
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -21,7 +22,7 @@ const ALLOWED_PROFILE_IMAGE_TYPES = [
   "image/gif",
 ];
 
-export default function ProfileForm({ user, onSave }: ProfileFormProps) {
+export default function ProfileForm({ user, onSave, onWithdraw }: ProfileFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -33,6 +34,7 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const profileImageSrc = resolveImageUrl(profileImageUrl);
 
@@ -149,6 +151,30 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (isSaving || isWithdrawing) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "회원탈퇴 시 개인정보가 익명화되고 배송지·장바구니·찜 목록이 삭제됩니다. 주문·결제·배송·클레임 이력은 보존됩니다. 탈퇴하시겠습니까?",
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setErrorMessage("");
+    setIsWithdrawing(true);
+    try {
+      await onWithdraw();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "회원탈퇴 중 오류가 발생했습니다.",
+      );
+      setIsWithdrawing(false);
     }
   };
 
@@ -277,10 +303,19 @@ export default function ProfileForm({ user, onSave }: ProfileFormProps) {
         <button
           type="button"
           className="profile-cancel-button"
-          disabled={isSaving}
+          disabled={isSaving || isWithdrawing}
           onClick={() => router.push("/my")}
         >
           취소
+        </button>
+
+        <button
+          type="button"
+          className="profile-withdraw-button"
+          disabled={isSaving || isWithdrawing}
+          onClick={handleWithdraw}
+        >
+          {isWithdrawing ? "탈퇴 처리 중..." : "회원탈퇴"}
         </button>
       </div>
     </form>

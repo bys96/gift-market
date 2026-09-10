@@ -31,6 +31,10 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
     long countByStatus(ReturnRequestStatus status);
     long countByOrderId(Long orderId);
 
+    @Query("select case when count(r) > 0 then true else false end from ReturnRequest r where r.order.user.id = :userId and r.status in :statuses")
+    boolean existsByOrderUserIdAndStatusIn(@Param("userId") Long userId,
+                                           @Param("statuses") Collection<ReturnRequestStatus> statuses);
+
     long countBySellerOrderSellerIdAndStatus(
             Long sellerId,
             ReturnRequestStatus status
@@ -86,6 +90,10 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
             Long sellerOrderId,
             Collection<ReturnRequestStatus> statuses
     );
+
+    @Query("select case when count(r) > 0 then true else false end from ReturnRequest r where r.sellerOrder.seller.id = :sellerId and r.status in :statuses")
+    boolean existsBySellerIdAndStatusIn(@Param("sellerId") Long sellerId,
+                                        @Param("statuses") Collection<ReturnRequestStatus> statuses);
 
     @Query("""
             select ri.orderItem.id as orderItemId,

@@ -62,6 +62,10 @@ public interface SellerRepository extends JpaRepository<Seller, Long> {
 
     Optional<Seller> findByUserId(Long userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Seller s where s.user.id = :userId")
+    Optional<Seller> findByUserIdForUpdate(@Param("userId") Long userId);
+
     @org.springframework.data.jpa.repository.Query("""
             select s.user.id
             from Seller s

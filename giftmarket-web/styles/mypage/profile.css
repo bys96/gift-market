@@ -265,6 +265,24 @@
   cursor: not-allowed;
 }
 
+.profile-withdraw-button {
+  min-width: 96px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid #d83a3a;
+  border-radius: 8px;
+  background: #fff;
+  color: #d83a3a;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-withdraw-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .profile-page-header {
     margin-bottom: 24px;

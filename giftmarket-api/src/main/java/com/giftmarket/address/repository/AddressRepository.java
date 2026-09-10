@@ -29,4 +29,6 @@ public interface AddressRepository
     long countByUserId(
             Long userId
     );
+
+    void deleteAllByUserId(Long userId);
 }

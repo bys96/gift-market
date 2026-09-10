@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Entity
 @Table(
@@ -48,6 +50,9 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserStatus status;
+
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
 
     @Builder
     private User(
@@ -116,5 +121,14 @@ public class User extends BaseEntity {
 
     public void withdraw() {
         this.status = UserStatus.WITHDRAWN;
+    }
+
+    public void withdrawAndAnonymize(String providerIdTombstone) {
+        this.email = null;
+        this.name = "탈퇴회원";
+        this.profileImageUrl = null;
+        this.providerId = providerIdTombstone;
+        this.status = UserStatus.WITHDRAWN;
+        this.withdrawnAt = LocalDateTime.now();
     }
 }

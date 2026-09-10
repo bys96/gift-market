@@ -10,10 +10,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.EntityGraph;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.payment.entity.PaymentStatus;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 public interface OrderRepository
         extends JpaRepository<Order, Long> {
@@ -24,6 +26,8 @@ public interface OrderRepository
     );
 
     long countByUserId(Long userId);
+
+    boolean existsByUserIdAndStatusIn(Long userId, Collection<OrderStatus> statuses);
 
     Page<Order> findAllBy(Pageable pageable);
 

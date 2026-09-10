@@ -25,6 +25,8 @@ public interface SellerOrderRepository
             Collection<SellerOrderStatus> statuses
     );
 
+    boolean existsBySellerIdAndStatusIn(Long sellerId, Collection<SellerOrderStatus> statuses);
+
     @Query("""
             select so
             from SellerOrder so

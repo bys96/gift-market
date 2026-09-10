@@ -8,7 +8,10 @@ import { useEffect } from "react";
 
 import ProfileForm from "@/components/my/ProfileForm";
 import { apiFetch } from "@/lib/api";
+import { withdrawMyAccount } from "@/lib/user-api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCartStore } from "@/stores/cart-store";
+import { useWishlistStore } from "@/stores/wishlist-store";
 import type { ApiResponse, PresignedUrlResponse } from "@/types/api";
 import type { User } from "@/types/user";
 
@@ -50,6 +53,15 @@ export default function MyProfilePage() {
     }
 
     setUser(result.data);
+  };
+
+  const handleWithdraw = async () => {
+    await withdrawMyAccount();
+    useAuthStore.getState().clearAuth();
+    useCartStore.getState().resetCart();
+    useWishlistStore.getState().resetWishlist();
+    router.replace("/");
+    router.refresh();
   };
 
   const uploadProfileImage = async (
@@ -123,7 +135,11 @@ export default function MyProfilePage() {
           </p>
         </div>
 
-        <ProfileForm user={user} onSave={handleSave} />
+        <ProfileForm
+          user={user}
+          onSave={handleSave}
+          onWithdraw={handleWithdraw}
+        />
       </div>
     </main>
   );

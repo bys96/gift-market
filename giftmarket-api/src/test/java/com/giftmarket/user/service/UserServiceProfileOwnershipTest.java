@@ -1,6 +1,12 @@
 package com.giftmarket.user.service;
 
 import com.giftmarket.global.storage.service.StorageService;
+import com.giftmarket.auth.repository.RefreshTokenRepository;
+import com.giftmarket.address.repository.AddressRepository;
+import com.giftmarket.cart.repository.CartItemRepository;
+import com.giftmarket.order.repository.*;
+import com.giftmarket.seller.repository.SellerRepository;
+import com.giftmarket.wishlist.repository.WishlistItemRepository;
 import com.giftmarket.user.dto.UpdateMyProfileRequest;
 import com.giftmarket.user.entity.AuthProvider;
 import com.giftmarket.user.entity.User;
@@ -24,11 +30,22 @@ import static org.mockito.Mockito.*;
 class UserServiceProfileOwnershipTest {
     @Mock UserRepository users;
     @Mock StorageService storage;
+    @Mock RefreshTokenRepository refreshTokens;
+    @Mock AddressRepository addresses;
+    @Mock CartItemRepository cartItems;
+    @Mock WishlistItemRepository wishlistItems;
+    @Mock OrderRepository orders;
+    @Mock OrderCancellationRepository cancellations;
+    @Mock ReturnRequestRepository returns;
+    @Mock ExchangeRequestRepository exchanges;
+    @Mock SellerRepository sellers;
+    @Mock SellerOrderRepository sellerOrders;
     @Mock User user;
     UserService service;
 
     @BeforeEach void setUp() {
-        service = new UserService(users, storage);
+        service = new UserService(users, storage, refreshTokens, addresses, cartItems,
+                wishlistItems, orders, cancellations, returns, exchanges, sellers, sellerOrders);
         lenient().when(users.findById(7L)).thenReturn(Optional.of(user));
         lenient().when(user.getId()).thenReturn(7L);
         lenient().when(user.getName()).thenReturn("사용자");

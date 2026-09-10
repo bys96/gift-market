@@ -48,6 +48,10 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     long countByStatus(OrderCancellationStatus status);
     long countByOrderId(Long orderId);
 
+    @Query("select case when count(c) > 0 then true else false end from OrderCancellation c where c.order.user.id = :userId and c.status in :statuses")
+    boolean existsByOrderUserIdAndStatusIn(@Param("userId") Long userId,
+                                           @Param("statuses") Collection<OrderCancellationStatus> statuses);
+
     long countBySellerOrderSellerIdAndRequiresSellerApprovalTrueAndStatus(
             Long sellerId,
             OrderCancellationStatus status
@@ -106,6 +110,10 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
             Long sellerOrderId,
             Collection<OrderCancellationStatus> statuses
     );
+
+    @Query("select case when count(c) > 0 then true else false end from OrderCancellation c where c.sellerOrder.seller.id = :sellerId and c.status in :statuses")
+    boolean existsBySellerIdAndStatusIn(@Param("sellerId") Long sellerId,
+                                        @Param("statuses") Collection<OrderCancellationStatus> statuses);
 
     @Query("""
             select ci.orderItem.id as orderItemId,

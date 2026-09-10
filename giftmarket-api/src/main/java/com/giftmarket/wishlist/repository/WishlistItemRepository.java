@@ -34,4 +34,6 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
               and p.deletedAt is null
             """)
     long countVisibleByUserId(@Param("userId") Long userId);
+
+    void deleteAllByUserId(Long userId);
 }
