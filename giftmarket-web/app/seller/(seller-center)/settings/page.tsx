@@ -122,6 +122,7 @@ export default function SellerStoreSettingsPage() {
   const [error, setError] = useState("");
   const [localPreviews, setLocalPreviews] = useState<ImagePreviews>({});
   const [failedImageUrls, setFailedImageUrls] = useState<ImagePreviews>({});
+  const editFormRef = useRef<SellerStoreUpdateRequest | null>(null);
   // 비동기 업로드와 무관하게 취소/교체/unmount 시 해제할 리소스를 추적한다.
   const objectUrls = useRef<ImagePreviews>({});
   const uploadVersion = useRef(0);
@@ -184,7 +185,9 @@ export default function SellerStoreSettingsPage() {
 
   function handleEdit() {
     if (!serverStore) return;
-    setEditForm(toEditForm(serverStore));
+    const draft = toEditForm(serverStore);
+    editFormRef.current = draft;
+    setEditForm(draft);
     setMessage("");
     setError("");
   }
@@ -195,6 +198,7 @@ export default function SellerStoreSettingsPage() {
     uploadVersion.current += 1;
     setUploadingField(null);
     clearPreviews();
+    editFormRef.current = null;
     setEditForm(null);
     setError("");
     setMessage("");
@@ -206,13 +210,25 @@ export default function SellerStoreSettingsPage() {
         field === "customerServicePhone"
           ? formatStorePhoneNumber(event.currentTarget.value)
           : event.currentTarget.value;
-      setEditForm((form) => (form ? { ...form, [field]: value } : null));
+      updateEditForm((form) => (form ? { ...form, [field]: value } : null));
     };
+  }
+
+  function updateEditForm(
+    updater: (
+      form: SellerStoreUpdateRequest | null,
+    ) => SellerStoreUpdateRequest | null,
+  ) {
+    setEditForm((form) => {
+      const next = updater(form);
+      editFormRef.current = next;
+      return next;
+    });
   }
 
   function handleClosedDayToggle(day: Weekday) {
     if (isSaving) return;
-    setEditForm((form) => {
+    updateEditForm((form) => {
       if (!form) return null;
       const selected = new Set(
         parseClosedDays(form.customerServiceClosedDays).map(
@@ -250,7 +266,7 @@ export default function SellerStoreSettingsPage() {
           ? await uploadStoreLogo(file)
           : await uploadStoreBanner(file);
       if (version !== uploadVersion.current) return;
-      setEditForm((form) => (form ? { ...form, [field]: key } : null));
+      updateEditForm((form) => (form ? { ...form, [field]: key } : null));
     } catch (failure) {
       if (version === uploadVersion.current) {
         replacePreview(field, null);
@@ -268,15 +284,21 @@ export default function SellerStoreSettingsPage() {
   function handleImageRemove(field: ImageField) {
     if (isSaving || uploadingField) return;
     replacePreview(field, null);
-    setEditForm((form) => (form ? { ...form, [field]: null } : null));
+    updateEditForm((form) => (form ? { ...form, [field]: null } : null));
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editForm || isSaving || uploadingField) return;
+    const draft = editFormRef.current;
+    if (!draft || isSaving || uploadingField) return;
 
     setError("");
-    const request = { ...editForm, storeName: editForm.storeName.trim() };
+    const request = {
+      ...draft,
+      logoImageKey: draft.logoImageKey ?? null,
+      bannerImageKey: draft.bannerImageKey ?? null,
+      storeName: draft.storeName.trim(),
+    };
     if (request.storeName.length < 2 || request.storeName.length > 30) {
       setError("스토어명은 2~30자로 입력해 주세요.");
       return;
@@ -286,6 +308,7 @@ export default function SellerStoreSettingsPage() {
     try {
       const store = await updateSellerStore(request);
       setServerStore(store);
+      editFormRef.current = null;
       setEditForm(null);
       clearPreviews();
       setMessage("스토어 설정을 저장했습니다.");
