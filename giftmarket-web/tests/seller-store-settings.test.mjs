@@ -28,6 +28,27 @@ vm.runInNewContext(
   ).outputText,
   { exports: phoneUtils },
 );
+const imageUtils = {};
+vm.runInNewContext(
+  ts.transpileModule(
+    fs.readFileSync(
+      resolve(import.meta.dirname, "../utils/image-url.ts"),
+      "utf8",
+    ),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+  ).outputText,
+  {
+    exports: imageUtils,
+    URL,
+    process: {
+      env: {
+        NEXT_PUBLIC_STORAGE_BASE_URL: "https://storage.example.test/bucket///",
+        NODE_ENV: "production",
+      },
+    },
+  },
+);
+const publicUrl = (key) => imageUtils.resolveImageUrl(key);
 const store = {
   id: 7,
   storeName: "original",
@@ -58,9 +79,19 @@ function mount(overrides = {}) {
     effects = [],
     exports = {};
   const jsx = (type, props) => ({ type, props });
+  const createdPreviews = [];
+  const revokedPreviews = [];
   vm.runInNewContext(code, {
     exports,
     Error,
+    URL: {
+      createObjectURL: (file) => {
+        const url = `blob:preview/${createdPreviews.length + 1}`;
+        createdPreviews.push({ url, file });
+        return url;
+      },
+      revokeObjectURL: (url) => revokedPreviews.push(url),
+    },
     require: (name) => {
       if (name === "react")
         return {
@@ -100,8 +131,7 @@ function mount(overrides = {}) {
           uploadStoreLogo: overrides.upload,
           uploadStoreBanner: overrides.upload,
         };
-      if (name === "@/utils/image-url")
-        return { resolveImageUrl: (k) => k || null };
+      if (name === "@/utils/image-url") return imageUtils;
       if (name === "@/utils/phone") return phoneUtils;
       throw Error(name);
     },
@@ -125,8 +155,11 @@ function mount(overrides = {}) {
   const text = (n) =>
     Array.isArray(n) ? n.map(text).join("") : typeof n === "string" ? n : "";
   render();
-  effects.forEach((f) => f());
+  const cleanups = effects.map((effect) => effect());
   return {
+    createdPreviews,
+    revokedPreviews,
+    unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
     render,
     all,
     find,
@@ -143,6 +176,282 @@ function mount(overrides = {}) {
   };
 }
 const tick = () => new Promise((r) => setImmediate(r));
+
+function selectImage(page, field) {
+  page
+    .find((node) => node.props?.id === field)
+    .props.onChange({
+      currentTarget: {
+        files: [{ name: "preview.png", type: "image/png" }],
+        value: "preview.png",
+      },
+    });
+  page.render();
+  return page.createdPreviews.at(-1).url;
+}
+
+test("immediate local previews switch to response public URLs on save and reload", async () => {
+  assert.equal(
+    publicUrl("///stores/7/logo/image.png"),
+    "https://storage.example.test/bucket/stores/7/logo/image.png",
+  );
+  for (const field of ["logoImageKey", "bannerImageKey"]) {
+    const upload = deferred();
+    const savedStore = { ...store, [field]: "/stores/7/canonical.png" };
+    let request;
+    const page = mount({
+      upload: () => upload.promise,
+      updateSellerStore: async (payload) => {
+        request = payload;
+        return savedStore;
+      },
+    });
+    await tick();
+    page.render();
+    page.click("수정");
+    page.render();
+    const preview = selectImage(page, field);
+    assert.ok(
+      page
+        .all()
+        .some((node) => node.props?.src === preview && node.props.unoptimized),
+    );
+    assert.equal(
+      page.find((node) => node.props?.type === "submit").props.disabled,
+      true,
+    );
+    upload.resolve("stores/7/uploaded.png");
+    await tick();
+    page.render();
+    assert.ok(page.all().some((node) => node.props?.src === preview));
+    assert.equal(page.revokedPreviews.length, 0);
+    await page.save();
+    page.render();
+    assert.equal(request[field], "stores/7/uploaded.png");
+    assert.ok(
+      Object.values(request).every(
+        (value) => !String(value).startsWith("blob:"),
+      ),
+    );
+    assert.ok(page.revokedPreviews.includes(preview));
+    assert.ok(
+      page
+        .all()
+        .some(
+          (node) =>
+            node.props?.src === publicUrl(savedStore[field]) &&
+            node.props.unoptimized,
+        ),
+    );
+    const reloaded = mount({ getSellerStore: async () => savedStore });
+    await tick();
+    reloaded.render();
+    assert.ok(
+      reloaded
+        .all()
+        .some((node) => node.props?.src === publicUrl(savedStore[field])),
+    );
+  }
+});
+
+test("preview cleanup covers replacement, deletion, cancellation, unmount and late upload responses", async () => {
+  for (const [field, label] of [
+    ["logoImageKey", "로고"],
+    ["bannerImageKey", "배너"],
+  ]) {
+    const lateUpload = deferred();
+    let count = 0;
+    const page = mount({
+      upload: () =>
+        ++count < 3 ? Promise.resolve("new-key") : lateUpload.promise,
+    });
+    await tick();
+    page.render();
+    page.click("수정");
+    page.render();
+    const first = selectImage(page, field);
+    await tick();
+    page.render();
+    const second = selectImage(page, field);
+    assert.ok(page.revokedPreviews.includes(first));
+    await tick();
+    page.render();
+    page.click(label + " 삭제");
+    page.render();
+    assert.ok(page.revokedPreviews.includes(second));
+    assert.ok(
+      !page.all().some((node) => node.props?.alt === "스토어 " + label),
+    );
+    page.click("취소");
+    page.render();
+    assert.ok(
+      page.all().some((node) => node.props?.src === publicUrl(store[field])),
+    );
+    page.click("수정");
+    page.render();
+    const canceled = selectImage(page, field);
+    page.click("취소");
+    page.render();
+    assert.ok(page.revokedPreviews.includes(canceled));
+    page.click("수정");
+    page.render();
+    lateUpload.resolve("late-key");
+    await tick();
+    page.render();
+    assert.ok(
+      page.all().some((node) => node.props?.src === publicUrl(store[field])),
+    );
+    const last = selectImage(page, field);
+    page.unmount();
+    await tick();
+    assert.ok(page.revokedPreviews.includes(last));
+  }
+});
+
+test("failed uploads restore the previous image and failed saves retain previews with image error placeholders", async () => {
+  const failure = mount({
+    upload: async () => {
+      throw Error("upload failed");
+    },
+  });
+  await tick();
+  failure.render();
+  failure.click("수정");
+  failure.render();
+  const failedPreview = selectImage(failure, "logoImageKey");
+  await tick();
+  failure.render();
+  assert.ok(failure.revokedPreviews.includes(failedPreview));
+  assert.ok(
+    failure
+      .all()
+      .some((node) => node.props?.src === publicUrl(store.logoImageKey)),
+  );
+  const page = mount({
+    upload: async () => "uploaded-key",
+    updateSellerStore: async () => {
+      throw Error("save failed");
+    },
+  });
+  await tick();
+  page.render();
+  page.click("수정");
+  page.render();
+  const preview = selectImage(page, "bannerImageKey");
+  await tick();
+  page.render();
+  await page.save();
+  page.render();
+  assert.ok(page.all().some((node) => node.props?.src === preview));
+  assert.ok(!page.revokedPreviews.includes(preview));
+  for (const alt of ["스토어 로고", "스토어 배너"]) {
+    page.find((node) => node.props?.alt === alt).props.onError();
+    page.render();
+    assert.ok(!page.all().some((node) => node.props?.alt === alt));
+  }
+});
+
+test("weekday toggles restore enum values and save ordered CSV with Korean read labels", async () => {
+  let request;
+  const page = mount({
+    getSellerStore: async () => ({
+      ...store,
+      customerServiceClosedDays: " SUNDAY, SATURDAY,SUNDAY ",
+    }),
+    updateSellerStore: async (payload) => {
+      request = payload;
+      return { ...store, ...payload };
+    },
+  });
+  await tick();
+  page.render();
+  assert.ok(
+    page
+      .all()
+      .some(
+        (node) =>
+          node.type === "dd" && node.props.children === "토요일, 일요일",
+      ),
+  );
+  page.click("수정");
+  page.render();
+  assert.ok(
+    !page.all().some((node) => node.props?.id === "customerServiceClosedDays"),
+  );
+  for (const label of ["토요일", "일요일"]) {
+    assert.equal(
+      page.find(
+        (node) => node.type === "button" && node.props["aria-label"] === label,
+      ).props["aria-pressed"],
+      true,
+    );
+  }
+  for (const label of ["월", "화", "수", "목", "금"]) {
+    page.click(label);
+    page.render();
+  }
+  await page.save();
+  page.render();
+  assert.equal(
+    request.customerServiceClosedDays,
+    "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY",
+  );
+  page.click("수정");
+  page.render();
+  for (const label of ["월", "화", "수", "목", "금", "토", "일"]) {
+    page.click(label);
+    page.render();
+  }
+  await page.save();
+  page.render();
+  assert.equal(request.customerServiceClosedDays, null);
+});
+
+test("both time fields open the picker on click and preserve unsupported and manual-input fallbacks", async () => {
+  const page = mount();
+  await tick();
+  page.render();
+  page.click("수정");
+  page.render();
+  for (const field of ["customerServiceOpenTime", "customerServiceCloseTime"]) {
+    const input = page.find((node) => node.props?.id === field);
+    assert.equal(input.props.type, "time");
+    let calls = 0;
+    input.props.onClick({
+      currentTarget: {
+        showPicker() {
+          calls++;
+        },
+      },
+    });
+    assert.equal(calls, 1);
+    assert.doesNotThrow(() => input.props.onClick({ currentTarget: {} }));
+    assert.doesNotThrow(() =>
+      input.props.onClick({
+        currentTarget: {
+          showPicker() {
+            throw Error("unsupported");
+          },
+        },
+      }),
+    );
+    input.props.onClick({
+      currentTarget: {
+        disabled: true,
+        showPicker() {
+          calls++;
+        },
+      },
+    });
+    assert.equal(calls, 1);
+    page.input(field, "13:30");
+    page.render();
+    assert.equal(
+      page.find((node) => node.props?.id === field).props.value,
+      "13:30",
+    );
+  }
+});
 test("SellerStore read/edit/save/upload regressions", async () => {
   const h = mount();
   await tick();
@@ -189,7 +498,7 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   h.render();
   h.input("customerServiceCloseTime", "18:00");
   h.render();
-  h.input("customerServiceClosedDays", "weekends");
+  h.click("토");
   h.render();
   h.input("customerServiceNote", "lunch break");
   h.render();
@@ -223,12 +532,11 @@ test("SellerStore read/edit/save/upload regressions", async () => {
     h.find((n) => n.props?.id === "storeName").props.value,
     "original",
   );
-  assert.ok(h.all().some((n) => n.props?.src === "logo"));
-  assert.ok(h.all().some((n) => n.props?.src === "banner"));
+  assert.ok(h.all().some((n) => n.props?.src === publicUrl("logo")));
+  assert.ok(h.all().some((n) => n.props?.src === publicUrl("banner")));
   for (const field of [
     "customerServiceOpenTime",
     "customerServiceCloseTime",
-    "customerServiceClosedDays",
     "customerServiceNote",
   ]) {
     assert.equal(h.find((n) => n.props?.id === field).props.value, "");
@@ -252,8 +560,8 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   d.resolve("late");
   await tick();
   u.render();
-  assert.ok(u.all().some((n) => n.props?.src === "logo"));
-  assert.ok(!u.all().some((n) => n.props?.src === "late"));
+  assert.ok(u.all().some((n) => n.props?.src === publicUrl("logo")));
+  assert.ok(!u.all().some((n) => n.props?.src === publicUrl("late")));
 
   const f = mount({
     updateSellerStore: async () => {
@@ -292,7 +600,9 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   s.render();
   s.input("customerServiceCloseTime", "18:00");
   s.render();
-  s.input("customerServiceClosedDays", "weekends");
+  s.click("토");
+  s.render();
+  s.click("일");
   s.render();
   s.input("customerServiceNote", "lunch break");
   s.render();
@@ -302,7 +612,7 @@ test("SellerStore read/edit/save/upload regressions", async () => {
   assert.equal(request.storeName, "trimmed");
   assert.equal(request.customerServiceOpenTime, "09:00");
   assert.equal(request.customerServiceCloseTime, "18:00");
-  assert.equal(request.customerServiceClosedDays, "weekends");
+  assert.equal(request.customerServiceClosedDays, "SATURDAY,SUNDAY");
   assert.equal(request.customerServiceNote, "lunch break");
   assert.equal(Object.hasOwn(request, "id"), false);
   d2.resolve({ ...store, storeName: "server response" });
@@ -327,10 +637,18 @@ test("SellerStore read/edit/save/upload regressions", async () => {
       .props.onChange({ currentTarget: { files: [{}], value: "file" } });
     await tick();
     uploaded.render();
-    assert.ok(uploaded.all().some((n) => n.props?.src === field + "-new"));
+    assert.ok(
+      uploaded
+        .all()
+        .some((n) => n.props?.src === uploaded.createdPreviews[0].url),
+    );
     uploaded.click("취소");
     uploaded.render();
-    assert.ok(!uploaded.all().some((n) => n.props?.src === field + "-new"));
+    assert.ok(
+      !uploaded
+        .all()
+        .some((n) => n.props?.src === uploaded.createdPreviews[0].url),
+    );
   }
   assert.deepEqual(Object.keys(request).sort(), [
     "bannerImageKey",

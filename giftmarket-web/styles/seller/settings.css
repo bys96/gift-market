@@ -141,7 +141,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 50%;
+  border-radius: 12px;
   background: #fffbe3;
   color: var(--color-text-primary);
   font-size: 30px;
@@ -169,6 +169,54 @@
 
 .seller-settings-contact-wide {
   grid-column: 1 / -1;
+}
+
+.seller-settings-closed-days {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.seller-settings-closed-days legend {
+  margin-bottom: 9px;
+  padding: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.seller-settings-closed-days > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.seller-settings-closed-days button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.seller-settings-closed-days button[aria-pressed="true"] {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+  color: #fff;
+}
+
+.seller-settings-closed-days button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.seller-settings-contact-fields input[type="time"] {
+  cursor: pointer;
 }
 
 /* 조회 모드는 입력 폼과 분리된 label/value 정보 행을 사용한다. */
@@ -248,7 +296,9 @@
 .seller-settings-banner img {
   display: block;
   width: 100%;
+  aspect-ratio: 4 / 1;
   height: auto;
+  object-fit: contain;
 }
 
 .seller-settings-banner p {
@@ -269,6 +319,11 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .seller-settings-closed-days button:not(:disabled):hover {
+    border-color: var(--color-text-primary);
+    box-shadow: 0 0 0 2px rgb(0 0 0 / 8%);
+  }
+
   .seller-settings-primary:not(:disabled):hover {
     filter: brightness(0.96);
   }

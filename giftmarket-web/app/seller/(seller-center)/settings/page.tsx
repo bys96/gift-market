@@ -10,7 +10,37 @@ import { resolveImageUrl } from "@/utils/image-url";
 import { formatKoreanPhoneNumber } from "@/utils/phone";
 
 type ImageField = "logoImageKey" | "bannerImageKey";
-type TextField = Exclude<keyof SellerStoreUpdateRequest, ImageField>;
+type TextField = Exclude<
+  keyof SellerStoreUpdateRequest,
+  ImageField | "customerServiceClosedDays"
+>;
+
+const weekdays = [
+  { value: "MONDAY", label: "월" },
+  { value: "TUESDAY", label: "화" },
+  { value: "WEDNESDAY", label: "수" },
+  { value: "THURSDAY", label: "목" },
+  { value: "FRIDAY", label: "금" },
+  { value: "SATURDAY", label: "토" },
+  { value: "SUNDAY", label: "일" },
+] as const;
+
+type Weekday = (typeof weekdays)[number]["value"];
+type ImagePreviews = Partial<Record<ImageField, string>>;
+
+function parseClosedDays(value: string | null) {
+  const selected = new Set(value?.split(",").map((day) => day.trim()));
+  return weekdays.filter((day) => selected.has(day.value));
+}
+
+function showTimePicker(input: HTMLInputElement) {
+  if (input.disabled || input.readOnly) return;
+  try {
+    input.showPicker?.();
+  } catch {
+    // 미지원 환경 또는 사용자 활성화 제한에서는 기본 시간 입력을 유지한다.
+  }
+}
 
 const contactFields = [
   {
@@ -56,7 +86,10 @@ function toEditForm(store: SellerStore): SellerStoreUpdateRequest {
     customerServiceEmail: store.customerServiceEmail,
     customerServiceOpenTime: store.customerServiceOpenTime,
     customerServiceCloseTime: store.customerServiceCloseTime,
-    customerServiceClosedDays: store.customerServiceClosedDays,
+    customerServiceClosedDays:
+      parseClosedDays(store.customerServiceClosedDays)
+        .map((day) => day.value)
+        .join(",") || null,
     customerServiceNote: store.customerServiceNote,
   };
 }
@@ -87,6 +120,10 @@ export default function SellerStoreSettingsPage() {
   const [uploadingField, setUploadingField] = useState<ImageField | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [localPreviews, setLocalPreviews] = useState<ImagePreviews>({});
+  const [failedImageUrls, setFailedImageUrls] = useState<ImagePreviews>({});
+  // 비동기 업로드와 무관하게 취소/교체/unmount 시 해제할 리소스를 추적한다.
+  const objectUrls = useRef<ImagePreviews>({});
   const uploadVersion = useRef(0);
   const imageInputs = useRef<Record<ImageField, HTMLInputElement | null>>({
     logoImageKey: null,
@@ -95,6 +132,7 @@ export default function SellerStoreSettingsPage() {
 
   useEffect(() => {
     let active = true;
+    const previews = objectUrls.current;
 
     async function loadStore() {
       try {
@@ -117,8 +155,32 @@ export default function SellerStoreSettingsPage() {
     return () => {
       active = false;
       uploadVersion.current += 1;
+      Object.values(previews).forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
+
+  function replacePreview(field: ImageField, url: string | null) {
+    const previous = objectUrls.current[field];
+    if (previous) URL.revokeObjectURL(previous);
+    if (url) objectUrls.current[field] = url;
+    else delete objectUrls.current[field];
+    setFailedImageUrls((urls) => {
+      if (!urls[field]) return urls;
+      const next = { ...urls };
+      delete next[field];
+      return next;
+    });
+    setLocalPreviews({ ...objectUrls.current });
+  }
+
+  function clearPreviews() {
+    for (const { name } of imageFields) {
+      const url = objectUrls.current[name];
+      if (url) URL.revokeObjectURL(url);
+      delete objectUrls.current[name];
+    }
+    setLocalPreviews({});
+  }
 
   function handleEdit() {
     if (!serverStore) return;
@@ -132,6 +194,7 @@ export default function SellerStoreSettingsPage() {
     // 업로드 API는 중단을 지원하지 않으므로 취소된 편집의 응답을 무시한다.
     uploadVersion.current += 1;
     setUploadingField(null);
+    clearPreviews();
     setEditForm(null);
     setError("");
     setMessage("");
@@ -147,6 +210,28 @@ export default function SellerStoreSettingsPage() {
     };
   }
 
+  function handleClosedDayToggle(day: Weekday) {
+    if (isSaving) return;
+    setEditForm((form) => {
+      if (!form) return null;
+      const selected = new Set(
+        parseClosedDays(form.customerServiceClosedDays).map(
+          (item) => item.value,
+        ),
+      );
+      if (selected.has(day)) selected.delete(day);
+      else selected.add(day);
+      return {
+        ...form,
+        customerServiceClosedDays:
+          weekdays
+            .filter((item) => selected.has(item.value))
+            .map((item) => item.value)
+            .join(",") || null,
+      };
+    });
+  }
+
   async function handleImageUpload(
     field: ImageField,
     event: ChangeEvent<HTMLInputElement>,
@@ -159,6 +244,7 @@ export default function SellerStoreSettingsPage() {
     setUploadingField(field);
     setError("");
     try {
+      replacePreview(field, URL.createObjectURL(file));
       const key =
         field === "logoImageKey"
           ? await uploadStoreLogo(file)
@@ -167,6 +253,7 @@ export default function SellerStoreSettingsPage() {
       setEditForm((form) => (form ? { ...form, [field]: key } : null));
     } catch (failure) {
       if (version === uploadVersion.current) {
+        replacePreview(field, null);
         setError(
           failure instanceof Error
             ? failure.message
@@ -180,6 +267,7 @@ export default function SellerStoreSettingsPage() {
 
   function handleImageRemove(field: ImageField) {
     if (isSaving || uploadingField) return;
+    replacePreview(field, null);
     setEditForm((form) => (form ? { ...form, [field]: null } : null));
   }
 
@@ -199,6 +287,7 @@ export default function SellerStoreSettingsPage() {
       const store = await updateSellerStore(request);
       setServerStore(store);
       setEditForm(null);
+      clearPreviews();
       setMessage("스토어 설정을 저장했습니다.");
     } catch (failure) {
       setError(
@@ -256,8 +345,13 @@ export default function SellerStoreSettingsPage() {
   }
 
   const current = editForm ?? serverStore;
-  const logoUrl = resolveImageUrl(current?.logoImageKey);
-  const bannerUrl = resolveImageUrl(current?.bannerImageKey);
+  const logoUrl =
+    localPreviews.logoImageKey ?? resolveImageUrl(current?.logoImageKey);
+  const bannerUrl =
+    localPreviews.bannerImageKey ?? resolveImageUrl(current?.bannerImageKey);
+  const selectedClosedDays = parseClosedDays(
+    editForm?.customerServiceClosedDays ?? null,
+  );
 
   return (
     <main className="seller-settings-page">
@@ -329,15 +423,32 @@ export default function SellerStoreSettingsPage() {
                 </div>
                 <div className="seller-settings-store-info">
                   <div className="seller-settings-logo">
-                    {logoUrl ? (
+                    {logoUrl && failedImageUrls.logoImageKey !== logoUrl ? (
                       <Image
+                        key={logoUrl}
                         src={logoUrl}
                         alt="스토어 로고"
                         width={96}
                         height={96}
+                        unoptimized
+                        onError={() =>
+                          setFailedImageUrls((urls) => ({
+                            ...urls,
+                            logoImageKey: logoUrl,
+                          }))
+                        }
                       />
                     ) : (
-                      <span>{current.storeName.charAt(0) || "G"}</span>
+                      <span
+                        role="img"
+                        aria-label={
+                          current.logoImageKey || localPreviews.logoImageKey
+                            ? "로고 이미지를 표시할 수 없습니다."
+                            : "등록된 로고가 없습니다."
+                        }
+                      >
+                        {current.storeName.charAt(0) || "G"}
+                      </span>
                     )}
                   </div>
                   {editForm ? (
@@ -389,16 +500,24 @@ export default function SellerStoreSettingsPage() {
                   <span>구매자 미리보기</span>
                 </div>
                 <div className="seller-settings-banner">
-                  {bannerUrl ? (
+                  {bannerUrl && failedImageUrls.bannerImageKey !== bannerUrl ? (
                     <Image
+                      key={bannerUrl}
                       src={bannerUrl}
                       alt="스토어 배너"
                       width={880}
                       height={220}
+                      unoptimized
+                      onError={() =>
+                        setFailedImageUrls((urls) => ({
+                          ...urls,
+                          bannerImageKey: bannerUrl,
+                        }))
+                      }
                     />
                   ) : (
                     <p>
-                      {current.bannerImageKey
+                      {current.bannerImageKey || localPreviews.bannerImageKey
                         ? "배너 이미지를 표시할 수 없습니다."
                         : "등록된 배너가 없습니다."}
                     </p>
@@ -423,21 +542,33 @@ export default function SellerStoreSettingsPage() {
                           value={editForm[name] ?? ""}
                           maxLength={maxLength}
                           onChange={handleInputChange(name)}
+                          onClick={
+                            type === "time"
+                              ? (event) => showTimePicker(event.currentTarget)
+                              : undefined
+                          }
                         />
                       </div>
                     ))}
-                    <div className="seller-product-form-field seller-settings-contact-wide">
-                      <label htmlFor="customerServiceClosedDays">휴무일</label>
-                      <input
-                        id="customerServiceClosedDays"
-                        value={editForm.customerServiceClosedDays ?? ""}
-                        maxLength={255}
-                        placeholder="예: 토요일, 일요일, 공휴일"
-                        onChange={handleInputChange(
-                          "customerServiceClosedDays",
-                        )}
-                      />
-                    </div>
+                    <fieldset className="seller-settings-closed-days seller-settings-contact-wide">
+                      <legend>휴무일</legend>
+                      <div>
+                        {weekdays.map(({ value, label }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-label={`${label}요일`}
+                            aria-pressed={selectedClosedDays.some(
+                              (day) => day.value === value,
+                            )}
+                            disabled={isSaving}
+                            onClick={() => handleClosedDayToggle(value)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
                     <div className="seller-product-form-field seller-settings-contact-wide">
                       <label htmlFor="customerServiceNote">추가 안내</label>
                       <textarea
@@ -462,7 +593,11 @@ export default function SellerStoreSettingsPage() {
                     ))}
                     <div>
                       <dt>휴무일</dt>
-                      <dd>{displayValue(current.customerServiceClosedDays)}</dd>
+                      <dd>
+                        {parseClosedDays(current.customerServiceClosedDays)
+                          .map((day) => `${day.label}요일`)
+                          .join(", ") || "등록된 휴무일이 없습니다."}
+                      </dd>
                     </div>
                     <div>
                       <dt>추가 안내</dt>
