@@ -113,4 +113,5 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
     @Query("select e.id from ExchangeRequest e where e.status = :status and e.paymentDueAt < :now order by e.id")
     List<Long> findExpiredPaymentCandidateIds(@Param("status") ExchangeRequestStatus status,
                                                @Param("now") LocalDateTime now, Pageable pageable);
+    boolean existsBySellerOrderIdAndStatusIn(Long sellerOrderId, Collection<ExchangeRequestStatus> statuses);
 }

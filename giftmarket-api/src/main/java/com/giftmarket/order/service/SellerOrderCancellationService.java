@@ -3,6 +3,7 @@ package com.giftmarket.order.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationResponse;
+import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderCancellation;
 import com.giftmarket.order.entity.OrderCancellationItem;
@@ -15,6 +16,9 @@ import com.giftmarket.order.repository.OrderCancellationItemRepository;
 import com.giftmarket.order.repository.OrderCancellationOwnershipProjection;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
+import com.giftmarket.order.repository.OrderItemRepository;
+import com.giftmarket.order.repository.ReturnRequestRepository;
+import com.giftmarket.order.entity.ReturnRequestStatus;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -28,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,6 +44,18 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SellerOrderCancellationService {
 
+    public SellerOrderCancellationService(
+            SellerRepository sellerRepository,
+            PaymentRepository paymentRepository,
+            OrderRepository orderRepository,
+            SellerOrderRepository sellerOrderRepository,
+            OrderCancellationRepository cancellationRepository,
+            OrderCancellationItemRepository cancellationItemRepository
+    ) {
+        this(sellerRepository, paymentRepository, orderRepository, sellerOrderRepository,
+                cancellationRepository, cancellationItemRepository, null);
+    }
+
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_REJECT_REASON_LENGTH = 500;
 
@@ -48,6 +65,61 @@ public class SellerOrderCancellationService {
     private final SellerOrderRepository sellerOrderRepository;
     private final OrderCancellationRepository cancellationRepository;
     private final OrderCancellationItemRepository cancellationItemRepository;
+    private final OrderItemRepository orderItemRepository;
+    @Autowired private ReturnRequestRepository returnRequestRepository;
+
+    @Transactional
+    public SellerOrderCancellationResponse create(Long userId, Long sellerOrderId, SellerOrderCancelRequest request) {
+        Seller seller = getActiveSeller(userId);
+        String key = request.clientRequestKey().trim();
+        String reason = request.reason().trim();
+        OrderCancellation existing = cancellationRepository.findByClientRequestKey(key).orElse(null);
+        if (existing != null) {
+            if (!existing.getSellerOrder().getSeller().getId().equals(seller.getId())
+                    || !existing.getSellerOrder().getId().equals(sellerOrderId)
+                    || !existing.getReason().equals(reason)
+                    || existing.getRequesterType() != com.giftmarket.order.entity.CancellationRequesterType.SELLER) {
+                throw new SellerException("以묐났 痍⑥냼 ?붿껌?낅땲??");
+            }
+            return response(existing, getItems(existing.getId()));
+        }
+        SellerOrder sellerOrder = sellerOrderRepository.findByIdAndSellerIdForUpdate(sellerOrderId, seller.getId())
+                .orElseThrow(this::cancellationNotFound);
+        if (sellerOrder.getStatus() != SellerOrderStatus.PAID
+                && sellerOrder.getStatus() != SellerOrderStatus.PREPARING) {
+            throw new SellerException("?꾩옱 二쇰Ц ?곹깭?먯꽌??痍⑥냼?????놁뒿?덈떎.");
+        }
+        if (cancellationRepository.existsBySellerOrderIdAndStatusIn(
+                sellerOrderId,
+                java.util.Set.of(OrderCancellationStatus.REQUESTED, OrderCancellationStatus.PROCESSING))) {
+            throw new SellerException("泥섎━ 以묒씤 痍⑥냼 ?붿껌???덉뒿?덈떎.");
+        }
+        if (returnRequestRepository != null && returnRequestRepository.existsBySellerOrderIdAndStatusIn(sellerOrderId,
+                java.util.Set.of(ReturnRequestStatus.REQUESTED, ReturnRequestStatus.APPROVED, ReturnRequestStatus.COLLECTING,
+                        ReturnRequestStatus.RECEIVED, ReturnRequestStatus.INSPECTED, ReturnRequestStatus.REFUNDING)))
+            throw new SellerException("泥섎━ 以묒씤 諛섎뭩???덉뒿?덈떎.");
+        Order order = orderRepository.findByIdForUpdate(sellerOrder.getOrder().getId())
+                .orElseThrow(this::cancellationNotFound);
+        if (order.getStatus() != OrderStatus.PAID) throw new SellerException("寃곗젣媛 ?꾨즺??二쇰Ц留??痍⑥냼?????덉뒿?덈떎.");
+        Payment payment = paymentRepository.findFirstByOrderIdOrderByIdDesc(order.getId())
+                .flatMap(value -> paymentRepository.findByIdForUpdate(value.getId()))
+                .orElseThrow(this::cancellationNotFound);
+        if (!payment.isRefundableState()) throw new SellerException("諛섎텋 媛?ν븳 寃곗젣媛 ?놁뒿?덈떎.");
+        List<OrderItem> orderItems = orderItemRepository.findAllBySellerOrderIdForUpdate(sellerOrderId);
+        if (orderItems.isEmpty()) throw new SellerException("痍⑥냼??二쇰Ц ?곹뭹???놁뒿?덈떎.");
+        orderItems.forEach(item -> {
+            int available = item.getQuantity() - item.getCanceledQuantity() - item.getConfirmedQuantity();
+            if (available <= 0) throw new SellerException("?대? 痍⑥냼??二쇰Ц?낅땲??");
+        });
+        OrderCancellation cancellation = OrderCancellation.createRequestedBySeller(
+                order, sellerOrder, key, reason, LocalDateTime.now());
+        cancellationRepository.saveAndFlush(cancellation);
+        List<OrderCancellationItem> cancellationItems = orderItems.stream().map(item ->
+                OrderCancellationItem.create(cancellation, item,
+                        item.getQuantity() - item.getCanceledQuantity() - item.getConfirmedQuantity())).toList();
+        cancellationItemRepository.saveAll(cancellationItems);
+        return response(cancellation, cancellationItems);
+    }
 
     @Transactional(readOnly = true)
     public SellerOrderCancellationPageResponse getCancellations(
@@ -98,6 +170,15 @@ public class SellerOrderCancellationService {
         OrderCancellation cancellation = cancellationRepository.findById(cancellationId)
                 .orElseThrow(this::cancellationNotFound);
         validateOwnership(cancellation, ownership);
+        return response(cancellation, getItems(cancellationId));
+    }
+
+    @Transactional(readOnly = true)
+    public SellerOrderCancellationResponse getCancellationBySeller(Long userId, Long cancellationId) {
+        Seller seller = getActiveSeller(userId);
+        OrderCancellation cancellation = cancellationRepository.findById(cancellationId)
+                .filter(value -> value.getSellerOrder().getSeller().getId().equals(seller.getId()))
+                .orElseThrow(this::cancellationNotFound);
         return response(cancellation, getItems(cancellationId));
     }
 

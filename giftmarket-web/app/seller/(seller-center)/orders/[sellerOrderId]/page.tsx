@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   deliverSellerOrder,
+  cancelSellerOrder,
   getSellerOrder,
   prepareSellerOrder,
   shipSellerOrder,
@@ -56,6 +57,7 @@ export default function SellerOrderDetailPage() {
   const [shippingCompany, setShippingCompany] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [confirmDelivery, setConfirmDelivery] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const totalProductAmount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.totalPrice, 0) ?? 0,
@@ -137,6 +139,21 @@ export default function SellerOrderDetailPage() {
       shippingCompany: company,
       trackingNumber: tracking,
     }));
+  };
+
+  const handleCancel = () => {
+    const reason = cancelReason.trim();
+    if (!reason || reason.length > 200) {
+      setActionError("취소 사유를 1~200자 이내로 입력해 주세요.");
+      return;
+    }
+    if (!window.confirm("이 SellerOrder를 취소하고 환불하시겠습니까?")) return;
+    void runAction(async () => {
+      await cancelSellerOrder(sellerOrderId, { clientRequestKey: crypto.randomUUID(), reason });
+      const refreshed = await getSellerOrder(sellerOrderId);
+      setCancelReason("");
+      return refreshed;
+    });
   };
 
   if (!initialized || !isAuthenticated || !user || loading) {
@@ -227,6 +244,12 @@ export default function SellerOrderDetailPage() {
           {order.status === "DELIVERED" && <p className="seller-order-action-notice success">배송이 완료된 주문입니다.</p>}
           {order.status === "CANCELLED" && <p className="seller-order-action-notice cancelled">취소된 주문입니다. 배송 상태를 변경할 수 없습니다.</p>}
           {order.status === "PENDING_PAYMENT" && <p className="seller-order-action-notice">결제 완료 전 주문은 처리할 수 없습니다.</p>}
+          {(order.status === "PAID" || order.status === "PREPARING") && (
+            <div className="seller-order-cancel-form">
+              <label>취소 사유<textarea maxLength={200} value={cancelReason} disabled={processing} onChange={(event) => setCancelReason(event.target.value)} /></label>
+              <button type="button" disabled={processing} onClick={handleCancel}>{processing ? "처리 중..." : "주문 취소"}</button>
+            </div>
+          )}
           {actionError && <p className="seller-order-action-error">{actionError}</p>}
         </section>
       </div>

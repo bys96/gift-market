@@ -2,6 +2,7 @@ package com.giftmarket.order.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
+import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
 import com.giftmarket.order.dto.request.SellerOrderCancellationRejectRequest;
 import com.giftmarket.order.dto.request.SellerReturnApproveRequest;
 import com.giftmarket.order.dto.request.SellerReturnCollectRequest;
@@ -34,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -298,5 +300,15 @@ public class SellerOrderController {
         return ApiResponse.success(
                 sellerOrderManagementService.deliver(userId, sellerOrderId)
         );
+    }
+
+    @PostMapping("/{sellerOrderId}/cancel")
+    public ApiResponse<SellerOrderCancellationResponse> cancel(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long sellerOrderId,
+            @Valid @RequestBody SellerOrderCancelRequest request
+    ) {
+        return ApiResponse.success(sellerOrderCancellationWorkflowService.createAndExecute(
+                userId, sellerOrderId, request));
     }
 }

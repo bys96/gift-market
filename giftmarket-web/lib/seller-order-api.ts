@@ -6,6 +6,7 @@ import type {
   SellerOrderShipRequest,
   SellerOrderStatus,
 } from "@/types/seller-order";
+import type { SellerOrderCancellation } from "@/types/seller-order-cancellation";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -84,4 +85,15 @@ export function deliverSellerOrder(
   sellerOrderId: number,
 ): Promise<SellerOrderDetail> {
   return patchSellerOrder(sellerOrderId, "deliver");
+}
+
+export async function cancelSellerOrder(
+  sellerOrderId: number,
+  request: { clientRequestKey: string; reason: string },
+): Promise<SellerOrderCancellation> {
+  const response = await apiFetch<ApiResponse<SellerOrderCancellation>>(
+    `/api/seller/orders/${sellerOrderId}/cancel`,
+    { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(request) },
+  );
+  return requireData(response, "주문 취소 결과를 확인할 수 없습니다.");
 }

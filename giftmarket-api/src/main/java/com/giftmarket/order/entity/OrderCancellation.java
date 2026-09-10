@@ -71,6 +71,10 @@ public class OrderCancellation extends BaseEntity {
     @Column(nullable = false, length = 500)
     private String reason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "requester_type", nullable = false, length = 20)
+    private CancellationRequesterType requesterType = CancellationRequesterType.BUYER;
+
     @Column(
             name = "requires_seller_approval",
             nullable = false,
@@ -135,6 +139,18 @@ public class OrderCancellation extends BaseEntity {
                 OrderCancellationStatus.REQUESTED,
                 requestedAt
         );
+    }
+
+    public static OrderCancellation createRequestedBySeller(
+            Order order, SellerOrder sellerOrder, String clientRequestKey,
+            String reason, LocalDateTime requestedAt
+    ) {
+        OrderCancellation cancellation = new OrderCancellation(
+                order, sellerOrder, clientRequestKey, reason, false,
+                OrderCancellationStatus.REQUESTED, requestedAt
+        );
+        cancellation.requesterType = CancellationRequesterType.SELLER;
+        return cancellation;
     }
 
     public static OrderCancellation createRequested(
