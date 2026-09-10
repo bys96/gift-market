@@ -29,6 +29,8 @@ export interface SellerStore {
   introduction: string | null;
   logoImageKey: string | null;
   bannerImageKey: string | null;
+  logoImageUrl?: string | null;
+  bannerImageUrl?: string | null;
   customerServicePhone: string | null;
   customerServiceEmail: string | null;
   customerServiceOpenTime: string | null;
@@ -37,7 +39,10 @@ export interface SellerStore {
   customerServiceNote: string | null;
 }
 
-export type SellerStoreUpdateRequest = Omit<SellerStore, "id">;
+export type SellerStoreUpdateRequest = Omit<
+  SellerStore,
+  "id" | "logoImageUrl" | "bannerImageUrl"
+>;
 
 export interface SellerApplicationPage {
   content: SellerApplication[];

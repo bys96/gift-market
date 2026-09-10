@@ -1,6 +1,7 @@
 package com.giftmarket.seller.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.seller.dto.request.SellerStoreUpdateRequest;
 import com.giftmarket.seller.dto.response.SellerStoreResponse;
 import com.giftmarket.seller.entity.*;
@@ -16,6 +17,7 @@ public class SellerStoreService {
     private final SellerRepository sellerRepository;
     private final SellerStoreRepository storeRepository;
     private final UserRepository userRepository;
+    private final StorageService storageService;
 
     @Transactional
     public SellerStoreResponse get(Long userId) {
@@ -23,7 +25,7 @@ public class SellerStoreService {
         Seller lockedSeller = sellerRepository.findByIdForUpdate(seller.getId()).orElseThrow();
         SellerStore store = storeRepository.findBySellerIdForUpdate(lockedSeller.getId())
                 .orElseGet(() -> storeRepository.save(SellerStore.create(lockedSeller, lockedSeller.getStoreName(), lockedSeller.getIntroduction())));
-        return SellerStoreResponse.from(store);
+        return SellerStoreResponse.from(store, storageService::createReadUrl);
     }
 
     @Transactional
@@ -43,7 +45,7 @@ public class SellerStoreService {
                 trim(request.customerServiceEmail()), trim(request.customerServiceOpenTime()),
                 trim(request.customerServiceCloseTime()), trim(request.customerServiceClosedDays()),
                 trim(request.customerServiceNote()));
-        return SellerStoreResponse.from(store);
+        return SellerStoreResponse.from(store, storageService::createReadUrl);
     }
     private Seller seller(Long userId) {
         if (userId == null) throw new AuthenticationException("인증이 필요합니다.");

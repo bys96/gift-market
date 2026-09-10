@@ -369,9 +369,13 @@ export default function SellerStoreSettingsPage() {
 
   const current = editForm ?? serverStore;
   const logoUrl =
-    localPreviews.logoImageKey ?? resolveImageUrl(current?.logoImageKey);
+    localPreviews.logoImageKey ??
+    serverStore?.logoImageUrl ??
+    resolveImageUrl(current?.logoImageKey);
   const bannerUrl =
-    localPreviews.bannerImageKey ?? resolveImageUrl(current?.bannerImageKey);
+    localPreviews.bannerImageKey ??
+    serverStore?.bannerImageUrl ??
+    resolveImageUrl(current?.bannerImageKey);
   const selectedClosedDays = parseClosedDays(
     editForm?.customerServiceClosedDays ?? null,
   );

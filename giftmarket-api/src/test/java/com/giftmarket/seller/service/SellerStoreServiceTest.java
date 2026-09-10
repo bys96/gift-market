@@ -1,6 +1,7 @@
 package com.giftmarket.seller.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.seller.dto.request.SellerStoreUpdateRequest;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStore;
@@ -29,13 +30,14 @@ class SellerStoreServiceTest {
     @Mock SellerRepository sellerRepository;
     @Mock SellerStoreRepository storeRepository;
     @Mock UserRepository userRepository;
+    @Mock StorageService storageService;
 
     private SellerStoreService service;
     private Seller seller;
 
     @BeforeEach
     void setUp() {
-        service = new SellerStoreService(sellerRepository, storeRepository, userRepository);
+        service = new SellerStoreService(sellerRepository, storeRepository, userRepository, storageService);
         seller = Seller.create(null, "판매자명", "판매자 소개");
         ReflectionTestUtils.setField(seller, "id", 10L);
     }
