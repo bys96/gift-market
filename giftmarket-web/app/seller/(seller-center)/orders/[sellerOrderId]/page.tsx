@@ -38,7 +38,7 @@ function formatDate(value: string | null) {
 
 function friendlyActionError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
-  if (message.includes("로그인")) return message;
+  if (message && !message.includes("API 요청이 실패했습니다") && !message.includes("서버 오류가 발생했습니다")) return message;
   return "주문 상태가 변경되었거나 요청을 처리하지 못했습니다. 최신 상태를 확인해주세요.";
 }
 
@@ -58,6 +58,7 @@ export default function SellerOrderDetailPage() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [confirmDelivery, setConfirmDelivery] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   const totalProductAmount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.totalPrice, 0) ?? 0,
@@ -147,11 +148,11 @@ export default function SellerOrderDetailPage() {
       setActionError("취소 사유를 1~200자 이내로 입력해 주세요.");
       return;
     }
-    if (!window.confirm("이 SellerOrder를 취소하고 환불하시겠습니까?")) return;
     void runAction(async () => {
       await cancelSellerOrder(sellerOrderId, { clientRequestKey: crypto.randomUUID(), reason });
       const refreshed = await getSellerOrder(sellerOrderId);
       setCancelReason("");
+      setShowCancelDialog(false);
       return refreshed;
     });
   };
@@ -246,8 +247,7 @@ export default function SellerOrderDetailPage() {
           {order.status === "PENDING_PAYMENT" && <p className="seller-order-action-notice">결제 완료 전 주문은 처리할 수 없습니다.</p>}
           {(order.status === "PAID" || order.status === "PREPARING") && (
             <div className="seller-order-cancel-form">
-              <label>취소 사유<textarea maxLength={200} value={cancelReason} disabled={processing} onChange={(event) => setCancelReason(event.target.value)} /></label>
-              <button type="button" disabled={processing} onClick={handleCancel}>{processing ? "처리 중..." : "주문 취소"}</button>
+              {!showCancelDialog ? <button type="button" className="danger" disabled={processing} onClick={() => setShowCancelDialog(true)}>주문 취소</button> : <div role="dialog" aria-modal="true" className="seller-order-cancel-dialog"><h3>주문 취소</h3><p>취소 후 해당 판매자 주문 금액이 환불됩니다.</p><label>취소 사유 <span>*</span><textarea maxLength={200} value={cancelReason} disabled={processing} onChange={(event) => setCancelReason(event.target.value)} /><small>{cancelReason.length}/200</small></label><div><button type="button" disabled={processing} onClick={() => setShowCancelDialog(false)}>돌아가기</button><button type="button" className="danger" disabled={processing} onClick={handleCancel}>{processing ? "처리 중..." : "주문 취소하기"}</button></div></div>}
             </div>
           )}
           {actionError && <p className="seller-order-action-error">{actionError}</p>}
