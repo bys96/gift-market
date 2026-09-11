@@ -14,8 +14,6 @@ import com.giftmarket.order.repository.OrderCancellationItemRepository;
 import com.giftmarket.order.repository.OrderCancellationOwnershipProjection;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
-import com.giftmarket.order.repository.OrderItemRepository;
-import com.giftmarket.order.repository.ReturnRequestRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -70,8 +68,6 @@ class SellerOrderCancellationServiceTest {
     @Mock SellerOrderRepository sellerOrderRepository;
     @Mock OrderCancellationRepository cancellationRepository;
     @Mock OrderCancellationItemRepository cancellationItemRepository;
-    @Mock OrderItemRepository orderItemRepository;
-    @Mock ReturnRequestRepository returnRequestRepository;
 
     private SellerOrderCancellationService service;
     private Seller seller;
@@ -90,9 +86,7 @@ class SellerOrderCancellationServiceTest {
                 orderRepository,
                 sellerOrderRepository,
                 cancellationRepository,
-                cancellationItemRepository,
-                orderItemRepository,
-                returnRequestRepository
+                cancellationItemRepository
         );
         seller = mock(Seller.class);
         given(seller.getId()).willReturn(SELLER_ID);
@@ -269,64 +263,6 @@ class SellerOrderCancellationServiceTest {
         locks.verify(sellerOrderRepository)
                 .findByIdAndSellerIdForUpdate(SELLER_ORDER_ID, SELLER_ID);
         locks.verify(cancellationRepository).findByIdForUpdate(CANCELLATION_ID);
-    }
-
-    @Test
-    void createsSellerCancellationForPaidOrderWithAllRemainingQuantity() {
-        ReflectionTestUtils.setField(sellerOrder, "status", SellerOrderStatus.PAID);
-        OrderItem item = orderItem();
-        given(cancellationRepository.findByClientRequestKey(any())).willReturn(Optional.empty());
-        given(sellerOrderRepository.findByIdAndSellerIdForUpdate(SELLER_ORDER_ID, SELLER_ID)).willReturn(Optional.of(sellerOrder));
-        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
-        given(paymentRepository.findFirstByOrderIdOrderByIdDesc(ORDER_ID)).willReturn(Optional.of(payment));
-        given(paymentRepository.findByIdForUpdate(PAYMENT_ID)).willReturn(Optional.of(payment));
-        given(orderItemRepository.findAllBySellerOrderIdForUpdate(SELLER_ORDER_ID)).willReturn(List.of(item));
-        given(cancellationRepository.saveAndFlush(any())).willAnswer(invocation -> {
-            OrderCancellation value = invocation.getArgument(0);
-            ReflectionTestUtils.setField(value, "id", CANCELLATION_ID);
-            return value;
-        });
-
-        SellerOrderCancellationResponse response = service.create(USER_ID, SELLER_ORDER_ID,
-                new com.giftmarket.order.dto.request.SellerOrderCancelRequest(UUID.randomUUID().toString(), "seller reason"));
-
-        assertThat(response.status()).isEqualTo(OrderCancellationStatus.REQUESTED);
-        assertThat(response.items()).singleElement().satisfies(value -> assertThat(value.requestedQuantity()).isEqualTo(2));
-        assertThat(response.reason()).isEqualTo("seller reason");
-    }
-
-    @Test
-    void shippedOrderCannotBeCancelled() {
-        ReflectionTestUtils.setField(sellerOrder, "status", SellerOrderStatus.SHIPPED);
-        given(sellerOrderRepository.findByIdAndSellerIdForUpdate(SELLER_ORDER_ID, SELLER_ID)).willReturn(Optional.of(sellerOrder));
-        assertThatThrownBy(() -> service.create(USER_ID, SELLER_ORDER_ID,
-                new com.giftmarket.order.dto.request.SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason")))
-                .isInstanceOf(SellerException.class);
-    }
-
-    @Test
-    void preparingOrderCanBeCancelledAndRequesterIsSeller() {
-        given(cancellationRepository.findByClientRequestKey(any())).willReturn(Optional.empty());
-        given(sellerOrderRepository.findByIdAndSellerIdForUpdate(SELLER_ORDER_ID, SELLER_ID)).willReturn(Optional.of(sellerOrder));
-        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
-        given(paymentRepository.findFirstByOrderIdOrderByIdDesc(ORDER_ID)).willReturn(Optional.of(payment));
-        given(paymentRepository.findByIdForUpdate(PAYMENT_ID)).willReturn(Optional.of(payment));
-        OrderItem item = orderItem();
-        given(orderItemRepository.findAllBySellerOrderIdForUpdate(SELLER_ORDER_ID)).willReturn(List.of(item));
-        given(cancellationRepository.saveAndFlush(any())).willAnswer(invocation -> invocation.getArgument(0));
-        SellerOrderCancellationResponse response = service.create(USER_ID, SELLER_ORDER_ID,
-                new com.giftmarket.order.dto.request.SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason"));
-        assertThat(response.status()).isEqualTo(OrderCancellationStatus.REQUESTED);
-        assertThat(response.items()).singleElement().satisfies(i -> assertThat(i.requestedQuantity()).isEqualTo(2));
-    }
-
-    @Test
-    void inProgressCancellationBlocksNewSellerCancellation() {
-        given(cancellationRepository.existsBySellerOrderIdAndStatusIn(any(), any())).willReturn(true);
-        given(sellerOrderRepository.findByIdAndSellerIdForUpdate(SELLER_ORDER_ID, SELLER_ID)).willReturn(Optional.of(sellerOrder));
-        assertThatThrownBy(() -> service.create(USER_ID, SELLER_ORDER_ID,
-                new com.giftmarket.order.dto.request.SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason")))
-                .isInstanceOf(SellerException.class);
     }
 
     private OrderCancellation requestedCancellation(boolean requiresSellerApproval) {

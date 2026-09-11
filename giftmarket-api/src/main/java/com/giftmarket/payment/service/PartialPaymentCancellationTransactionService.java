@@ -136,11 +136,8 @@ public class PartialPaymentCancellationTransactionService {
                                     OrderCancellation cancellation) {
         SellerOrderStatus expected = cancellation.isRequiresSellerApproval()
                 ? SellerOrderStatus.PREPARING : SellerOrderStatus.PAID;
-        boolean sellerInitiated = cancellation.getRequesterType() == CancellationRequesterType.SELLER;
         if (!payment.isRefundableState() || order.getStatus() != OrderStatus.PAID
-                || (!sellerInitiated && sellerOrder.getStatus() != expected)
-                || (sellerInitiated && sellerOrder.getStatus() != SellerOrderStatus.PAID
-                    && sellerOrder.getStatus() != SellerOrderStatus.PREPARING)
+                || sellerOrder.getStatus() != expected
                 || cancellation.getOrder() != order || cancellation.getSellerOrder() != sellerOrder
                 || payment.getProviderPaymentKey() == null || payment.getProviderPaymentKey().isBlank()) {
             throw notAvailable();
