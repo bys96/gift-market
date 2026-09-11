@@ -2,6 +2,7 @@ package com.giftmarket;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.metrics.buffering.BufferingApplicationStartup;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -11,7 +12,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class GiftmarketApiApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(GiftmarketApiApplication.class, args);
+		SpringApplication application = new SpringApplication(GiftmarketApiApplication.class);
+		application.setApplicationStartup(new BufferingApplicationStartup(2048));
+		application.run(args);
 	}
 
 }
