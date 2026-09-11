@@ -14,6 +14,7 @@ import com.giftmarket.order.dto.request.SellerExchangeCollectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
+import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationResponse;
@@ -283,13 +284,13 @@ public class SellerOrderController {
     }
 
     @PostMapping("/{sellerOrderId}/cancel")
-    public ApiResponse<SellerOrderCancelValidationResponse> validateCancel(
+    public ApiResponse<OrderCancellationResponse> cancel(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long sellerOrderId,
             @Valid @RequestBody SellerOrderCancelRequest request
     ) {
         return ApiResponse.success(
-                sellerOrderManagementService.validateCancel(userId, sellerOrderId, request)
+                sellerOrderManagementService.createCancel(userId, sellerOrderId, request)
         );
     }
 

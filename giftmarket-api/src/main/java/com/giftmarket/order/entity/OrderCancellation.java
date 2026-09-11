@@ -71,6 +71,10 @@ public class OrderCancellation extends BaseEntity {
     @Column(nullable = false, length = 500)
     private String reason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "requester_type", nullable = false, length = 20)
+    private OrderCancellationRequesterType requesterType;
+
     @Column(
             name = "requires_seller_approval",
             nullable = false,
@@ -105,6 +109,7 @@ public class OrderCancellation extends BaseEntity {
             SellerOrder sellerOrder,
             String clientRequestKey,
             String reason,
+            OrderCancellationRequesterType requesterType,
             boolean requiresSellerApproval,
             OrderCancellationStatus status,
             LocalDateTime requestedAt
@@ -114,6 +119,7 @@ public class OrderCancellation extends BaseEntity {
         this.sellerOrder = sellerOrder;
         this.clientRequestKey = requireText(clientRequestKey, "취소 요청 키가 필요합니다.");
         this.reason = requireText(reason, "취소 사유가 필요합니다.");
+        this.requesterType = requesterType;
         this.requiresSellerApproval = requiresSellerApproval;
         this.status = status;
         this.requestedAt = requestedAt;
@@ -131,6 +137,7 @@ public class OrderCancellation extends BaseEntity {
                 sellerOrder,
                 clientRequestKey,
                 reason,
+                OrderCancellationRequesterType.BUYER,
                 false,
                 OrderCancellationStatus.REQUESTED,
                 requestedAt
@@ -150,6 +157,7 @@ public class OrderCancellation extends BaseEntity {
                 sellerOrder,
                 clientRequestKey,
                 reason,
+                OrderCancellationRequesterType.BUYER,
                 requiresSellerApproval,
                 OrderCancellationStatus.REQUESTED,
                 requestedAt
@@ -168,12 +176,32 @@ public class OrderCancellation extends BaseEntity {
                 sellerOrder,
                 clientRequestKey,
                 reason,
+                OrderCancellationRequesterType.BUYER,
                 false,
                 OrderCancellationStatus.PROCESSING,
                 requestedAt
         );
         cancellation.processingAt = requestedAt;
         return cancellation;
+    }
+
+    public static OrderCancellation createSellerRequested(
+            Order order,
+            SellerOrder sellerOrder,
+            String clientRequestKey,
+            String reason,
+            LocalDateTime requestedAt
+    ) {
+        return new OrderCancellation(
+                order,
+                sellerOrder,
+                clientRequestKey,
+                reason,
+                OrderCancellationRequesterType.SELLER,
+                false,
+                OrderCancellationStatus.REQUESTED,
+                requestedAt
+        );
     }
 
     public void startProcessing(LocalDateTime processedAt) {

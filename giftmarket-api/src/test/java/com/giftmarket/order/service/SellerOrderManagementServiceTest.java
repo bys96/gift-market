@@ -4,10 +4,13 @@ import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
 import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
+import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderCancellation;
+import com.giftmarket.order.entity.OrderCancellationItem;
 import com.giftmarket.order.entity.OrderCancellationStatus;
+import com.giftmarket.order.entity.OrderCancellationRequesterType;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
@@ -19,6 +22,9 @@ import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.ShipmentRepository;
+import com.giftmarket.order.repository.OrderCancellationItemRepository;
+import com.giftmarket.order.repository.ReturnRequestRepository;
+import com.giftmarket.order.repository.ExchangeRequestRepository;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -47,6 +53,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class SellerOrderManagementServiceTest {
@@ -61,6 +68,9 @@ class SellerOrderManagementServiceTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderItemRepository orderItemRepository;
     @Mock OrderCancellationRepository orderCancellationRepository;
+    @Mock OrderCancellationItemRepository orderCancellationItemRepository;
+    @Mock ReturnRequestRepository returnRequestRepository;
+    @Mock ExchangeRequestRepository exchangeRequestRepository;
     @Mock ShipmentRepository shipmentRepository;
     @Mock Seller seller;
     @Mock User user;
@@ -78,6 +88,9 @@ class SellerOrderManagementServiceTest {
                 orderRepository,
                 orderItemRepository,
                 orderCancellationRepository,
+                orderCancellationItemRepository,
+                returnRequestRepository,
+                exchangeRequestRepository,
                 shipmentRepository
         );
         lenient().when(sellerRepository.findByUserId(USER_ID))
@@ -207,7 +220,9 @@ class SellerOrderManagementServiceTest {
         )).willReturn(Optional.of(sellerOrder));
 
         SellerOrderCancelValidationResponse response = service.validateCancel(
-                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                        "123e4567-e89b-12d3-a456-426614174000", "판매자 사유"
+                )
         );
 
         assertThat(response.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
@@ -223,7 +238,9 @@ class SellerOrderManagementServiceTest {
         )).willReturn(Optional.of(sellerOrder));
 
         SellerOrderCancelValidationResponse response = service.validateCancel(
-                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                        "123e4567-e89b-12d3-a456-426614174000", "판매자 사유"
+                )
         );
 
         assertThat(response.sellerOrderStatus()).isEqualTo(SellerOrderStatus.PREPARING);
@@ -237,7 +254,9 @@ class SellerOrderManagementServiceTest {
         )).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.validateCancel(
-                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                        "123e4567-e89b-12d3-a456-426614174000", "판매자 사유"
+                )
         )).isInstanceOf(SellerException.class);
     }
 
@@ -250,17 +269,135 @@ class SellerOrderManagementServiceTest {
         )).willReturn(Optional.of(sellerOrder));
 
         assertThatThrownBy(() -> service.validateCancel(
-                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                        "123e4567-e89b-12d3-a456-426614174000", "판매자 사유"
+                )
         )).isInstanceOf(SellerException.class);
     }
 
     @Test
     void cancellationReasonIsRequired() {
         assertThatThrownBy(() -> service.validateCancel(
-                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("  ")
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                        "123e4567-e89b-12d3-a456-426614174000", "  "
+                )
         )).isInstanceOf(SellerException.class);
 
         verify(sellerOrderRepository, never()).findByIdAndSellerId(any(), any());
+    }
+
+    @Test
+    void createsCancellationRecordForOwnedPaidSellerOrder() {
+        givenCancelableSellerOrder();
+
+        OrderCancellationResponse response = service.createCancel(
+                USER_ID, SELLER_ORDER_ID, sellerCancelRequest()
+        );
+
+        ArgumentCaptor<OrderCancellation> cancellationCaptor =
+                ArgumentCaptor.forClass(OrderCancellation.class);
+        verify(orderCancellationRepository).saveAndFlush(cancellationCaptor.capture());
+        OrderCancellation cancellation = cancellationCaptor.getValue();
+        assertThat(cancellation.getStatus()).isEqualTo(OrderCancellationStatus.REQUESTED);
+        assertThat(cancellation.getRequesterType())
+                .isEqualTo(OrderCancellationRequesterType.SELLER);
+        assertThat(cancellation.isRequiresSellerApproval()).isFalse();
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PAID);
+        assertThat(response.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
+    }
+
+    @Test
+    void createsCancellationRecordForOwnedPreparingSellerOrder() {
+        sellerOrder.prepare(LocalDateTime.now());
+        givenCancelableSellerOrder();
+
+        service.createCancel(USER_ID, SELLER_ORDER_ID, sellerCancelRequest());
+
+        ArgumentCaptor<OrderCancellation> cancellationCaptor =
+                ArgumentCaptor.forClass(OrderCancellation.class);
+        verify(orderCancellationRepository).saveAndFlush(cancellationCaptor.capture());
+        assertThat(cancellationCaptor.getValue().getRequesterType())
+                .isEqualTo(OrderCancellationRequesterType.SELLER);
+        assertThat(cancellationCaptor.getValue().isRequiresSellerApproval()).isFalse();
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PREPARING);
+    }
+
+    @Test
+    void createsCancellationItemsWithAllRemainingQuantities() {
+        givenCancelableSellerOrder();
+
+        service.createCancel(USER_ID, SELLER_ORDER_ID, sellerCancelRequest());
+
+        ArgumentCaptor<List<OrderCancellationItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orderCancellationItemRepository).saveAll(itemsCaptor.capture());
+        assertThat(itemsCaptor.getValue()).singleElement().satisfies(item -> {
+            assertThat(item.getOrderItem()).isSameAs(orderItem);
+            assertThat(item.getQuantity()).isEqualTo(1);
+        });
+    }
+
+    @Test
+    void activeCancellationBlocksSellerCancellationCreation() {
+        givenCancelableSellerOrder();
+        given(orderCancellationRepository.existsBySellerOrderIdAndStatusIn(
+                eq(SELLER_ORDER_ID), any()
+        )).willReturn(true);
+
+        assertThatThrownBy(() -> service.createCancel(
+                USER_ID, SELLER_ORDER_ID, sellerCancelRequest()
+        )).isInstanceOf(SellerException.class);
+
+        verify(orderCancellationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void activeReturnBlocksSellerCancellationCreation() {
+        givenCancelableSellerOrder();
+        given(returnRequestRepository.existsBySellerOrderIdAndStatusIn(
+                eq(SELLER_ORDER_ID), any()
+        )).willReturn(true);
+
+        assertThatThrownBy(() -> service.createCancel(
+                USER_ID, SELLER_ORDER_ID, sellerCancelRequest()
+        )).isInstanceOf(SellerException.class);
+
+        verify(orderCancellationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void activeExchangeBlocksSellerCancellationCreation() {
+        givenCancelableSellerOrder();
+        given(exchangeRequestRepository.existsBySellerOrderIdAndStatusIn(
+                eq(SELLER_ORDER_ID), any()
+        )).willReturn(true);
+
+        assertThatThrownBy(() -> service.createCancel(
+                USER_ID, SELLER_ORDER_ID, sellerCancelRequest()
+        )).isInstanceOf(SellerException.class);
+
+        verify(orderCancellationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void sameClientRequestKeyReturnsExistingSellerCancellation() {
+        OrderCancellation existing = OrderCancellation.createSellerRequested(
+                order, sellerOrder, "123e4567-e89b-12d3-a456-426614174000", "판매자 사유",
+                LocalDateTime.now()
+        );
+        ReflectionTestUtils.setField(existing, "id", 70L);
+        OrderCancellationItem existingItem = OrderCancellationItem.create(existing, orderItem, 1);
+        given(orderCancellationRepository.findByClientRequestKey(
+                "123e4567-e89b-12d3-a456-426614174000"
+        )).willReturn(Optional.of(existing));
+        given(orderCancellationItemRepository.findAllByOrderCancellationIdOrderByIdAsc(70L))
+                .willReturn(List.of(existingItem));
+
+        OrderCancellationResponse response = service.createCancel(
+                USER_ID, SELLER_ORDER_ID, sellerCancelRequest()
+        );
+
+        assertThat(response.cancellationId()).isEqualTo(70L);
+        verify(orderCancellationRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -417,6 +554,20 @@ class SellerOrderManagementServiceTest {
         )).thenReturn(List.of(orderItem));
     }
 
+    private void givenCancelableSellerOrder() {
+        givenLockedSellerOrder();
+        lenient().when(orderItemRepository.findAllBySellerOrderIdForUpdate(SELLER_ORDER_ID))
+                .thenReturn(List.of(orderItem));
+        lenient().doAnswer(invocation -> invocation.getArgument(0))
+                .when(orderCancellationRepository).saveAndFlush(any(OrderCancellation.class));
+    }
+
+    private SellerOrderCancelRequest sellerCancelRequest() {
+        return new SellerOrderCancelRequest(
+                "123e4567-e89b-12d3-a456-426614174000", "판매자 사유"
+        );
+    }
+
     private OrderItem orderItem() {
         OrderItem item = org.mockito.Mockito.mock(OrderItem.class);
         Product product = org.mockito.Mockito.mock(Product.class);
@@ -430,6 +581,7 @@ class SellerOrderManagementServiceTest {
         lenient().when(item.getQuantity()).thenReturn(2);
         lenient().when(item.getCanceledQuantity()).thenReturn(1);
         lenient().when(item.getRemainingQuantity()).thenReturn(1);
+        lenient().when(item.getSellerOrder()).thenReturn(sellerOrder);
         lenient().when(item.getTotalPrice()).thenReturn(20_000L);
         lenient().when(item.getShippingFee()).thenReturn(0L);
         return item;

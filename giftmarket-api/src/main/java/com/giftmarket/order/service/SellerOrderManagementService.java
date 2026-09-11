@@ -4,12 +4,18 @@ import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
 import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
+import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationSummaryResponse;
 import com.giftmarket.order.dto.response.SellerOrderListItemResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.entity.OrderItem;
+import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderCancellationStatus;
+import com.giftmarket.order.entity.OrderCancellation;
+import com.giftmarket.order.entity.OrderCancellationItem;
+import com.giftmarket.order.entity.ExchangeRequestStatus;
+import com.giftmarket.order.entity.ReturnRequestStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.entity.Shipment;
@@ -20,6 +26,9 @@ import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderItemSummaryProjection;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.ShipmentRepository;
+import com.giftmarket.order.repository.OrderCancellationItemRepository;
+import com.giftmarket.order.repository.ReturnRequestRepository;
+import com.giftmarket.order.repository.ExchangeRequestRepository;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
@@ -35,6 +44,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -50,6 +61,9 @@ public class SellerOrderManagementService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
+    private final OrderCancellationItemRepository orderCancellationItemRepository;
+    private final ReturnRequestRepository returnRequestRepository;
+    private final ExchangeRequestRepository exchangeRequestRepository;
     private final ShipmentRepository shipmentRepository;
 
     private static final Set<OrderCancellationStatus> SHIPPING_BLOCKING_CANCELLATION_STATUSES =
@@ -57,6 +71,28 @@ public class SellerOrderManagementService {
                     OrderCancellationStatus.REQUESTED,
                     OrderCancellationStatus.PROCESSING
             );
+
+    private static final Set<OrderCancellationStatus> ACTIVE_CANCELLATION_STATUSES = Set.of(
+            OrderCancellationStatus.REQUESTED,
+            OrderCancellationStatus.PROCESSING
+    );
+    private static final Set<ReturnRequestStatus> ACTIVE_RETURN_STATUSES = Set.of(
+            ReturnRequestStatus.REQUESTED,
+            ReturnRequestStatus.APPROVED,
+            ReturnRequestStatus.COLLECTING,
+            ReturnRequestStatus.RECEIVED,
+            ReturnRequestStatus.INSPECTED,
+            ReturnRequestStatus.REFUNDING
+    );
+    private static final Set<ExchangeRequestStatus> ACTIVE_EXCHANGE_STATUSES = Set.of(
+            ExchangeRequestStatus.REQUESTED,
+            ExchangeRequestStatus.APPROVED,
+            ExchangeRequestStatus.PAYMENT_PENDING,
+            ExchangeRequestStatus.COLLECTING,
+            ExchangeRequestStatus.RECEIVED,
+            ExchangeRequestStatus.INSPECTED,
+            ExchangeRequestStatus.RESHIPPING
+    );
 
     @Transactional(readOnly = true)
     public SellerOrderPageResponse getSellerOrders(
@@ -168,6 +204,65 @@ public class SellerOrderManagementService {
         return SellerOrderCancelValidationResponse.validated(
                 sellerOrder.getId(), sellerOrder.getStatus()
         );
+    }
+
+    @Transactional
+    public OrderCancellationResponse createCancel(
+            Long userId,
+            Long sellerOrderId,
+            SellerOrderCancelRequest request
+    ) {
+        validateCancelReason(request);
+        String clientRequestKey = normalizeClientRequestKey(request.clientRequestKey());
+        String reason = request.cancelReason().trim();
+        Seller seller = getActiveSellerForCancellation(userId);
+
+        Optional<OrderCancellationResponse> existing = findExistingSellerCancellation(
+                seller, sellerOrderId, clientRequestKey, reason
+        );
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        Long orderId = sellerOrderRepository.findOrderIdByIdAndSellerId(sellerOrderId, seller.getId())
+                .orElseThrow(this::sellerOrderNotFound);
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(this::sellerOrderNotFound);
+        SellerOrder sellerOrder = sellerOrderRepository
+                .findByIdAndSellerIdForUpdate(sellerOrderId, seller.getId())
+                .orElseThrow(this::sellerOrderNotFound);
+
+        existing = findExistingSellerCancellation(seller, sellerOrderId, clientRequestKey, reason);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        validateCancelableSellerOrderStatus(sellerOrder);
+        validateCancellationConflicts(sellerOrderId);
+
+        List<OrderItem> orderItems = orderItemRepository.findAllBySellerOrderIdForUpdate(sellerOrderId);
+        if (orderItems.isEmpty()) {
+            throw new SellerException("판매자 주문 상품 정보를 확인할 수 없습니다.");
+        }
+        List<OrderItem> cancellableItems = orderItems.stream()
+                .filter(item -> item.getRemainingQuantity() > 0)
+                .toList();
+        if (cancellableItems.isEmpty()) {
+            throw new SellerException("취소 가능한 주문 상품이 없습니다.");
+        }
+
+        OrderCancellation cancellation = orderCancellationRepository.saveAndFlush(
+                OrderCancellation.createSellerRequested(
+                        order, sellerOrder, clientRequestKey, reason, LocalDateTime.now()
+                )
+        );
+        List<OrderCancellationItem> cancellationItems = cancellableItems.stream()
+                .map(item -> OrderCancellationItem.create(
+                        cancellation, item, item.getRemainingQuantity()
+                ))
+                .toList();
+        orderCancellationItemRepository.saveAll(cancellationItems);
+
+        return OrderCancellationResponse.from(cancellation, cancellationItems);
     }
 
     @Transactional
@@ -346,6 +441,67 @@ public class SellerOrderManagementService {
             throw new SellerException("활성 상태의 판매자만 주문 취소를 요청할 수 있습니다.");
         }
         return seller;
+    }
+
+    private Optional<OrderCancellationResponse> findExistingSellerCancellation(
+            Seller seller,
+            Long sellerOrderId,
+            String clientRequestKey,
+            String reason
+    ) {
+        return orderCancellationRepository.findByClientRequestKey(clientRequestKey)
+                .map(cancellation -> {
+                    if (cancellation.getRequesterType()
+                            != com.giftmarket.order.entity.OrderCancellationRequesterType.SELLER
+                            || !cancellation.getSellerOrder().getId().equals(sellerOrderId)
+                            || !cancellation.getSellerOrder().getSeller().getId().equals(seller.getId())
+                            || !cancellation.getReason().equals(reason)) {
+                        throw new SellerException("이미 사용된 취소 요청 키입니다.");
+                    }
+                    List<OrderCancellationItem> items = orderCancellationItemRepository
+                            .findAllByOrderCancellationIdOrderByIdAsc(cancellation.getId());
+                    return OrderCancellationResponse.from(cancellation, items);
+                });
+    }
+
+    private void validateCancelableSellerOrderStatus(SellerOrder sellerOrder) {
+        if (sellerOrder.getStatus() != SellerOrderStatus.PAID
+                && sellerOrder.getStatus() != SellerOrderStatus.PREPARING) {
+            throw new SellerException("결제 완료 또는 상품 준비 중인 주문만 취소 요청할 수 있습니다.");
+        }
+    }
+
+    private void validateCancellationConflicts(Long sellerOrderId) {
+        if (orderCancellationRepository.existsBySellerOrderIdAndStatusIn(
+                sellerOrderId, ACTIVE_CANCELLATION_STATUSES
+        )) {
+            throw new SellerException("진행 중인 취소 요청이 있어 새 취소 요청을 생성할 수 없습니다.");
+        }
+        if (returnRequestRepository.existsBySellerOrderIdAndStatusIn(
+                sellerOrderId, ACTIVE_RETURN_STATUSES
+        )) {
+            throw new SellerException("진행 중인 반품 요청이 있어 취소 요청을 생성할 수 없습니다.");
+        }
+        if (exchangeRequestRepository.existsBySellerOrderIdAndStatusIn(
+                sellerOrderId, ACTIVE_EXCHANGE_STATUSES
+        )) {
+            throw new SellerException("진행 중인 교환 요청이 있어 취소 요청을 생성할 수 없습니다.");
+        }
+    }
+
+    private String normalizeClientRequestKey(String clientRequestKey) {
+        if (clientRequestKey == null) {
+            throw new SellerException("취소 요청 키를 입력해 주세요.");
+        }
+        String normalized = clientRequestKey.trim();
+        try {
+            if (!UUID.fromString(normalized).toString().equalsIgnoreCase(normalized)) {
+                throw new IllegalArgumentException();
+            }
+            return normalized;
+        } catch (IllegalArgumentException exception) {
+            throw new SellerException("취소 요청 키는 UUID 형식이어야 합니다.");
+        }
     }
 
     private void validateCancelReason(SellerOrderCancelRequest request) {

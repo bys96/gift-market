@@ -46,6 +46,11 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
 
     List<ExchangeRequest> findAllBySellerOrderIdOrderByRequestedAtDescIdDesc(Long sellerOrderId);
 
+    boolean existsBySellerOrderIdAndStatusIn(
+            Long sellerOrderId,
+            Collection<ExchangeRequestStatus> statuses
+    );
+
     @Query(
             value = """
                     select e from ExchangeRequest e
