@@ -1,6 +1,8 @@
 package com.giftmarket.order.service;
 
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
+import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
+import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.entity.Order;
@@ -196,6 +198,69 @@ class SellerOrderManagementServiceTest {
         assertThatThrownBy(() -> service.prepare(USER_ID, SELLER_ORDER_ID))
                 .isInstanceOf(SellerException.class);
         verify(orderRepository, never()).findByIdForUpdate(any());
+    }
+
+    @Test
+    void validatesCancellationForOwnedPaidSellerOrder() {
+        given(sellerOrderRepository.findByIdAndSellerId(
+                SELLER_ORDER_ID, SELLER_ID
+        )).willReturn(Optional.of(sellerOrder));
+
+        SellerOrderCancelValidationResponse response = service.validateCancel(
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+        );
+
+        assertThat(response.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
+        assertThat(response.sellerOrderStatus()).isEqualTo(SellerOrderStatus.PAID);
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PAID);
+    }
+
+    @Test
+    void validatesCancellationForOwnedPreparingSellerOrder() {
+        sellerOrder.prepare(LocalDateTime.now());
+        given(sellerOrderRepository.findByIdAndSellerId(
+                SELLER_ORDER_ID, SELLER_ID
+        )).willReturn(Optional.of(sellerOrder));
+
+        SellerOrderCancelValidationResponse response = service.validateCancel(
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+        );
+
+        assertThat(response.sellerOrderStatus()).isEqualTo(SellerOrderStatus.PREPARING);
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PREPARING);
+    }
+
+    @Test
+    void anotherSellerCannotValidateCancellation() {
+        given(sellerOrderRepository.findByIdAndSellerId(
+                SELLER_ORDER_ID, SELLER_ID
+        )).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.validateCancel(
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+        )).isInstanceOf(SellerException.class);
+    }
+
+    @Test
+    void shippedSellerOrderCannotBeValidatedForCancellation() {
+        sellerOrder.prepare(LocalDateTime.now());
+        sellerOrder.markShipped(LocalDateTime.now());
+        given(sellerOrderRepository.findByIdAndSellerId(
+                SELLER_ORDER_ID, SELLER_ID
+        )).willReturn(Optional.of(sellerOrder));
+
+        assertThatThrownBy(() -> service.validateCancel(
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("판매자 사유")
+        )).isInstanceOf(SellerException.class);
+    }
+
+    @Test
+    void cancellationReasonIsRequired() {
+        assertThatThrownBy(() -> service.validateCancel(
+                USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest("  ")
+        )).isInstanceOf(SellerException.class);
+
+        verify(sellerOrderRepository, never()).findByIdAndSellerId(any(), any());
     }
 
     @Test

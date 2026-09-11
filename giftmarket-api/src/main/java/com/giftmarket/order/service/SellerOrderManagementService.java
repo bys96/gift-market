@@ -2,6 +2,8 @@ package com.giftmarket.order.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
+import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
+import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationSummaryResponse;
 import com.giftmarket.order.dto.response.SellerOrderListItemResponse;
@@ -143,6 +145,28 @@ public class SellerOrderManagementService {
                 userId,
                 sellerOrderId,
                 sellerOrder -> sellerOrder.prepare(LocalDateTime.now())
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public SellerOrderCancelValidationResponse validateCancel(
+            Long userId,
+            Long sellerOrderId,
+            SellerOrderCancelRequest request
+    ) {
+        validateCancelReason(request);
+        Seller seller = getActiveSellerForCancellation(userId);
+        SellerOrder sellerOrder = sellerOrderRepository
+                .findByIdAndSellerId(sellerOrderId, seller.getId())
+                .orElseThrow(this::sellerOrderNotFound);
+
+        if (sellerOrder.getStatus() != SellerOrderStatus.PAID
+                && sellerOrder.getStatus() != SellerOrderStatus.PREPARING) {
+            throw new SellerException("결제 완료 또는 상품 준비 중인 주문만 취소 요청할 수 있습니다.");
+        }
+
+        return SellerOrderCancelValidationResponse.validated(
+                sellerOrder.getId(), sellerOrder.getStatus()
         );
     }
 
@@ -310,6 +334,25 @@ public class SellerOrderManagementService {
             throw new SellerException("활성 상태의 판매자만 주문을 관리할 수 있습니다.");
         }
         return seller;
+    }
+
+    private Seller getActiveSellerForCancellation(Long userId) {
+        if (userId == null) {
+            throw new AuthenticationException("인증이 필요합니다.");
+        }
+        Seller seller = sellerRepository.findByUserId(userId)
+                .orElseThrow(() -> new SellerException("판매자 정보를 찾을 수 없습니다."));
+        if (seller.getStatus() != SellerStatus.ACTIVE) {
+            throw new SellerException("활성 상태의 판매자만 주문 취소를 요청할 수 있습니다.");
+        }
+        return seller;
+    }
+
+    private void validateCancelReason(SellerOrderCancelRequest request) {
+        if (request == null || request.cancelReason() == null
+                || request.cancelReason().isBlank()) {
+            throw new SellerException("취소 사유를 입력해 주세요.");
+        }
     }
 
     private void validateListRequest(

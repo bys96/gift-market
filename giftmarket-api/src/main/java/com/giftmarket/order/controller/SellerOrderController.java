@@ -2,6 +2,7 @@ package com.giftmarket.order.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
+import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
 import com.giftmarket.order.dto.request.SellerOrderCancellationRejectRequest;
 import com.giftmarket.order.dto.request.SellerReturnApproveRequest;
 import com.giftmarket.order.dto.request.SellerReturnCollectRequest;
@@ -12,6 +13,7 @@ import com.giftmarket.order.dto.request.SellerExchangeRejectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeCollectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
+import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationResponse;
@@ -34,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -276,6 +279,17 @@ public class SellerOrderController {
     ) {
         return ApiResponse.success(
                 sellerOrderManagementService.prepare(userId, sellerOrderId)
+        );
+    }
+
+    @PostMapping("/{sellerOrderId}/cancel")
+    public ApiResponse<SellerOrderCancelValidationResponse> validateCancel(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long sellerOrderId,
+            @Valid @RequestBody SellerOrderCancelRequest request
+    ) {
+        return ApiResponse.success(
+                sellerOrderManagementService.validateCancel(userId, sellerOrderId, request)
         );
     }
 
