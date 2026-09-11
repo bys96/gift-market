@@ -91,9 +91,9 @@ class SellerOrderCancellationServiceTest {
                 sellerOrderRepository,
                 cancellationRepository,
                 cancellationItemRepository,
-                orderItemRepository
+                orderItemRepository,
+                returnRequestRepository
         );
-        ReflectionTestUtils.setField(service, "returnRequestRepository", returnRequestRepository);
         seller = mock(Seller.class);
         given(seller.getId()).willReturn(SELLER_ID);
         given(seller.getStatus()).willReturn(SellerStatus.ACTIVE);

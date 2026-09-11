@@ -27,12 +27,10 @@ import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,7 +39,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class SellerOrderCancellationService {
 
     public SellerOrderCancellationService(
@@ -50,10 +47,18 @@ public class SellerOrderCancellationService {
             OrderRepository orderRepository,
             SellerOrderRepository sellerOrderRepository,
             OrderCancellationRepository cancellationRepository,
-            OrderCancellationItemRepository cancellationItemRepository
+            OrderCancellationItemRepository cancellationItemRepository,
+            OrderItemRepository orderItemRepository,
+            ReturnRequestRepository returnRequestRepository
     ) {
-        this(sellerRepository, paymentRepository, orderRepository, sellerOrderRepository,
-                cancellationRepository, cancellationItemRepository, null);
+        this.sellerRepository = sellerRepository;
+        this.paymentRepository = paymentRepository;
+        this.orderRepository = orderRepository;
+        this.sellerOrderRepository = sellerOrderRepository;
+        this.cancellationRepository = cancellationRepository;
+        this.cancellationItemRepository = cancellationItemRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.returnRequestRepository = returnRequestRepository;
     }
 
     private static final int MAX_PAGE_SIZE = 100;
@@ -66,7 +71,7 @@ public class SellerOrderCancellationService {
     private final OrderCancellationRepository cancellationRepository;
     private final OrderCancellationItemRepository cancellationItemRepository;
     private final OrderItemRepository orderItemRepository;
-    @Autowired private ReturnRequestRepository returnRequestRepository;
+    private final ReturnRequestRepository returnRequestRepository;
 
     @Transactional
     public SellerOrderCancellationResponse create(Long userId, Long sellerOrderId, SellerOrderCancelRequest request) {
