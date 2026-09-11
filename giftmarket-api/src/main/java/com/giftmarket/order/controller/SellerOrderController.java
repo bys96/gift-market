@@ -13,7 +13,6 @@ import com.giftmarket.order.dto.request.SellerExchangeRejectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeCollectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
-import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.SellerOrderPageResponse;
 import com.giftmarket.order.dto.response.SellerOrderCancellationPageResponse;
@@ -27,6 +26,7 @@ import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.entity.ReturnRequestStatus;
 import com.giftmarket.order.entity.ExchangeRequestStatus;
 import com.giftmarket.order.service.SellerOrderManagementService;
+import com.giftmarket.order.service.OrderCancellationWorkflowService;
 import com.giftmarket.order.service.SellerOrderCancellationService;
 import com.giftmarket.order.service.SellerOrderCancellationWorkflowService;
 import com.giftmarket.order.service.SellerReturnRequestService;
@@ -50,6 +50,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SellerOrderController {
 
     private final SellerOrderManagementService sellerOrderManagementService;
+    private final OrderCancellationWorkflowService orderCancellationWorkflowService;
     private final SellerOrderCancellationService sellerOrderCancellationService;
     private final SellerOrderCancellationWorkflowService sellerOrderCancellationWorkflowService;
     private final SellerReturnRequestService sellerReturnRequestService;
@@ -290,7 +291,7 @@ public class SellerOrderController {
             @Valid @RequestBody SellerOrderCancelRequest request
     ) {
         return ApiResponse.success(
-                sellerOrderManagementService.createCancel(userId, sellerOrderId, request)
+                orderCancellationWorkflowService.createBySeller(userId, sellerOrderId, request)
         );
     }
 

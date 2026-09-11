@@ -75,6 +75,29 @@ class PartialPaymentCancellationTransactionServiceTest {
     }
 
     @Test
+    void sellerRequestedPreparingOrderStartsProcessingAndSnapshotsRefund() {
+        stubLockedGraph();
+        given(cancellation.getRequesterType()).willReturn(OrderCancellationRequesterType.SELLER);
+        given(cancellation.getStatus()).willReturn(OrderCancellationStatus.REQUESTED);
+        given(sellerOrder.getStatus()).willReturn(SellerOrderStatus.PREPARING);
+        given(refundCalculator.calculate(1L)).willReturn(
+                new CancellationRefundCalculation(1L, 3_000L, 0L, 3_000L, false, List.of())
+        );
+        given(preparationService.prepare(1L, 3_000L)).willReturn(pgCancellation);
+        given(pgCancellation.getId()).willReturn(30L);
+        given(pgCancellation.getType()).willReturn(PaymentCancellationType.PARTIAL);
+        given(pgCancellation.getAmount()).willReturn(3_000L);
+        given(pgCancellation.getReason()).willReturn("판매자 취소");
+        given(pgCancellation.getIdempotencyKey()).willReturn("same-key");
+
+        PartialCancellationStart result = service.start(1L);
+
+        verify(cancellation).startProcessing(org.mockito.ArgumentMatchers.any());
+        assertThat(result.action()).isEqualTo(PartialCancellationStart.Action.EXECUTE);
+        assertThat(result.cancelAmount()).isEqualTo(3_000L);
+    }
+
+    @Test
     void successfulPartialResultCompletesCommerceCancellationOnce() {
         stubLockedGraph();
         given(paymentCancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(pgCancellation));
@@ -125,6 +148,32 @@ class PartialPaymentCancellationTransactionServiceTest {
         verify(payment).markFullyCanceled(org.mockito.ArgumentMatchers.eq("PARTIAL_CANCELED"),
                 org.mockito.ArgumentMatchers.any());
         verify(order).cancel();
+    }
+
+    @Test
+    void completedSellerCancellationDoesNotSynchronizeParentOrderStatus() {
+        stubLockedGraph();
+        given(paymentCancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(pgCancellation));
+        given(pgCancellation.getStatus()).willReturn(PaymentCancellationStatus.REQUESTED);
+        given(pgCancellation.getType()).willReturn(PaymentCancellationType.PARTIAL);
+        given(pgCancellation.getOrderCancellation()).willReturn(cancellation);
+        given(pgCancellation.getAmount()).willReturn(3_000L);
+        given(cancellation.getRequesterType()).willReturn(OrderCancellationRequesterType.SELLER);
+        given(cancellation.getStatus()).willReturn(OrderCancellationStatus.PROCESSING);
+        GatewayCancelResult result = new GatewayCancelResult(
+                GatewayPaymentStatus.PARTIALLY_CANCELED, "payment-key", "cancel-tx", "order-id",
+                10_000L, 0L, "KRW", "PARTIAL_CANCELED", LocalDateTime.now(),
+                3_000L, "DONE", 0L
+        );
+
+        service.complete(start(), result);
+
+        verify(completionService).complete(1L);
+        verify(payment).markFullyCanceled(org.mockito.ArgumentMatchers.eq("PARTIAL_CANCELED"),
+                org.mockito.ArgumentMatchers.any());
+        verify(order, org.mockito.Mockito.never()).cancel();
+        verify(sellerOrderRepository, org.mockito.Mockito.never())
+                .findAllByOrderIdOrderByIdAsc(10L);
     }
 
     @Test

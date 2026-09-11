@@ -5,6 +5,7 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderCancellation;
 import com.giftmarket.order.entity.OrderCancellationItem;
 import com.giftmarket.order.entity.OrderCancellationStatus;
+import com.giftmarket.order.entity.OrderCancellationRequesterType;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
@@ -128,6 +129,38 @@ class OrderCancellationCompletionServiceTest {
         assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.CANCELLED);
         assertThat(order.getStatus()).isEqualTo(com.giftmarket.order.entity.OrderStatus.PAID);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+    }
+
+    @Test
+    void completesSellerRequestedPaidCancellationOnce() {
+        OrderItem item = item(sellerOrder, 101L, 1);
+        OrderCancellation cancellation = sellerRequestedProcessing(item, 1);
+        List<OrderCancellationItem> cancellationItems = stub(cancellation, List.of(item), 1);
+
+        OrderCancellationCompletionResult result = service.complete(CANCELLATION_ID);
+
+        assertThat(result.status()).isEqualTo(OrderCancellationStatus.COMPLETED);
+        assertThat(item.getCanceledQuantity()).isEqualTo(1);
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.CANCELLED);
+        verify(inventoryService).restoreCancellationItems(cancellationItems);
+    }
+
+    @Test
+    void completesSellerRequestedPreparingCancellationWithoutAffectingOtherSellerOrder() {
+        sellerOrder.prepare(LocalDateTime.now());
+        SellerOrder otherSellerOrder = sellerOrder(order, 21L);
+        OrderItem otherItem = item(otherSellerOrder, 102L, 1);
+        OrderItem item = item(sellerOrder, 101L, 1);
+        OrderCancellation cancellation = sellerRequestedProcessing(item, 1);
+        List<OrderCancellationItem> cancellationItems = stub(cancellation, List.of(item), 1);
+
+        service.complete(CANCELLATION_ID);
+
+        assertThat(item.getCanceledQuantity()).isEqualTo(1);
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.CANCELLED);
+        assertThat(otherItem.getCanceledQuantity()).isZero();
+        assertThat(otherSellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PAID);
+        verify(inventoryService).restoreCancellationItems(cancellationItems);
     }
 
     @Test
@@ -260,6 +293,16 @@ class OrderCancellationCompletionServiceTest {
 
     private OrderCancellation processing(OrderItem item, int quantity) {
         return processing(List.of(item), List.of(quantity));
+    }
+
+    private OrderCancellation sellerRequestedProcessing(OrderItem item, int quantity) {
+        OrderCancellation cancellation = OrderCancellation.createSellerRequested(
+                order, sellerOrder, "seller-key-" + System.nanoTime(), "seller reason", LocalDateTime.now()
+        );
+        ReflectionTestUtils.setField(cancellation, "id", CANCELLATION_ID);
+        cancellation.startProcessing(LocalDateTime.now());
+        assertThat(cancellation.getRequesterType()).isEqualTo(OrderCancellationRequesterType.SELLER);
+        return cancellation;
     }
 
     private OrderCancellation processing(List<OrderItem> items, List<Integer> quantities) {

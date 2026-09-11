@@ -12,6 +12,7 @@ import java.util.List;
 public class OrderCancellationWorkflowService {
 
     private final OrderCancellationService cancellationService;
+    private final SellerOrderManagementService sellerOrderManagementService;
     private final OrderCancellationRefundExecutionService refundExecutionService;
 
     public OrderCancellationResponse create(
@@ -26,5 +27,20 @@ public class OrderCancellationWorkflowService {
 
     public List<OrderCancellationResponse> getAllOwned(Long userId, Long orderId) {
         return cancellationService.getAllOwned(userId, orderId);
+    }
+
+    public OrderCancellationResponse createBySeller(
+            Long userId,
+            Long sellerOrderId,
+            com.giftmarket.order.dto.request.SellerOrderCancelRequest request
+    ) {
+        SellerOrderCancellationCreateResult result = sellerOrderManagementService
+                .createCancelForExecution(userId, sellerOrderId, request);
+        if (result.newlyCreated()) {
+            refundExecutionService.execute(result.cancellation().cancellationId());
+        }
+        return sellerOrderManagementService.getSellerCancellation(
+                userId, sellerOrderId, result.cancellation().cancellationId()
+        );
     }
 }

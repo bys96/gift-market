@@ -212,6 +212,15 @@ public class SellerOrderManagementService {
             Long sellerOrderId,
             SellerOrderCancelRequest request
     ) {
+        return createCancelForExecution(userId, sellerOrderId, request).cancellation();
+    }
+
+    @Transactional
+    public SellerOrderCancellationCreateResult createCancelForExecution(
+            Long userId,
+            Long sellerOrderId,
+            SellerOrderCancelRequest request
+    ) {
         validateCancelReason(request);
         String clientRequestKey = normalizeClientRequestKey(request.clientRequestKey());
         String reason = request.cancelReason().trim();
@@ -221,7 +230,7 @@ public class SellerOrderManagementService {
                 seller, sellerOrderId, clientRequestKey, reason
         );
         if (existing.isPresent()) {
-            return existing.get();
+            return new SellerOrderCancellationCreateResult(existing.get(), false);
         }
 
         Long orderId = sellerOrderRepository.findOrderIdByIdAndSellerId(sellerOrderId, seller.getId())
@@ -234,7 +243,7 @@ public class SellerOrderManagementService {
 
         existing = findExistingSellerCancellation(seller, sellerOrderId, clientRequestKey, reason);
         if (existing.isPresent()) {
-            return existing.get();
+            return new SellerOrderCancellationCreateResult(existing.get(), false);
         }
         validateCancelableSellerOrderStatus(sellerOrder);
         validateCancellationConflicts(sellerOrderId);
@@ -262,7 +271,31 @@ public class SellerOrderManagementService {
                 .toList();
         orderCancellationItemRepository.saveAll(cancellationItems);
 
-        return OrderCancellationResponse.from(cancellation, cancellationItems);
+        return new SellerOrderCancellationCreateResult(
+                OrderCancellationResponse.from(cancellation, cancellationItems), true
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public OrderCancellationResponse getSellerCancellation(
+            Long userId,
+            Long sellerOrderId,
+            Long cancellationId
+    ) {
+        Seller seller = getActiveSellerForCancellation(userId);
+        OrderCancellation cancellation = orderCancellationRepository.findById(cancellationId)
+                .orElseThrow(this::sellerOrderNotFound);
+        if (cancellation.getRequesterType()
+                != com.giftmarket.order.entity.OrderCancellationRequesterType.SELLER
+                || !cancellation.getSellerOrder().getId().equals(sellerOrderId)
+                || !cancellation.getSellerOrder().getSeller().getId().equals(seller.getId())) {
+            throw sellerOrderNotFound();
+        }
+        return OrderCancellationResponse.from(
+                cancellation,
+                orderCancellationItemRepository
+                        .findAllByOrderCancellationIdOrderByIdAsc(cancellationId)
+        );
     }
 
     @Transactional

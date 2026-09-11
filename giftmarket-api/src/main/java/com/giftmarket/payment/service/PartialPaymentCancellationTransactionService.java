@@ -102,9 +102,13 @@ public class PartialPaymentCancellationTransactionService {
         pgCancellation.succeed(result.providerTransactionId(), canceledAt);
         if (result.remainingAmount() == 0L) {
             payment.markFullyCanceled(result.providerStatus(), canceledAt);
-            List<SellerOrder> sellerOrders = sellerOrderRepository.findAllByOrderIdOrderByIdAsc(order.getId());
-            if (sellerOrders.stream().allMatch(value -> value.getStatus() == SellerOrderStatus.CANCELLED)) {
-                order.cancel();
+            if (cancellation.getRequesterType()
+                    != OrderCancellationRequesterType.SELLER) {
+                List<SellerOrder> sellerOrders = sellerOrderRepository
+                        .findAllByOrderIdOrderByIdAsc(order.getId());
+                if (sellerOrders.stream().allMatch(value -> value.getStatus() == SellerOrderStatus.CANCELLED)) {
+                    order.cancel();
+                }
             }
         } else {
             payment.markPartiallyCanceled(result.providerStatus());
@@ -134,10 +138,15 @@ public class PartialPaymentCancellationTransactionService {
 
     private void validateStartState(Payment payment, Order order, SellerOrder sellerOrder,
                                     OrderCancellation cancellation) {
-        SellerOrderStatus expected = cancellation.isRequiresSellerApproval()
-                ? SellerOrderStatus.PREPARING : SellerOrderStatus.PAID;
+        boolean sellerRequested = cancellation.getRequesterType()
+                == OrderCancellationRequesterType.SELLER;
+        boolean validSellerOrderStatus = sellerRequested
+                ? sellerOrder.getStatus() == SellerOrderStatus.PAID
+                    || sellerOrder.getStatus() == SellerOrderStatus.PREPARING
+                : sellerOrder.getStatus() == (cancellation.isRequiresSellerApproval()
+                    ? SellerOrderStatus.PREPARING : SellerOrderStatus.PAID);
         if (!payment.isRefundableState() || order.getStatus() != OrderStatus.PAID
-                || sellerOrder.getStatus() != expected
+                || !validSellerOrderStatus
                 || cancellation.getOrder() != order || cancellation.getSellerOrder() != sellerOrder
                 || payment.getProviderPaymentKey() == null || payment.getProviderPaymentKey().isBlank()) {
             throw notAvailable();
