@@ -2,6 +2,8 @@ import { apiFetch } from "@/lib/api";
 import type { ApiResponse } from "@/types/api";
 import type {
   SellerOrderDetail,
+  SellerOrderCancelRequest,
+  SellerOrderCancelResponse,
   SellerOrderPage,
   SellerOrderShipRequest,
   SellerOrderStatus,
@@ -46,6 +48,24 @@ export async function getSellerOrder(
     `/api/seller/orders/${sellerOrderId}`,
   );
   return requireData(response, "주문 정보를 확인할 수 없습니다.");
+}
+
+export async function cancelSellerOrder(
+  sellerOrderId: number,
+  request: SellerOrderCancelRequest,
+): Promise<SellerOrderCancelResponse> {
+  const response = await apiFetch<ApiResponse<SellerOrderCancelResponse>>(
+    `/api/seller/orders/${sellerOrderId}/cancel`,
+    {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        clientRequestKey: request.clientRequestKey,
+        cancelReason: request.reason,
+      }),
+    },
+  );
+  return requireData(response, "Unable to confirm the cancellation result.");
 }
 
 async function patchSellerOrder(

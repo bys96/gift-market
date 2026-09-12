@@ -96,3 +96,22 @@ export interface SellerOrderShipRequest {
   shippingCompany: string;
   trackingNumber: string;
 }
+
+export interface SellerOrderCancelRequest {
+  clientRequestKey: string;
+  reason: string;
+}
+
+export interface SellerOrderCancelResponse {
+  cancellationId: number;
+  orderId: number;
+  sellerOrderId: number;
+  status: SellerOrderCancellationStatus;
+  reason: string;
+  requestedAt: string;
+  processingAt: string | null;
+  completedAt: string | null;
+  rejectedAt: string | null;
+  rejectedReason: string | null;
+  failedAt: string | null;
+}

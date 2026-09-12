@@ -1,6 +1,7 @@
 "use client";
 
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
+import Modal from "@/components/common/modal/Modal";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -8,6 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  cancelSellerOrder,
   deliverSellerOrder,
   getSellerOrder,
   prepareSellerOrder,
@@ -56,6 +58,11 @@ export default function SellerOrderDetailPage() {
   const [shippingCompany, setShippingCompany] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [confirmDelivery, setConfirmDelivery] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRequestKey, setCancelRequestKey] = useState("");
+  const [cancelProcessing, setCancelProcessing] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   const totalProductAmount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.totalPrice, 0) ?? 0,
@@ -70,6 +77,8 @@ export default function SellerOrderDetailPage() {
   const requestedCancellationCount = order?.cancellations.filter(
     (cancellation) => cancellation.status === "REQUESTED",
   ).length ?? 0;
+
+  const canCancelOrder = order?.status === "PAID" || order?.status === "PREPARING";
 
   const loadOrder = useCallback(async (quiet = false) => {
     await Promise.resolve();
@@ -137,6 +146,63 @@ export default function SellerOrderDetailPage() {
       shippingCompany: company,
       trackingNumber: tracking,
     }));
+  };
+
+  const openCancelModal = () => {
+    setCancelReason("");
+    setCancelError("");
+    setCancelRequestKey(window.crypto.randomUUID());
+    setCancelModalOpen(true);
+  };
+
+  const closeCancelModal = () => {
+    if (cancelProcessing) return;
+    setCancelModalOpen(false);
+    setCancelReason("");
+    setCancelError("");
+    setCancelRequestKey("");
+  };
+
+  const handleCancelSubmit = async () => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      setCancelError("취소 사유를 입력해주세요.");
+      return;
+    }
+    if (!cancelRequestKey || cancelProcessing) return;
+
+    try {
+      setCancelProcessing(true);
+      setCancelError("");
+      const cancellation = await cancelSellerOrder(sellerOrderId, {
+        clientRequestKey: cancelRequestKey,
+        reason,
+      });
+
+      if (cancellation.status !== "COMPLETED") {
+        setCancelError(
+          cancellation.status === "PROCESSING"
+            ? "취소 처리 결과를 확인 중입니다. 잠시 후 주문 상태를 다시 확인해주세요."
+            : "주문 취소가 완료되지 않았습니다. 취소 요청 내역을 확인해주세요.",
+        );
+        return;
+      }
+
+      await loadOrder(true);
+      setCancelModalOpen(false);
+      setCancelReason("");
+      setCancelError("");
+      setCancelRequestKey("");
+      window.alert("주문이 취소되었습니다.");
+    } catch (cancelFailure) {
+      setCancelError(
+        cancelFailure instanceof Error
+          ? cancelFailure.message
+          : "주문 취소를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.",
+      );
+    } finally {
+      setCancelProcessing(false);
+    }
   };
 
   if (!initialized || !isAuthenticated || !user || loading) {
@@ -227,9 +293,55 @@ export default function SellerOrderDetailPage() {
           {order.status === "DELIVERED" && <p className="seller-order-action-notice success">배송이 완료된 주문입니다.</p>}
           {order.status === "CANCELLED" && <p className="seller-order-action-notice cancelled">취소된 주문입니다. 배송 상태를 변경할 수 없습니다.</p>}
           {order.status === "PENDING_PAYMENT" && <p className="seller-order-action-notice">결제 완료 전 주문은 처리할 수 없습니다.</p>}
+          {canCancelOrder && (
+            <div className="seller-order-cancel-action">
+              <div>
+                <strong>주문을 취소하시겠습니까?</strong>
+                <p>환불이 완료되면 취소 수량의 재고가 복구되며, 이 작업은 되돌릴 수 없습니다.</p>
+              </div>
+              <button type="button" className="danger" disabled={processing || cancelProcessing} onClick={openCancelModal}>주문 취소</button>
+            </div>
+          )}
           {actionError && <p className="seller-order-action-error">{actionError}</p>}
         </section>
       </div>
+      {cancelModalOpen && (
+        <Modal
+          onClose={closeCancelModal}
+          overlayClassName="seller-order-cancel-modal-backdrop"
+          contentClassName="seller-order-cancel-modal"
+          ariaLabelledBy="seller-order-cancel-modal-title"
+          ariaDescribedBy="seller-order-cancel-modal-description"
+          closeOnEscape={!cancelProcessing}
+          closeOnBackdrop={!cancelProcessing}
+        >
+          <form onSubmit={(event) => { event.preventDefault(); void handleCancelSubmit(); }}>
+            <header>
+              <div>
+                <p>ORDER CANCEL</p>
+                <h2 id="seller-order-cancel-modal-title">주문 취소</h2>
+              </div>
+              <button type="button" aria-label="주문 취소 모달 닫기" disabled={cancelProcessing} onClick={closeCancelModal}>×</button>
+            </header>
+            <p id="seller-order-cancel-modal-description">환불이 완료되면 주문 취소가 확정되며, 복구할 수 없습니다.</p>
+            <label htmlFor="seller-order-cancel-reason">취소 사유</label>
+            <textarea
+              id="seller-order-cancel-reason"
+              value={cancelReason}
+              maxLength={500}
+              disabled={cancelProcessing}
+              onChange={(event) => { setCancelReason(event.target.value); setCancelError(""); }}
+              placeholder="취소 사유를 입력해주세요."
+            />
+            <div className="seller-order-cancel-reason-meta">{cancelReason.length}/500</div>
+            {cancelError && <p className="seller-order-cancel-error" role="alert">{cancelError}</p>}
+            <footer>
+              <button type="button" disabled={cancelProcessing} onClick={closeCancelModal}>닫기</button>
+              <button type="submit" className="danger" disabled={cancelProcessing || !cancelReason.trim()}>{cancelProcessing ? "취소 처리 중..." : "주문 취소"}</button>
+            </footer>
+          </form>
+        </Modal>
+      )}
     </main>
   );
 }
