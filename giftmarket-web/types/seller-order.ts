@@ -69,6 +69,7 @@ export type SellerOrderCancellationStatus =
 export interface SellerOrderCancellationSummary {
   cancellationId: number;
   status: SellerOrderCancellationStatus;
+  requesterType: "BUYER" | "SELLER";
   requestedAt: string;
 }
 

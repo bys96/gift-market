@@ -422,7 +422,7 @@ public class SellerOrderManagementService {
         }
         List<SellerOrderCancellationSummaryResponse> cancellations =
                 orderCancellationRepository
-                        .findAllBySellerOrderIdAndRequiresSellerApprovalTrueOrderByRequestedAtDescIdDesc(
+                        .findAllBySellerOrderIdOrderByRequestedAtDescIdDesc(
                                 sellerOrder.getId()
                         )
                         .stream()

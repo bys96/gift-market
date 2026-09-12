@@ -16,6 +16,11 @@ const STATUS_LABELS: Record<OrderCancellationStatus, string> = {
   REJECTED: "취소 요청 거절", FAILED: "취소 처리 실패",
 };
 
+const REQUESTER_LABELS = {
+  BUYER: "구매자 취소",
+  SELLER: "판매자 취소",
+} as const;
+
 export default function OrderCancellationPanel({ orderId, sellerOrder, cancellations, onChanged }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState<Record<number, number>>({});
@@ -76,7 +81,12 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
     {cancellations.length > 0 && <div className="order-cancellation-history">
       {cancellations.map((cancellation) => <div key={cancellation.cancellationId} className="order-cancellation-status-row">
         <span className={`order-cancellation-status order-cancellation-status-${cancellation.status.toLowerCase()}`}>{STATUS_LABELS[cancellation.status]}</span>
-        <span>{cancellation.items.reduce((sum, item) => sum + item.requestedQuantity, 0)}개 · {cancellation.reason}</span>
+        <span className={`order-cancellation-requester order-cancellation-requester-${cancellation.requesterType.toLowerCase()}`}>{REQUESTER_LABELS[cancellation.requesterType]}</span>
+        {cancellation.requesterType === "SELLER" ? (
+          <span className="order-cancellation-seller-reason">판매자에 의해 취소된 주문입니다. 사유: {cancellation.reason}</span>
+        ) : (
+          <span>{cancellation.items.reduce((sum, item) => sum + item.requestedQuantity, 0)}개 · {cancellation.reason}</span>
+        )}
         {cancellation.status === "REJECTED" && cancellation.rejectedReason && <small>{cancellation.rejectedReason}</small>}
       </div>)}
     </div>}

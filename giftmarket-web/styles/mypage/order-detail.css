@@ -434,7 +434,7 @@
 
 .order-cancellation-status-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 5px 10px;
   padding: 10px 12px;
@@ -457,6 +457,7 @@
 .order-cancellation-status-completed { color: #28794c; }
 .order-cancellation-status-rejected,
 .order-cancellation-status-failed { color: #b23b3b; }
+.order-cancellation-requester { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }.order-cancellation-requester-buyer { background: #edf3ff; color: #315fa7; }.order-cancellation-requester-seller { background: #fff0f0; color: #a33d3d; }.order-cancellation-seller-reason { line-height: 1.5; }
 
 .order-cancellation-message {
   margin: 0 0 12px;

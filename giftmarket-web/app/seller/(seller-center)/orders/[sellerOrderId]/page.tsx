@@ -250,6 +250,9 @@ export default function SellerOrderDetailPage() {
         {displayedCancellation && (
           <section className="seller-order-detail-section seller-order-cancellation-summary-section">
             <div>
+              <span className={`seller-order-cancellation-requester seller-order-cancellation-requester-${displayedCancellation.requesterType.toLowerCase()}`}>
+                {displayedCancellation.requesterType === "SELLER" ? "판매자 직접 취소" : "구매자 취소 요청"}
+              </span>
               <h2>취소 요청</h2>
               <p>
                 {displayedCancellation.status === "REQUESTED" && `취소 요청 ${requestedCancellationCount}건 확인이 필요합니다.`}

@@ -65,6 +65,8 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
             Long sellerOrderId
     );
 
+    List<OrderCancellation> findAllBySellerOrderIdOrderByRequestedAtDescIdDesc(Long sellerOrderId);
+
     @Query(
             value = """
                     select c

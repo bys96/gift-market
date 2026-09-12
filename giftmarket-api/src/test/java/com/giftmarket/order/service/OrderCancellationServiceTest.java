@@ -7,6 +7,7 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderCancellation;
 import com.giftmarket.order.entity.OrderCancellationItem;
 import com.giftmarket.order.entity.OrderCancellationStatus;
+import com.giftmarket.order.entity.OrderCancellationRequesterType;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
@@ -156,6 +157,7 @@ class OrderCancellationServiceTest {
         assertThat(responses).singleElement().satisfies(response -> {
             assertThat(response.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
             assertThat(response.status()).isEqualTo(OrderCancellationStatus.REQUESTED);
+            assertThat(response.requesterType()).isEqualTo(OrderCancellationRequesterType.BUYER);
             assertThat(response.items()).singleElement()
                     .extracting(item -> item.requestedQuantity()).isEqualTo(1);
         });

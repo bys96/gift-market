@@ -70,6 +70,8 @@
 .seller-order-item-cancelled { display: inline-flex; padding: 3px 7px; border-radius: 999px; background: #fff0f0; color: #a63d3d; font-size: 11px; font-weight: 800; }
 .seller-order-cancellation-summary-section { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .seller-order-cancellation-summary-section h2 { margin-bottom: 7px; }
+.seller-order-cancellation-requester { display: inline-flex; margin-bottom: 7px; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }.seller-order-cancellation-requester-buyer { background: #eef4ff; color: #315fa7; }.seller-order-cancellation-requester-seller { background: #fff0f0; color: #a63d3d; }
+.seller-order-cancellation-summary-section:has(.seller-order-cancellation-requester-seller) > a { display: none; }
 .seller-order-cancellation-summary-section p { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
 .seller-order-cancellation-summary-section > a { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-items: center; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 9px; color: var(--color-text-primary); font-size: 12px; font-weight: 800; text-decoration: none; }
 .seller-order-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }.seller-order-detail-grid .seller-order-detail-section { margin: 0 0 18px; }

@@ -165,9 +165,12 @@ class SellerOrderManagementServiceTest {
         OrderCancellation cancellation = org.mockito.Mockito.mock(OrderCancellation.class);
         given(cancellation.getId()).willReturn(60L);
         given(cancellation.getStatus()).willReturn(OrderCancellationStatus.COMPLETED);
+        given(cancellation.getRequesterType()).willReturn(
+                com.giftmarket.order.entity.OrderCancellationRequesterType.SELLER
+        );
         given(cancellation.getRequestedAt()).willReturn(LocalDateTime.now());
         given(orderCancellationRepository
-                .findAllBySellerOrderIdAndRequiresSellerApprovalTrueOrderByRequestedAtDescIdDesc(
+                .findAllBySellerOrderIdOrderByRequestedAtDescIdDesc(
                         SELLER_ORDER_ID
                 )).willReturn(List.of(cancellation));
         Shipment originalShipment = org.mockito.Mockito.mock(Shipment.class);
@@ -191,6 +194,8 @@ class SellerOrderManagementServiceTest {
         assertThat(response.cancellations()).singleElement().satisfies(summary -> {
             assertThat(summary.cancellationId()).isEqualTo(60L);
             assertThat(summary.status()).isEqualTo(OrderCancellationStatus.COMPLETED);
+            assertThat(summary.requesterType())
+                    .isEqualTo(com.giftmarket.order.entity.OrderCancellationRequesterType.SELLER);
         });
         verify(orderItemRepository).findAllBySellerOrderIdOrderByIdAsc(
                 SELLER_ORDER_ID

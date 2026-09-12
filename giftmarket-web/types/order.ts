@@ -40,6 +40,8 @@ export type OrderCancellationStatus =
   | "REJECTED"
   | "FAILED";
 
+export type OrderCancellationRequesterType = "BUYER" | "SELLER";
+
 export interface OrderCancellationItem {
   orderItemId: number;
   requestedQuantity: number;
@@ -50,6 +52,7 @@ export interface OrderCancellation {
   orderId: number;
   sellerOrderId: number;
   status: OrderCancellationStatus;
+  requesterType: OrderCancellationRequesterType;
   reason: string;
   requestedAt: string;
   processingAt: string | null;
