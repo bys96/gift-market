@@ -102,16 +102,12 @@ public class PartialPaymentCancellationTransactionService {
         pgCancellation.succeed(result.providerTransactionId(), canceledAt);
         if (result.remainingAmount() == 0L) {
             payment.markFullyCanceled(result.providerStatus(), canceledAt);
-            if (cancellation.getRequesterType()
-                    != OrderCancellationRequesterType.SELLER) {
-                List<SellerOrder> sellerOrders = sellerOrderRepository
-                        .findAllByOrderIdOrderByIdAsc(order.getId());
-                if (sellerOrders.stream().allMatch(value -> value.getStatus() == SellerOrderStatus.CANCELLED)) {
-                    order.cancel();
-                }
-            }
         } else {
             payment.markPartiallyCanceled(result.providerStatus());
+        }
+        if (cancellation.getRequesterType() == OrderCancellationRequesterType.SELLER
+                || result.remainingAmount() == 0L) {
+            synchronizeOrderCancellationWhenAllSellerOrdersCancelled(order);
         }
     }
 
@@ -201,6 +197,16 @@ public class PartialPaymentCancellationTransactionService {
         if (!Objects.equals(cancellation.getProviderTransactionKey(), result.providerTransactionId())
                 || !Objects.equals(cancellation.getAmount(), result.canceledAmount())) {
             throw new PaymentException("기존 부분환불 완료 결과와 일치하지 않습니다.");
+        }
+    }
+
+    private void synchronizeOrderCancellationWhenAllSellerOrdersCancelled(Order order) {
+        List<SellerOrder> sellerOrders = sellerOrderRepository
+                .findAllByOrderIdOrderByIdAsc(order.getId());
+        if (sellerOrders.stream().allMatch(
+                value -> value.getStatus() == SellerOrderStatus.CANCELLED
+        )) {
+            order.cancel();
         }
     }
 
