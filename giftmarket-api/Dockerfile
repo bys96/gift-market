@@ -3,16 +3,6 @@ FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
 
-RUN jfr configure \
-    --input profile.jfc \
-    --output /app/startup-diagnostics.jfc \
-    class-loading=true \
-    allocation-profiling=low \
-    'jdk.InitialEnvironmentVariable#enabled=false' \
-    'jdk.InitialSystemProperty#enabled=false' \
-    'jdk.JVMInformation#enabled=false' \
-    'jdk.SystemProcess#enabled=false'
-
 COPY gradlew .
 COPY gradle gradle
 COPY settings.gradle .
@@ -38,7 +28,6 @@ COPY --from=builder /app/extracted/dependencies/ ./
 COPY --from=builder /app/extracted/spring-boot-loader/ ./
 COPY --from=builder /app/extracted/snapshot-dependencies/ ./
 COPY --from=builder /app/extracted/application/ ./
-COPY --from=builder /app/startup-diagnostics.jfc startup-diagnostics.jfc
 
 RUN java \
     -XX:ArchiveClassesAtExit=application.jsa \
