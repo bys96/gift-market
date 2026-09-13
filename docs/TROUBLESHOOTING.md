@@ -690,7 +690,7 @@ Render Free의 강한 CPU throttling이 근본적인 환경 제약이며, AppCDS
 
 Render 또는 외부 probe가 Backend root path `/`로 요청을 보내면 root endpoint가 없어 `NoResourceFoundException`이 발생한다. 현재 `GlobalExceptionHandler`가 이를 ERROR level과 전체 stacktrace로 출력해 startup 실패처럼 보이는 로그 노이즈를 만든다.
 
-이 로그는 startup 실패나 AppCDS 문제와 무관하다. health endpoint를 probe 경로로 지정하거나 `NoResourceFoundException`을 일반 404로 처리하는 개선은 별도 TODO로 남기며, 이 startup 원인 분석과 해결 결과에 포함하지 않는다.
+이 로그는 startup 실패나 AppCDS 문제와 무관하다. lightweight `GET /health` endpoint를 추가하고 `NoResourceFoundException`을 별도 404 응답으로 처리해, 존재하지 않는 경로가 generic 500 handler와 ERROR stacktrace로 연결되지 않도록 해결했다. Render Health Check Path는 `/health`를 사용한다.
 
 # 최신 검증 메모
 

@@ -50,6 +50,9 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/health")
+                        .permitAll()
+
                         .requestMatchers(
                                 "/oauth2/**",
                                 "/login/oauth2/**",
