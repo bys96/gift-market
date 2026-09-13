@@ -35,7 +35,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 @Import({
         NotificationService.class,
         NotificationEventListener.class,
-        CommerceNotificationEventListener.class
+        CommerceNotificationEventListener.class,
+        ClaimNotificationEventListener.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NotificationEventIntegrationTest {
@@ -202,16 +203,75 @@ class NotificationEventIntegrationTest {
     }
 
     @Test
+    void returnEventsCreateNotificationsWithExpectedRecipientTypeAndTarget() {
+        User seller = saveUser("return-seller");
+        User buyer = saveUser("return-buyer");
+        entityManager.flush();
+
+        eventPublisher.publishEvent(new ReturnRequestedEvent(seller.getId(), 91L));
+        eventPublisher.publishEvent(new ReturnApprovedEvent(buyer.getId(), 92L, 901L));
+        eventPublisher.publishEvent(new ReturnRejectedEvent(buyer.getId(), 93L, 902L));
+        eventPublisher.publishEvent(new ReturnCompletedEvent(buyer.getId(), 94L, 903L));
+        commitTransaction();
+
+        Notification sellerNotification = singleNotification(seller.getId(), NotificationContext.SELLER);
+        assertThat(sellerNotification.getType()).isEqualTo(NotificationType.RETURN_REQUESTED);
+        assertThat(sellerNotification.getTargetUrl()).isEqualTo("/seller/orders/returns/91");
+
+        var buyerNotifications = notificationRepository.findAllByUserIdAndContext(
+                buyer.getId(), NotificationContext.BUYER, PageRequest.of(0, 10)
+        ).getContent();
+        assertThat(buyerNotifications).extracting(Notification::getType)
+                .containsExactlyInAnyOrder(
+                        NotificationType.RETURN_APPROVED,
+                        NotificationType.RETURN_REJECTED,
+                        NotificationType.RETURN_COMPLETED
+                );
+        assertThat(buyerNotifications).extracting(Notification::getTargetUrl)
+                .containsExactlyInAnyOrder("/my/orders/901", "/my/orders/902", "/my/orders/903");
+    }
+
+    @Test
+    void exchangeEventsCreateNotificationsWithExpectedRecipientTypeAndTarget() {
+        User seller = saveUser("exchange-seller");
+        User buyer = saveUser("exchange-buyer");
+        entityManager.flush();
+
+        eventPublisher.publishEvent(new ExchangeRequestedEvent(seller.getId(), 101L));
+        eventPublisher.publishEvent(new ExchangeApprovedEvent(buyer.getId(), 102L, 1001L));
+        eventPublisher.publishEvent(new ExchangeRejectedEvent(buyer.getId(), 103L, 1002L));
+        eventPublisher.publishEvent(new ExchangeReshippedEvent(buyer.getId(), 104L, 1003L));
+        eventPublisher.publishEvent(new ExchangeCompletedEvent(buyer.getId(), 105L, 1004L));
+        commitTransaction();
+
+        Notification sellerNotification = singleNotification(seller.getId(), NotificationContext.SELLER);
+        assertThat(sellerNotification.getType()).isEqualTo(NotificationType.EXCHANGE_REQUESTED);
+        assertThat(sellerNotification.getTargetUrl()).isEqualTo("/seller/orders/exchanges/101");
+
+        var buyerNotifications = notificationRepository.findAllByUserIdAndContext(
+                buyer.getId(), NotificationContext.BUYER, PageRequest.of(0, 10)
+        ).getContent();
+        assertThat(buyerNotifications).extracting(Notification::getType)
+                .containsExactlyInAnyOrder(
+                        NotificationType.EXCHANGE_APPROVED,
+                        NotificationType.EXCHANGE_REJECTED,
+                        NotificationType.EXCHANGE_RESHIPPED,
+                        NotificationType.EXCHANGE_COMPLETED
+                );
+        assertThat(buyerNotifications).extracting(Notification::getTargetUrl)
+                .containsExactlyInAnyOrder(
+                        "/my/orders/1001", "/my/orders/1002",
+                        "/my/orders/1003", "/my/orders/1004"
+                );
+    }
+
+    @Test
     void rolledBackTransactionDoesNotCreateNotification() {
         User sellerUser = saveUser("rollback-seller");
         entityManager.flush();
         Long sellerUserId = sellerUser.getId();
 
-        eventPublisher.publishEvent(new NewOrderCreatedEvent(
-                sellerUserId,
-                51L,
-                "Rollback gift"
-        ));
+        eventPublisher.publishEvent(new ReturnRequestedEvent(sellerUserId, 51L));
 
         TestTransaction.flagForRollback();
         TestTransaction.end();
@@ -228,11 +288,7 @@ class NotificationEventIntegrationTest {
         entityManager.flush();
         Long committedUserId = committedUser.getId();
 
-        eventPublisher.publishEvent(new NewOrderCreatedEvent(
-                Long.MAX_VALUE,
-                61L,
-                "Missing recipient gift"
-        ));
+        eventPublisher.publishEvent(new ExchangeRequestedEvent(Long.MAX_VALUE, 61L));
 
         assertThatCode(this::commitTransaction).doesNotThrowAnyException();
         assertThat(userRepository.existsById(committedUserId)).isTrue();

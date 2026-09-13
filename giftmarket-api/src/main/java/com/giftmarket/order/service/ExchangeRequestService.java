@@ -8,6 +8,7 @@ import com.giftmarket.order.dto.response.ExchangeRequestImageResponse;
 import com.giftmarket.order.dto.response.ExchangeRequestResponse;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.exception.OrderException;
+import com.giftmarket.notification.event.ExchangeRequestedEvent;
 import com.giftmarket.order.repository.*;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductOptionValue;
@@ -17,6 +18,7 @@ import com.giftmarket.product.entity.ProductVariantOptionValue;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
 import com.giftmarket.product.repository.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +58,7 @@ public class ExchangeRequestService {
     private final ProductVariantRepository productVariantRepository;
     private final ProductVariantOptionValueRepository productVariantOptionValueRepository;
     private final StorageService storageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public ExchangeRequestResponse getOwned(Long userId, Long exchangeRequestId) {
@@ -168,6 +171,10 @@ public class ExchangeRequestService {
             images.add(ExchangeRequestImage.create(exchangeRequest, normalized.imageObjectKeys().get(i), i));
         }
         if (!images.isEmpty()) exchangeRequestImageRepository.saveAll(images);
+        eventPublisher.publishEvent(new ExchangeRequestedEvent(
+                sellerOrder.getSeller().getUser().getId(),
+                exchangeRequest.getId()
+        ));
         return ExchangeRequestResponse.from(exchangeRequest, items, imageResponses(images));
     }
 

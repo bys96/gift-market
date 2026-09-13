@@ -3,9 +3,11 @@ package com.giftmarket.order.service;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.*;
+import com.giftmarket.notification.event.ReturnCompletedEvent;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class ReturnCompletionService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentCancellationRepository cancellationRepository;
     private final OrderInventoryService inventoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void complete(Long returnRequestId) {
@@ -54,6 +57,11 @@ public class ReturnCompletionService {
             }
         }
         request.complete(LocalDateTime.now());
+        eventPublisher.publishEvent(new ReturnCompletedEvent(
+                order.getUser().getId(),
+                request.getId(),
+                order.getId()
+        ));
     }
 
     private void validateIdentity(ReturnRequest request, Order order, SellerOrder sellerOrder) {

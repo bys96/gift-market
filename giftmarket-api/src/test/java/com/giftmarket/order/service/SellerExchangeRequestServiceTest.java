@@ -1,5 +1,9 @@
 package com.giftmarket.order.service;
 
+import com.giftmarket.notification.event.ExchangeApprovedEvent;
+import com.giftmarket.notification.event.ExchangeCompletedEvent;
+import com.giftmarket.notification.event.ExchangeRejectedEvent;
+import com.giftmarket.notification.event.ExchangeReshippedEvent;
 import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.order.dto.response.ExchangeRequestResponse;
 import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
@@ -22,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -57,6 +62,7 @@ class SellerExchangeRequestServiceTest {
     @Mock ExchangeShippingPaymentRepository exchangeShippingPaymentRepository;
     @Mock OrderInventoryService orderInventoryService;
     @Mock StorageService storageService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private SellerExchangeRequestService service;
     private Seller seller;
@@ -72,7 +78,7 @@ class SellerExchangeRequestServiceTest {
                 sellerRepository, orderRepository, sellerOrderRepository, orderItemRepository,
                 exchangeRequestRepository, exchangeRequestItemRepository, exchangeRequestImageRepository,
                 returnRequestRepository, shipmentRepository, exchangeShippingPaymentRepository,
-                orderInventoryService, storageService
+                orderInventoryService, storageService, eventPublisher
         ));
         doReturn(NOW).when(service).currentTime();
         seller = mock(Seller.class);
@@ -165,6 +171,7 @@ class SellerExchangeRequestServiceTest {
         assertThat(requestItem.getReleasedQuantity()).isZero();
         assertThat(requestItem.getConsumedQuantity()).isZero();
         verify(orderInventoryService).reserveExchangeTargets(List.of(requestItem));
+        verify(eventPublisher).publishEvent(new ExchangeApprovedEvent(99L, EXCHANGE_ID, ORDER_ID));
     }
 
     @Test
@@ -211,6 +218,7 @@ class SellerExchangeRequestServiceTest {
                 .isInstanceOf(SellerException.class).hasMessageContaining("수량이 부족");
         assertThat(request.getStatus()).isEqualTo(ExchangeRequestStatus.REQUESTED);
         assertThat(requestItem.getReservedQuantity()).isZero();
+        verify(eventPublisher, never()).publishEvent(any());
         verify(orderInventoryService, never()).reserveExchangeTargets(anyList());
     }
 
@@ -235,6 +243,7 @@ class SellerExchangeRequestServiceTest {
         assertThatThrownBy(() -> service.reject(USER_ID, EXCHANGE_ID, "거절"))
                 .isInstanceOf(SellerException.class);
         verify(orderInventoryService, times(1)).reserveExchangeTargets(anyList());
+        verify(eventPublisher, times(1)).publishEvent(any(ExchangeApprovedEvent.class));
     }
 
     @Test
@@ -243,6 +252,10 @@ class SellerExchangeRequestServiceTest {
         assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REJECTED);
         assertThat(response.rejectedReason()).isEqualTo("재고 확보 불가");
         verify(orderInventoryService, never()).reserveExchangeTargets(anyList());
+        verify(eventPublisher).publishEvent(new ExchangeRejectedEvent(99L, EXCHANGE_ID, ORDER_ID));
+        assertThatThrownBy(() -> service.reject(USER_ID, EXCHANGE_ID, "재거절"))
+                .isInstanceOf(SellerException.class);
+        verify(eventPublisher, times(1)).publishEvent(any(ExchangeRejectedEvent.class));
     }
 
     @Test
@@ -358,6 +371,7 @@ class SellerExchangeRequestServiceTest {
         verify(orderInventoryService).reserveExchangeTargets(anyList());
         verify(orderInventoryService, times(1)).restoreExchangeOriginalItems(anyList());
         verifyNoMoreInteractions(orderInventoryService);
+        verify(eventPublisher).publishEvent(new ExchangeReshippedEvent(99L, EXCHANGE_ID, ORDER_ID));
 
         assertThatThrownBy(() -> service.reship(USER_ID, EXCHANGE_ID, "택배", "OUT-X-2"))
                 .isInstanceOf(SellerException.class);
@@ -382,6 +396,7 @@ class SellerExchangeRequestServiceTest {
         assertThat(requestItem.getConsumedQuantity()).isEqualTo(requestItem.getQuantity());
         assertThat(order.getStatus()).isEqualTo(orderStatus);
         assertThat(sellerOrder.getStatus()).isEqualTo(sellerOrderStatus).isEqualTo(SellerOrderStatus.DELIVERED);
+        verify(eventPublisher).publishEvent(new ExchangeCompletedEvent(99L, EXCHANGE_ID, ORDER_ID));
 
         assertThatThrownBy(() -> service.deliver(USER_ID, EXCHANGE_ID)).isInstanceOf(SellerException.class);
         assertThat(orderItem.getExchangedQuantity()).isEqualTo(requestItem.getQuantity());

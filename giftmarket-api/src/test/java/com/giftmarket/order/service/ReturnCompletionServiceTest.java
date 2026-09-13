@@ -1,9 +1,11 @@
 package com.giftmarket.order.service;
 
+import com.giftmarket.notification.event.ReturnCompletedEvent;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.repository.*;
+import com.giftmarket.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,12 +13,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -25,18 +29,23 @@ class ReturnCompletionServiceTest {
     @Mock ReturnRequestRepository returns; @Mock ReturnRequestItemRepository returnItems;
     @Mock OrderItemRepository orderItems; @Mock PaymentCancellationRepository cancellations;
     @Mock OrderInventoryService inventory;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock Payment payment; @Mock Order order; @Mock SellerOrder sellerOrder; @Mock ReturnRequest request;
+    @Mock User user;
     @Mock ReturnRequestItem returnItem; @Mock OrderItem orderItem; @Mock PaymentCancellation cancellation;
     ReturnCompletionService service;
 
     @BeforeEach
     void setUp() {
         service = new ReturnCompletionService(payments, orders, sellerOrders, returns, returnItems,
-                orderItems, cancellations, inventory);
+                orderItems, cancellations, inventory, eventPublisher);
         given(returns.findById(10L)).willReturn(Optional.of(request));
         given(request.getOrder()).willReturn(order);
         given(request.getSellerOrder()).willReturn(sellerOrder);
         given(order.getId()).willReturn(1L);
+        given(order.getUser()).willReturn(user);
+        given(user.getId()).willReturn(9L);
+        given(request.getId()).willReturn(10L);
         given(sellerOrder.getId()).willReturn(2L);
         given(payments.findFirstByOrderIdOrderByIdDesc(1L)).willReturn(Optional.of(payment));
         given(payment.getId()).willReturn(3L);
@@ -67,6 +76,7 @@ class ReturnCompletionServiceTest {
         verify(orderItem).confirmReturn(2);
         verify(returnItem).increaseRestockedQuantity(2);
         verify(request).complete(any());
+        verify(eventPublisher).publishEvent(new ReturnCompletedEvent(9L, 10L, 1L));
         verify(payment, never()).markPartiallyCanceled(anyString());
         verify(payment, never()).markFullyCanceled(anyString(), any());
     }
@@ -92,6 +102,22 @@ class ReturnCompletionServiceTest {
 
         verifyNoInteractions(inventory);
         verify(request, never()).complete(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void requestedRefundDoesNotCompleteOrPublishNotification() {
+        given(request.getStatus()).willReturn(ReturnRequestStatus.REFUNDING);
+        given(request.getRefundAmount()).willReturn(1_000L);
+        given(cancellations.findByReturnRequestId(10L)).willReturn(Optional.of(cancellation));
+        given(cancellation.getId()).willReturn(4L);
+        given(cancellations.findByIdForUpdate(4L)).willReturn(Optional.of(cancellation));
+        given(cancellation.getStatus()).willReturn(PaymentCancellationStatus.REQUESTED);
+
+        assertThatThrownBy(() -> service.complete(10L)).isInstanceOf(RuntimeException.class);
+
+        verify(request, never()).complete(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     private void prepareItem(ReturnInspectionResult result) {

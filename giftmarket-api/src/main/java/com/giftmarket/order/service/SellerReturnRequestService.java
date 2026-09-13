@@ -9,6 +9,8 @@ import com.giftmarket.order.dto.response.ReturnRequestImageResponse;
 import com.giftmarket.order.dto.response.SellerReturnRequestPageResponse;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
+import com.giftmarket.notification.event.ReturnApprovedEvent;
+import com.giftmarket.notification.event.ReturnRejectedEvent;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
@@ -16,6 +18,7 @@ import com.giftmarket.seller.repository.SellerRepository;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -46,6 +49,7 @@ public class SellerReturnRequestService {
     private final PaymentRepository paymentRepository;
     private final ReturnRefundCalculationService returnRefundCalculationService;
     private final StorageService storageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public SellerReturnRequestPageResponse getReturns(
@@ -107,6 +111,11 @@ public class SellerReturnRequestService {
         } catch (IllegalStateException | IllegalArgumentException exception) {
             throw new SellerException(exception.getMessage());
         }
+        eventPublisher.publishEvent(new ReturnApprovedEvent(
+                locked.order().getUser().getId(),
+                request.getId(),
+                locked.order().getId()
+        ));
         return response(request, locked.items());
     }
 
@@ -114,7 +123,14 @@ public class SellerReturnRequestService {
     public ReturnRequestResponse reject(Long userId, Long returnRequestId, String reason) {
         String normalized = requiredText(reason, MAX_REASON_LENGTH, "반품 거절 사유를 입력해주세요.");
         return transition(userId, returnRequestId, ReturnRequestStatus.REQUESTED,
-                request -> request.reject(normalized, currentTime()));
+                request -> {
+                    request.reject(normalized, currentTime());
+                    eventPublisher.publishEvent(new ReturnRejectedEvent(
+                            request.getOrder().getUser().getId(),
+                            request.getId(),
+                            request.getOrder().getId()
+                    ));
+                });
     }
 
     @Transactional

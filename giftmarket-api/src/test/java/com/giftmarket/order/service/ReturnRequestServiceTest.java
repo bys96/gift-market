@@ -1,5 +1,6 @@
 package com.giftmarket.order.service;
 
+import com.giftmarket.notification.event.ReturnRequestedEvent;
 import com.giftmarket.order.dto.request.ReturnRequestCreateRequest;
 import com.giftmarket.order.dto.request.ReturnRequestItemRequest;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -54,6 +56,7 @@ class ReturnRequestServiceTest {
     @Mock ReturnRequestImageRepository returnRequestImageRepository;
     @Mock ExchangeRequestRepository exchangeRequestRepository;
     @Mock StorageService storageService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private ReturnRequestService service;
     private User user;
@@ -67,7 +70,7 @@ class ReturnRequestServiceTest {
         service = spy(new ReturnRequestService(
                 orderRepository, sellerOrderRepository, orderItemRepository,
                 shipmentRepository, returnRequestRepository, returnRequestItemRepository,
-                returnRequestImageRepository, exchangeRequestRepository, storageService
+                returnRequestImageRepository, exchangeRequestRepository, storageService, eventPublisher
         ));
         doReturn(NOW).when(service).currentTime();
         user = mock(User.class);
@@ -112,6 +115,7 @@ class ReturnRequestServiceTest {
         assertThat(orderItem.getReturnedQuantity()).isZero();
         assertThat(response.approvedAt()).isNull();
         assertThat(response.images()).isEmpty();
+        verify(eventPublisher).publishEvent(new ReturnRequestedEvent(99L, 100L));
     }
 
     @Test
@@ -341,6 +345,7 @@ class ReturnRequestServiceTest {
                 request(ReturnReasonType.CHANGE_OF_MIND, duplicate, duplicate)
         )).isInstanceOf(OrderException.class).hasMessageContaining("중복");
         verify(orderRepository, never()).findByIdAndUserIdForUpdate(anyLong(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -429,6 +434,7 @@ class ReturnRequestServiceTest {
                 .willThrow(new DataIntegrityViolationException("duplicate"));
         assertThatThrownBy(() -> createDefault())
                 .isInstanceOf(OrderException.class).hasMessageContaining("이미 사용된");
+        verify(eventPublisher, never()).publishEvent(any());
         verify(returnRequestItemRepository, never()).saveAll(anyList());
     }
 
@@ -480,7 +486,11 @@ class ReturnRequestServiceTest {
     }
 
     private SellerOrder deliveredSellerOrder(Order parent) {
-        SellerOrder value = SellerOrder.createPendingPayment(parent, mock(Seller.class));
+        User sellerUser = mock(User.class);
+        given(sellerUser.getId()).willReturn(99L);
+        Seller seller = mock(Seller.class);
+        given(seller.getUser()).willReturn(sellerUser);
+        SellerOrder value = SellerOrder.createPendingPayment(parent, seller);
         ReflectionTestUtils.setField(value, "id", SELLER_ORDER_ID);
         value.markPaid();
         value.prepare(NOW.minusDays(3));

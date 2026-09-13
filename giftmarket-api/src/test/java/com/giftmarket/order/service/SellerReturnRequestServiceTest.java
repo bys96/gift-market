@@ -1,5 +1,7 @@
 package com.giftmarket.order.service;
 
+import com.giftmarket.notification.event.ReturnApprovedEvent;
+import com.giftmarket.notification.event.ReturnRejectedEvent;
 import com.giftmarket.order.dto.request.SellerReturnInspectRequest;
 import com.giftmarket.order.dto.request.SellerReturnInspectionItemRequest;
 import com.giftmarket.order.dto.response.ReturnRequestResponse;
@@ -25,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -62,6 +65,7 @@ class SellerReturnRequestServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock ReturnRefundCalculationService returnRefundCalculationService;
     @Mock StorageService storageService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private SellerReturnRequestService service;
     private Seller seller;
@@ -77,7 +81,7 @@ class SellerReturnRequestServiceTest {
         service = spy(new SellerReturnRequestService(
                 sellerRepository, orderRepository, sellerOrderRepository, orderItemRepository,
                 returnRequestRepository, returnRequestItemRepository, returnRequestImageRepository,
-                shipmentRepository, paymentRepository, returnRefundCalculationService, storageService
+                shipmentRepository, paymentRepository, returnRefundCalculationService, storageService, eventPublisher
         ));
         doReturn(NOW).when(service).currentTime();
         seller = mock(Seller.class);
@@ -164,6 +168,7 @@ class SellerReturnRequestServiceTest {
         assertThat(response.status()).isEqualTo(ReturnRequestStatus.APPROVED);
         assertThat(response.responsibility()).isEqualTo(ReturnResponsibility.BUYER);
         assertThat(orderItem.getReturnedQuantity()).isZero();
+        verify(eventPublisher).publishEvent(new ReturnApprovedEvent(99L, RETURN_ID, ORDER_ID));
     }
 
     @Test
@@ -196,6 +201,8 @@ class SellerReturnRequestServiceTest {
                 .isInstanceOf(SellerException.class);
         assertThatThrownBy(() -> service.reject(USER_ID, RETURN_ID, "거절"))
                 .isInstanceOf(SellerException.class);
+        verify(eventPublisher, times(1)).publishEvent(any(ReturnApprovedEvent.class));
+        verify(eventPublisher, never()).publishEvent(any(ReturnRejectedEvent.class));
     }
 
     @Test
@@ -205,6 +212,10 @@ class SellerReturnRequestServiceTest {
         assertThat(response.rejectedReason()).isEqualTo("회수 불가");
         assertThat(response.collectionShipment()).isNull();
         verify(shipmentRepository, never()).save(any());
+        verify(eventPublisher).publishEvent(new ReturnRejectedEvent(99L, RETURN_ID, ORDER_ID));
+        assertThatThrownBy(() -> service.reject(USER_ID, RETURN_ID, "재거절"))
+                .isInstanceOf(SellerException.class);
+        verify(eventPublisher, times(1)).publishEvent(any(ReturnRejectedEvent.class));
     }
 
     @Test
@@ -361,8 +372,10 @@ class SellerReturnRequestServiceTest {
     }
 
     private Order paidOrder() {
+        User buyer = mock(User.class);
+        given(buyer.getId()).willReturn(99L);
         Order value = Order.createPendingPayment(
-                "GM-ORDER", mock(User.class), 20_000L, 0L,
+                "GM-ORDER", buyer, 20_000L, 0L,
                 "구매자", "010-1234-5678", "12345", "서울", null
         );
         ReflectionTestUtils.setField(value, "id", ORDER_ID);

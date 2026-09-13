@@ -9,6 +9,10 @@ import com.giftmarket.order.dto.request.SellerExchangeInspectRequest;
 import com.giftmarket.order.dto.request.SellerExchangeInspectionItemRequest;
 import com.giftmarket.order.entity.*;
 import com.giftmarket.order.repository.*;
+import com.giftmarket.notification.event.ExchangeApprovedEvent;
+import com.giftmarket.notification.event.ExchangeCompletedEvent;
+import com.giftmarket.notification.event.ExchangeRejectedEvent;
+import com.giftmarket.notification.event.ExchangeReshippedEvent;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
@@ -16,6 +20,7 @@ import com.giftmarket.seller.repository.SellerRepository;
 import com.giftmarket.payment.entity.ExchangeShippingPaymentStatus;
 import com.giftmarket.payment.repository.ExchangeShippingPaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -58,6 +63,7 @@ public class SellerExchangeRequestService {
     private final ExchangeShippingPaymentRepository exchangeShippingPaymentRepository;
     private final OrderInventoryService orderInventoryService;
     private final StorageService storageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public SellerExchangeRequestPageResponse getExchanges(
@@ -127,6 +133,11 @@ public class SellerExchangeRequestService {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new SellerException(exception.getMessage());
         }
+        eventPublisher.publishEvent(new ExchangeApprovedEvent(
+                locked.order().getUser().getId(),
+                request.getId(),
+                locked.order().getId()
+        ));
         return response(request, locked.items());
     }
 
@@ -140,6 +151,11 @@ public class SellerExchangeRequestService {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new SellerException(exception.getMessage());
         }
+        eventPublisher.publishEvent(new ExchangeRejectedEvent(
+                locked.order().getUser().getId(),
+                locked.request().getId(),
+                locked.order().getId()
+        ));
         return response(locked.request(), locked.items());
     }
 
@@ -239,6 +255,11 @@ public class SellerExchangeRequestService {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new SellerException(exception.getMessage());
         }
+        eventPublisher.publishEvent(new ExchangeReshippedEvent(
+                locked.order().getUser().getId(),
+                locked.request().getId(),
+                locked.order().getId()
+        ));
         return response(locked.request(), locked.items());
     }
 
@@ -269,6 +290,11 @@ public class SellerExchangeRequestService {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new SellerException(exception.getMessage());
         }
+        eventPublisher.publishEvent(new ExchangeCompletedEvent(
+                locked.order().getUser().getId(),
+                locked.request().getId(),
+                locked.order().getId()
+        ));
         return response(locked.request(), locked.items());
     }
 

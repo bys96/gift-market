@@ -18,6 +18,7 @@ import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.entity.Shipment;
 import com.giftmarket.order.entity.ShipmentType;
+import com.giftmarket.notification.event.ReturnRequestedEvent;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
@@ -30,6 +31,7 @@ import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.order.repository.ExchangeRequestRepository;
 import com.giftmarket.order.repository.PendingExchangeQuantityProjection;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,6 +82,7 @@ public class ReturnRequestService {
     private final ReturnRequestImageRepository returnRequestImageRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final StorageService storageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public ReturnRequestResponse getOwned(Long userId, Long returnRequestId) {
@@ -195,6 +198,10 @@ public class ReturnRequestService {
             ));
         }
         if (!returnImages.isEmpty()) returnRequestImageRepository.saveAll(returnImages);
+        eventPublisher.publishEvent(new ReturnRequestedEvent(
+                sellerOrder.getSeller().getUser().getId(),
+                returnRequest.getId()
+        ));
         return ReturnRequestResponse.from(returnRequest, returnItems, imageResponses(returnImages));
     }
 

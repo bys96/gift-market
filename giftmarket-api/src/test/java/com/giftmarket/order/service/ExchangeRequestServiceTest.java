@@ -1,5 +1,6 @@
 package com.giftmarket.order.service;
 
+import com.giftmarket.notification.event.ExchangeRequestedEvent;
 import com.giftmarket.global.storage.service.StorageService;
 import com.giftmarket.order.dto.request.ExchangeRequestCreateRequest;
 import com.giftmarket.order.dto.request.ExchangeRequestItemRequest;
@@ -26,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -60,6 +62,7 @@ class ExchangeRequestServiceTest {
     @Mock ProductVariantRepository productVariantRepository;
     @Mock ProductVariantOptionValueRepository productVariantOptionValueRepository;
     @Mock StorageService storageService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private ExchangeRequestService service;
     private Order order;
@@ -73,7 +76,7 @@ class ExchangeRequestServiceTest {
                 orderRepository, sellerOrderRepository, orderItemRepository, shipmentRepository,
                 returnRequestRepository, exchangeRequestRepository, exchangeRequestItemRepository,
                 exchangeRequestImageRepository, productVariantRepository,
-                productVariantOptionValueRepository, storageService
+                productVariantOptionValueRepository, storageService, eventPublisher
         ));
         doReturn(NOW).when(service).currentTime();
         User user = mock(User.class);
@@ -82,7 +85,11 @@ class ExchangeRequestServiceTest {
                 "수령인", "010-1234-5678", "12345", "서울", null);
         ReflectionTestUtils.setField(order, "id", ORDER_ID);
         order.markPaid(NOW.minusDays(10));
-        sellerOrder = SellerOrder.createPendingPayment(order, mock(Seller.class));
+        User sellerUser = mock(User.class);
+        given(sellerUser.getId()).willReturn(99L);
+        Seller seller = mock(Seller.class);
+        given(seller.getUser()).willReturn(sellerUser);
+        sellerOrder = SellerOrder.createPendingPayment(order, seller);
         ReflectionTestUtils.setField(sellerOrder, "id", SELLER_ORDER_ID);
         sellerOrder.markPaid();
         sellerOrder.prepare(NOW.minusDays(3));
@@ -131,6 +138,35 @@ class ExchangeRequestServiceTest {
         assertThat(orderItem.getExchangedQuantity()).isZero();
         assertThat(response.collectionShipment()).isNull();
         assertThat(response.outboundShipment()).isNull();
+        verify(eventPublisher).publishEvent(new ExchangeRequestedEvent(99L, 100L));
+    }
+
+    @Test
+    void identicalClientRequestKeyReturnsExistingWithoutPublishingAgain() {
+        ExchangeRequestCreateRequest command = request(ExchangeReasonType.DEFECTIVE, 1, List.of());
+        ExchangeRequest existing = ExchangeRequest.createRequested(
+                order, sellerOrder, command.clientRequestKey(), command.reasonType(), command.reason().trim(),
+                command.collectionRecipientName().trim(), command.collectionPhone().trim(),
+                command.collectionPostalCode().trim(), command.collectionAddress().trim(),
+                command.collectionAddressDetail().trim(), command.reshippingRecipientName().trim(),
+                command.reshippingPhone().trim(), command.reshippingPostalCode().trim(),
+                command.reshippingAddress().trim(), command.reshippingAddressDetail().trim(), NOW
+        );
+        ReflectionTestUtils.setField(existing, "id", 100L);
+        ExchangeRequestItem existingItem = ExchangeRequestItem.create(
+                existing, orderItem, 1, product, null, product.getName(), null, product.getPrice()
+        );
+        given(exchangeRequestRepository.findByClientRequestKey(command.clientRequestKey()))
+                .willReturn(Optional.of(existing));
+        given(exchangeRequestItemRepository.findAllByExchangeRequestIdOrderByOrderItemIdAsc(100L))
+                .willReturn(List.of(existingItem));
+        given(exchangeRequestImageRepository.findAllByExchangeRequestIdOrderBySortOrderAsc(100L))
+                .willReturn(List.of());
+
+        assertThat(create(command).exchangeRequestId()).isEqualTo(100L);
+
+        verify(orderRepository, never()).findByIdAndUserIdForUpdate(anyLong(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -159,6 +195,7 @@ class ExchangeRequestServiceTest {
 
         verify(exchangeRequestRepository, never()).saveAndFlush(any());
         verify(exchangeRequestItemRepository, never()).saveAll(anyList());
+        verify(eventPublisher, never()).publishEvent(any());
         assertThat(target.getStockQuantity()).isEqualTo(targetStock);
         assertThat(orderItem.getExchangedQuantity()).isZero();
     }
