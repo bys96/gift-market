@@ -115,3 +115,10 @@ production은 `ddl-auto=validate`이므로 Notification 코드 배포 전 `docs/
 - 교환이 최초 승인 또는 거절되면 구매자에게 각각 `BUYER / EXCHANGE_APPROVED`, `EXCHANGE_REJECTED` 알림을 생성한다.
 - 교환 outbound Shipment가 생성되고 요청이 최초 `RESHIPPING`으로 전이되면 `BUYER / EXCHANGE_RESHIPPED`, 재배송 완료 후 요청이 최초 `COMPLETED`로 전이되면 `BUYER / EXCHANGE_COMPLETED` 알림을 생성한다. 구매자 이동 경로는 `/my/orders/{orderId}`이다.
 - 요청 생성의 clientRequestKey 멱등 반환과 각 상태 전이의 선행 상태 검증 및 완료 조기 반환을 중복 방지 장벽으로 그대로 사용한다.
+
+## Frontend v1
+
+- 일반 Header, Seller Center, Admin Center에 각 context 전용 알림 벨과 최근 10개 알림 dropdown을 연결했다.
+- 전체 알림 화면은 `/notifications`, `/seller/notifications`, `/admin/notifications`에서 Backend pagination을 사용한다.
+- 벨 최초 mount, 벨 열기, 전체 알림 화면 진입 시에만 조회하며 polling, SSE, WebSocket은 사용하지 않는다.
+- 개별 읽음과 전체 읽음 성공 후 목록 및 unread count를 즉시 로컬 반영하고, 알림의 `targetUrl`로 이동한다.

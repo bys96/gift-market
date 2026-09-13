@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuthStore } from "@/stores/auth-store";
+import NotificationBell from "@/components/notification/NotificationBell";
 import { roleLabel } from "@/types/user";
 import { resolveImageUrl } from "@/utils/image-url";
 
@@ -21,6 +22,12 @@ export default function Header() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const profileImageSrc = resolveImageUrl(user?.profileImageUrl);
+  const showBuyerNotifications = Boolean(
+    isAuthenticated &&
+      user &&
+      !pathname.startsWith("/seller/") &&
+      !pathname.startsWith("/admin"),
+  );
 
   useEffect(() => {
     // route 이동 시 열려 있던 모바일 UI를 닫는다.
@@ -182,6 +189,15 @@ export default function Header() {
               </Link>
             )}
           </nav>
+
+          {showBuyerNotifications && (
+            <div className="layout-header-notification">
+              <NotificationBell
+                context="BUYER"
+                allNotificationsHref="/notifications"
+              />
+            </div>
+          )}
 
           <div className="layout-header-mobile-actions">
             <button

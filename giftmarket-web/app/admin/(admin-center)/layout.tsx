@@ -6,6 +6,7 @@ import { type ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import NotificationBell from "@/components/notification/NotificationBell";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function AdminCenterLayout({ children }: { children: ReactNode }) {
@@ -30,7 +31,16 @@ export default function AdminCenterLayout({ children }: { children: ReactNode })
   return (
     <div className="admin-center-layout">
       <AdminSidebar />
-      <div className="admin-center-content">{children}</div>
+      <div className="admin-center-content">
+        <div className="notification-center-toolbar notification-center-toolbar-admin">
+          <span>Admin Center</span>
+          <NotificationBell
+            context="ADMIN"
+            allNotificationsHref="/admin/notifications"
+          />
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

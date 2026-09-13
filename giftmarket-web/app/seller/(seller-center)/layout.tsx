@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import SellerSidebar from "@/components/seller/SellerSidebar";
+import NotificationBell from "@/components/notification/NotificationBell";
 import { getMySeller } from "@/lib/seller-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { Seller } from "@/types/seller";
@@ -84,6 +85,15 @@ export default function SellerCenterLayout({
       <SellerSidebar />
 
       <div className={`seller-center-content${seller.status === "SALES_SUSPENDED" ? " seller-center-content-sales-suspended" : ""}`}>
+        {seller.status === "ACTIVE" && (
+          <div className="notification-center-toolbar notification-center-toolbar-seller">
+            <span>Seller Center</span>
+            <NotificationBell
+              context="SELLER"
+              allNotificationsHref="/seller/notifications"
+            />
+          </div>
+        )}
         {seller.status === "SALES_SUSPENDED" && <div className="seller-sales-suspended-notice" role="status"><strong>현재 판매가 정지된 상태입니다.</strong><span>신규 판매 관련 기능은 제한되며 기존 주문 및 클레임 처리는 계속할 수 있습니다.</span></div>}
         {children}
       </div>
