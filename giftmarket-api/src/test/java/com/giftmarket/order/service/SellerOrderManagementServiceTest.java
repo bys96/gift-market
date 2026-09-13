@@ -25,6 +25,7 @@ import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.order.repository.OrderCancellationItemRepository;
 import com.giftmarket.order.repository.ReturnRequestRepository;
 import com.giftmarket.order.repository.ExchangeRequestRepository;
+import com.giftmarket.notification.event.OrderShippedEvent;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -40,6 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -72,6 +74,7 @@ class SellerOrderManagementServiceTest {
     @Mock ReturnRequestRepository returnRequestRepository;
     @Mock ExchangeRequestRepository exchangeRequestRepository;
     @Mock ShipmentRepository shipmentRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock Seller seller;
     @Mock User user;
 
@@ -91,7 +94,8 @@ class SellerOrderManagementServiceTest {
                 orderCancellationItemRepository,
                 returnRequestRepository,
                 exchangeRequestRepository,
-                shipmentRepository
+                shipmentRepository,
+                eventPublisher
         );
         lenient().when(sellerRepository.findByUserId(USER_ID))
                 .thenReturn(Optional.of(seller));
@@ -309,6 +313,9 @@ class SellerOrderManagementServiceTest {
         assertThat(cancellation.isRequiresSellerApproval()).isFalse();
         assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PAID);
         assertThat(response.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
+        verify(eventPublisher, never()).publishEvent(
+                org.mockito.ArgumentMatchers.any(Object.class)
+        );
     }
 
     @Test
@@ -501,6 +508,39 @@ class SellerOrderManagementServiceTest {
     }
 
     @Test
+    void firstShipmentPublishesBuyerEventAndRepeatedRequestDoesNotRepublish() {
+        sellerOrder.prepare(LocalDateTime.now());
+        givenLockedSellerOrder();
+        given(user.getId()).willReturn(77L);
+        given(seller.getStoreName()).willReturn("선물 상점");
+        given(shipmentRepository.existsBySellerOrderIdAndType(
+                SELLER_ORDER_ID,
+                ShipmentType.ORIGINAL_OUTBOUND
+        )).willReturn(false, true);
+
+        service.ship(
+                USER_ID,
+                SELLER_ORDER_ID,
+                new SellerOrderShipRequest("택배사", "1234")
+        );
+        assertThatThrownBy(() -> service.ship(
+                USER_ID,
+                SELLER_ORDER_ID,
+                new SellerOrderShipRequest("택배사", "5678")
+        )).isInstanceOf(SellerException.class);
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(OrderShippedEvent.class, event -> {
+                    assertThat(event.buyerUserId()).isEqualTo(77L);
+                    assertThat(event.orderId()).isEqualTo(ORDER_ID);
+                    assertThat(event.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
+                    assertThat(event.storeName()).isEqualTo("선물 상점");
+                });
+    }
+
+    @Test
     void duplicateOriginalOutboundShipmentIsRejected() {
         sellerOrder.prepare(java.time.LocalDateTime.now());
         givenLockedSellerOrder();
@@ -514,6 +554,7 @@ class SellerOrderManagementServiceTest {
         )).isInstanceOf(SellerException.class);
 
         verify(shipmentRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
     }
 
     @Test

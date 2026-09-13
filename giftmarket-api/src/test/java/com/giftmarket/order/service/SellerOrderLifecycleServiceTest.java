@@ -73,6 +73,24 @@ class SellerOrderLifecycleServiceTest {
                 .containsOnly(SellerOrderStatus.CANCELLED);
     }
 
+    @Test
+    void returnsOnlySellerOrdersThatTransitionedToPaidInThisCall() {
+        SellerOrderLifecycleService service =
+                new SellerOrderLifecycleService(sellerOrderRepository);
+        Order order = mock(Order.class);
+        SellerOrder alreadyPaid = SellerOrder.createPendingPayment(order, seller(10L));
+        alreadyPaid.markPaid();
+        SellerOrder newlyPaid = SellerOrder.createPendingPayment(order, seller(20L));
+        given(sellerOrderRepository.findAllByOrderIdOrderByIdAsc(1L))
+                .willReturn(List.of(alreadyPaid, newlyPaid));
+
+        List<SellerOrder> transitioned = service.markPaid(1L);
+
+        assertThat(transitioned).containsExactly(newlyPaid);
+        assertThat(alreadyPaid.getStatus()).isEqualTo(SellerOrderStatus.PAID);
+        assertThat(newlyPaid.getStatus()).isEqualTo(SellerOrderStatus.PAID);
+    }
+
     private Seller seller(Long id) {
         Seller seller = mock(Seller.class);
         lenient().when(seller.getId()).thenReturn(id);

@@ -15,6 +15,8 @@ import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
+import com.giftmarket.notification.event.BuyerCancellationCompletedEvent;
+import com.giftmarket.notification.event.SellerOrderCancelledEvent;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
@@ -30,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,6 +45,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +63,7 @@ class OrderCancellationCompletionServiceTest {
     @Mock OrderCancellationItemRepository cancellationItemRepository;
     @Mock OrderItemRepository orderItemRepository;
     @Mock OrderInventoryService inventoryService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private OrderCancellationCompletionService service;
     private Order order;
@@ -70,7 +75,7 @@ class OrderCancellationCompletionServiceTest {
         service = new OrderCancellationCompletionService(
                 paymentRepository, orderRepository, sellerOrderRepository,
                 cancellationRepository, cancellationItemRepository,
-                orderItemRepository, inventoryService
+                orderItemRepository, inventoryService, eventPublisher
         );
         order = paidOrder();
         sellerOrder = sellerOrder(order, SELLER_ORDER_ID);
@@ -100,6 +105,25 @@ class OrderCancellationCompletionServiceTest {
         assertThat(item.getQuantity()).isEqualTo(2);
         assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PAID);
         verify(inventoryService).restoreCancellationItems(cancellationItems);
+    }
+
+    @Test
+    void buyerCompletionPublishesBuyerCancellationCompletedEvent() {
+        given(order.getUser().getId()).willReturn(77L);
+        OrderItem item = item(sellerOrder, 101L, 1);
+        OrderCancellation cancellation = processing(item, 1);
+        stub(cancellation, List.of(item), 1);
+
+        service.complete(CANCELLATION_ID);
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(BuyerCancellationCompletedEvent.class, event -> {
+                    assertThat(event.buyerUserId()).isEqualTo(77L);
+                    assertThat(event.cancellationId()).isEqualTo(CANCELLATION_ID);
+                    assertThat(event.orderId()).isEqualTo(ORDER_ID);
+                });
     }
 
     @Test
@@ -146,6 +170,25 @@ class OrderCancellationCompletionServiceTest {
     }
 
     @Test
+    void sellerRequestedCompletionPublishesSellerCancellationEvent() {
+        given(order.getUser().getId()).willReturn(77L);
+        OrderItem item = item(sellerOrder, 101L, 1);
+        OrderCancellation cancellation = sellerRequestedProcessing(item, 1);
+        stub(cancellation, List.of(item), 1);
+
+        service.complete(CANCELLATION_ID);
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(SellerOrderCancelledEvent.class, event -> {
+                    assertThat(event.buyerUserId()).isEqualTo(77L);
+                    assertThat(event.cancellationId()).isEqualTo(CANCELLATION_ID);
+                    assertThat(event.orderId()).isEqualTo(ORDER_ID);
+                });
+    }
+
+    @Test
     void completesSellerRequestedPreparingCancellationWithoutAffectingOtherSellerOrder() {
         sellerOrder.prepare(LocalDateTime.now());
         SellerOrder otherSellerOrder = sellerOrder(order, 21L);
@@ -189,6 +232,7 @@ class OrderCancellationCompletionServiceTest {
 
         assertThat(item.getCanceledQuantity()).isEqualTo(1);
         verify(inventoryService).restoreCancellationItems(cancellationItems);
+        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
     }
 
     @Test
@@ -209,6 +253,7 @@ class OrderCancellationCompletionServiceTest {
         assertThatThrownBy(() -> service.complete(CANCELLATION_ID)).isInstanceOf(OrderException.class);
 
         verify(inventoryService, never()).restoreCancellationItems(org.mockito.ArgumentMatchers.anyList());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

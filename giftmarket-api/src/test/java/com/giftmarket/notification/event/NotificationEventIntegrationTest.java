@@ -32,7 +32,11 @@ import static org.assertj.core.api.Assertions.assertThatCode;
         "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({NotificationService.class, NotificationEventListener.class})
+@Import({
+        NotificationService.class,
+        NotificationEventListener.class,
+        CommerceNotificationEventListener.class
+})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NotificationEventIntegrationTest {
 
@@ -117,12 +121,93 @@ class NotificationEventIntegrationTest {
     }
 
     @Test
+    void commerceEventsCreateNotificationsWithExpectedContextTypeAndTarget() {
+        User seller = saveUser("commerce-seller");
+        User buyer = saveUser("commerce-buyer");
+        entityManager.flush();
+
+        eventPublisher.publishEvent(new NewOrderCreatedEvent(
+                seller.getId(),
+                71L,
+                "GM-ORDER-71"
+        ));
+        eventPublisher.publishEvent(new OrderShippedEvent(
+                buyer.getId(),
+                72L,
+                73L,
+                "선물 상점"
+        ));
+        commitTransaction();
+
+        Notification sellerNotification = singleNotification(
+                seller.getId(),
+                NotificationContext.SELLER
+        );
+        assertThat(sellerNotification.getType()).isEqualTo(NotificationType.NEW_ORDER);
+        assertThat(sellerNotification.getTargetUrl()).isEqualTo("/seller/orders/71");
+
+        Notification buyerNotification = singleNotification(
+                buyer.getId(),
+                NotificationContext.BUYER
+        );
+        assertThat(buyerNotification.getType()).isEqualTo(NotificationType.ORDER_SHIPPED);
+        assertThat(buyerNotification.getMessage()).isEqualTo("선물 상점 상품이 발송되었습니다.");
+        assertThat(buyerNotification.getTargetUrl()).isEqualTo("/my/orders/72");
+    }
+
+    @Test
+    void cancellationEventsUseExpectedRecipientTypeAndTarget() {
+        User seller = saveUser("cancellation-seller");
+        User buyer = saveUser("cancellation-buyer");
+        entityManager.flush();
+
+        eventPublisher.publishEvent(new CancellationRequestedEvent(
+                seller.getId(),
+                81L,
+                "GM-ORDER-81"
+        ));
+        eventPublisher.publishEvent(new BuyerCancellationCompletedEvent(
+                buyer.getId(),
+                82L,
+                83L
+        ));
+        eventPublisher.publishEvent(new SellerOrderCancelledEvent(
+                buyer.getId(),
+                84L,
+                85L
+        ));
+        commitTransaction();
+
+        Notification sellerNotification = singleNotification(
+                seller.getId(),
+                NotificationContext.SELLER
+        );
+        assertThat(sellerNotification.getType())
+                .isEqualTo(NotificationType.CANCELLATION_REQUESTED);
+        assertThat(sellerNotification.getTargetUrl())
+                .isEqualTo("/seller/orders/cancellations/81");
+
+        var buyerNotifications = notificationRepository.findAllByUserIdAndContext(
+                buyer.getId(),
+                NotificationContext.BUYER,
+                PageRequest.of(0, 10)
+        ).getContent();
+        assertThat(buyerNotifications).extracting(Notification::getType)
+                .containsExactlyInAnyOrder(
+                        NotificationType.CANCELLATION_COMPLETED,
+                        NotificationType.ORDER_CANCELLED_BY_SELLER
+                );
+        assertThat(buyerNotifications).extracting(Notification::getTargetUrl)
+                .containsExactlyInAnyOrder("/my/orders/83", "/my/orders/85");
+    }
+
+    @Test
     void rolledBackTransactionDoesNotCreateNotification() {
         User sellerUser = saveUser("rollback-seller");
         entityManager.flush();
         Long sellerUserId = sellerUser.getId();
 
-        eventPublisher.publishEvent(new ProductInquiryCreatedEvent(
+        eventPublisher.publishEvent(new NewOrderCreatedEvent(
                 sellerUserId,
                 51L,
                 "Rollback gift"
@@ -143,7 +228,7 @@ class NotificationEventIntegrationTest {
         entityManager.flush();
         Long committedUserId = committedUser.getId();
 
-        eventPublisher.publishEvent(new ProductInquiryCreatedEvent(
+        eventPublisher.publishEvent(new NewOrderCreatedEvent(
                 Long.MAX_VALUE,
                 61L,
                 "Missing recipient gift"

@@ -12,6 +12,7 @@ import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.notification.event.CancellationRequestedEvent;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderCancellationItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
@@ -23,6 +24,7 @@ import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +57,7 @@ public class OrderCancellationService {
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
     private final OrderCancellationItemRepository orderCancellationItemRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public OrderCancellationResponse getOwned(Long userId, Long orderId, Long cancellationId) {
@@ -176,6 +179,14 @@ public class OrderCancellationService {
                 ))
                 .toList();
         orderCancellationItemRepository.saveAll(cancellationItems);
+
+        if (cancellation.isRequiresSellerApproval()) {
+            eventPublisher.publishEvent(new CancellationRequestedEvent(
+                    sellerOrder.getSeller().getUser().getId(),
+                    cancellation.getId(),
+                    order.getOrderNumber()
+            ));
+        }
 
         return OrderCancellationResponse.from(cancellation, cancellationItems);
     }

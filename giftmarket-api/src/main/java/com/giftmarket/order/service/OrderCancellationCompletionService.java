@@ -9,6 +9,9 @@ import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
+import com.giftmarket.order.entity.OrderCancellationRequesterType;
+import com.giftmarket.notification.event.BuyerCancellationCompletedEvent;
+import com.giftmarket.notification.event.SellerOrderCancelledEvent;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.OrderCancellationItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
@@ -19,6 +22,7 @@ import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +42,7 @@ public class OrderCancellationCompletionService {
     private final OrderCancellationItemRepository cancellationItemRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderInventoryService inventoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public OrderCancellationCompletionResult complete(Long cancellationId) {
@@ -80,6 +85,19 @@ public class OrderCancellationCompletionService {
             sellerOrder.cancel();
         }
         cancellation.complete(LocalDateTime.now());
+        if (cancellation.getRequesterType() == OrderCancellationRequesterType.BUYER) {
+            eventPublisher.publishEvent(new BuyerCancellationCompletedEvent(
+                    order.getUser().getId(),
+                    cancellation.getId(),
+                    order.getId()
+            ));
+        } else {
+            eventPublisher.publishEvent(new SellerOrderCancelledEvent(
+                    order.getUser().getId(),
+                    cancellation.getId(),
+                    order.getId()
+            ));
+        }
         return result(cancellation, sellerOrder);
     }
 

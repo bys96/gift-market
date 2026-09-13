@@ -20,6 +20,7 @@ import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.entity.Shipment;
 import com.giftmarket.order.entity.ShipmentType;
+import com.giftmarket.notification.event.OrderShippedEvent;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
@@ -34,6 +35,7 @@ import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -65,6 +67,7 @@ public class SellerOrderManagementService {
     private final ReturnRequestRepository returnRequestRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final ShipmentRepository shipmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final Set<OrderCancellationStatus> SHIPPING_BLOCKING_CANCELLATION_STATUSES =
             Set.of(
@@ -310,6 +313,8 @@ public class SellerOrderManagementService {
                 userId,
                 sellerOrderId,
                 sellerOrder -> {
+                    boolean firstShippedTransition = sellerOrder.getStatus()
+                            == SellerOrderStatus.PREPARING;
                     if (orderCancellationRepository
                             .existsBySellerOrderIdAndStatusIn(
                                     sellerOrder.getId(),
@@ -334,6 +339,14 @@ public class SellerOrderManagementService {
                     shipmentRepository.save(shipment);
                     sellerOrder.markShipped(shipment.getShippedAt());
                     synchronizeLegacyShippingSnapshot(sellerOrder, shipment);
+                    if (firstShippedTransition) {
+                        eventPublisher.publishEvent(new OrderShippedEvent(
+                                sellerOrder.getOrder().getUser().getId(),
+                                sellerOrder.getOrder().getId(),
+                                sellerOrder.getId(),
+                                sellerOrder.getSeller().getStoreName()
+                        ));
+                    }
                 }
         );
     }

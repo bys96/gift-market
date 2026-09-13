@@ -2,6 +2,7 @@ package com.giftmarket.order.service;
 
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.SellerOrder;
+import com.giftmarket.order.entity.SellerOrderStatus;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.seller.entity.Seller;
@@ -46,8 +47,14 @@ public class SellerOrderLifecycleService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void markPaid(Long orderId) {
-        getSellerOrders(orderId).forEach(SellerOrder::markPaid);
+    public List<SellerOrder> markPaid(Long orderId) {
+        List<SellerOrder> sellerOrders = getSellerOrders(orderId);
+        List<SellerOrder> newlyPaidSellerOrders = sellerOrders.stream()
+                .filter(sellerOrder -> sellerOrder.getStatus()
+                        == SellerOrderStatus.PENDING_PAYMENT)
+                .toList();
+        sellerOrders.forEach(SellerOrder::markPaid);
+        return newlyPaidSellerOrders;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

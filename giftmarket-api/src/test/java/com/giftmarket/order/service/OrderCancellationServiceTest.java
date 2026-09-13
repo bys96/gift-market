@@ -19,6 +19,7 @@ import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.PendingCancellationQuantityProjection;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
+import com.giftmarket.notification.event.CancellationRequestedEvent;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -38,6 +39,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,9 +53,11 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -70,6 +74,7 @@ class OrderCancellationServiceTest {
     @Mock OrderItemRepository orderItemRepository;
     @Mock OrderCancellationRepository cancellationRepository;
     @Mock OrderCancellationItemRepository cancellationItemRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private OrderCancellationService service;
     private User user;
@@ -86,7 +91,8 @@ class OrderCancellationServiceTest {
                 sellerOrderRepository,
                 orderItemRepository,
                 cancellationRepository,
-                cancellationItemRepository
+                cancellationItemRepository,
+                eventPublisher
         );
         user = mock(User.class);
         given(user.getId()).willReturn(USER_ID);
@@ -96,6 +102,9 @@ class OrderCancellationServiceTest {
         given(payment.getStatus()).willReturn(PaymentStatus.PAID);
         given(payment.isRefundableState()).willReturn(true);
         sellerOrder = paidSellerOrder(order);
+        User sellerUser = mock(User.class);
+        lenient().when(sellerOrder.getSeller().getUser()).thenReturn(sellerUser);
+        lenient().when(sellerUser.getId()).thenReturn(9L);
         orderItem = orderItem(order, sellerOrder, ORDER_ITEM_ID, 3);
 
         given(cancellationRepository.findByClientRequestKey(any()))
@@ -179,6 +188,29 @@ class OrderCancellationServiceTest {
     }
 
     @Test
+    void sellerApprovalCancellationPublishesSellerEvent() {
+        sellerOrder.prepare(java.time.LocalDateTime.now());
+        User sellerUser = mock(User.class);
+        given(sellerOrder.getSeller().getUser()).willReturn(sellerUser);
+        given(sellerUser.getId()).willReturn(9L);
+
+        service.create(
+                USER_ID,
+                ORDER_ID,
+                request(SELLER_ORDER_ID, item(ORDER_ITEM_ID, 1))
+        );
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(CancellationRequestedEvent.class, event -> {
+                    assertThat(event.sellerUserId()).isEqualTo(9L);
+                    assertThat(event.cancellationId()).isEqualTo(100L);
+                    assertThat(event.orderNumber()).isEqualTo("GM-ORDER");
+                });
+    }
+
+    @Test
     void paidSellerOrderCreatesImmediateFlowCancellation() {
         service.create(
                 USER_ID, ORDER_ID, request(SELLER_ORDER_ID, item(ORDER_ITEM_ID, 1))
@@ -188,6 +220,7 @@ class OrderCancellationServiceTest {
                 org.mockito.ArgumentCaptor.forClass(OrderCancellation.class);
         verify(cancellationRepository).saveAndFlush(cancellation.capture());
         assertThat(cancellation.getValue().isRequiresSellerApproval()).isFalse();
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -372,6 +405,7 @@ class OrderCancellationServiceTest {
         assertThat(response.cancellationId()).isEqualTo(100L);
         verify(orderRepository, never()).findByIdAndUserIdForUpdate(any(), any());
         verify(cancellationRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
 import com.giftmarket.order.service.SellerOrderLifecycleService;
+import com.giftmarket.notification.event.NewOrderCreatedEvent;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentMethod;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentTransactionServiceTest {
@@ -55,6 +58,7 @@ class PaymentTransactionServiceTest {
     @Mock CartItemRepository cartItemRepository;
     @Mock OrderInventoryService orderInventoryService;
     @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock User user;
     @Mock Product product;
     @Mock Seller seller;
@@ -71,7 +75,8 @@ class PaymentTransactionServiceTest {
                 orderItemRepository,
                 cartItemRepository,
                 orderInventoryService,
-                sellerOrderLifecycleService
+                sellerOrderLifecycleService,
+                eventPublisher
         );
         order = Order.createPendingPayment(
                 "GM-ORDER", user, 10_000L, 0L,
@@ -114,6 +119,53 @@ class PaymentTransactionServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(order.getOrderedAt()).isEqualTo(approvedAt);
         verify(sellerOrderLifecycleService).markPaid(ORDER_ID);
+    }
+
+    @Test
+    void paidTransitionPublishesOneNewOrderEventPerSellerOrderOnlyOnce() {
+        User firstSellerUser = org.mockito.Mockito.mock(User.class);
+        User secondSellerUser = org.mockito.Mockito.mock(User.class);
+        Seller firstSeller = org.mockito.Mockito.mock(Seller.class);
+        Seller secondSeller = org.mockito.Mockito.mock(Seller.class);
+        given(firstSeller.getUser()).willReturn(firstSellerUser);
+        given(secondSeller.getUser()).willReturn(secondSellerUser);
+        given(firstSellerUser.getId()).willReturn(11L);
+        given(secondSellerUser.getId()).willReturn(12L);
+        SellerOrder first = SellerOrder.createPendingPayment(order, firstSeller);
+        SellerOrder second = SellerOrder.createPendingPayment(order, secondSeller);
+        ReflectionTestUtils.setField(first, "id", 101L);
+        ReflectionTestUtils.setField(second, "id", 102L);
+        given(sellerOrderLifecycleService.markPaid(ORDER_ID))
+                .willReturn(List.of(first, second));
+
+        service.startConfirm(USER_ID, PAYMENT_ID, request(10_000L, "GM-PAY"));
+        service.complete(USER_ID, PAYMENT_ID, success(LocalDateTime.now()));
+        service.complete(USER_ID, PAYMENT_ID, success(LocalDateTime.now()));
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, org.mockito.Mockito.times(2))
+                .publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getAllValues())
+                .allSatisfy(event -> assertThat(event)
+                        .isInstanceOf(NewOrderCreatedEvent.class));
+        assertThat(eventCaptor.getAllValues().stream()
+                .map(NewOrderCreatedEvent.class::cast)
+                .map(NewOrderCreatedEvent::sellerUserId))
+                .containsExactly(11L, 12L);
+        verify(sellerOrderLifecycleService).markPaid(ORDER_ID);
+    }
+
+    @Test
+    void failedPaymentDoesNotPublishNewOrderEvent() {
+        payment.startConfirm("provider-key", LocalDateTime.now().minusMinutes(1));
+
+        service.reconcile(PAYMENT_ID, queryResult(
+                GatewayPaymentStatus.FAILED,
+                "ABORTED",
+                null
+        ));
+
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

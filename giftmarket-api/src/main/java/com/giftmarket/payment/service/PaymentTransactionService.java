@@ -5,10 +5,12 @@ import com.giftmarket.cart.repository.CartItemRepository;
 import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.OrderItem;
 import com.giftmarket.order.entity.OrderStatus;
+import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderRepository;
 import com.giftmarket.order.service.OrderInventoryService;
 import com.giftmarket.order.service.SellerOrderLifecycleService;
+import com.giftmarket.notification.event.NewOrderCreatedEvent;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.entity.Payment;
@@ -20,11 +22,13 @@ import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -37,6 +41,7 @@ public class PaymentTransactionService {
     private final CartItemRepository cartItemRepository;
     private final OrderInventoryService orderInventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public PaymentConfirmStart startConfirm(
@@ -418,8 +423,15 @@ public class PaymentTransactionService {
                 paidAt
         );
         order.markPaid(paidAt);
-        sellerOrderLifecycleService.markPaid(order.getId());
+        List<SellerOrder> sellerOrders = sellerOrderLifecycleService.markPaid(order.getId());
         removeUnchangedCartItems(order.getUser().getId(), order.getId());
+        for (SellerOrder sellerOrder : sellerOrders) {
+            eventPublisher.publishEvent(new NewOrderCreatedEvent(
+                    sellerOrder.getSeller().getUser().getId(),
+                    sellerOrder.getId(),
+                    order.getOrderNumber()
+            ));
+        }
         return PaymentResponse.from(payment);
     }
 
