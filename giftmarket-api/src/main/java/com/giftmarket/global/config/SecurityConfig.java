@@ -73,6 +73,9 @@ public class SecurityConfig {
                         )
                         .permitAll()
 
+                        .requestMatchers("/api/notifications/**")
+                        .authenticated()
+
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 

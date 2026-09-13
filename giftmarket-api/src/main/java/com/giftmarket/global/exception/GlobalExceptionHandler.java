@@ -15,6 +15,7 @@ import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.exception.CartException;
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.inquiry.exception.ProductInquiryException;
+import com.giftmarket.notification.exception.NotificationException;
 import com.giftmarket.order.exception.OrderException;
 import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.exception.PaymentWebhookRetryableException;
@@ -222,6 +223,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.fail("결제 웹훅 처리를 재시도해주세요."));
+    }
+
+    @ExceptionHandler(NotificationException.class)
+    public ResponseEntity<ApiResponse<?>> handleNotificationException(
+            NotificationException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.fail(exception.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
