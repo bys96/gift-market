@@ -90,3 +90,11 @@ Notification
 ## DB 적용
 
 production은 `ddl-auto=validate`이므로 Notification 코드 배포 전 `docs/sql/notifications.sql`을 수동 적용한다. 이 SQL은 자동 migration이 아니다.
+
+## 2단계 도메인 연결
+
+- 구매자의 상품문의 생성이 커밋되면 상품 판매자에게 `SELLER / PRODUCT_INQUIRY_CREATED` 알림을 생성한다. 이동 경로는 `/seller/inquiries/{inquiryId}`이다.
+- 판매자가 최초 답변을 등록하고 커밋되면 문의 작성자에게 `BUYER / PRODUCT_INQUIRY_ANSWERED` 알림을 생성한다. 이동 경로는 `/products/{productId}#product-inquiries`이다. 기존 답변 수정 시에는 추가 알림을 생성하지 않는다.
+- 일반 회원의 판매자 신청이 커밋되면 `ACTIVE` 상태인 모든 ADMIN 사용자에게 `ADMIN / SELLER_APPLICATION_CREATED` 알림을 생성한다. 이동 경로는 `/admin/seller-applications`이다. ADMIN 자기 신청의 즉시 승인 흐름에는 검토 알림을 생성하지 않는다.
+- 비즈니스 트랜잭션에서는 최소 값만 담은 이벤트를 발행하고, 알림 리스너는 `AFTER_COMMIT`에 실행한다. 알림 저장은 `REQUIRES_NEW` 트랜잭션으로 분리하며, 실패 시 원 비즈니스 결과에 영향을 주지 않고 오류 로그를 남긴다.
+- 주문, 배송, 취소, 반품, 교환 알림 연결과 실시간 전송은 이번 단계 범위에 포함하지 않는다.

@@ -8,10 +8,12 @@ import com.giftmarket.inquiry.exception.ProductInquiryException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.inquiry.repository.ProductInquiryAnswerRepository;
 import com.giftmarket.inquiry.entity.ProductInquiryAnswer;
+import com.giftmarket.notification.event.ProductInquiryAnsweredEvent;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -28,6 +30,7 @@ public class SellerProductInquiryService {
     private final ProductInquiryRepository inquiryRepository;
     private final ProductInquiryAnswerRepository answerRepository;
     private final SellerRepository sellerRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductInquiryPageResponse getInquiries(Long userId, ProductInquiryStatus status, int page, int size) {
         Seller seller = activeSeller(userId);
@@ -56,6 +59,12 @@ public class SellerProductInquiryService {
             if (answer != null) throw new ProductInquiryException("문의 답변 상태가 올바르지 않습니다.");
             answer = answerRepository.save(ProductInquiryAnswer.create(inquiry, seller, request.content().trim()));
             inquiry.markAnswered();
+            eventPublisher.publishEvent(new ProductInquiryAnsweredEvent(
+                    inquiry.getUser().getId(),
+                    inquiry.getId(),
+                    inquiry.getProduct().getId(),
+                    inquiry.getProduct().getName()
+            ));
         } else {
             if (answer == null) throw new ProductInquiryException("문의 답변 정보를 찾을 수 없습니다.");
             answer.updateContent(request.content().trim());

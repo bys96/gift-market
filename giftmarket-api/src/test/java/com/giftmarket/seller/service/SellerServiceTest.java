@@ -1,6 +1,7 @@
 package com.giftmarket.seller.service;
 
 import com.giftmarket.seller.dto.request.SellerApplicationCreateRequest;
+import com.giftmarket.notification.event.SellerApplicationCreatedEvent;
 import com.giftmarket.seller.entity.SellerApplication;
 import com.giftmarket.seller.entity.SellerApplicationStatus;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
@@ -26,6 +28,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class SellerServiceTest {
@@ -34,6 +37,7 @@ class SellerServiceTest {
     @Mock SellerRepository sellerRepository;
     @Mock UserRepository userRepository;
     @Mock SellerApprovalService approvalService;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock User user;
     private SellerService service;
 
@@ -43,7 +47,8 @@ class SellerServiceTest {
                 applicationRepository,
                 sellerRepository,
                 userRepository,
-                approvalService
+                approvalService,
+                eventPublisher
         );
         lenient().when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         lenient().when(sellerRepository.existsByUser(user)).thenReturn(false);
@@ -62,6 +67,7 @@ class SellerServiceTest {
 
         assertThat(response.status()).isEqualTo(SellerApplicationStatus.PENDING);
         verify(approvalService, never()).approve(any(), any());
+        verify(eventPublisher).publishEvent(any(SellerApplicationCreatedEvent.class));
     }
 
     @Test
@@ -79,6 +85,7 @@ class SellerServiceTest {
         assertThat(response.status()).isEqualTo(SellerApplicationStatus.APPROVED);
         assertThat(response.reviewedAt()).isNotNull();
         verify(approvalService).approve(any(SellerApplication.class), org.mockito.ArgumentMatchers.same(user));
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -114,6 +121,17 @@ class SellerServiceTest {
 
         given(sellerRepository.findByUserId(1L)).willReturn(Optional.empty());
         assertThat(service.getMySeller(1L)).isNull();
+    }
+
+    @Test
+    void failedApplicationDoesNotPublishNotificationEvent() {
+        given(user.getRole()).willReturn(UserRole.USER);
+        given(sellerRepository.existsByUser(user)).willReturn(true);
+
+        assertThatThrownBy(() -> service.apply(1L, request()))
+                .isInstanceOf(SellerException.class);
+
+        verifyNoInteractions(eventPublisher);
     }
 
     private SellerApplicationCreateRequest request() {

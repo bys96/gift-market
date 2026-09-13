@@ -7,6 +7,7 @@ import com.giftmarket.inquiry.entity.ProductInquiryStatus;
 import com.giftmarket.inquiry.exception.ProductInquiryException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.inquiry.repository.ProductInquiryAnswerRepository;
+import com.giftmarket.notification.event.ProductInquiryAnsweredEvent;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,9 +31,46 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SellerProductInquiryServiceTest {
-    @Mock ProductInquiryRepository inquiries; @Mock ProductInquiryAnswerRepository answers; @Mock SellerRepository sellers; @Mock Seller seller; @Mock ProductInquiry inquiry; @Mock ProductInquiryAnswer answer; @Mock Product product; @Mock User sellerUser; @Mock User writer;
+    @Mock ProductInquiryRepository inquiries; @Mock ProductInquiryAnswerRepository answers; @Mock SellerRepository sellers; @Mock ApplicationEventPublisher eventPublisher; @Mock Seller seller; @Mock ProductInquiry inquiry; @Mock ProductInquiryAnswer answer; @Mock Product product; @Mock User sellerUser; @Mock User writer;
     SellerProductInquiryService service;
-    @BeforeEach void setup(){ service=new SellerProductInquiryService(inquiries,answers,sellers); given(sellers.findByUserId(1L)).willReturn(Optional.of(seller)); lenient().when(seller.getStatus()).thenReturn(SellerStatus.ACTIVE); given(seller.getId()).willReturn(9L); }
+    @BeforeEach void setup(){ service=new SellerProductInquiryService(inquiries,answers,sellers,eventPublisher); given(sellers.findByUserId(1L)).willReturn(Optional.of(seller)); lenient().when(seller.getStatus()).thenReturn(SellerStatus.ACTIVE); given(seller.getId()).willReturn(9L); }
+
+    @Test
+    void firstAnswerPublishesBuyerNotificationEvent() {
+        fullInquiry();
+        given(inquiry.getId()).willReturn(5L);
+        given(writer.getId()).willReturn(7L);
+        given(product.getId()).willReturn(10L);
+        given(product.getName()).willReturn("Gift product");
+        given(inquiries.findActiveByIdAndSellerIdForUpdate(5L, 9L))
+                .willReturn(Optional.of(inquiry));
+        given(answers.save(any())).willReturn(answer);
+
+        service.answer(1L, 5L, new ProductInquiryAnswerRequest("Answer"));
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(ProductInquiryAnsweredEvent.class, event -> {
+                    assertThat(event.buyerUserId()).isEqualTo(7L);
+                    assertThat(event.inquiryId()).isEqualTo(5L);
+                    assertThat(event.productId()).isEqualTo(10L);
+                });
+    }
+
+    @Test
+    void answerUpdateDoesNotPublishNotificationEvent() {
+        fullInquiry();
+        given(inquiry.getStatus()).willReturn(ProductInquiryStatus.ANSWERED);
+        given(inquiries.findActiveByIdAndSellerIdForUpdate(5L, 9L))
+                .willReturn(Optional.of(inquiry));
+        given(answers.findByInquiryId(5L)).willReturn(Optional.of(answer));
+
+        service.answer(1L, 5L, new ProductInquiryAnswerRequest("Updated answer"));
+
+        verify(answer).updateContent("Updated answer");
+        verifyNoInteractions(eventPublisher);
+    }
     @Test void listsOnlyOwnProductInquiries(){ given(inquiries.findAllByProductSellerIdAndDeletedAtIsNull(eq(9L),any())).willReturn(new PageImpl<>(List.of())); service.getInquiries(1L,null,0,20); verify(inquiries).findAllByProductSellerIdAndDeletedAtIsNull(eq(9L),any()); }
     @Test void salesSuspendedSellerCanAnswerExistingInquiry(){ given(seller.getStatus()).willReturn(SellerStatus.SALES_SUSPENDED); fullInquiry(); given(inquiries.findActiveByIdAndSellerIdForUpdate(5L,9L)).willReturn(Optional.of(inquiry)); given(answers.save(any())).willReturn(answer); service.answer(1L,5L,new ProductInquiryAnswerRequest("답변")); verify(answers).save(any(ProductInquiryAnswer.class)); }
     @Test void waitingFilter(){ given(inquiries.findAllByProductSellerIdAndStatusAndDeletedAtIsNull(eq(9L),eq(ProductInquiryStatus.WAITING),any())).willReturn(new PageImpl<>(List.of())); service.getInquiries(1L,ProductInquiryStatus.WAITING,0,20); verify(inquiries).findAllByProductSellerIdAndStatusAndDeletedAtIsNull(eq(9L),eq(ProductInquiryStatus.WAITING),any()); }

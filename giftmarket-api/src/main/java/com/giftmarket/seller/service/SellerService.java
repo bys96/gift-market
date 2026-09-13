@@ -1,6 +1,7 @@
 package com.giftmarket.seller.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.notification.event.SellerApplicationCreatedEvent;
 import com.giftmarket.seller.dto.request.SellerApplicationCreateRequest;
 import com.giftmarket.seller.dto.response.SellerApplicationResponse;
 import com.giftmarket.seller.dto.response.SellerResponse;
@@ -14,6 +15,7 @@ import com.giftmarket.user.entity.User;
 import com.giftmarket.user.entity.UserRole;
 import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class SellerService {
     private final SellerRepository sellerRepository;
     private final UserRepository userRepository;
     private final SellerApprovalService sellerApprovalService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public SellerApplicationResponse apply(
@@ -71,6 +74,10 @@ public class SellerService {
 
         if (user.getRole() == UserRole.ADMIN) {
             sellerApprovalService.approve(savedApplication, user);
+        } else {
+            eventPublisher.publishEvent(new SellerApplicationCreatedEvent(
+                    savedApplication.getId()
+            ));
         }
 
         return SellerApplicationResponse.from(savedApplication);

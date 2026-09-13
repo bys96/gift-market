@@ -7,6 +7,7 @@ import com.giftmarket.inquiry.exception.ProductInquiryException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.inquiry.repository.ProductInquiryAnswerRepository;
 import com.giftmarket.inquiry.entity.ProductInquiryAnswer;
+import com.giftmarket.notification.event.ProductInquiryCreatedEvent;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.repository.ProductRepository;
@@ -14,6 +15,7 @@ import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ public class ProductInquiryService {
     private final ProductInquiryAnswerRepository answerRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductInquiryPageResponse getInquiries(Long viewerId, Long productId, int page, int size) {
         requireVisibleProduct(productId);
@@ -49,6 +52,11 @@ public class ProductInquiryService {
         Product product = requireVisibleProduct(productId);
         User user = userRepository.findById(userId).orElseThrow(() -> new AuthenticationException("사용자 정보를 찾을 수 없습니다."));
         ProductInquiry saved = inquiryRepository.save(ProductInquiry.create(product, user, normalize(request.title()), normalize(request.content()), request.isPrivate()));
+        eventPublisher.publishEvent(new ProductInquiryCreatedEvent(
+                product.getSeller().getUser().getId(),
+                saved.getId(),
+                product.getName()
+        ));
         return ProductInquiryResponse.from(saved, null, userId);
     }
 

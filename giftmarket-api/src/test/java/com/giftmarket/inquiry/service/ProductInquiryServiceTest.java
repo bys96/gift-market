@@ -7,6 +7,7 @@ import com.giftmarket.inquiry.entity.ProductInquiryStatus;
 import com.giftmarket.inquiry.exception.ProductInquiryException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.inquiry.repository.ProductInquiryAnswerRepository;
+import com.giftmarket.notification.event.ProductInquiryCreatedEvent;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.repository.ProductRepository;
 import com.giftmarket.seller.entity.Seller;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 
 import java.util.List;
@@ -33,10 +35,49 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ProductInquiryServiceTest {
-    @Mock ProductInquiryRepository inquiries; @Mock ProductInquiryAnswerRepository answers; @Mock ProductRepository products; @Mock UserRepository users;
+    @Mock ProductInquiryRepository inquiries; @Mock ProductInquiryAnswerRepository answers; @Mock ProductRepository products; @Mock UserRepository users; @Mock ApplicationEventPublisher eventPublisher;
     @Mock Product product; @Mock User writer; @Mock User sellerUser; @Mock Seller seller; @Mock ProductInquiry inquiry;
     ProductInquiryService service;
-    @BeforeEach void setup(){ service = new ProductInquiryService(inquiries, answers, products, users); }
+    @BeforeEach void setup(){ service = new ProductInquiryService(inquiries, answers, products, users, eventPublisher); }
+
+    @Test
+    void publishesSellerNotificationEventAfterInquiryIsSaved() {
+        visible();
+        given(users.findById(1L)).willReturn(Optional.of(writer));
+        given(inquiries.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+        given(writer.getId()).willReturn(1L);
+        given(sellerUser.getId()).willReturn(2L);
+        given(product.getId()).willReturn(10L);
+        given(product.getName()).willReturn("Gift product");
+        nested(product, writer, sellerUser);
+
+        service.create(1L, 10L, new ProductInquiryRequest("Question", "Content", true));
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(ProductInquiryCreatedEvent.class, event -> {
+                    assertThat(event.sellerUserId()).isEqualTo(2L);
+                    assertThat(event.productName()).isEqualTo("Gift product");
+                });
+    }
+
+    @Test
+    void failedInquiryCreationDoesNotPublishNotificationEvent() {
+        given(products.findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(
+                eq(10L),
+                any(),
+                eq(SellerStatus.ACTIVE)
+        )).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(
+                1L,
+                10L,
+                new ProductInquiryRequest("Question", "Content", false)
+        )).isInstanceOf(ProductInquiryException.class);
+
+        verifyNoInteractions(eventPublisher);
+    }
 
     @Test void createsInquiry(){ visible(); given(users.findById(1L)).willReturn(Optional.of(writer)); given(inquiries.save(any())).willAnswer(i -> i.getArgument(0)); given(writer.getId()).willReturn(1L); nested(product, writer, sellerUser); var r=service.create(1L,10L,new ProductInquiryRequest(" 제목 "," 내용 ",true)); assertThat(r.title()).isEqualTo("제목"); verify(inquiries).save(any()); }
     @Test void unauthenticatedCreateFails(){ assertThatThrownBy(() -> service.create(null,10L,new ProductInquiryRequest("a","b",false))).isInstanceOf(AuthenticationException.class); }
