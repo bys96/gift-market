@@ -541,6 +541,157 @@ app:
 
 일반 새로고침, 빠른 연속 새로고침, grace period 이후 새로고침, 멀티탭 동시 갱신에서도 서버가 같은 rotation 상태를 기준으로 처리하고 세션을 유지할 수 있는 구조로 개선했다.
 
+# Render Free Spring Boot 기동 지연 / Port Scan Timeout / AppCDS
+
+## 문제 현상
+
+Spring Boot 4.1.0, Java 21 Backend를 Render Free 환경에 배포했을 때 startup이 약 225~258초 소요됐다. 초기 기준 startup은 약 258초였고, Tomcat port bind가 Render Port Scan Timeout에 근접하거나 실제 timeout이 발생했다.
+
+당시 운영 구성은 JPA Repository 37개를 사용하고 있었으며, production의 `spring.jpa.hibernate.ddl-auto` 설정은 `validate`였다. startup 전체 시간만으로 원인을 단정하지 않고 가설별로 한 가지 변수만 바꾸는 A/B를 진행했다.
+
+## `ddl-auto` A/B
+
+### 가설
+
+Hibernate schema validation이 startup 지연의 주요 원인인지 확인하기 위해 `JPA_DDL_AUTO=none`으로 변경해 비교했다.
+
+### A/B 결과
+
+- `ddl-auto=none` startup도 약 235초 수준이었다.
+- 초기 기준 약 258초 대비 Render Port Scan Timeout 문제를 해소할 정도의 유의미한 개선은 없었다.
+
+### 판단 / 최종 상태
+
+Hibernate schema validation을 startup 지연의 주원인으로 볼 근거가 없었다. 운영 schema 불일치를 기동 시점에 검출하는 안전장치를 해제할 이유도 없으므로 production은 `ddl-auto=validate`를 유지했다.
+
+## Java 21 Dynamic AppCDS 적용
+
+### 가설
+
+CPU가 제한된 기동 구간에서 class loading과 Spring/JPA bootstrap에 필요한 CPU 비용을 줄이면 port bind와 전체 startup을 단축할 수 있다고 보았다.
+
+### 적용 구조
+
+- Spring Boot executable jar를 layered jar로 extract한다.
+- image build 시 Java 21 Dynamic AppCDS의 `-XX:ArchiveClassesAtExit=application.jsa`로 `/app/application.jsa` archive를 생성한다.
+- archive 생성이 실패하면 불완전한 archive를 삭제하고 일반 실행이 가능하도록 fallback을 유지한다.
+- runtime은 다음 JVM 옵션으로 archive를 사용한다.
+
+```text
+-Xshare:auto
+-Xlog:cds=info
+-XX:SharedArchiveFile=/app/application.jsa
+```
+
+### A/B 결과
+
+첫 AppCDS 성공 run에서 startup이 약 174.402초로 단축됐다. 초기 기준 약 258초와 비교하면 약 32% 개선이었다.
+
+### 판단
+
+AppCDS는 Render Free의 제한된 CPU 환경에서 startup CPU 비용을 줄이는 실질적인 완화책으로 확인됐다. AppCDS 적용 구조는 최종 상태에서 유지한다.
+
+## JFR startup 진단
+
+### 목적 / 일시 구성
+
+startup 지연 원인을 분석하기 위해 일시적으로 다음 진단 구성을 추가했다.
+
+- `FlightRecorderApplicationStartup`
+- startup JFR recording/profile
+- ADMIN startup JFR download endpoint
+
+### 분석 결과
+
+Render Free cgroup에서 확인한 실효 CPU 제한은 다음과 같았다.
+
+```text
+effectiveCpuCount=1
+cpuSlicePeriod=100ms
+cpuQuota=15ms
+memoryLimit=512MB
+```
+
+- startup 구간의 CPU throttling이 매우 심했다.
+- DB 연결은 수 초 수준이었다.
+- GC 또는 메모리 부족이 주원인이라고 볼 근거는 없었다.
+- 특정 Repository 하나가 지연의 원인이라고 볼 근거도 없었다.
+
+### 판단 / 최종 상태
+
+근본적인 환경 제약은 Render Free의 강한 CPU throttling이었다. JFR은 원인 확인을 위한 임시 진단 수단이었으며, 분석 종료 후 `FlightRecorderApplicationStartup`, startup JFR 설정, JFR download endpoint를 최종 코드와 Docker image에서 모두 제거했다.
+
+## Repository `DEFERRED` A/B
+
+### 가설
+
+37개의 Spring Data JPA Repository bootstrap을 뒤로 이동하면 Tomcat port bind가 빨라질 수 있다고 보고 다음 설정을 일시 적용했다.
+
+```yaml
+spring:
+  data:
+    jpa:
+      repositories:
+        bootstrap-mode: deferred
+```
+
+### A/B 결과
+
+- AppCDS + Repository `DEFERRED` startup은 약 189.3초였다.
+- 기존 AppCDS + Repository `DEFAULT` 약 174초보다 느려졌다.
+- Tomcat port는 일찍 열릴 수 있지만 deferred Repository 초기화까지 포함한 실제 application initialization 완료는 늦어졌다.
+
+### 판단 / 최종 상태
+
+이 프로젝트에서 Repository `DEFERRED`는 실제 readiness를 개선하지 못했으므로 실험을 폐기했다. `spring.data.jpa.repositories.bootstrap-mode` 설정을 제거하고 Spring Boot 기본값인 `DEFAULT`로 복귀했다. 요청 시까지 초기화를 미루는 `LAZY`는 이 실험에서 사용하지 않았다.
+
+## 중간 Port Scan Timeout과 known-good 복원
+
+JFR 진단과 Repository `DEFERRED` A/B를 진행한 이후 배포에서 Tomcat port bind 전 Render Port Scan Timeout이 다시 발생했다.
+
+그러나 이 현상만으로 AppCDS 자체가 문제라고 결론 내리지 않았다. AppCDS-only 구성으로 약 174.402초에 성공한 기록이 이미 있었기 때문에, 후속 진단과 실험 변수만 제거하고 검증된 known-good 구성을 복원했다.
+
+최종 목표 상태는 다음과 같다.
+
+```text
+AppCDS: ON
+JFR startup 진단: OFF
+Repository DEFERRED: OFF
+Repository bootstrap: DEFAULT
+production ddl-auto: validate
+```
+
+## 최종 Render 검증
+
+최종 배포 로그에서 다음을 확인했다.
+
+```text
+Opened archive /app/application.jsa.
+Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+Tomcat started on port 8080
+Started GiftmarketApiApplication in 163.599 seconds
+```
+
+Render에서 service running on port 8080을 확인했고 배포가 성공했다. archive open 로그로 runtime AppCDS 적용을, Repository bootstrap 로그로 기본 `DEFAULT` 복귀를 각각 확인했다.
+
+## 최종 결과
+
+- startup: 약 258초 → 163.599초
+- 단축: 약 94.4초
+- 개선율: 약 36.6%
+- Java 21 Dynamic AppCDS: 최종 유지
+- production `ddl-auto=validate`: 유지
+- Repository bootstrap: Spring Boot 기본 `DEFAULT` 유지
+- JFR/Repository `DEFERRED`: 진단과 A/B 실험에만 사용한 후 제거
+
+Render Free의 강한 CPU throttling이 근본적인 환경 제약이며, AppCDS는 이 환경에서 Spring Boot startup의 CPU 비용을 줄여 실제 기동 시간을 단축한 유효한 완화책이었다.
+
+## 별도 이슈: root path probe 로그 노이즈
+
+Render 또는 외부 probe가 Backend root path `/`로 요청을 보내면 root endpoint가 없어 `NoResourceFoundException`이 발생한다. 현재 `GlobalExceptionHandler`가 이를 ERROR level과 전체 stacktrace로 출력해 startup 실패처럼 보이는 로그 노이즈를 만든다.
+
+이 로그는 startup 실패나 AppCDS 문제와 무관하다. health endpoint를 probe 경로로 지정하거나 `NoResourceFoundException`을 일반 404로 처리하는 개선은 별도 TODO로 남기며, 이 startup 원인 분석과 해결 결과에 포함하지 않는다.
+
 # 최신 검증 메모
 
 - 2026-09-07 최신 작업 보고: Backend **711 tests / 710 success / 1 environment-dependent failure** (contextLoads JDBC metadata/dialect 오류), Frontend lint/tsc/build 성공, 정적 페이지 34개.
