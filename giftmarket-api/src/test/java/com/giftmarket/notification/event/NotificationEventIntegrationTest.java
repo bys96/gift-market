@@ -98,7 +98,7 @@ class NotificationEventIntegrationTest {
         assertThat(notification.getType()).isEqualTo(NotificationType.PRODUCT_INQUIRY_ANSWERED);
         assertThat(notification.getTitle()).isEqualTo("상품 문의에 답변이 등록되었습니다.");
         assertThat(notification.getMessage()).isEqualTo("Anniversary gift 문의에 판매자 답변이 등록되었습니다.");
-        assertThat(notification.getTargetUrl()).isEqualTo("/products/12#product-inquiries");
+        assertThat(notification.getTargetUrl()).isEqualTo("/my/inquiries?inquiryId=32");
         assertThat(notification.getReferenceType())
                 .isEqualTo(NotificationReferenceType.PRODUCT_INQUIRY);
         assertThat(notification.getReferenceId()).isEqualTo(32L);
@@ -124,7 +124,7 @@ class NotificationEventIntegrationTest {
         assertThat(notification.getType())
                 .isEqualTo(NotificationType.PRODUCT_INQUIRY_ANSWER_UPDATED);
         assertThat(notification.getTargetUrl())
-                .isEqualTo("/products/13#product-inquiries");
+                .isEqualTo("/my/inquiries?inquiryId=33");
         assertThat(notification.getReferenceType())
                 .isEqualTo(NotificationReferenceType.PRODUCT_INQUIRY);
         assertThat(notification.getReferenceId()).isEqualTo(33L);
@@ -356,7 +356,7 @@ class NotificationEventIntegrationTest {
                 NotificationContext.ADMIN
         );
         assertThat(notification.getType()).isEqualTo(NotificationType.SELLER_APPLICATION_CREATED);
-        assertThat(notification.getTargetUrl()).isEqualTo("/admin/seller-applications");
+        assertThat(notification.getTargetUrl()).isEqualTo("/admin");
         assertThat(notification.getReferenceType())
                 .isEqualTo(NotificationReferenceType.SELLER_APPLICATION);
         assertThat(notification.getReferenceId()).isEqualTo(41L);

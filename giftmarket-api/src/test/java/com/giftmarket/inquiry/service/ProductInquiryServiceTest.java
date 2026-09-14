@@ -3,6 +3,7 @@ package com.giftmarket.inquiry.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.inquiry.dto.ProductInquiryRequest;
 import com.giftmarket.inquiry.entity.ProductInquiry;
+import com.giftmarket.inquiry.entity.ProductInquiryAnswer;
 import com.giftmarket.inquiry.entity.ProductInquiryStatus;
 import com.giftmarket.inquiry.exception.ProductInquiryException;
 import com.giftmarket.inquiry.repository.ProductInquiryRepository;
@@ -25,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -36,7 +38,7 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ProductInquiryServiceTest {
     @Mock ProductInquiryRepository inquiries; @Mock ProductInquiryAnswerRepository answers; @Mock ProductRepository products; @Mock UserRepository users; @Mock ApplicationEventPublisher eventPublisher;
-    @Mock Product product; @Mock User writer; @Mock User sellerUser; @Mock Seller seller; @Mock ProductInquiry inquiry;
+    @Mock Product product; @Mock User writer; @Mock User sellerUser; @Mock Seller seller; @Mock ProductInquiry inquiry; @Mock ProductInquiryAnswer answer;
     ProductInquiryService service;
     @BeforeEach void setup(){ service = new ProductInquiryService(inquiries, answers, products, users, eventPublisher); }
 
@@ -92,6 +94,25 @@ class ProductInquiryServiceTest {
     @Test void answeredInquiryCanBeSoftDeleted(){ question(false,1L,2L); given(inquiry.getStatus()).willReturn(ProductInquiryStatus.ANSWERED); given(inquiries.findByIdAndProductId(5L,10L)).willReturn(Optional.of(inquiry)); service.delete(1L,10L,5L); verify(inquiry).softDelete(); verifyNoInteractions(answers); }
     @Test void otherBuyerCannotDelete(){ question(false,1L,2L); given(inquiries.findByIdAndProductId(5L,10L)).willReturn(Optional.of(inquiry)); assertThatThrownBy(() -> service.delete(3L,10L,5L)).isInstanceOf(ProductInquiryException.class); verify(inquiry,never()).softDelete(); }
     @Test void paginationUsesNewestFirst(){ visible(); given(inquiries.findAllByProductIdAndDeletedAtIsNull(eq(10L),any())).willReturn(new PageImpl<>(List.of())); service.getInquiries(null,10L,2,10); var captor=org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class); verify(inquiries).findAllByProductIdAndDeletedAtIsNull(eq(10L),captor.capture()); assertThat(captor.getValue().getPageNumber()).isEqualTo(2); assertThat(captor.getValue().getSort().getOrderFor("createdAt").isDescending()).isTrue(); }
+
+    @Test
+    void listsOnlyMyInquiriesAndUsesAnswerUpdatedTime() {
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 9, 14, 16, 30);
+        question(false, 1L, 2L);
+        given(inquiry.getId()).willReturn(5L);
+        given(inquiries.findAllByUserIdAndDeletedAtIsNull(eq(1L), any()))
+                .willReturn(new PageImpl<>(List.of(inquiry)));
+        given(answers.findAllByInquiryIdIn(List.of(5L))).willReturn(List.of(answer));
+        given(answer.getInquiry()).willReturn(inquiry);
+        given(answer.getUpdatedAt()).willReturn(updatedAt);
+
+        var response = service.getMyInquiries(1L, 0, 10);
+
+        assertThat(response.inquiries()).hasSize(1);
+        assertThat(response.inquiries().getFirst().mine()).isTrue();
+        assertThat(response.inquiries().getFirst().answeredAt()).isEqualTo(updatedAt);
+        verify(inquiries).findAllByUserIdAndDeletedAtIsNull(eq(1L), any());
+    }
 
     private void visible(){ given(products.findByIdAndStatusInAndAdminHiddenFalseAndSellerStatusAndDeletedAtIsNull(eq(10L),any(),eq(SellerStatus.ACTIVE))).willReturn(Optional.of(product)); }
     private void question(boolean privacy,long writerId,long sellerUserId){ given(inquiry.getUser()).willReturn(writer); given(writer.getId()).willReturn(writerId); given(writer.getName()).willReturn("홍길동"); given(inquiry.getProduct()).willReturn(product); nested(product,writer,sellerUser); given(sellerUser.getId()).willReturn(sellerUserId); given(inquiry.getStatus()).willReturn(ProductInquiryStatus.WAITING); given(inquiry.isPrivateInquiry()).willReturn(privacy); given(inquiry.getTitle()).willReturn("제목"); given(inquiry.getContent()).willReturn("내용"); }

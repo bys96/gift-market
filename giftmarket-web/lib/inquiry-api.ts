@@ -10,6 +10,9 @@ function data<T>(response: ApiResponse<T>, message: string): T {
 export async function getProductInquiries(productId: number, page = 0) {
   return data(await apiFetch<ApiResponse<ProductInquiryPage>>(`/api/products/${productId}/inquiries?page=${page}&size=10`), "상품 문의를 불러오지 못했습니다.");
 }
+export async function getMyProductInquiries(page = 0) {
+  return data(await apiFetch<ApiResponse<ProductInquiryPage>>(`/api/inquiries/me?page=${page}&size=10`), "내 문의를 불러오지 못했습니다.");
+}
 export async function createProductInquiry(productId: number, request: ProductInquiryRequest) {
   return data(await apiFetch<ApiResponse<ProductInquiry>>(`/api/products/${productId}/inquiries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) }), "상품 문의를 등록하지 못했습니다.");
 }

@@ -80,12 +80,6 @@ export default function NotificationBell({
   }, [context]);
 
   useEffect(() => {
-    // 최초 mount 시 서버의 unread count를 동기화한다.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadUnreadCount();
-  }, [loadUnreadCount]);
-
-  useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
@@ -101,10 +95,11 @@ export default function NotificationBell({
   }, []);
 
   useEffect(() => {
-    // route 이동 후 열려 있던 dropdown을 닫는다.
+    // 최초 mount와 SPA route 이동 시 현재 context의 unread count를 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsOpen(false);
-  }, [pathname]);
+    void loadUnreadCount();
+  }, [loadUnreadCount, pathname]);
 
   const toggleDropdown = () => {
     const nextOpen = !isOpen;

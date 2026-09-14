@@ -76,6 +76,7 @@ public class SellerProductInquiryService {
                     inquiry.getProduct().getName()
             ));
         }
+        answerRepository.flush();
         return ProductInquiryResponse.from(inquiry, answer, userId);
     }
 

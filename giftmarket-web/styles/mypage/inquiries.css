@@ -1,0 +1,48 @@
+.my-inquiries-page { width: 100%; max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
+.my-inquiries-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.my-inquiries-header p { margin: 0 0 7px; color: #888; font-size: 12px; letter-spacing: .12em; }
+.my-inquiries-header h1 { margin: 0; color: var(--color-text-primary); font-size: 32px; }
+.my-inquiries-header span { display: block; margin-top: 9px; color: var(--color-text-secondary); font-size: 14px; }
+.my-inquiries-header > a { flex-shrink: 0; color: #555; font-size: 14px; text-decoration: none; }
+.my-inquiry-list { overflow: hidden; border: 1px solid var(--color-border); border-radius: 14px; background: #fff; }
+.my-inquiry-list.is-loading { opacity: .58; pointer-events: none; }
+.my-inquiry-list article + article { border-top: 1px solid var(--color-border); }
+.my-inquiry-list article { scroll-margin-top: 100px; }
+.my-inquiry-summary { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 20px 22px; border: 0; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+.my-inquiry-summary:hover { background: #fcfcfc; }
+.my-inquiry-status { display: inline-flex; min-width: 66px; justify-content: center; border-radius: 999px; background: #f1f1f1; padding: 6px 10px; color: #666; font-size: 12px; font-weight: 700; }
+.my-inquiry-status.is-answered { background: #fff0f3; color: #d43d57; }
+.my-inquiry-heading { min-width: 0; }
+.my-inquiry-heading strong { display: block; overflow: hidden; color: #222; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.my-inquiry-heading > span { display: block; overflow: hidden; margin-top: 6px; color: #777; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.my-inquiry-summary time { color: #777; font-size: 13px; white-space: nowrap; }
+.my-inquiry-chevron { color: #777; font-size: 19px; transition: transform .2s ease; }
+.my-inquiry-list article.is-open .my-inquiry-chevron { transform: rotate(180deg); }
+.my-inquiry-detail { padding: 0 22px 22px 104px; }
+.my-inquiry-detail section { border-radius: 10px; background: #f7f7f7; padding: 18px; }
+.my-inquiry-detail section > strong, .my-inquiry-answer > div strong { color: #555; font-size: 13px; }
+.my-inquiry-detail p { margin: 10px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.75; }
+.my-inquiry-answer { margin-top: 12px; background: #fff5f7 !important; }
+.my-inquiry-answer > div { display: flex; justify-content: space-between; gap: 16px; }
+.my-inquiry-answer time { color: #888; font-size: 12px; }
+.my-inquiry-waiting { margin: 12px 0 0 !important; border-radius: 10px; background: #fafafa; padding: 16px; color: #777; font-size: 14px; }
+.my-inquiry-detail > a { display: inline-flex; margin-top: 15px; color: #555; font-size: 13px; }
+.my-inquiry-state { padding: 70px 20px; border-block: 1px solid #eee; color: #777; text-align: center; }
+.my-inquiry-state h2 { margin: 0 0 10px; color: #333; font-size: 20px; }
+.my-inquiry-state p { margin: 0 0 20px; }
+.my-inquiry-state a, .my-inquiry-state button { display: inline-flex; border: 1px solid #222; border-radius: 8px; background: #222; padding: 10px 17px; color: #fff; text-decoration: none; }
+.my-inquiry-state.is-error { color: #b83245; }
+.my-inquiry-page-error { color: #b83245; font-size: 13px; }
+.my-inquiry-pagination { justify-content: center; margin-top: 24px; }
+
+@media (max-width: 640px) {
+  .my-inquiries-page { padding: 24px 16px 60px; }
+  .my-inquiries-header { align-items: flex-start; }
+  .my-inquiries-header h1 { font-size: 26px; }
+  .my-inquiries-header span { display: none; }
+  .my-inquiry-summary { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 17px 15px; }
+  .my-inquiry-summary time { grid-column: 2; font-size: 12px; }
+  .my-inquiry-chevron { grid-column: 3; grid-row: 1 / span 2; }
+  .my-inquiry-detail { padding: 0 15px 18px; }
+  .my-inquiry-answer > div { flex-direction: column; gap: 4px; }
+}

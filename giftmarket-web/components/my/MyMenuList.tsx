@@ -20,6 +20,11 @@ const MY_MENU_ITEMS: MyMenuItem[] = [
     href: "/my/wishlist",
   },
   {
+    label: "내 문의",
+    description: "작성한 상품 문의와 판매자 답변을 확인합니다.",
+    href: "/my/inquiries",
+  },
+  {
     label: "배송지 관리",
     description: "자주 사용하는 배송지를 관리합니다.",
     href: "/my/addresses",

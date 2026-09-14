@@ -25,7 +25,7 @@ public record ProductInquiryResponse(
                 inquiry.getStatus(), writer, owner,
                 owner && inquiry.getStatus() == ProductInquiryStatus.WAITING,
                 masked || answer == null ? null : answer.getContent(),
-                answer == null ? null : answer.getCreatedAt(),
+                answer == null ? null : answer.getUpdatedAt(),
                 inquiry.getCreatedAt(), inquiry.getUpdatedAt()
         );
     }

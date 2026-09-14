@@ -20,6 +20,9 @@ public interface ProductInquiryRepository extends JpaRepository<ProductInquiry, 
     Page<ProductInquiry> findAllByProductIdAndDeletedAtIsNull(Long productId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"product", "product.seller", "product.seller.user", "user"})
+    Page<ProductInquiry> findAllByUserIdAndDeletedAtIsNull(Long userId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"product", "product.seller", "product.seller.user", "user"})
     Optional<ProductInquiry> findByIdAndProductIdAndDeletedAtIsNull(Long id, Long productId);
 
     @EntityGraph(attributePaths = {"product", "product.seller", "product.seller.user", "user"})

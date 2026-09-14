@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import Pagination from "@/components/common/Pagination";
+import { formatInquiryDateTime } from "@/lib/inquiry-date";
 import { getSellerProductInquiries } from "@/lib/inquiry-api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { ProductInquiryPage, ProductInquiryStatus } from "@/types/inquiry";
@@ -120,7 +121,7 @@ export default function SellerInquiriesPage() {
                     </td>
                     <td data-label="작성자">{inquiry.writerName}</td>
                     <td data-label="작성일">
-                      {new Date(inquiry.createdAt).toLocaleDateString("ko-KR")}
+                      <time dateTime={inquiry.createdAt}>{formatInquiryDateTime(inquiry.createdAt)}</time>
                     </td>
                     <td data-label="상태">
                       <span

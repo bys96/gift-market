@@ -49,6 +49,7 @@ class SellerProductInquiryServiceTest {
 
         service.answer(1L, 5L, new ProductInquiryAnswerRequest("Answer"));
 
+        verify(answers).flush();
         var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue())
@@ -74,6 +75,7 @@ class SellerProductInquiryServiceTest {
         service.answer(1L, 5L, new ProductInquiryAnswerRequest("Updated answer"));
 
         verify(answer).updateContent("Updated answer");
+        verify(answers).flush();
         var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue())

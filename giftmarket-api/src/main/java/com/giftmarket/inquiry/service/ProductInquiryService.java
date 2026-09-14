@@ -46,6 +46,21 @@ public class ProductInquiryService {
         return ProductInquiryPageResponse.from(result);
     }
 
+    public ProductInquiryPageResponse getMyInquiries(Long userId, int page, int size) {
+        requireAuthentication(userId);
+        var inquiries = inquiryRepository.findAllByUserIdAndDeletedAtIsNull(
+                userId,
+                pageable(page, size)
+        );
+        Map<Long, ProductInquiryAnswer> answers = answers(inquiries.getContent());
+        var result = inquiries.map(inquiry -> ProductInquiryResponse.from(
+                inquiry,
+                answers.get(inquiry.getId()),
+                userId
+        ));
+        return ProductInquiryPageResponse.from(result);
+    }
+
     @Transactional
     public ProductInquiryResponse create(Long userId, Long productId, ProductInquiryRequest request) {
         requireAuthentication(userId);

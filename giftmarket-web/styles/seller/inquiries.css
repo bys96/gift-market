@@ -16,17 +16,36 @@
 .seller-inquiry-state { padding: 70px 20px; text-align: center; background: #fff; color: #777; }
 .seller-inquiry-pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 22px; }
 .seller-inquiry-pagination button { border: 1px solid #ddd; border-radius: 7px; background: #fff; padding: 8px 13px; }
-.seller-inquiry-detail { display: grid; gap: 20px; }
-.seller-inquiry-card { border: 1px solid #e5e5e5; border-radius: 12px; background: #fff; padding: 24px; }
-.seller-inquiry-card h2 { margin: 0 0 18px; }
-.seller-inquiry-card dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.seller-inquiry-card dt { color: #888; font-size: 13px; }
-.seller-inquiry-card dd { margin: 5px 0 0; }
-.seller-inquiry-body { white-space: pre-wrap; line-height: 1.75; }
-.seller-inquiry-answer-form textarea { box-sizing: border-box; width: 100%; min-height: 180px; border: 1px solid #ddd; border-radius: 8px; padding: 13px; resize: vertical; font: inherit; }
-.seller-inquiry-answer-form footer { display: flex; justify-content: flex-end; margin-top: 14px; }
-.seller-inquiry-answer-form button { border: 0; border-radius: 8px; background: #222; color: #fff; padding: 11px 19px; }
-.seller-inquiry-error { color: #c53b3b; }
+.seller-inquiry-detail { display: grid; max-width: 920px; gap: 18px; }
+.seller-inquiry-detail-header { margin-bottom: 4px; }
+.seller-inquiry-detail-header > a { color: #555; font-size: 14px; text-decoration: none; }
+.seller-inquiry-card { min-width: 0; border: 1px solid #e5e5e5; border-radius: 14px; background: #fff; padding: 26px; }
+.seller-inquiry-card-header,
+.seller-inquiry-answer-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.seller-inquiry-card-header > div { display: flex; gap: 8px; }
+.seller-inquiry-card-header time,
+.seller-inquiry-answer-header time { color: #888; font-size: 13px; white-space: nowrap; }
+.seller-inquiry-privacy { display: inline-flex; align-items: center; border-radius: 20px; background: #f3f3f3; padding: 5px 9px; color: #666; font-size: 12px; }
+.seller-inquiry-meta-list { display: grid; grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr); gap: 12px 28px; margin: 22px 0 0; padding: 18px 0; border-block: 1px solid #eee; }
+.seller-inquiry-meta-list div { min-width: 0; }
+.seller-inquiry-meta-list dt { color: #888; font-size: 12px; }
+.seller-inquiry-meta-list dd { margin: 6px 0 0; overflow-wrap: anywhere; font-weight: 600; }
+.seller-inquiry-question { margin-top: 24px; }
+.seller-inquiry-question > span { color: #888; font-size: 12px; font-weight: 600; }
+.seller-inquiry-question h2 { margin: 8px 0 14px; overflow-wrap: anywhere; font-size: 21px; }
+.seller-inquiry-body { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.8; }
+.seller-inquiry-answer-card { border-color: #eadfe2; }
+.seller-inquiry-answer-header p { margin: 0 0 6px; color: #d43d57; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.seller-inquiry-answer-header h2 { margin: 0; font-size: 21px; }
+.seller-inquiry-answer-form { margin-top: 20px; }
+.seller-inquiry-answer-form label { display: block; margin-bottom: 9px; color: #555; font-size: 13px; font-weight: 700; }
+.seller-inquiry-answer-form textarea { box-sizing: border-box; width: 100%; min-height: 190px; border: 1px solid #d9d9d9; border-radius: 10px; padding: 15px; resize: vertical; font: inherit; line-height: 1.7; }
+.seller-inquiry-answer-form textarea:focus { border-color: #777; outline: 3px solid rgb(0 0 0 / 5%); }
+.seller-inquiry-answer-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
+.seller-inquiry-answer-footer small { color: #888; }
+.seller-inquiry-answer-form button { min-width: 104px; border: 0; border-radius: 8px; background: #222; color: #fff; padding: 11px 19px; }
+.seller-inquiry-answer-form button:disabled { cursor: not-allowed; opacity: .55; }
+.seller-inquiry-error { margin: 12px 0 0; color: #c53b3b; }
 
 @media (max-width: 760px) {
   .seller-inquiries-page { padding: 20px 14px; }
@@ -108,7 +127,11 @@
     text-decoration: none;
   }
 
-  .seller-inquiry-card dl { grid-template-columns: 1fr; }
+  .seller-inquiry-card { padding: 20px; }
+  .seller-inquiry-card-header,
+  .seller-inquiry-answer-header { flex-direction: column; gap: 12px; }
+  .seller-inquiry-meta-list { grid-template-columns: 1fr; }
+  .seller-inquiry-answer-header time { white-space: normal; }
 }
 
 @media (max-width: 480px) {
