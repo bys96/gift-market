@@ -9,6 +9,7 @@ import com.giftmarket.inquiry.repository.ProductInquiryRepository;
 import com.giftmarket.inquiry.repository.ProductInquiryAnswerRepository;
 import com.giftmarket.inquiry.entity.ProductInquiryAnswer;
 import com.giftmarket.notification.event.ProductInquiryAnsweredEvent;
+import com.giftmarket.notification.event.ProductInquiryAnswerUpdatedEvent;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.repository.SellerRepository;
@@ -68,6 +69,12 @@ public class SellerProductInquiryService {
         } else {
             if (answer == null) throw new ProductInquiryException("문의 답변 정보를 찾을 수 없습니다.");
             answer.updateContent(request.content().trim());
+            eventPublisher.publishEvent(new ProductInquiryAnswerUpdatedEvent(
+                    inquiry.getUser().getId(),
+                    inquiry.getId(),
+                    inquiry.getProduct().getId(),
+                    inquiry.getProduct().getName()
+            ));
         }
         return ProductInquiryResponse.from(inquiry, answer, userId);
     }

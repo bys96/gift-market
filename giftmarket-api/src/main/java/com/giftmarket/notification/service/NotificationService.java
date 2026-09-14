@@ -6,6 +6,7 @@ import com.giftmarket.notification.dto.response.NotificationResponse;
 import com.giftmarket.notification.dto.response.NotificationUnreadCountResponse;
 import com.giftmarket.notification.entity.Notification;
 import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
 import com.giftmarket.notification.entity.NotificationType;
 import com.giftmarket.notification.exception.NotificationException;
 import com.giftmarket.notification.repository.NotificationRepository;
@@ -116,6 +117,50 @@ public class NotificationService {
                 message,
                 targetUrl
         ));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Notification create(
+            Long userId,
+            NotificationContext context,
+            NotificationType type,
+            String title,
+            String message,
+            String targetUrl,
+            NotificationReferenceType referenceType,
+            Long referenceId
+    ) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotificationException(
+                        "알림 수신자를 찾을 수 없습니다."
+                ));
+
+        return notificationRepository.save(Notification.create(
+                user,
+                context,
+                type,
+                title,
+                message,
+                targetUrl,
+                referenceType,
+                referenceId
+        ));
+    }
+
+    @Transactional
+    public int markAllByReferenceAsRead(
+            NotificationContext context,
+            NotificationType type,
+            NotificationReferenceType referenceType,
+            Long referenceId
+    ) {
+        return notificationRepository.markAllByReferenceAsRead(
+                context,
+                type,
+                referenceType,
+                referenceId,
+                LocalDateTime.now()
+        );
     }
 
     private void validateContextAccess(

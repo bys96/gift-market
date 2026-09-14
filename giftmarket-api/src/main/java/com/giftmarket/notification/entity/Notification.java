@@ -33,6 +33,10 @@ import java.time.LocalDateTime;
                 @Index(
                         name = "idx_notifications_user_context_read_at",
                         columnList = "user_id, context, read_at"
+                ),
+                @Index(
+                        name = "idx_notifications_reference_unread",
+                        columnList = "context, type, reference_type, reference_id, read_at"
                 )
         }
 )
@@ -72,6 +76,13 @@ public class Notification extends BaseEntity {
     @Column(name = "target_url", length = MAX_TARGET_URL_LENGTH)
     private String targetUrl;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reference_type", length = 50)
+    private NotificationReferenceType referenceType;
+
+    @Column(name = "reference_id")
+    private Long referenceId;
+
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
@@ -81,7 +92,9 @@ public class Notification extends BaseEntity {
             NotificationType type,
             String title,
             String message,
-            String targetUrl
+            String targetUrl,
+            NotificationReferenceType referenceType,
+            Long referenceId
     ) {
         if (user == null) {
             throw new IllegalArgumentException("알림 수신자가 필요합니다.");
@@ -102,6 +115,8 @@ public class Notification extends BaseEntity {
         this.title = normalizeRequired(title, MAX_TITLE_LENGTH, "알림 제목");
         this.message = normalizeRequired(message, MAX_MESSAGE_LENGTH, "알림 내용");
         this.targetUrl = normalizeOptional(targetUrl, MAX_TARGET_URL_LENGTH);
+        this.referenceType = referenceType;
+        this.referenceId = referenceId;
     }
 
     public static Notification create(
@@ -118,7 +133,31 @@ public class Notification extends BaseEntity {
                 type,
                 title,
                 message,
-                targetUrl
+                targetUrl,
+                null,
+                null
+        );
+    }
+
+    public static Notification create(
+            User user,
+            NotificationContext context,
+            NotificationType type,
+            String title,
+            String message,
+            String targetUrl,
+            NotificationReferenceType referenceType,
+            Long referenceId
+    ) {
+        return new Notification(
+                user,
+                context,
+                type,
+                title,
+                message,
+                targetUrl,
+                referenceType,
+                referenceId
         );
     }
 

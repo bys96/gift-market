@@ -1,6 +1,7 @@
 package com.giftmarket.notification.event;
 
 import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
 import com.giftmarket.notification.entity.NotificationType;
 import com.giftmarket.notification.service.NotificationService;
 import com.giftmarket.user.entity.User;
@@ -30,6 +31,8 @@ public class NotificationEventListener {
                 "새 상품 문의가 등록되었습니다.",
                 event.productName() + "에 새로운 문의가 등록되었습니다.",
                 "/seller/inquiries/" + event.inquiryId(),
+                NotificationReferenceType.PRODUCT_INQUIRY,
+                event.inquiryId(),
                 "productInquiryCreated",
                 event.inquiryId()
         );
@@ -44,7 +47,25 @@ public class NotificationEventListener {
                 "상품 문의에 답변이 등록되었습니다.",
                 event.productName() + " 문의에 판매자 답변이 등록되었습니다.",
                 "/products/" + event.productId() + "#product-inquiries",
+                NotificationReferenceType.PRODUCT_INQUIRY,
+                event.inquiryId(),
                 "productInquiryAnswered",
+                event.inquiryId()
+        );
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handle(ProductInquiryAnswerUpdatedEvent event) {
+        createSafely(
+                event.buyerUserId(),
+                NotificationContext.BUYER,
+                NotificationType.PRODUCT_INQUIRY_ANSWER_UPDATED,
+                "상품 문의 답변이 수정되었습니다",
+                event.productName() + " 문의의 판매자 답변이 수정되었습니다.",
+                "/products/" + event.productId() + "#product-inquiries",
+                NotificationReferenceType.PRODUCT_INQUIRY,
+                event.inquiryId(),
+                "productInquiryAnswerUpdated",
                 event.inquiryId()
         );
     }
@@ -63,6 +84,8 @@ public class NotificationEventListener {
                         "새 판매자 신청이 접수되었습니다.",
                         "새로운 판매자 신청이 접수되었습니다.",
                         "/admin/seller-applications",
+                        NotificationReferenceType.SELLER_APPLICATION,
+                        event.applicationId(),
                         "sellerApplicationCreated",
                         event.applicationId()
                 );
@@ -83,6 +106,8 @@ public class NotificationEventListener {
             String title,
             String message,
             String targetUrl,
+            NotificationReferenceType referenceType,
+            Long referenceId,
             String eventName,
             Long sourceId
     ) {
@@ -93,7 +118,9 @@ public class NotificationEventListener {
                     type,
                     title,
                     message,
-                    targetUrl
+                    targetUrl,
+                    referenceType,
+                    referenceId
             );
         } catch (Exception exception) {
             log.error(

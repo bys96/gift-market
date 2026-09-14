@@ -11,6 +11,8 @@ CREATE TABLE notifications (
     title VARCHAR(100) NOT NULL,
     message VARCHAR(500) NOT NULL,
     target_url VARCHAR(500) NULL,
+    reference_type VARCHAR(50) NULL,
+    reference_id BIGINT NULL,
     read_at DATETIME(6) NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
@@ -25,6 +27,13 @@ CREATE TABLE notifications (
     INDEX idx_notifications_user_context_read_at (
         user_id,
         context,
+        read_at
+    ),
+    INDEX idx_notifications_reference_unread (
+        context,
+        type,
+        reference_type,
+        reference_id,
         read_at
     )
 );

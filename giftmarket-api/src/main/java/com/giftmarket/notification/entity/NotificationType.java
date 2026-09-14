@@ -17,6 +17,7 @@ public enum NotificationType {
     EXCHANGE_RESHIPPED(NotificationContext.BUYER),
     EXCHANGE_COMPLETED(NotificationContext.BUYER),
     PRODUCT_INQUIRY_ANSWERED(NotificationContext.BUYER),
+    PRODUCT_INQUIRY_ANSWER_UPDATED(NotificationContext.BUYER),
 
     NEW_ORDER(NotificationContext.SELLER),
     CANCELLATION_REQUESTED(NotificationContext.SELLER),

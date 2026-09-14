@@ -1,6 +1,10 @@
 package com.giftmarket.admin.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
+import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
+import com.giftmarket.notification.entity.NotificationType;
+import com.giftmarket.notification.service.NotificationService;
 import com.giftmarket.seller.dto.request.SellerApplicationRejectRequest;
 import com.giftmarket.seller.dto.response.SellerApplicationResponse;
 import com.giftmarket.seller.dto.response.SellerApplicationPageResponse;
@@ -27,6 +31,7 @@ public class AdminSellerService {
     private final SellerApplicationRepository sellerApplicationRepository;
     private final UserRepository userRepository;
     private final SellerApprovalService sellerApprovalService;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public SellerApplicationPageResponse getPendingApplications(
@@ -74,6 +79,7 @@ public class AdminSellerService {
                 getPendingApplication(applicationId);
 
         sellerApprovalService.approve(application, admin);
+        markApplicationNotificationsAsRead(applicationId);
 
         return SellerApplicationResponse.from(application);
     }
@@ -93,8 +99,18 @@ public class AdminSellerService {
                 admin.getId(),
                 request.trimmedRejectionReason()
         );
+        markApplicationNotificationsAsRead(applicationId);
 
         return SellerApplicationResponse.from(application);
+    }
+
+    private void markApplicationNotificationsAsRead(Long applicationId) {
+        notificationService.markAllByReferenceAsRead(
+                NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION,
+                applicationId
+        );
     }
 
     private User getAdmin(Long adminUserId) {

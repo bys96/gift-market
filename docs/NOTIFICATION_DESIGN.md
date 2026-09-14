@@ -20,6 +20,8 @@ Notification
 - title: VARCHAR(100) NOT NULL
 - message: VARCHAR(500) NOT NULL
 - target_url: VARCHAR(500) NULL
+- reference_type: VARCHAR(50) NULL
+- reference_id: BIGINT NULL
 - read_at: DATETIME(6) NULL
 - created_at: DATETIME(6) NOT NULL
 - updated_at: DATETIME(6) NOT NULL
@@ -29,6 +31,7 @@ Notification
 
 - `(user_id, context, created_at)`
 - `(user_id, context, read_at)`
+- `(context, type, reference_type, reference_id, read_at)`
 
 ## Context / Type
 
@@ -45,6 +48,7 @@ Notification
 - `EXCHANGE_RESHIPPED`
 - `EXCHANGE_COMPLETED`
 - `PRODUCT_INQUIRY_ANSWERED`
+- `PRODUCT_INQUIRY_ANSWER_UPDATED`
 
 ### SELLER
 
@@ -91,10 +95,28 @@ Notification
 
 production은 `ddl-auto=validate`이므로 Notification 코드 배포 전 `docs/sql/notifications.sql`을 수동 적용한다. 이 SQL은 자동 migration이 아니다.
 
+이미 `notifications` 테이블이 있는 운영 DB에는 전체 CREATE DDL을 다시 실행하지 않고
+`docs/sql/notification-reference-alter.sql`을 먼저 적용한다.
+
+## 업무 대상 참조와 공동 읽음
+
+- `Notification.referenceType`은 `SELLER_APPLICATION`, `PRODUCT_INQUIRY` enum을 사용하며 `referenceId`와 함께 nullable로 저장한다.
+- 기존 알림 생성 경로는 참조값 없이 계속 사용할 수 있다. 주문·반품·교환 알림에는 이번 단계에서 참조값을 소급하거나 강제하지 않는다.
+- 상품문의 생성·최초 답변·답변 수정 알림은 `PRODUCT_INQUIRY + inquiryId`를 저장한다.
+- 판매자 신청 알림은 `SELLER_APPLICATION + sellerApplicationId`를 저장한다.
+- ADMIN이 판매자 신청을 승인 또는 거절하면 같은 트랜잭션에서 해당 신청을 참조하는 모든 ADMIN의 unread `SELLER_APPLICATION_CREATED` 알림을 읽음 처리한다. 업무 상태 변경이 rollback되면 공동 읽음 처리도 함께 rollback된다.
+
+## 상품문의 답변 수정 알림
+
+- 최초 답변 등록은 기존 `BUYER / PRODUCT_INQUIRY_ANSWERED` 이벤트를 발행한다.
+- 기존 답변 내용 수정은 `BUYER / PRODUCT_INQUIRY_ANSWER_UPDATED` 이벤트를 별도로 발행한다.
+- 두 알림 모두 현재 실제 구매자 문의 확인 위치인 `/products/{productId}#product-inquiries`를 사용한다. 현재 Frontend에는 `/my/inquiries` route가 없다.
+- 답변 이벤트는 기존과 동일하게 business transaction commit 후 처리하며, 알림 저장은 `REQUIRES_NEW`로 분리한다.
+
 ## 2단계 도메인 연결
 
 - 구매자의 상품문의 생성이 커밋되면 상품 판매자에게 `SELLER / PRODUCT_INQUIRY_CREATED` 알림을 생성한다. 이동 경로는 `/seller/inquiries/{inquiryId}`이다.
-- 판매자가 최초 답변을 등록하고 커밋되면 문의 작성자에게 `BUYER / PRODUCT_INQUIRY_ANSWERED` 알림을 생성한다. 이동 경로는 `/products/{productId}#product-inquiries`이다. 기존 답변 수정 시에는 추가 알림을 생성하지 않는다.
+- 판매자가 최초 답변을 등록하고 커밋되면 문의 작성자에게 `BUYER / PRODUCT_INQUIRY_ANSWERED` 알림을 생성한다. 기존 답변을 수정하고 커밋되면 `BUYER / PRODUCT_INQUIRY_ANSWER_UPDATED` 알림을 별도로 생성한다. 두 알림의 이동 경로는 `/products/{productId}#product-inquiries`이다.
 - 일반 회원의 판매자 신청이 커밋되면 `ACTIVE` 상태인 모든 ADMIN 사용자에게 `ADMIN / SELLER_APPLICATION_CREATED` 알림을 생성한다. 이동 경로는 `/admin/seller-applications`이다. ADMIN 자기 신청의 즉시 승인 흐름에는 검토 알림을 생성하지 않는다.
 - 비즈니스 트랜잭션에서는 최소 값만 담은 이벤트를 발행하고, 알림 리스너는 `AFTER_COMMIT`에 실행한다. 알림 저장은 `REQUIRES_NEW` 트랜잭션으로 분리하며, 실패 시 원 비즈니스 결과에 영향을 주지 않고 오류 로그를 남긴다.
 - 2A에서는 상품문의와 판매자 신청, 2B에서는 주문·배송·취소, 2C에서는 반품·교환 알림 연결을 추가했다. 실시간 전송은 아직 포함하지 않는다.

@@ -2,6 +2,7 @@ package com.giftmarket.notification.event;
 
 import com.giftmarket.notification.entity.Notification;
 import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
 import com.giftmarket.notification.entity.NotificationType;
 import com.giftmarket.notification.repository.NotificationRepository;
 import com.giftmarket.notification.service.NotificationService;
@@ -72,6 +73,9 @@ class NotificationEventIntegrationTest {
         assertThat(notification.getTitle()).isEqualTo("새 상품 문의가 등록되었습니다.");
         assertThat(notification.getMessage()).isEqualTo("Birthday gift에 새로운 문의가 등록되었습니다.");
         assertThat(notification.getTargetUrl()).isEqualTo("/seller/inquiries/31");
+        assertThat(notification.getReferenceType())
+                .isEqualTo(NotificationReferenceType.PRODUCT_INQUIRY);
+        assertThat(notification.getReferenceId()).isEqualTo(31L);
     }
 
     @Test
@@ -95,6 +99,35 @@ class NotificationEventIntegrationTest {
         assertThat(notification.getTitle()).isEqualTo("상품 문의에 답변이 등록되었습니다.");
         assertThat(notification.getMessage()).isEqualTo("Anniversary gift 문의에 판매자 답변이 등록되었습니다.");
         assertThat(notification.getTargetUrl()).isEqualTo("/products/12#product-inquiries");
+        assertThat(notification.getReferenceType())
+                .isEqualTo(NotificationReferenceType.PRODUCT_INQUIRY);
+        assertThat(notification.getReferenceId()).isEqualTo(32L);
+    }
+
+    @Test
+    void productInquiryAnswerUpdatedNotificationUsesSeparateTypeAndSameBuyerTarget() {
+        User buyer = saveUser("updated-answer-buyer");
+        entityManager.flush();
+
+        eventPublisher.publishEvent(new ProductInquiryAnswerUpdatedEvent(
+                buyer.getId(),
+                33L,
+                13L,
+                "Updated answer gift"
+        ));
+        commitTransaction();
+
+        Notification notification = singleNotification(
+                buyer.getId(),
+                NotificationContext.BUYER
+        );
+        assertThat(notification.getType())
+                .isEqualTo(NotificationType.PRODUCT_INQUIRY_ANSWER_UPDATED);
+        assertThat(notification.getTargetUrl())
+                .isEqualTo("/products/13#product-inquiries");
+        assertThat(notification.getReferenceType())
+                .isEqualTo(NotificationReferenceType.PRODUCT_INQUIRY);
+        assertThat(notification.getReferenceId()).isEqualTo(33L);
     }
 
     @Test
@@ -283,6 +316,28 @@ class NotificationEventIntegrationTest {
     }
 
     @Test
+    void rolledBackAnswerUpdateDoesNotCreateNotification() {
+        User buyer = saveUser("rollback-answer-update-buyer");
+        entityManager.flush();
+        Long buyerId = buyer.getId();
+
+        eventPublisher.publishEvent(new ProductInquiryAnswerUpdatedEvent(
+                buyerId,
+                34L,
+                14L,
+                "Rollback gift"
+        ));
+
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+
+        assertThat(notificationRepository.countByUserIdAndContextAndReadAtIsNull(
+                buyerId,
+                NotificationContext.BUYER
+        )).isZero();
+    }
+
+    @Test
     void notificationFailureDoesNotUndoCommittedBusinessData() {
         User committedUser = saveUser("committed-business-user");
         entityManager.flush();
@@ -302,6 +357,9 @@ class NotificationEventIntegrationTest {
         );
         assertThat(notification.getType()).isEqualTo(NotificationType.SELLER_APPLICATION_CREATED);
         assertThat(notification.getTargetUrl()).isEqualTo("/admin/seller-applications");
+        assertThat(notification.getReferenceType())
+                .isEqualTo(NotificationReferenceType.SELLER_APPLICATION);
+        assertThat(notification.getReferenceId()).isEqualTo(41L);
     }
 
     private Notification singleNotification(

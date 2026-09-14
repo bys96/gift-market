@@ -2,6 +2,8 @@ package com.giftmarket.notification.repository;
 
 import com.giftmarket.notification.entity.Notification;
 import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
+import com.giftmarket.notification.entity.NotificationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -43,6 +45,25 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     int markAllAsRead(
             @Param("userId") Long userId,
             @Param("context") NotificationContext context,
+            @Param("readAt") LocalDateTime readAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Notification n
+               set n.readAt = :readAt,
+                   n.updatedAt = :readAt
+             where n.context = :context
+               and n.type = :type
+               and n.referenceType = :referenceType
+               and n.referenceId = :referenceId
+               and n.readAt is null
+            """)
+    int markAllByReferenceAsRead(
+            @Param("context") NotificationContext context,
+            @Param("type") NotificationType type,
+            @Param("referenceType") NotificationReferenceType referenceType,
+            @Param("referenceId") Long referenceId,
             @Param("readAt") LocalDateTime readAt
     );
 }

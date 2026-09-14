@@ -1,5 +1,9 @@
 package com.giftmarket.admin.service;
 
+import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
+import com.giftmarket.notification.entity.NotificationType;
+import com.giftmarket.notification.service.NotificationService;
 import com.giftmarket.seller.dto.request.SellerApplicationRejectRequest;
 import com.giftmarket.seller.entity.SellerApplication;
 import com.giftmarket.seller.entity.SellerApplicationStatus;
@@ -28,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,6 +54,9 @@ class AdminSellerServiceTest {
     @Mock
     private SellerApprovalService sellerApprovalService;
 
+    @Mock
+    private NotificationService notificationService;
+
     private AdminSellerService service;
     private User admin;
 
@@ -57,7 +65,8 @@ class AdminSellerServiceTest {
         service = new AdminSellerService(
                 applicationRepository,
                 userRepository,
-                sellerApprovalService
+                sellerApprovalService,
+                notificationService
         );
         admin = mock(User.class);
         given(userRepository.findById(ADMIN_ID)).willReturn(Optional.of(admin));
@@ -140,6 +149,71 @@ class AdminSellerServiceTest {
         verify(applicationRepository).findAllByStatus(
                 eq(SellerApplicationStatus.PENDING),
                 any(Pageable.class)
+        );
+        verify(notificationService).markAllByReferenceAsRead(
+                NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION,
+                201L
+        );
+        verify(notificationService).markAllByReferenceAsRead(
+                NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION,
+                202L
+        );
+    }
+
+    @Test
+    void failedApprovalDoesNotMarkApplicationNotificationsAsRead() {
+        SellerApplication application = mock(SellerApplication.class);
+        given(application.getStatus()).willReturn(SellerApplicationStatus.PENDING);
+        given(applicationRepository.findByIdForUpdate(301L))
+                .willReturn(Optional.of(application));
+        given(sellerApprovalService.approve(application, admin))
+                .willThrow(new SellerException("approval failed"));
+
+        assertThatThrownBy(() -> service.approve(ADMIN_ID, 301L))
+                .isInstanceOf(SellerException.class);
+
+        verify(notificationService, never()).markAllByReferenceAsRead(
+                any(), any(), any(), any()
+        );
+    }
+
+    @Test
+    void alreadyProcessedApplicationDoesNotMarkNotificationsAgain() {
+        SellerApplication application = mock(SellerApplication.class);
+        given(applicationRepository.findByIdForUpdate(302L))
+                .willReturn(Optional.of(application));
+        given(application.getStatus()).willReturn(SellerApplicationStatus.APPROVED);
+
+        assertThatThrownBy(() -> service.approve(ADMIN_ID, 302L))
+                .isInstanceOf(SellerException.class);
+
+        verify(notificationService, never()).markAllByReferenceAsRead(
+                any(), any(), any(), any()
+        );
+    }
+
+    @Test
+    void failedRejectionDoesNotMarkApplicationNotificationsAsRead() {
+        SellerApplication application = mock(SellerApplication.class);
+        given(application.getStatus()).willReturn(SellerApplicationStatus.PENDING);
+        given(admin.getId()).willReturn(ADMIN_ID);
+        given(applicationRepository.findByIdForUpdate(303L))
+                .willReturn(Optional.of(application));
+        doThrow(new SellerException("rejection failed"))
+                .when(application).reject(ADMIN_ID, "missing information");
+
+        assertThatThrownBy(() -> service.reject(
+                ADMIN_ID,
+                303L,
+                new SellerApplicationRejectRequest("missing information")
+        )).isInstanceOf(SellerException.class);
+
+        verify(notificationService, never()).markAllByReferenceAsRead(
+                any(), any(), any(), any()
         );
     }
 

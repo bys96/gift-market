@@ -3,6 +3,7 @@ package com.giftmarket.notification.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.notification.entity.Notification;
 import com.giftmarket.notification.entity.NotificationContext;
+import com.giftmarket.notification.entity.NotificationReferenceType;
 import com.giftmarket.notification.entity.NotificationType;
 import com.giftmarket.notification.exception.NotificationException;
 import com.giftmarket.notification.repository.NotificationRepository;
@@ -245,6 +246,67 @@ class NotificationServiceIntegrationTest {
         )).isInstanceOf(AuthenticationException.class);
     }
 
+    @Test
+    void marksEveryUnreadAdminNotificationForOnlyTheRequestedApplication() {
+        User secondAdmin = saveUser("second-admin");
+        secondAdmin.changeRole(UserRole.ADMIN);
+        User thirdAdmin = saveUser("third-admin");
+        thirdAdmin.changeRole(UserRole.ADMIN);
+
+        Notification first = saveReferencedNotification(
+                admin, NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION, 601L
+        );
+        Notification second = saveReferencedNotification(
+                secondAdmin, NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION, 601L
+        );
+        Notification alreadyRead = saveReferencedNotification(
+                thirdAdmin, NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION, 601L
+        );
+        alreadyRead.markAsRead();
+        notificationRepository.flush();
+        entityManager.refresh(alreadyRead);
+        var originalReadAt = alreadyRead.getReadAt();
+
+        Notification anotherApplication = saveReferencedNotification(
+                admin, NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION, 602L
+        );
+        Notification buyerContext = saveReferencedNotification(
+                buyer, NotificationContext.BUYER,
+                NotificationType.PRODUCT_INQUIRY_ANSWERED,
+                NotificationReferenceType.SELLER_APPLICATION, 601L
+        );
+        Notification sellerContext = saveReferencedNotification(
+                sellerUser, NotificationContext.SELLER,
+                NotificationType.NEW_ORDER,
+                NotificationReferenceType.SELLER_APPLICATION, 601L
+        );
+
+        assertThat(notificationService.markAllByReferenceAsRead(
+                NotificationContext.ADMIN,
+                NotificationType.SELLER_APPLICATION_CREATED,
+                NotificationReferenceType.SELLER_APPLICATION,
+                601L
+        )).isEqualTo(2);
+
+        Notification readFirst = notificationRepository.findById(first.getId()).orElseThrow();
+        assertThat(readFirst.isRead()).isTrue();
+        assertThat(readFirst.getUpdatedAt()).isEqualTo(readFirst.getReadAt());
+        assertThat(notificationRepository.findById(second.getId()).orElseThrow().isRead()).isTrue();
+        assertThat(notificationRepository.findById(alreadyRead.getId()).orElseThrow().getReadAt())
+                .isEqualTo(originalReadAt);
+        assertThat(notificationRepository.findById(anotherApplication.getId()).orElseThrow().isRead()).isFalse();
+        assertThat(notificationRepository.findById(buyerContext.getId()).orElseThrow().isRead()).isFalse();
+        assertThat(notificationRepository.findById(sellerContext.getId()).orElseThrow().isRead()).isFalse();
+    }
+
     private User saveUser(String prefix) {
         String unique = UUID.randomUUID().toString();
         return userRepository.save(User.createOAuthUser(
@@ -269,6 +331,25 @@ class NotificationServiceIntegrationTest {
                 title,
                 "알림 내용",
                 "/notifications/target"
+        ));
+    }
+
+    private Notification saveReferencedNotification(
+            User user,
+            NotificationContext context,
+            NotificationType type,
+            NotificationReferenceType referenceType,
+            Long referenceId
+    ) {
+        return notificationRepository.saveAndFlush(Notification.create(
+                user,
+                context,
+                type,
+                "업무 알림",
+                "업무 알림 내용",
+                "/notifications/target",
+                referenceType,
+                referenceId
         ));
     }
 }
