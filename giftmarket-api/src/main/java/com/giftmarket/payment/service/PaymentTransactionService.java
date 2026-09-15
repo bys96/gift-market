@@ -21,6 +21,7 @@ import com.giftmarket.payment.gateway.GatewayConfirmResult;
 import com.giftmarket.payment.gateway.GatewayPaymentQueryResult;
 import com.giftmarket.payment.gateway.GatewayPaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
+import com.giftmarket.settlement.service.InitialSettlementLedgerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class PaymentTransactionService {
     private final CartItemRepository cartItemRepository;
     private final OrderInventoryService orderInventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
+    private final InitialSettlementLedgerService initialSettlementLedgerService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -425,6 +427,7 @@ public class PaymentTransactionService {
         order.markPaid(paidAt);
         List<SellerOrder> sellerOrders = sellerOrderLifecycleService.markPaid(order.getId());
         removeUnchangedCartItems(order.getUser().getId(), order.getId());
+        initialSettlementLedgerService.recordInitialSales(payment, order);
         for (SellerOrder sellerOrder : sellerOrders) {
             eventPublisher.publishEvent(new NewOrderCreatedEvent(
                     sellerOrder.getSeller().getUser().getId(),

@@ -34,6 +34,7 @@ import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
+import com.giftmarket.settlement.service.SettlementEligibilityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -67,6 +68,7 @@ public class SellerOrderManagementService {
     private final ReturnRequestRepository returnRequestRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final ShipmentRepository shipmentRepository;
+    private final SettlementEligibilityService settlementEligibilityService;
     private final ApplicationEventPublisher eventPublisher;
 
     private static final Set<OrderCancellationStatus> SHIPPING_BLOCKING_CANCELLATION_STATUSES =
@@ -370,6 +372,10 @@ public class SellerOrderManagementService {
                     shipment.deliver(deliveredAt);
                     sellerOrder.markDelivered(shipment.getDeliveredAt());
                     synchronizeLegacyShippingSnapshot(sellerOrder, shipment);
+                    settlementEligibilityService.activateInitialSalesEligibility(
+                            sellerOrder,
+                            shipment
+                    );
                 }
         );
     }

@@ -31,6 +31,7 @@ import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
+import com.giftmarket.settlement.service.SettlementEligibilityService;
 import com.giftmarket.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,7 @@ class SellerOrderManagementServiceTest {
     @Mock ReturnRequestRepository returnRequestRepository;
     @Mock ExchangeRequestRepository exchangeRequestRepository;
     @Mock ShipmentRepository shipmentRepository;
+    @Mock SettlementEligibilityService settlementEligibilityService;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock Seller seller;
     @Mock User user;
@@ -95,6 +97,7 @@ class SellerOrderManagementServiceTest {
                 returnRequestRepository,
                 exchangeRequestRepository,
                 shipmentRepository,
+                settlementEligibilityService,
                 eventPublisher
         );
         lenient().when(sellerRepository.findByUserId(USER_ID))
@@ -442,6 +445,41 @@ class SellerOrderManagementServiceTest {
         assertThat(delivered.deliveredAt()).isNotNull();
         assertThat(originalShipment.getType()).isEqualTo(ShipmentType.ORIGINAL_OUTBOUND);
         assertThat(originalShipment.getDeliveredAt()).isNotNull();
+        verify(settlementEligibilityService).activateInitialSalesEligibility(
+                sellerOrder,
+                originalShipment
+        );
+        verify(eventPublisher).publishEvent(
+                org.mockito.ArgumentMatchers.any(OrderShippedEvent.class)
+        );
+    }
+
+    @Test
+    void deliveryRetryKeepsOriginalDeliveredAtAndRepeatsEligibilityIdempotently() {
+        LocalDateTime shippedAt = LocalDateTime.now().minusDays(1);
+        sellerOrder.prepare(shippedAt.minusHours(1));
+        sellerOrder.markShipped(shippedAt);
+        Shipment shipment = Shipment.createShipped(
+                sellerOrder,
+                ShipmentType.ORIGINAL_OUTBOUND,
+                "carrier",
+                "tracking",
+                shippedAt
+        );
+        givenLockedSellerOrder();
+        given(shipmentRepository.findBySellerOrderIdAndType(
+                SELLER_ORDER_ID,
+                ShipmentType.ORIGINAL_OUTBOUND
+        )).willReturn(Optional.of(shipment));
+
+        service.deliver(USER_ID, SELLER_ORDER_ID);
+        LocalDateTime firstDeliveredAt = shipment.getDeliveredAt();
+        service.deliver(USER_ID, SELLER_ORDER_ID);
+
+        assertThat(shipment.getDeliveredAt()).isEqualTo(firstDeliveredAt);
+        assertThat(sellerOrder.getDeliveredAt()).isEqualTo(firstDeliveredAt);
+        verify(settlementEligibilityService, org.mockito.Mockito.times(2))
+                .activateInitialSalesEligibility(sellerOrder, shipment);
     }
 
     @Test

@@ -112,5 +112,9 @@ payment:
     connect-timeout-millis: 3000
     read-timeout-millis: 10000
 
+settlement:
+  hold-days: ${SETTLEMENT_HOLD_DAYS:7}
+  commission-rate-bps: ${SETTLEMENT_COMMISSION_RATE_BPS:1000}
+
 storage:
   provider: ${STORAGE_PROVIDER:minio}

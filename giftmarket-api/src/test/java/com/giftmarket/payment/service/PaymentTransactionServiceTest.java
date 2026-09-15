@@ -23,6 +23,7 @@ import com.giftmarket.payment.gateway.GatewayPaymentStatus;
 import com.giftmarket.payment.repository.PaymentRepository;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.seller.entity.Seller;
+import com.giftmarket.settlement.service.InitialSettlementLedgerService;
 import com.giftmarket.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,7 @@ class PaymentTransactionServiceTest {
     @Mock CartItemRepository cartItemRepository;
     @Mock OrderInventoryService orderInventoryService;
     @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
+    @Mock InitialSettlementLedgerService initialSettlementLedgerService;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock User user;
     @Mock Product product;
@@ -76,6 +78,7 @@ class PaymentTransactionServiceTest {
                 cartItemRepository,
                 orderInventoryService,
                 sellerOrderLifecycleService,
+                initialSettlementLedgerService,
                 eventPublisher
         );
         order = Order.createPendingPayment(
@@ -119,6 +122,7 @@ class PaymentTransactionServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(order.getOrderedAt()).isEqualTo(approvedAt);
         verify(sellerOrderLifecycleService).markPaid(ORDER_ID);
+        verify(initialSettlementLedgerService).recordInitialSales(payment, order);
     }
 
     @Test
@@ -153,6 +157,7 @@ class PaymentTransactionServiceTest {
                 .map(NewOrderCreatedEvent::sellerUserId))
                 .containsExactly(11L, 12L);
         verify(sellerOrderLifecycleService).markPaid(ORDER_ID);
+        verify(initialSettlementLedgerService).recordInitialSales(payment, order);
     }
 
     @Test
@@ -166,6 +171,7 @@ class PaymentTransactionServiceTest {
         ));
 
         verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(initialSettlementLedgerService);
     }
 
     @Test
@@ -253,6 +259,7 @@ class PaymentTransactionServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(order.getOrderedAt()).isEqualTo(approvedAt);
         verify(orderInventoryService, never()).restore(ORDER_ID);
+        verify(initialSettlementLedgerService).recordInitialSales(payment, order);
     }
 
     @Test
@@ -358,6 +365,7 @@ class PaymentTransactionServiceTest {
 
         verify(cartItemRepository).delete(cartItem);
         verify(orderInventoryService, never()).restore(ORDER_ID);
+        verify(initialSettlementLedgerService).recordInitialSales(payment, order);
     }
 
     @Test
