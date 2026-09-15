@@ -6,6 +6,7 @@ import com.giftmarket.order.repository.*;
 import com.giftmarket.notification.event.ReturnCompletedEvent;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.repository.*;
+import com.giftmarket.settlement.service.ReturnSettlementLedgerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class ReturnCompletionService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentCancellationRepository cancellationRepository;
     private final OrderInventoryService inventoryService;
+    private final ReturnSettlementLedgerService returnSettlementLedgerService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -36,10 +38,17 @@ public class ReturnCompletionService {
         SellerOrder sellerOrder = sellerOrderRepository.findByIdAndOrderIdForUpdate(
                 reference.getSellerOrder().getId(), order.getId()).orElseThrow(this::notAvailable);
         ReturnRequest request = returnRequestRepository.findByIdForUpdate(returnRequestId).orElseThrow(this::notAvailable);
-        if (request.getStatus() == ReturnRequestStatus.COMPLETED) return;
         validateIdentity(request, order, sellerOrder);
         PaymentCancellation cancellation = cancellationRepository.findByReturnRequestId(returnRequestId)
                 .flatMap(value -> cancellationRepository.findByIdForUpdate(value.getId())).orElse(null);
+        if (request.getStatus() == ReturnRequestStatus.COMPLETED) {
+            returnSettlementLedgerService.recordCompletedReturn(
+                    request,
+                    cancellation,
+                    sellerOrder
+            );
+            return;
+        }
         validateRefundCompletion(request, payment, cancellation);
 
         List<ReturnRequestItem> returnItems = returnItemRepository.findAllByReturnRequestIdOrderByIdAsc(returnRequestId);
@@ -57,6 +66,11 @@ public class ReturnCompletionService {
             }
         }
         request.complete(LocalDateTime.now());
+        returnSettlementLedgerService.recordCompletedReturn(
+                request,
+                cancellation,
+                sellerOrder
+        );
         eventPublisher.publishEvent(new ReturnCompletedEvent(
                 order.getUser().getId(),
                 request.getId(),

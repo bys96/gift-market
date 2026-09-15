@@ -86,6 +86,11 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
             Long sellerOrderId
     );
 
+    List<ReturnRequest> findAllBySellerOrderIdAndStatusOrderByCompletedAtAscIdAsc(
+            Long sellerOrderId,
+            ReturnRequestStatus status
+    );
+
     boolean existsBySellerOrderIdAndStatusIn(
             Long sellerOrderId,
             Collection<ReturnRequestStatus> statuses

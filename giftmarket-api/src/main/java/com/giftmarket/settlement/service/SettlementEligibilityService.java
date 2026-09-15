@@ -33,6 +33,13 @@ public class SettlementEligibilityService {
             SettlementLedgerType.SALE_SHIPPING,
             SettlementLedgerType.COMMISSION
     );
+    private static final Set<SettlementLedgerType> DELIVERY_ELIGIBILITY_TYPES = Set.of(
+            SettlementLedgerType.SALE_PRODUCT,
+            SettlementLedgerType.SALE_SHIPPING,
+            SettlementLedgerType.COMMISSION,
+            SettlementLedgerType.CANCELLATION_REFUND,
+            SettlementLedgerType.COMMISSION_REVERSAL
+    );
 
     private final SettlementLedgerEntryRepository ledgerRepository;
     private final SettlementProperties settlementProperties;
@@ -71,6 +78,49 @@ public class SettlementEligibilityService {
 
         for (SettlementLedgerEntry entry : entries) {
             activate(entry, eligibleAt);
+        }
+
+        List<SettlementLedgerEntry> cancellationEntries = ledgerRepository
+                .findEligibilityEntriesForUpdate(sellerOrderId, Set.of(
+                        SettlementLedgerType.CANCELLATION_REFUND,
+                        SettlementLedgerType.COMMISSION_REVERSAL
+                ));
+        for (SettlementLedgerEntry entry : cancellationEntries) {
+            LocalDateTime cancellationEligibleAt = entry.getOccurredAt().isAfter(eligibleAt)
+                    ? entry.getOccurredAt()
+                    : eligibleAt;
+            activate(entry, cancellationEligibleAt);
+        }
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void activateFullCancellationEligibility(
+            SellerOrder sellerOrder,
+            LocalDateTime canceledAt
+    ) {
+        if (sellerOrder == null || sellerOrder.getId() == null
+                || sellerOrder.getStatus() != SellerOrderStatus.CANCELLED
+                || sellerOrder.getDeliveredAt() != null || canceledAt == null) {
+            throw new SettlementException("배송 전 전량취소 정산 정보를 확인할 수 없습니다.");
+        }
+        List<SettlementLedgerEntry> entries = ledgerRepository
+                .findEligibilityEntriesForUpdate(
+                        sellerOrder.getId(),
+                        DELIVERY_ELIGIBILITY_TYPES
+                );
+        if (entries.isEmpty()) {
+            return;
+        }
+        boolean hasProductSale = entries.stream().anyMatch(entry ->
+                entry.getType() == SettlementLedgerType.SALE_PRODUCT
+                        && entry.getSourceType() == SettlementLedgerSourceType.SELLER_ORDER
+                        && Objects.equals(entry.getSourceId(), sellerOrder.getId())
+        );
+        if (!hasProductSale) {
+            throw new SettlementException("상품 매출 정산 원장을 찾을 수 없습니다.");
+        }
+        for (SettlementLedgerEntry entry : entries) {
+            activate(entry, canceledAt);
         }
     }
 

@@ -6,6 +6,7 @@ import com.giftmarket.order.repository.*;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.repository.*;
 import com.giftmarket.user.entity.User;
+import com.giftmarket.settlement.service.ReturnSettlementLedgerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +30,7 @@ class ReturnCompletionServiceTest {
     @Mock ReturnRequestRepository returns; @Mock ReturnRequestItemRepository returnItems;
     @Mock OrderItemRepository orderItems; @Mock PaymentCancellationRepository cancellations;
     @Mock OrderInventoryService inventory;
+    @Mock ReturnSettlementLedgerService returnSettlementLedgerService;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock Payment payment; @Mock Order order; @Mock SellerOrder sellerOrder; @Mock ReturnRequest request;
     @Mock User user;
@@ -38,7 +40,8 @@ class ReturnCompletionServiceTest {
     @BeforeEach
     void setUp() {
         service = new ReturnCompletionService(payments, orders, sellerOrders, returns, returnItems,
-                orderItems, cancellations, inventory, eventPublisher);
+                orderItems, cancellations, inventory, returnSettlementLedgerService,
+                eventPublisher);
         given(returns.findById(10L)).willReturn(Optional.of(request));
         given(request.getOrder()).willReturn(order);
         given(request.getSellerOrder()).willReturn(sellerOrder);
@@ -76,6 +79,11 @@ class ReturnCompletionServiceTest {
         verify(orderItem).confirmReturn(2);
         verify(returnItem).increaseRestockedQuantity(2);
         verify(request).complete(any());
+        verify(returnSettlementLedgerService).recordCompletedReturn(
+                request,
+                cancellation,
+                sellerOrder
+        );
         verify(eventPublisher).publishEvent(new ReturnCompletedEvent(9L, 10L, 1L));
         verify(payment, never()).markPartiallyCanceled(anyString());
         verify(payment, never()).markFullyCanceled(anyString(), any());
@@ -92,6 +100,11 @@ class ReturnCompletionServiceTest {
         verify(orderItem).confirmReturn(2);
         verify(returnItem, never()).increaseRestockedQuantity(anyInt());
         verify(request).complete(any());
+        verify(returnSettlementLedgerService).recordCompletedReturn(
+                request,
+                null,
+                sellerOrder
+        );
     }
 
     @Test
@@ -102,6 +115,11 @@ class ReturnCompletionServiceTest {
 
         verifyNoInteractions(inventory);
         verify(request, never()).complete(any());
+        verify(returnSettlementLedgerService).recordCompletedReturn(
+                request,
+                null,
+                sellerOrder
+        );
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -117,6 +135,22 @@ class ReturnCompletionServiceTest {
         assertThatThrownBy(() -> service.complete(10L)).isInstanceOf(RuntimeException.class);
 
         verify(request, never()).complete(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void settlementFailureStopsCompletionBeforeNotification() {
+        given(request.getStatus()).willReturn(ReturnRequestStatus.REFUNDING);
+        given(request.getRefundAmount()).willReturn(0L);
+        prepareItem(ReturnInspectionResult.NON_RESTOCKABLE);
+        doThrow(new com.giftmarket.settlement.exception.SettlementException("forced"))
+                .when(returnSettlementLedgerService)
+                .recordCompletedReturn(request, null, sellerOrder);
+
+        assertThatThrownBy(() -> service.complete(10L))
+                .isInstanceOf(com.giftmarket.settlement.exception.SettlementException.class);
+
+        verify(request).complete(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
 

@@ -86,6 +86,19 @@ public class SettlementLedgerService {
         );
     }
 
+    @Transactional
+    public SettlementLedgerEntry recordZeroRefundReturnCommissionReversal(
+            SettlementLedgerCommand command
+    ) {
+        requireCommand(command);
+        return record(
+                SettlementLedgerType.COMMISSION_REVERSAL,
+                SettlementLedgerSourceType.RETURN_REQUEST,
+                command.amount(),
+                command
+        );
+    }
+
     private SettlementLedgerEntry record(
             SettlementLedgerType type,
             SettlementLedgerSourceType sourceType,

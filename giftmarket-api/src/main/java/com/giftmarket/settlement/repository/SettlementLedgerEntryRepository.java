@@ -51,6 +51,30 @@ public interface SettlementLedgerEntryRepository
             @Param("types") Collection<SettlementLedgerType> types
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select e
+            from SettlementLedgerEntry e
+            where e.sellerOrder.id = :sellerOrderId
+              and e.type in :types
+            order by e.occurredAt asc, e.id asc
+            """)
+    List<SettlementLedgerEntry> findEligibilityEntriesForUpdate(
+            @Param("sellerOrderId") Long sellerOrderId,
+            @Param("types") Collection<SettlementLedgerType> types
+    );
+
+    @Query("""
+            select coalesce(sum(e.amount), 0)
+            from SettlementLedgerEntry e
+            where e.sellerOrder.id = :sellerOrderId
+              and e.type = :type
+            """)
+    Long sumAmountBySellerOrderIdAndType(
+            @Param("sellerOrderId") Long sellerOrderId,
+            @Param("type") SettlementLedgerType type
+    );
+
     @Query("""
             select coalesce(sum(e.amount), 0)
             from SettlementLedgerEntry e

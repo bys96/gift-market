@@ -8,6 +8,7 @@ import com.giftmarket.order.service.OrderCancellationRefundCalculator;
 import com.giftmarket.payment.entity.*;
 import com.giftmarket.payment.gateway.*;
 import com.giftmarket.payment.repository.*;
+import com.giftmarket.settlement.service.CancellationSettlementLedgerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +38,7 @@ class PartialPaymentCancellationTransactionServiceTest {
     @Mock OrderCancellationRefundCalculator refundCalculator;
     @Mock PartialPaymentCancellationPreparationService preparationService;
     @Mock OrderCancellationCompletionService completionService;
+    @Mock CancellationSettlementLedgerService cancellationSettlementLedgerService;
     @Mock Payment payment;
     @Mock Order order;
     @Mock SellerOrder sellerOrder;
@@ -48,7 +50,8 @@ class PartialPaymentCancellationTransactionServiceTest {
     void setUp() {
         service = new PartialPaymentCancellationTransactionService(paymentRepository, orderRepository,
                 sellerOrderRepository, orderCancellationRepository, paymentCancellationRepository,
-                refundCalculator, preparationService, completionService);
+                refundCalculator, preparationService, completionService,
+                cancellationSettlementLedgerService);
     }
 
     @Test
@@ -117,6 +120,11 @@ class PartialPaymentCancellationTransactionServiceTest {
         verify(pgCancellation).succeed(org.mockito.ArgumentMatchers.eq("cancel-tx"),
                 org.mockito.ArgumentMatchers.any());
         verify(payment).markPartiallyCanceled("PARTIAL_CANCELED");
+        verify(cancellationSettlementLedgerService).recordCancellation(
+                cancellation,
+                pgCancellation,
+                sellerOrder
+        );
     }
 
     @Test

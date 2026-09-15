@@ -11,6 +11,7 @@ import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.exception.PartialCancellationValidationException;
 import com.giftmarket.payment.gateway.GatewayCancelResult;
 import com.giftmarket.payment.repository.*;
+import com.giftmarket.settlement.service.CancellationSettlementLedgerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -32,6 +33,7 @@ public class PartialPaymentCancellationTransactionService {
     private final OrderCancellationRefundCalculator refundCalculator;
     private final PartialPaymentCancellationPreparationService preparationService;
     private final OrderCancellationCompletionService completionService;
+    private final CancellationSettlementLedgerService cancellationSettlementLedgerService;
 
     @Transactional
     public PartialCancellationStart start(Long cancellationId) {
@@ -94,6 +96,11 @@ public class PartialPaymentCancellationTransactionService {
         if (pgCancellation.getStatus() == PaymentCancellationStatus.SUCCEEDED
                 && cancellation.getStatus() == OrderCancellationStatus.COMPLETED) {
             validateSameSuccessfulResult(pgCancellation, result);
+            cancellationSettlementLedgerService.recordCancellation(
+                    cancellation,
+                    pgCancellation,
+                    sellerOrder
+            );
             return;
         }
         validateCompletion(payment, order, cancellation, pgCancellation, start, result);
@@ -109,6 +116,11 @@ public class PartialPaymentCancellationTransactionService {
                 || result.remainingAmount() == 0L) {
             synchronizeOrderCancellationWhenAllSellerOrdersCancelled(order);
         }
+        cancellationSettlementLedgerService.recordCancellation(
+                cancellation,
+                pgCancellation,
+                sellerOrder
+        );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

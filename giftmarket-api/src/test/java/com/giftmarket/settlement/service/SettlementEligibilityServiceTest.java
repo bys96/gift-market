@@ -206,6 +206,71 @@ class SettlementEligibilityServiceTest {
                 .isInstanceOf(SettlementException.class);
     }
 
+    @Test
+    void partialCancellationLedgerBecomesEligibleAtDeliveryHoldTime() {
+        SettlementLedgerEntry product = productSale(1_000);
+        SettlementLedgerEntry refund = cancellationRefund(
+                LocalDateTime.of(2026, 9, 10, 12, 0)
+        );
+        givenInitialEntries(List.of(product));
+        given(ledgerRepository.findEligibilityEntriesForUpdate(
+                SELLER_ORDER_ID,
+                Set.of(
+                        SettlementLedgerType.CANCELLATION_REFUND,
+                        SettlementLedgerType.COMMISSION_REVERSAL
+                )
+        )).willReturn(List.of(refund));
+
+        service.activateInitialSalesEligibility(sellerOrder, shipment);
+
+        assertThat(refund.getEligibleAt()).isEqualTo(DELIVERED_AT.plusDays(7));
+    }
+
+    @Test
+    void cancellationAfterDeliveryHoldWouldUseItsLaterOccurredAt() {
+        SettlementLedgerEntry product = productSale(1_000);
+        LocalDateTime laterCancellation = DELIVERED_AT.plusDays(8);
+        SettlementLedgerEntry refund = cancellationRefund(laterCancellation);
+        givenInitialEntries(List.of(product));
+        given(ledgerRepository.findEligibilityEntriesForUpdate(
+                SELLER_ORDER_ID,
+                Set.of(
+                        SettlementLedgerType.CANCELLATION_REFUND,
+                        SettlementLedgerType.COMMISSION_REVERSAL
+                )
+        )).willReturn(List.of(refund));
+
+        service.activateInitialSalesEligibility(sellerOrder, shipment);
+
+        assertThat(refund.getEligibleAt()).isEqualTo(laterCancellation);
+    }
+
+    @Test
+    void fullCancellationActivatesSalesAndRefundAtCancellationTime() {
+        given(sellerOrder.getStatus()).willReturn(SellerOrderStatus.CANCELLED);
+        given(sellerOrder.getDeliveredAt()).willReturn(null);
+        SettlementLedgerEntry product = productSale(1_000);
+        SettlementLedgerEntry refund = cancellationRefund(CANCELED_AT_FOR_TEST);
+        given(ledgerRepository.findEligibilityEntriesForUpdate(
+                SELLER_ORDER_ID,
+                Set.of(
+                        SettlementLedgerType.SALE_PRODUCT,
+                        SettlementLedgerType.SALE_SHIPPING,
+                        SettlementLedgerType.COMMISSION,
+                        SettlementLedgerType.CANCELLATION_REFUND,
+                        SettlementLedgerType.COMMISSION_REVERSAL
+                )
+        )).willReturn(List.of(product, refund));
+
+        service.activateFullCancellationEligibility(
+                sellerOrder,
+                CANCELED_AT_FOR_TEST
+        );
+
+        assertThat(product.getEligibleAt()).isEqualTo(CANCELED_AT_FOR_TEST);
+        assertThat(refund.getEligibleAt()).isEqualTo(CANCELED_AT_FOR_TEST);
+    }
+
     private void givenInitialEntries(List<SettlementLedgerEntry> entries) {
         given(ledgerRepository.findInitialSalesForUpdate(
                 eq(SELLER_ORDER_ID),
@@ -242,6 +307,18 @@ class SettlementEligibilityServiceTest {
                 seller, sellerOrder, SettlementLedgerType.COMMISSION, -1_000L,
                 SettlementLedgerSourceType.SELLER_ORDER, SELLER_ORDER_ID,
                 "COMMISSION", APPROVED_AT, null, 1_000, 10_000L,
+                null, null, null
+        );
+    }
+
+    private static final LocalDateTime CANCELED_AT_FOR_TEST =
+            LocalDateTime.of(2026, 9, 20, 15, 0);
+
+    private SettlementLedgerEntry cancellationRefund(LocalDateTime occurredAt) {
+        return SettlementLedgerEntry.create(
+                seller, sellerOrder, SettlementLedgerType.CANCELLATION_REFUND, -3_000L,
+                SettlementLedgerSourceType.PAYMENT_CANCELLATION, 40L,
+                "SO:20:CANCELLATION_REFUND", occurredAt, null, null, null,
                 null, null, null
         );
     }
