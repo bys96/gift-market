@@ -234,6 +234,9 @@ public class SettlementLedgerEntry extends BaseEntity {
             throw new IllegalArgumentException("원장과 정산의 판매자가 일치하지 않습니다.");
         }
         if (this.settlement == null) {
+            if (settlement.getId() != null) {
+                throw new IllegalStateException("이미 생성된 정산에는 원장을 추가할 수 없습니다.");
+            }
             this.settlement = settlement;
             return;
         }

@@ -4,6 +4,7 @@ import com.giftmarket.order.entity.Order;
 import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.settlement.entity.SettlementLedgerEntry;
+import com.giftmarket.settlement.entity.Settlement;
 import com.giftmarket.settlement.entity.SettlementLedgerSourceType;
 import com.giftmarket.settlement.entity.SettlementLedgerType;
 import com.giftmarket.user.entity.AuthProvider;
@@ -35,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SettlementLedgerEntryRepositoryTest {
 
     @Autowired SettlementLedgerEntryRepository repository;
+    @Autowired SettlementRepository settlementRepository;
     @Autowired EntityManager entityManager;
 
     private Seller seller;
@@ -96,6 +98,39 @@ class SettlementLedgerEntryRepositoryTest {
 
         assertThatThrownBy(() -> repository.saveAndFlush(reversal(original, "REVERSAL-2")))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void settlementNumberIsUnique() {
+        settlementRepository.saveAndFlush(settlement("ST-UNIQUE", 0));
+
+        assertThatThrownBy(() -> settlementRepository.saveAndFlush(settlement("ST-UNIQUE", 1)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void sellerPeriodIsUnique() {
+        settlementRepository.saveAndFlush(settlement("ST-PERIOD-1", 0));
+
+        assertThatThrownBy(() -> settlementRepository.saveAndFlush(settlement("ST-PERIOD-2", 0)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private Settlement settlement(String number, int startOffsetDays) {
+        LocalDateTime start = LocalDateTime.of(2026, 9, 1, 0, 0).plusDays(startOffsetDays);
+        return Settlement.create(
+                seller,
+                number,
+                start,
+                start.plusDays(1),
+                10_000L,
+                0L,
+                0L,
+                0L,
+                1_000L,
+                0L,
+                1
+        );
     }
 
     private SettlementLedgerEntry productSale(String detailKey) {

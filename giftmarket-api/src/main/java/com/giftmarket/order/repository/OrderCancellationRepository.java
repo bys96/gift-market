@@ -129,4 +129,15 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from OrderCancellation c where c.id = :id")
     Optional<OrderCancellation> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+            select distinct c.sellerOrder.id
+            from OrderCancellation c
+            where c.sellerOrder.id in :sellerOrderIds
+              and c.status in :statuses
+            """)
+    List<Long> findSellerOrderIdsWithStatuses(
+            @Param("sellerOrderIds") Collection<Long> sellerOrderIds,
+            @Param("statuses") Collection<OrderCancellationStatus> statuses
+    );
 }

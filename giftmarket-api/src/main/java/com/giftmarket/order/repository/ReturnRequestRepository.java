@@ -189,4 +189,15 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
             order by r.refundingAt asc, r.id asc
             """)
     List<Long> findCompletionCandidateIds(Pageable pageable);
+
+    @Query("""
+            select distinct r.sellerOrder.id
+            from ReturnRequest r
+            where r.sellerOrder.id in :sellerOrderIds
+              and r.status in :statuses
+            """)
+    List<Long> findSellerOrderIdsWithStatuses(
+            @Param("sellerOrderIds") Collection<Long> sellerOrderIds,
+            @Param("statuses") Collection<ReturnRequestStatus> statuses
+    );
 }

@@ -4,6 +4,7 @@ import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.user.entity.User;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 
@@ -111,6 +112,24 @@ class SettlementLedgerEntryTest {
         settlement.confirm(mock(User.class), LocalDateTime.now());
 
         assertThatThrownBy(() -> entry.activateEligibility(entry.getOccurredAt().plusDays(7)))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void existingReadySettlementCannotReceiveAdditionalLedger() {
+        Seller seller = mock(Seller.class);
+        SettlementLedgerEntry entry = create(
+                seller,
+                sellerOrder(seller),
+                SettlementLedgerType.SALE_PRODUCT,
+                10_000L,
+                null,
+                null
+        );
+        Settlement existing = settlement(seller, "ST-EXISTING");
+        ReflectionTestUtils.setField(existing, "id", 10L);
+
+        assertThatThrownBy(() -> entry.assignTo(existing))
                 .isInstanceOf(IllegalStateException.class);
     }
 

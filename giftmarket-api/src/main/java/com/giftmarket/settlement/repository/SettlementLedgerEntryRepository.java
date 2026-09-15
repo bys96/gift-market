@@ -97,6 +97,38 @@ public interface SettlementLedgerEntryRepository
             Pageable pageable
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select e
+            from SettlementLedgerEntry e
+            join fetch e.sellerOrder so
+            join fetch e.seller s
+            where s.id = :sellerId
+              and e.settlement is null
+              and e.eligibleAt is not null
+              and e.eligibleAt < :periodEnd
+              and e.eligibleAt <= :cutoff
+            order by e.eligibleAt asc, e.id asc
+            """)
+    List<SettlementLedgerEntry> findGenerationCandidatesForUpdate(
+            @Param("sellerId") Long sellerId,
+            @Param("periodEnd") LocalDateTime periodEnd,
+            @Param("cutoff") LocalDateTime cutoff
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select e
+            from SettlementLedgerEntry e
+            join fetch e.sellerOrder
+            join fetch e.seller
+            where e.settlement.id = :settlementId
+            order by e.id asc
+            """)
+    List<SettlementLedgerEntry> findAllBySettlementIdForUpdate(
+            @Param("settlementId") Long settlementId
+    );
+
     List<SettlementLedgerEntry> findAllBySettlementIdAndSellerOrderIdOrderByOccurredAtAscIdAsc(
             Long settlementId,
             Long sellerOrderId

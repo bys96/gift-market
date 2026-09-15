@@ -221,8 +221,9 @@ public class Settlement extends BaseEntity {
         if (adminUser == null || heldAt == null) {
             throw new IllegalArgumentException("정산 보류 관리자와 시각이 필요합니다.");
         }
+        String normalizedReason = requireText(reason, 500, "정산 보류 사유가 필요합니다.");
         status = SettlementStatus.ON_HOLD;
-        holdReason = requireText(reason, 500, "정산 보류 사유가 필요합니다.");
+        holdReason = normalizedReason;
         this.heldAt = heldAt;
         heldByAdminUser = adminUser;
         holdReleasedAt = null;
