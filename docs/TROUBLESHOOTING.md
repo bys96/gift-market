@@ -1,6 +1,6 @@
 # Gift Market 개발 트러블슈팅 기록
 
-> 최종 갱신: 2026-09-07
+> 최종 갱신: 2026-09-16
 >
 > 실제 코드, 기존 설계 문서와 git 이력에서 확인되는 문제와 해결 구조를 보존한다. 최종 운영 runbook이 아니며 운영 staging 검증 전 항목을 완료로 간주하지 않는다.
 
@@ -76,6 +76,67 @@ availableRefundAmount
 ```
 
 Return 5 계산 시에는 아직 PaymentCancellation이 없는 계산 확정 Return snapshot도 예약액으로 고려한다. Return 6에서 실제 PaymentCancellation이 만들어지면 같은 Return snapshot을 다시 빼지 않도록 미예약 snapshot만 별도로 합산해 이중 차감을 막는다. 실제 PG 실행 준비 transaction에서 잔액을 다시 검증한다.
+
+## Toss 결제 시각이 DB에서 9시간 뒤로 저장됨
+
+### 상황 / 증상
+
+실제 결제 시각은 2026-09-15 18:37 KST였지만 PG 응답에서 파생된 timestamp만 정확히 9시간 뒤로 저장됐다.
+
+```text
+payments.created_at                    = 2026-09-15 18:36:52
+payments.approved_at                   = 2026-09-16 03:37:04
+settlement_ledger_entries.occurred_at  = 2026-09-16 03:37:04
+```
+
+### 원인
+
+Toss `approvedAt` 원문은 `+09:00` offset을 포함한다. `TossPaymentMapper`의 `OffsetDateTime` → `Asia/Seoul` → `LocalDateTime` 변환 결과는 정상이며 mapper가 9시간을 중복 가산한 문제가 아니었다.
+
+프로젝트는 `LocalDateTime`과 MySQL `DATETIME(6)`을 사용하지만 Render JVM timezone이 명시되지 않았고 MySQL system/session timezone은 UTC였다. 여기에 JDBC URL의 timezone 기준까지 JVM·DB와 일치하지 않아, 이미 KST wall-clock 값인 PG timestamp가 JDBC 저장 경계에서 다시 9시간 이동했다.
+
+`BaseEntity.createdAt`이 정상 KST처럼 보인 것은 UTC JVM의 `LocalDateTime.now()`와 저장 경계의 9시간 변환이 우연히 상쇄된 결과다. 따라서 이 값만 보고 timezone 구성이 정상이라고 판단하면 안 된다.
+
+### 해결 / 현재 적용 구조
+
+Render `JAVA_TOOL_OPTIONS`에 JVM 기본 timezone을 명시했다.
+
+```text
+-Xshare:auto -Xlog:cds=info -XX:SharedArchiveFile=/app/application.jsa -Duser.timezone=Asia/Seoul
+```
+
+`DB_URL`에서는 기존 `serverTimezone=Asia/Seoul`을 제거하고 다음 옵션을 적용했다. `%2B09:00`은 URL에서 `+09:00`의 `+`가 공백으로 해석되지 않도록 인코딩한 값이다.
+
+```text
+jdbc:mysql://{host}:{port}/{database}?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true
+```
+
+- JVM, JDBC connection timezone과 MySQL session timezone을 KST 기준으로 일치시킨다.
+- Hibernate `hibernate.jdbc.time_zone`은 추가하지 않는다.
+- `LocalDateTime`과 MySQL `DATETIME(6)` 정책은 유지한다.
+- 실제 DB host, port와 credential은 환경변수로만 관리한다.
+
+### 운영 검증
+
+설정 변경 후 신규 `seller_order_id=55`에서 다음을 확인했다.
+
+```text
+SALE_PRODUCT occurred_at = 2026-09-16 14:33:52
+COMMISSION   occurred_at = 2026-09-16 14:33:52
+created_at               = 2026-09-16 14:33:53~54
+```
+
+신규 결제부터 PG timestamp와 애플리케이션 생성 시각이 같은 KST 시간대로 저장된다.
+
+### 기존 데이터와 정산 영향
+
+기존에 잘못 저장된 테스트 데이터는 일괄 보정하지 않았다. 데이터가 PG timestamp 여부와 배포 시점에 따라 섞여 있을 수 있으므로 전체 timestamp를 무조건 9시간 차감하는 UPDATE는 위험하다.
+
+- `Payment.approvedAt`은 초기 판매 정산 ledger의 `occurredAt`에 전달된다.
+- `PaymentCancellation.canceledAt`은 취소·반품 정산 ledger의 `occurredAt`에 전달된다.
+- 잘못된 시각은 일부 `eligibleAt` 계산과 Settlement cutoff 판정에도 영향을 줄 수 있다.
+
+정산 운영 검증 과정에서 문제를 발견해 설정을 수정했으며, 기존 데이터 보정이 필요하면 PG 원본 timestamp와 영향 배포 구간을 기준으로 대상 row를 먼저 식별해야 한다.
 
 # Cancellation
 
