@@ -18,6 +18,28 @@ import java.util.Optional;
 public interface SettlementLedgerEntryRepository
         extends JpaRepository<SettlementLedgerEntry, Long> {
 
+    interface UnassignedAmount {
+        Long getAmount();
+        LocalDateTime getEligibleAt();
+    }
+
+    @Query("""
+            select e.amount as amount, e.eligibleAt as eligibleAt
+            from SettlementLedgerEntry e
+            where e.seller.id = :sellerId and e.settlement is null
+            """)
+    List<UnassignedAmount> findUnassignedAmounts(@Param("sellerId") Long sellerId);
+
+    @Query("""
+            select e from SettlementLedgerEntry e
+            where e.settlement.id = :settlementId and e.seller.id = :sellerId
+            order by e.occurredAt asc, e.id asc
+            """)
+    List<SettlementLedgerEntry> findSellerSettlementEntries(
+            @Param("settlementId") Long settlementId,
+            @Param("sellerId") Long sellerId
+    );
+
     Optional<SettlementLedgerEntry> findBySourceTypeAndSourceIdAndSourceDetailKey(
             SettlementLedgerSourceType sourceType,
             Long sourceId,

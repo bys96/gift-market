@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = {
@@ -114,6 +115,30 @@ class SettlementLedgerEntryRepositoryTest {
 
         assertThatThrownBy(() -> settlementRepository.saveAndFlush(settlement("ST-PERIOD-2", 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void sellerSummaryQueryExcludesAssignedEntriesAndDetailIsOrdered() {
+        Settlement assignedSettlement = settlement("ST-QUERY", 0);
+        SettlementLedgerEntry assigned = productSale("ASSIGNED");
+        assigned.activateEligibility(LocalDateTime.of(2026, 9, 2, 12, 0));
+        assigned.assignTo(assignedSettlement);
+        settlementRepository.saveAndFlush(assignedSettlement);
+        repository.saveAndFlush(assigned);
+
+        SettlementLedgerEntry unassigned = productSale("UNASSIGNED");
+        repository.saveAndFlush(unassigned);
+        entityManager.clear();
+
+        var amounts = repository.findUnassignedAmounts(seller.getId());
+        assertThat(amounts).hasSize(1);
+        assertThat(amounts.getFirst().getAmount()).isEqualTo(10_000L);
+        assertThat(amounts.getFirst().getEligibleAt()).isNull();
+
+        var details = repository.findSellerSettlementEntries(
+                assignedSettlement.getId(), seller.getId());
+        assertThat(details).extracting(SettlementLedgerEntry::getId)
+                .containsExactly(assigned.getId());
     }
 
     private Settlement settlement(String number, int startOffsetDays) {
