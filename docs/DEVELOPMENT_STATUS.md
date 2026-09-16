@@ -1,6 +1,6 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-09-07
+> 최종 갱신: 2026-09-16
 >
 > 이 문서는 현재 저장소의 실제 코드를 기준으로 한 배포 준비 기준점이다. 문서와 코드가 충돌하면 실제 코드가 우선한다.
 
@@ -32,6 +32,7 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 - Presigned Upload의 `Content-Length`와 `Content-Type` 검증
 - 옵션 없는 상품 수정 시 판매자가 입력한 재고가 0으로 덮어써지지 않도록 처리
 - Product/Variant, 주문·결제·취소·반품·교환, 문의·리뷰, Wishlist, Seller Center와 Dashboard
+- SellerOrder 기준 정산 원장·정산 생성 및 판매자 조회/관리자 운영 API·화면
 
 ### 부분 구현 또는 운영 검증이 필요한 기능
 
@@ -43,7 +44,8 @@ Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있
 ### 아직 미구현된 기능
 
 - Seller 리뷰 관리/답글
-- 알림, 쿠폰·포인트, 랭킹·추천 고도화, 정산 관리, 스토어 설정
+- 알림, 쿠폰·포인트, 랭킹·추천 고도화, 스토어 설정
+- 정산 Scheduler와 실제 송금을 담당할 별도 Payout 도메인
 - 회원 탈퇴 및 전체 Admin 운영 Backoffice
 
 ### 다음 개발 우선순위
@@ -161,6 +163,14 @@ PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
 - RESTOCKABLE 원 상품 재고 복원
 - `EXCHANGE_OUTBOUND` 생성 시 reservation consume, 완료 시 `exchangedQuantity` 반영
 - 증빙 이미지 0~5장, Buyer/Seller Frontend, 상태 timeline과 Toss callback
+
+### 정산 자동 생성 향후 계획
+
+현재 Settlement 생성은 ADMIN API/UI의 수동 generate로 실행한다. `ADMIN generate → SettlementGenerationService → 정산 가능한 미귀속 ledger 조회 → 활성 취소·반품·교환 claim이 있는 SellerOrder 제외 → Settlement READY 생성` 흐름이다. 이 수동 실행은 자동 정산 도입 전 운영·검증용 트리거이며, 최종 정산 생성 방식은 아니다.
+
+향후 정해진 정산 주기(예: 월 단위)에 Scheduler가 기존 `SettlementGenerationService`를 호출한다. `배송 완료 → hold 기간 경과 → ledger 정산 가능 → Scheduler 실행 → SettlementGenerationService → READY 생성 → 검토·확정 → 향후 Payout` 흐름을 목표로 한다. 정산 대상 선정·계산 로직을 Scheduler에 중복 구현하지 않는다.
+
+자동 생성 이후에도 ADMIN generate API는 운영·장애 대응을 위한 수동 실행 기능으로 유지할 수 있으며, ADMIN 조회·ON_HOLD·보류 해제 등 운영 기능은 계속 유지한다. `CONFIRMED`는 **정산 금액 확정**이지 지급 완료가 아니다. 실제 판매자 송금은 향후 별도 Payout 도메인에서 다루며, 지급 계좌·KYC·지급 실패·재시도는 현재 Settlement의 책임에 포함하지 않는다.
 
 ## 4. 실제 검증 기준점
 
