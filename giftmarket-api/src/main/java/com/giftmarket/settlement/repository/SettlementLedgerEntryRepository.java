@@ -40,6 +40,15 @@ public interface SettlementLedgerEntryRepository
             @Param("sellerId") Long sellerId
     );
 
+    @Query("""
+            select e from SettlementLedgerEntry e
+            where e.settlement.id = :settlementId
+            order by e.occurredAt asc, e.id asc
+            """)
+    List<SettlementLedgerEntry> findAdminSettlementEntries(
+            @Param("settlementId") Long settlementId
+    );
+
     Optional<SettlementLedgerEntry> findBySourceTypeAndSourceIdAndSourceDetailKey(
             SettlementLedgerSourceType sourceType,
             Long sourceId,

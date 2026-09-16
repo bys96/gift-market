@@ -10,6 +10,7 @@ import com.giftmarket.settlement.entity.SettlementLedgerType;
 import com.giftmarket.user.entity.AuthProvider;
 import com.giftmarket.user.entity.User;
 import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -139,6 +140,29 @@ class SettlementLedgerEntryRepositoryTest {
                 assignedSettlement.getId(), seller.getId());
         assertThat(details).extracting(SettlementLedgerEntry::getId)
                 .containsExactly(assigned.getId());
+    }
+
+    @Test
+    void adminSettlementQueriesSupportNullableFiltersAndSellerDetails() {
+        Settlement older = settlement("ST-ADMIN-OLDER", 0);
+        Settlement newer = settlement("ST-ADMIN-NEWER", 1);
+        settlementRepository.saveAndFlush(older);
+        settlementRepository.saveAndFlush(newer);
+        entityManager.clear();
+
+        var all = settlementRepository.findAdminSettlements(
+                null, null, null, null, PageRequest.of(0, 10));
+        assertThat(all.getContent()).extracting(Settlement::getSettlementNumber)
+                .containsExactly("ST-ADMIN-NEWER", "ST-ADMIN-OLDER");
+        assertThat(all.getContent().getFirst().getSeller().getStoreName())
+                .isEqualTo("settlement-store");
+
+        var filtered = settlementRepository.findAdminSettlements(
+                seller.getId(), com.giftmarket.settlement.entity.SettlementStatus.READY,
+                older.getPeriodStart(), older.getPeriodEnd(), PageRequest.of(0, 10));
+        assertThat(filtered.getContent()).extracting(Settlement::getId)
+                .containsExactly(older.getId());
+        assertThat(settlementRepository.findAdminById(newer.getId())).isPresent();
     }
 
     private Settlement settlement(String number, int startOffsetDays) {

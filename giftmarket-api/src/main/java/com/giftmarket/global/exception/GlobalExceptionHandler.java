@@ -21,6 +21,8 @@ import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.exception.PaymentWebhookRetryableException;
 import com.giftmarket.product.exception.ProductException;
 import com.giftmarket.seller.exception.SellerException;
+import com.giftmarket.settlement.exception.AdminSettlementException;
+import com.giftmarket.settlement.exception.AdminSettlementOperationException;
 import com.giftmarket.wishlist.exception.WishlistException;
 import com.giftmarket.review.exception.ReviewException;
 import com.giftmarket.user.exception.UserException;
@@ -38,6 +40,16 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(AdminSettlementException.class)
+    public ResponseEntity<ApiResponse<?>> handleAdminSettlementException(AdminSettlementException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(exception.getMessage()));
+    }
+
+    @ExceptionHandler(AdminSettlementOperationException.class)
+    public ResponseEntity<ApiResponse<?>> handleAdminSettlementOperationException(AdminSettlementOperationException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.fail(exception.getMessage()));
+    }
+
     @ExceptionHandler(AdminExchangeException.class) public ResponseEntity<ApiResponse<?>> handleAdminExchangeException(AdminExchangeException e){return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(e.getMessage()));}
     @ExceptionHandler(AdminReturnException.class) public ResponseEntity<ApiResponse<?>> handleAdminReturnException(AdminReturnException e){return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(e.getMessage()));}
 
