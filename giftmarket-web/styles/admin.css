@@ -1154,3 +1154,72 @@
   .admin-order-shipments > div { grid-template-columns: 1fr; gap: 4px; }
 }
 .admin-exchange-items{display:grid;gap:14px}.admin-exchange-items article{padding:18px;border:1px solid #e2e5e9;border-radius:11px}.admin-exchange-product{display:flex;justify-content:space-between;gap:16px;margin-bottom:14px}.admin-exchange-product a{color:#303640;font-weight:800;text-decoration:none}.admin-exchange-product span{color:#737a85;font-size:12px}.admin-exchange-variant{display:grid;grid-template-columns:1fr 40px 1fr;align-items:center;gap:12px;padding:16px;border-radius:9px;background:#f7f8fa}.admin-exchange-variant>div{display:flex;flex-direction:column;gap:6px}.admin-exchange-variant small{color:#858b95}.admin-exchange-variant b{text-align:center}.admin-exchange-same{margin:10px 0 0;color:#554aa1;font-size:12px;font-weight:800}.admin-exchange-items dl{margin-top:16px!important}@media(max-width:600px){.admin-exchange-product{flex-direction:column}.admin-exchange-variant{grid-template-columns:1fr}.admin-exchange-variant b{transform:rotate(90deg)}}
+
+/* Admin settlements */
+.admin-settlement-filter-panel { display: block; }
+.admin-settlement-filter-form { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; width: 100%; }
+.admin-settlement-filter-form label { display: flex; flex: 1 1 165px; min-width: 145px; flex-direction: column; gap: 7px; color: #626a75; font-size: 11px; font-weight: 700; }
+.admin-settlement-filter-form input, .admin-settlement-filter-form select, .admin-settlement-generate-fields input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid #d9dde3; border-radius: 8px; background: #fff; color: #303640; font: inherit; font-size: 12px; }
+.admin-settlement-filter-form > button, .admin-settlement-toolbar > button { min-height: 40px; padding: 0 16px; border: 1px solid #292e37; border-radius: 8px; background: #292e37; color: #fff; font-size: 12px; font-weight: 800; cursor: pointer; }
+.admin-settlement-filter-error { flex: 1 1 100%; margin: 0; color: var(--color-error); font-size: 12px; }
+.admin-settlement-toolbar { display: flex; align-items: center; gap: 12px; margin: 20px 0 14px; }
+.admin-settlement-toolbar span { color: #858b95; font-size: 11px; }
+.admin-settlement-result { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 16px; padding: 13px 16px; border: 1px solid #d7e8dc; border-radius: 10px; background: #f4faf6; color: #276943; font-size: 13px; font-weight: 700; }
+.admin-settlement-result a { color: #245f3d; text-decoration: underline; text-underline-offset: 3px; }
+.admin-settlement-table-wrap { overflow-x: auto; }
+.admin-settlement-table { min-width: 1500px; table-layout: auto; }
+.admin-settlement-table th, .admin-settlement-table td { width: auto !important; white-space: nowrap; }
+.admin-settlement-table td a { color: #303640; font-weight: 700; text-decoration: none; }
+.admin-settlement-table td small { display: block; margin-top: 4px; color: #8a909a; }
+.admin-settlement-number { display: inline-block; max-width: 160px; overflow-wrap: anywhere; white-space: normal; }
+.admin-settlement-status { display: inline-flex; align-items: center; min-height: 27px; padding: 0 9px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.admin-settlement-status.is-ready { background: #fff2d8; color: #8a5b13; }
+.admin-settlement-status.is-on_hold { background: #fbe9e9; color: #a13c3c; }
+.admin-settlement-status.is-confirmed { background: #e7f7ed; color: #287548; }
+.admin-settlement-generate-modal { width: min(100%, 560px); }
+.admin-settlement-generate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.admin-settlement-generate-fields label { display: flex; flex-direction: column; gap: 7px; }
+.admin-user-modal .admin-settlement-help { margin: 14px 0 0; color: #858b95; font-size: 11px; }
+.admin-settlement-detail-header { gap: 16px; }
+.admin-settlement-detail-header h1 { overflow-wrap: anywhere; }
+.admin-settlement-detail-header a { color: #4d5560; text-decoration: none; }
+.admin-settlement-detail-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.admin-settlement-detail-actions button { min-height: 37px; padding: 0 12px; border: 1px solid #d9dde3; border-radius: 8px; background: #fff; color: #343a44; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.admin-settlement-detail-actions button.primary { border-color: #292e37; background: #292e37; color: #fff; }
+.admin-settlement-meaning { margin: 0 0 18px; padding: 12px 15px; border: 1px solid #e2e5e9; border-radius: 9px; background: #f7f8fa; color: #626a75; font-size: 12px; line-height: 1.5; }
+.admin-settlement-detail-page .admin-settlement-total { grid-column: 1 / -1; padding-top: 14px; border-top: 1px solid #e1e3e7; }
+.admin-settlement-detail-page .admin-settlement-total dd { color: #222831; font-size: 18px; font-weight: 800; }
+.admin-settlement-audit-card, .admin-settlement-ledger-card { grid-column: 1 / -1; }
+.admin-settlement-ledger-wrap { overflow-x: auto; }
+.admin-settlement-ledger-table { width: 100%; min-width: 900px; border-collapse: collapse; }
+.admin-settlement-ledger-table th, .admin-settlement-ledger-table td { padding: 13px 12px; border-bottom: 1px solid #eceef1; color: #4a515d; font-size: 12px; text-align: left; vertical-align: top; }
+.admin-settlement-ledger-table th { background: #f7f8fa; color: #777e89; font-size: 11px; white-space: nowrap; }
+.admin-settlement-ledger-table td strong { color: #303640; }
+.admin-settlement-ledger-table td small { display: block; margin-top: 5px; color: #8a909a; font-size: 10px; overflow-wrap: anywhere; }
+.admin-settlement-ledger-table td.is-negative { color: #a13c3c; font-weight: 800; white-space: nowrap; }
+.admin-settlement-ledger-table td.is-positive { color: #287548; font-weight: 800; white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .admin-settlement-filter-form label { flex: 1 1 calc(50% - 12px); }
+  .admin-settlement-table { min-width: 0; }
+  .admin-settlement-table td { white-space: normal; }
+  .admin-settlement-table td:first-child { padding-right: 60px; }
+  .admin-settlement-table .admin-settlement-number { max-width: none; }
+  .admin-settlement-detail-actions { justify-content: flex-start; width: 100%; }
+  .admin-settlement-audit-card, .admin-settlement-ledger-card { grid-column: auto; }
+  .admin-settlement-ledger-table { min-width: 0; }
+  .admin-settlement-ledger-table thead { display: none; }
+  .admin-settlement-ledger-table tbody, .admin-settlement-ledger-table tr, .admin-settlement-ledger-table td { display: block; }
+  .admin-settlement-ledger-table tr { margin-bottom: 10px; padding: 12px; border: 1px solid #e4e6ea; border-radius: 10px; }
+  .admin-settlement-ledger-table td { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border: 0; text-align: right; }
+  .admin-settlement-ledger-table td::before { content: attr(data-label); flex: 0 0 86px; color: #8a909a; font-size: 11px; font-weight: 700; text-align: left; }
+}
+
+@media (max-width: 520px) {
+  .admin-settlement-filter-form label { flex-basis: 100%; }
+  .admin-settlement-filter-form > button { width: 100%; }
+  .admin-settlement-generate-fields { grid-template-columns: 1fr; }
+  .admin-settlement-toolbar { align-items: flex-start; flex-direction: column; }
+  .admin-settlement-detail-actions .admin-settlement-status { width: 100%; justify-content: center; }
+  .admin-settlement-detail-actions button { flex: 1; }
+}
