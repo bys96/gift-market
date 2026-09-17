@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import Modal from "@/components/common/modal/Modal";
+import WishlistHeartIcon from "@/components/product/WishlistHeartIcon";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
@@ -41,6 +43,7 @@ export default function ProductDetailActions({
 
   const [isAddingCart, setIsAddingCart] = useState(false);
   const [isBuyingNow, setIsBuyingNow] = useState(false);
+  const [isCartPromptOpen, setIsCartPromptOpen] = useState(false);
 
   const addCartItem = useCartStore((state) => state.addItem);
 
@@ -234,7 +237,7 @@ export default function ProductDetailActions({
         quantity,
       });
 
-      alert("장바구니에 상품을 담았습니다.");
+      setIsCartPromptOpen(true);
     } catch (error) {
       alert(
         error instanceof Error
@@ -409,7 +412,7 @@ export default function ProductDetailActions({
           }
           onClick={() => void handleToggleWishlist()}
         >
-          <span aria-hidden="true">{isWishlisted ? "♥" : "♡"}</span>
+          <WishlistHeartIcon filled={isWishlisted} />
 
           <span>찜</span>
         </button>
@@ -432,6 +435,22 @@ export default function ProductDetailActions({
           {isBuyingNow ? "이동 중..." : "바로 구매"}
         </button>
       </div>
+      {isCartPromptOpen && (
+        <Modal
+          onClose={() => setIsCartPromptOpen(false)}
+          overlayClassName="product-cart-confirm-backdrop"
+          contentClassName="product-cart-confirm-modal"
+          ariaLabelledBy="product-cart-confirm-title"
+          ariaDescribedBy="product-cart-confirm-description"
+        >
+          <h2 id="product-cart-confirm-title">장바구니에 상품을 담았습니다.</h2>
+          <p id="product-cart-confirm-description">장바구니로 이동하시겠습니까?</p>
+          <div className="product-cart-confirm-actions">
+            <button type="button" onClick={() => setIsCartPromptOpen(false)}>취소</button>
+            <button type="button" onClick={() => { setIsCartPromptOpen(false); router.push("/cart"); }}>장바구니로 이동</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

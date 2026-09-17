@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
 import type { Product, ProductSummary } from "@/types/product";
 import { resolveImageUrl } from "@/utils/image-url";
+import WishlistHeartIcon from "@/components/product/WishlistHeartIcon";
 
 interface ProductCardProps {
   product: Product | ProductSummary;
@@ -102,7 +103,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             }
           }}
         >
-          {isWishlisted ? "♥" : "♡"}
+          <WishlistHeartIcon filled={isWishlisted} />
         </button>
       </div>
 

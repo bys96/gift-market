@@ -532,10 +532,15 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
   color: #555555;
-  font-size: 22px;
-  line-height: 1;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.product-card-wishlist svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  flex: none;
 }
 
 .product-card-wishlist:disabled {
@@ -820,7 +825,11 @@
     right: 10px;
     width: 34px;
     height: 34px;
-    font-size: 20px;
+  }
+
+  .product-card-wishlist svg {
+    width: 20px;
+    height: 20px;
   }
 
   .product-card-sold-out {
