@@ -1,11 +1,10 @@
-# Gift Market Notification 1단계 설계
+# Gift Market Notification 설계 및 현재 연결
 
 ## 범위
 
 - BUYER, SELLER, ADMIN context별 알림 목록과 읽음 상태를 관리한다.
-- 1단계는 조회, unread count, 개별 읽음, 전체 읽음 API만 제공한다.
-- 기존 주문, 배송, 취소, 반품, 교환, 문의, 판매자 신청 서비스와의 생성 연결은 2단계에서 진행한다.
-- polling, SSE, WebSocket은 1단계 범위에 포함하지 않는다.
+- 조회, unread count, 개별 읽음, 전체 읽음 API/UI와 상품문의·판매자 신청·주문·배송·취소·반품·교환의 알림 생성 연결이 구현되어 있다. 아래 단계 표기는 구현 이력이다.
+- 알림은 비즈니스 커밋 후 이벤트로 저장한다. polling, SSE, WebSocket 실시간 전달은 구현하지 않았다.
 
 ## ERD
 

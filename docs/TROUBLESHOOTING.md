@@ -280,7 +280,7 @@ MinIO direct upload가 성공한 뒤 반품 생성 요청이 실패하면 DB에 
 
 ## ddl-auto:update와 수동 SQL의 중복 실행
 
-개발환경에서 Hibernate가 이미 컬럼이나 제약을 추가한 뒤 같은 ALTER SQL을 실행하면 duplicate column/constraint 오류가 발생할 수 있다. `docs/sql`은 자동 실행 파일이 아니라 스키마 확인·백업 후 사용하는 수동 migration 참고본이다. 운영 전에는 Flyway/Liquibase 같은 versioned migration으로 전환해야 한다.
+개발환경에서 Hibernate가 이미 컬럼이나 제약을 추가한 뒤 같은 ALTER SQL을 실행하면 duplicate column/constraint 오류가 발생할 수 있다. `docs/sql`은 자동 실행 파일이 아니라 스키마 확인·백업 후 사용하는 수동 migration 참고본이다. 운영은 `ddl-auto=validate`와 SQL 선적용 방식이며 versioned migration 도입은 후속 과제다.
 
 MySQL Safe Update Mode Error 1175 사례의 정확한 실행 쿼리와 해결 절차는 현재 저장소에서 확인되지 않아 이 문서에 추정 기록을 추가하지 않았다.
 
@@ -753,7 +753,7 @@ Render 또는 외부 probe가 Backend root path `/`로 요청을 보내면 root 
 
 이 로그는 startup 실패나 AppCDS 문제와 무관하다. lightweight `GET /health` endpoint를 추가하고 `NoResourceFoundException`을 별도 404 응답으로 처리해, 존재하지 않는 경로가 generic 500 handler와 ERROR stacktrace로 연결되지 않도록 해결했다. Render Health Check Path는 `/health`를 사용한다.
 
-# 최신 검증 메모
+# 과거 검증 메모 (현재 결과 아님)
 
-- 2026-09-07 최신 작업 보고: Backend **711 tests / 710 success / 1 environment-dependent failure** (contextLoads JDBC metadata/dialect 오류), Frontend lint/tsc/build 성공, 정적 페이지 34개.
+- 2026-09-07 당시 작업 보고: Backend **711 tests / 710 success / 1 environment-dependent failure** (contextLoads JDBC metadata/dialect 오류), Frontend lint/tsc/build 성공, 정적 페이지 34개. 이후 기능과 테스트가 변경되었으므로 현재 검증 결과로 사용하지 않는다.
 - 실제 Secret 파일은 문서 점검 과정에서 읽거나 출력하지 않는다.

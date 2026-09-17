@@ -662,8 +662,8 @@ Payment 변경에서 다음을 동시에 보호한다.
 부분취소를 이유로 기존 FULL 취소 코드를 전면 재작성하지 않는다.
 
 
-## 33. 최신 회귀 기준
+## 33. 과거 회귀 기록
 
-- 2026-08-28 최신 작업 보고 기준 Backend 전체 suite는 **511/511 성공**이다.
-- Frontend `npm run lint`, `npx tsc --noEmit`, `npm run build`가 성공했고 정적 페이지 34개가 생성됐다.
+- 2026-08-28 당시 작업 보고 기준 Backend 전체 suite는 **511/511 성공**이었다.
+- 같은 시점 Frontend `npm run lint`, `npx tsc --noEmit`, `npm run build`가 성공했다. 현재 결과나 페이지 수는 실행 시점에 다시 확인한다.
 - 이 문서의 Payment/PG 구조에는 2026-08-28 Seller/Pagination 마감 작업으로 인한 API/DB 변경이 없다.

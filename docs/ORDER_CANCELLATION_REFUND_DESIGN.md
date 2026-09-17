@@ -458,7 +458,10 @@ GET   /api/seller/orders/cancellations
 GET   /api/seller/orders/cancellations/{cancellationId}
 PATCH /api/seller/orders/cancellations/{cancellationId}/approve
 PATCH /api/seller/orders/cancellations/{cancellationId}/reject
+POST  /api/seller/orders/{sellerOrderId}/cancel
 ```
+
+마지막 POST는 판매자 직접취소 경로다. 구매자 요청에 대한 승인/거절과 구분하며, 실제 환불 완료 후 정산 원장에 반영한다.
 
 ## 23. 구매자 UI
 
@@ -528,7 +531,7 @@ SellerOrder 1 : N Shipment
 
 저장소에는 개발 DB 수동 검증/DDL을 위한 `docs/sql` 파일들이 존재한다.
 
-운영 전에는 `ddl-auto:update` 의존을 제거하고 Flyway/Liquibase 등 versioned migration을 도입해야 한다.
+운영은 `ddl-auto=validate`와 수동 SQL 선적용을 사용해 왔다. `docs/sql`은 자동 migration이 아니다. Flyway/Liquibase 등 versioned migration은 후속 운영 과제다.
 
 ## 28. 테스트 기준
 
@@ -593,7 +596,7 @@ Cancellation 자체의 핵심 기능은 구현 완료 상태다.
 - 진행 중 취소 요청 수량은 구매확정 가능 수량에서도 제외한다.
 
 
-## 31. 최신 회귀 기준
+## 31. 과거 회귀 기록
 
-- 2026-08-28 최신 작업 보고 기준 Backend 전체 suite는 **511/511 성공**이다.
+- 2026-08-28 당시 작업 보고에는 Backend 전체 suite **511/511 성공**이 기록되어 있다. 현재 테스트 결과로 해석하지 않는다.
 - 이 숫자는 Cancellation 전용 테스트 수가 아니라 전체 프로젝트 회귀 기준이며, 이후 변경 시 실제 실행 결과를 우선한다.

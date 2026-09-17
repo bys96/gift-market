@@ -1671,7 +1671,7 @@ Shipment 핵심 테스트:
 ```
 
 Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증, Return Backend 1~7, Buyer/Seller Return Frontend, Return 증빙 이미지와 실제 Return 정상 E2E까지 완료됐다.
-Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 24시간 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환과 Toss 6,000원 추가결제를 포함한 실제 정상 E2E도 확인했다. 최신 작업 보고 기준 Backend 전체 자동 테스트는 511개 성공이며, SELLER 귀책 및 실제 timeout/5xx 장애 E2E와 공개 staging 검증은 남아 있다.
+Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 만료 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환의 과거 정상 E2E 기록이 있으며, SELLER 귀책 및 실제 timeout/5xx 장애 E2E와 공개 환경 검증은 별도로 확인해야 한다.
 # 구매확정과 반품·교환 수량
 
 - 구매확정은 `OrderItem.confirmedQuantity` 단위로 관리한다.
@@ -1686,4 +1686,4 @@ Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAY
 - `confirmedQuantity`는 Return/Exchange 신청 가능 수량에서 제외한다.
 - 진행 중 Return/Exchange 점유 수량은 구매확정 가능 수량에서도 제외한다.
 - 완료 Exchange 수량은 최종 보유 수량이므로 구매확정 가능 수량 계산에서 별도 정책대로 다시 포함된다.
-- 최신 작업 보고 기준 전체 Backend suite는 **511/511 성공**이며, Frontend lint/tsc/build도 성공했다.
+- 2026-08-28 당시 작업 보고 기준 전체 Backend suite는 **511/511 성공**이고 Frontend lint/tsc/build도 성공했다. 현재 실행 결과는 별도로 확인한다.

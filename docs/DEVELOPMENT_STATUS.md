@@ -1,251 +1,65 @@
 # Gift Market 개발 현황
 
-> 최종 갱신: 2026-09-16
->
-> 이 문서는 현재 저장소의 실제 코드를 기준으로 한 배포 준비 기준점이다. 문서와 코드가 충돌하면 실제 코드가 우선한다.
+> 기준: 현재 저장소의 Backend·Frontend·설정·SQL. 문서와 코드가 충돌하면 코드가 우선한다. 운영 배포 여부와 외부 서비스의 실제 상태는 저장소만으로 재검증할 수 없다.
 
-## 1. 현재 요약
+## 완료된 기능
 
-Gift Market의 구매자·판매자 핵심 commerce workflow가 구현되어 있다.
+- 인증·회원: Google OIDC/Kakao OAuth2, JWT Access Token, HttpOnly Refresh Token cookie, rotation·이전 토큰 10초 grace·행 잠금, 프로필·이미지, 배송지 CRUD, 회원 탈퇴 및 OAuth 재가입 시 새 사용자 생성.
+- 판매자: 신청·관리자 승인, ADMIN 자기 신청 자동 승인, `Seller`와 1:1 `SellerStore`, 스토어 정보·이미지·고객센터 정보 설정, Seller Center Dashboard·상품·주문·클레임·문의 관리.
+- 상품·콘텐츠: 카테고리, 상품 CRUD·임시저장, 옵션/Variant·재고, 비활성 Variant 보존, 상품 이미지와 상세 이미지/MP4, MinIO 또는 S3 provider의 presigned 업로드, 상품 목록·상세·검색, 회원별 Wishlist·Cart.
+- 거래: 멀티셀러 `Order → SellerOrder → OrderItem`, 주문 당시 가격·배송비 snapshot, Toss 승인·웹훅·결과 불명 reconciliation, 최초 출고·반품 회수·교환 회수/재배송 `Shipment`.
+- 클레임: 전체취소와 상품·수량 부분취소/환불, 구매자 취소·판매자 직접취소, 승인/거절, 부분 재고복원, 반품 요청·회수·검수·환불·완료, 동일가격 교환·target 재고 예약/해제/소비·교환배송비 추가결제, 구매확정 수량과 리뷰.
+- 소통·운영: 상품문의/답변, 구매확정 기반 리뷰/이미지, BUYER·SELLER·ADMIN 알림과 읽음 API/UI, 관리자 회원 정지/해제·판매 정지/해제·상품 숨김/해제·판매자 신청 처리 및 주문/클레임 조회.
+- 정산 v1: 판매자 주문별 경제 원장, 결제·배송완료·취소·반품 연결, 수동 Settlement 생성·보류·해제·확정, 판매자 목록/상세/미정산 요약 및 관리자 목록/상세/상태 관리 API/UI. 실제 송금은 포함하지 않는다.
 
-- 인증/JWT/OAuth, 판매자 신청·승인
-- 상품·옵션·Variant, 장바구니, 회원별 Backend Wishlist, 상품문의 Q&A
-- 주문, SellerOrder, Shipment, Toss 결제
-- 전체취소, 상품·수량 부분취소와 부분환불
-- Return 구매자·판매자 전체 workflow
-- Exchange 구매자·판매자 전체 workflow와 교환배송비 추가결제
-- MinIO 상품·프로필·Return/Exchange 증빙 이미지
-- Buyer/Seller 주요 Frontend와 모바일 대응
+## 정산 v1의 현재 경계
 
-현재 기능 개발 기준으로 Return과 Exchange를 미구현 범위로 취급하지 않는다. 남은 큰 범위는 운영환경 분리, migration 전략, staging 배포와 외부 연동 회귀 검증이다.
-
-## 2. 현재 구현 상태 요약
-
-### 현재 완료된 기능
-
-- Google/Kakao OAuth, JWT Access Token과 HttpOnly Refresh Token cookie 인증
-- OAuth Callback과 `AuthInitializer`의 공통 인증 초기화 및 보호 페이지 로그인 redirect 흐름
-- Samsung Internet을 포함한 same-origin `/api`, `/oauth2`, `/login/oauth2` proxy 흐름
-- Refresh Token Rotation 동시성 처리: row `PESSIMISTIC_WRITE` 잠금, 이전 token hash 10초 grace, current Refresh Token AES-GCM 암호화 저장
-- JWT 서명 키와 분리된 `REFRESH_TOKEN_ENCRYPTION_KEY` 환경변수 및 Render Secret File 매핑
-- 상품 대표/갤러리 이미지 최대 20MB, 상세 설명 MP4 최대 50MB 및 최대 3개
-- Presigned Upload의 `Content-Length`와 `Content-Type` 검증
-- 옵션 없는 상품 수정 시 판매자가 입력한 재고가 0으로 덮어써지지 않도록 처리
-- Product/Variant, 주문·결제·취소·반품·교환, 문의·리뷰, Wishlist, Seller Center와 Dashboard
-- SellerOrder 기준 정산 원장·정산 생성 및 판매자 조회/관리자 운영 API·화면
-
-### 부분 구현 또는 운영 검증이 필요한 기능
-
-- Refresh Token 컬럼(`previous_token_hash`, `previous_token_expires_at`, `token_value_encrypted`)은 운영 DB에 명시적 DDL 적용이 필요하다.
-- 운영 Render 환경변수와 Secret File, HTTPS cookie/SameSite, OAuth redirect URI, S3/MinIO 및 Toss 외부 연동은 staging/production 환경 검증이 필요하다.
-- SELLER 귀책 Exchange, 외부 timeout/5xx 보상 흐름과 전체 production E2E는 추가 검증 범위다.
-- 상세 미디어 legacy localhost URL은 `docs/sql/product-description-media-key-migration.sql` 절차에 따라 object 존재 확인과 백업 후 수동 migration해야 한다.
-
-### 아직 미구현된 기능
-
-- Seller 리뷰 관리/답글
-- 알림, 쿠폰·포인트, 랭킹·추천 고도화, 스토어 설정
-- 정산 Scheduler와 실제 송금을 담당할 별도 Payout 도메인
-- 회원 탈퇴 및 전체 Admin 운영 Backoffice
-
-### 다음 개발 우선순위
-
-1. 운영 DB 백업·컬럼 검증과 versioned migration 관리 방식 확정
-2. Render/S3/Toss/OAuth 운영 설정 및 장애·보상 E2E 검증
-3. 관측성(로그·지표·알림)과 운영 runbook 보완
-4. Seller 리뷰 관리와 운영 Backoffice 등 후속 기능
-
-### Backend
-
-- Java 21
-- Spring Boot 4.1.0
-- Spring Security, OAuth2/OIDC, JWT
-- Spring Data JPA, MySQL
-- MinIO
-- Toss Payments
-- Gradle
-
-### Frontend
-
-- Next.js 16.2.11 App Router
-- React 19.2.4
-- TypeScript
-- Zustand
-- TanStack Query dependency
-- Tiptap
-- 일반 CSS 기반 UI
-- Tailwind dependency/import는 존재하지만 신규 UI에는 utility class를 사용하지 않음
-
-## 3. 구현 완료 상태
-
-### 인증 / 회원 / 판매자
-
-- Google OAuth/OIDC, Kakao OAuth
-- JWT Access Token과 Refresh Token cookie
-- 프로필, 배송지, 회원별 Backend Wishlist API와 Frontend 서버 동기화
-- 신규 프로필 이미지는 `profiles/{userId}/{uuid}` key만 저장·삭제할 수 있으며, 기존 `profile/{uuid}` key는 조회 호환만 유지하고 자동 삭제하지 않음
-- `ProductInquiry 1:0..1 ProductInquiryAnswer` 기반 Buyer 상품문의와 Seller 답변 관리
-- 답변 후 Buyer 수정은 차단하되 삭제는 허용하며, 문의 soft delete 후에도 Answer 이력은 보존
-- 구매확정 기반 Buyer 리뷰 구현: OrderItem당 활성 리뷰 1개, 삭제 후 동일 행 복구 재작성
-- 완료 교환이 있으면 `completedAt DESC, id DESC` 최신 target 상품/Variant snapshot을 리뷰 대상으로 저장
-- 리뷰 본문/1~5 정수 별점/이미지 0~5장, soft delete, 상품별 최신순 pagination 및 활성 리뷰 평균·개수 집계
-- Review 이미지는 `reviews/{userId}/` objectKey만 DB에 저장하고 공개 상품 리뷰 조회 시 단기 presigned GET URL로 제공
-- 판매자 신청, 관리자 승인, SELLER 권한
-- ADMIN도 별도 Seller 등록이 가능하며, 동일 등록 폼 제출 후 Backend에서 같은 transaction으로 자동 APPROVED + ACTIVE Seller 생성. ADMIN role은 유지
-- Seller Center 접근의 최종 기준은 role이 아니라 `/api/sellers/me`의 ACTIVE Seller 여부이며, Backend Seller API는 인증 후 Service에서 ACTIVE Seller/ownership을 검증
-- 관리자 판매자 신청 목록은 `page`/`size` 기반 server pagination이며 `createdAt DESC, id DESC`로 정렬
-- 판매자센터와 상품·주문·클레임 관리
-- Seller Dashboard 실데이터 집계와 처리 필요 업무 Action Center
-- Seller Center redirect loop 및 ADMIN Seller API 403 불일치 정리
-
-### 상품 / 옵션 / Variant
-
-- 상품 등록·수정, 이미지, 판매상태와 재고
-- 옵션 그룹·값과 Variant 조합 편집
-- 제거된 조합은 `ProductVariant`를 물리 삭제하지 않고 `active=false`로 보존
-- 과거 `OrderItem.variant` 참조와 `optionSnapshot` 유지
-- Buyer 상품 조회에는 active Variant만 노출
-- Buyer 상품 목록은 URL에서 페이지당 20/50/100개 선택을 유지하며 Backend는 최대 100개로 제한
-- 공통 `Pagination`은 `<< < 숫자 최대 5개 > >>` 정책으로 통일하며 URL Link/local state/summary/scroll 동작을 유지
-- Product 총재고는 active Variant 재고 합계로 동기화
-- 현재 옵션 구조와 같은 `combinationKey`의 inactive Variant는 기존 ID로 재활성화
-- `(product_id, combination_key)` unique로 중복 조합 방지
-- Seller 편집 화면에서 active/inactive Variant를 구분하고 옵션 그룹·값 제거 및 재활성화 지원
-
-### 주문 / 배송 / 결제
-
-- Order 한 건 아래 SellerOrder별 주문 처리
-- `SellerOrder 1:N Shipment`
-- `ORIGINAL_OUTBOUND`, `RETURN_COLLECTION`, `EXCHANGE_COLLECTION`, `EXCHANGE_OUTBOUND`
-- 주문 prepare 멱등성, 재고 예약 차감, READY 만료와 재고 복원
-- Toss 승인, CONFIRMING 결과 불명 reconciliation, webhook 중복 방지
-- 전체취소와 CANCELING reconciliation
-- 부분취소·부분환불, 환불 잔액, 부분 재고복원과 orphan recovery
-- Buyer 주문 목록은 `page`/`size` 기반 server pagination이며, `orderedAt DESC, id DESC`로 정렬하고 현재 page의 OrderItem/SellerOrder만 batch 조회
-
-### Return
+상세 원장·집계·API 기준은 [`SETTLEMENT_V1.md`](./SETTLEMENT_V1.md)를 참조한다.
 
 ```text
-REQUESTED → APPROVED → COLLECTING → RECEIVED → INSPECTED → REFUNDING → COMPLETED
-REQUESTED → REJECTED
+Seller 1:N Settlement
+SellerOrder 1:N SettlementLedgerEntry
+Settlement 1:N SettlementLedgerEntry (ledger.settlement_id nullable)
 ```
 
-- 구매자 부분수량 요청, ownership·기간·가용수량·멱등성 검증
-- 판매자 승인/거절, OTHER 귀책 확정, 회수·입고·검수
-- 주문 snapshot 기반 환불액과 배송비 계산
-- `PaymentCancellation(PARTIAL)` 기반 Toss 환불과 결과 불명 reconciliation
-- RESTOCKABLE 원 상품만 재고 복원
-- `returnedQuantity`, `restockedQuantity`, completion recovery
-- 증빙 이미지 0~5장과 Buyer/Seller 이미지 조회
-- Buyer/Seller Frontend 및 정상 E2E 완료
+- 결제 `PAID` 완료 트랜잭션에서 SellerOrder별 주문 snapshot으로 `SALE_PRODUCT`, 0원이 아닌 `SALE_SHIPPING`, 0원이 아닌 `COMMISSION`을 생성한다. 최초 `SALE_PRODUCT`에 당시 수수료율을 기록한다.
+- `ORIGINAL_OUTBOUND` 배송완료 시 초기 원장의 `eligibleAt = deliveredAt + settlement.hold-days`를 확정한다. 배송 전 부분취소 원장도 배송완료 시 활성화한다.
+- 성공한 `PaymentCancellation`에 대해서만 취소 `CANCELLATION_REFUND`와 필요 시 `COMMISSION_REVERSAL`을 기록한다. 완료된 반품은 실제 PG 환불액의 `RETURN_REFUND`(0원은 생략)와 필요 시 수수료 환입을 기록한다. 환입은 최초 수수료율 snapshot과 취소·반품 누적 상품환불액을 사용한다.
+- `SettlementGenerationService`는 정산 가능·미귀속 원장을 잠금 조회하고 활성 취소·반품·교환 claim이 있는 SellerOrder 전체를 제외한다. `periodStart`는 원장 조회 하한이 아니며 이전 회차 미귀속분을 catch-up한다. 빈 결과는 Settlement를 만들지 않는다.
+- 상태는 `READY → ON_HOLD → READY`, `READY → CONFIRMED`만 허용한다. `CONFIRMED`는 원장·금액이 확정된 최종 상태이지 **판매자 지급 완료가 아니다**. 사후 환불은 기존 확정분을 바꾸지 않고 다음 회차의 새 음수 원장으로 반영한다.
+- 현재 생성 트리거는 ADMIN API/UI의 수동 `generate`다. 정기 Scheduler는 미구현이며 도입 시 계산을 복제하지 않고 `SettlementGenerationService`를 호출한다. 운영/장애 대응용 수동 API와 관리자 조회·보류·해제는 유지할 수 있다.
 
-### Exchange
+현재 HTTP 경계: 판매자는 `GET /api/seller/settlements`(선택 `status`, `page`, `size`), `/summary`, `/{settlementId}`로 자기 정산만 조회한다. 관리자는 `GET /api/admin/settlements`(선택 `sellerId`, `status`, `periodStart`, `periodEnd`, `page`, `size`), `/{settlementId}`와 `POST /generate`, `/{settlementId}/hold`, `/{settlementId}/release`, `/{settlementId}/confirm`을 사용한다. 생성 요청에는 seller·기간·cutoff만 받고 금액을 받지 않는다.
 
-```text
-REQUESTED
-→ 판매자 승인 및 target reservation
-→ BUYER: PAYMENT_PENDING → 배송비 결제 → COLLECTING
-→ SELLER: COLLECTING
-→ RECEIVED → INSPECTED → RESHIPPING → COMPLETED
+## 부분 구현·운영 검증 필요
 
-REQUESTED → REJECTED
-PAYMENT_PENDING 24시간 미결제 → CANCELED + reservation release
-```
+- 회원 탈퇴는 진행 중 주문·클레임·판매자 주문을 검사하고 개인정보를 익명화하지만, `Settlement` 미확정/미귀속 원장 자체에 대한 탈퇴 차단은 코드에 없다. 정산 운영 정책을 정한 뒤 보완해야 한다.
+- 관리자 주문·취소·반품·교환은 조회 중심이다. 관리자 강제 취소·환불·클레임 중재는 구현되지 않았다.
+- `/support`, `/terms`, `/privacy`는 외부 테스트 안내 페이지이며 정식 사업자·연락처·법률 문안 확정이 남았다.
+- 상품 상세 미디어의 오래된 절대 localhost URL과 저장소 object는 `PRODUCT_DESCRIPTION_MEDIA.md` 절차에 따라 실제 DB/object 확인 후 별도 이전해야 한다. 저장 취소·이탈 후 미참조 업로드 object 자동 정리도 없다.
+- SELLER 귀책 교환 실제 E2E, PG timeout/5xx·웹훅·보상 흐름, 백업/복구, 접근성 및 모바일 UX는 배포 환경에서 별도 회귀 검증이 필요하다. 과거 로컬/E2E 기록을 최신 운영 검증으로 간주하지 않는다.
 
-- 동일 Product의 현재 판매단가가 원 `OrderItem.unitPrice`와 같은 target만 허용
-- 신청 시 target 상태·가격·재고 사전검사, 승인 시 재검증·잠금·실제 reservation
-- Return/Exchange 활성 수량과 완료된 canceled/returned/exchanged 수량 교차 검증
-- target `reservedQuantity / releasedQuantity / consumedQuantity` 추적
-- BUYER 귀책은 `ExchangeShippingPayment` 1:1 추가결제, SELLER 귀책은 추가결제 없음
-- 0원 결제 추적, REQUESTED 결과 불명 reconciliation, FAILED 새 attempt, 24시간 만료
-- 만료 뒤 늦은 성공은 `COMPENSATION_REQUIRED`로 분리
-- `EXCHANGE_COLLECTION` 회수, 입고, RESTOCKABLE/NON_RESTOCKABLE 검수
-- RESTOCKABLE 원 상품 재고 복원
-- `EXCHANGE_OUTBOUND` 생성 시 reservation consume, 완료 시 `exchangedQuantity` 반영
-- 증빙 이미지 0~5장, Buyer/Seller Frontend, 상태 timeline과 Toss callback
+## 미구현·후순위
 
-### 정산 자동 생성 향후 계획
+- 정산 정기 Scheduler, 별도 Payout/실제 송금·계좌/KYC·지급 실패/재시도.
+- 쿠폰·포인트, 랭킹/추천 고도화, Seller 리뷰 답글, 관리자 강제 환불/클레임 중재 등 Backoffice 확장.
+- 미참조 S3/MinIO object cleanup, Flyway/Liquibase 등 versioned migration 체계, 운영 지표·경보·runbook·정기 백업/복구 자동화.
+- 홈은 실제 상품 API로 소수 상품을 보여주는 기본 화면이다. 개인화 추천/랭킹은 구현되지 않았다.
 
-현재 Settlement 생성은 ADMIN API/UI의 수동 generate로 실행한다. `ADMIN generate → SettlementGenerationService → 정산 가능한 미귀속 ledger 조회 → 활성 취소·반품·교환 claim이 있는 SellerOrder 제외 → Settlement READY 생성` 흐름이다. 이 수동 실행은 자동 정산 도입 전 운영·검증용 트리거이며, 최종 정산 생성 방식은 아니다.
+`docs/sql`의 파일은 설계 단계별 수동 DDL·backfill·검증 이력이다. 새 환경에 일괄 실행하지 않는다. 현재 Entity/운영 스키마를 확인해 필요한 파일만 적용한다. 정산의 신규 테이블은 `settlements`, `settlement_ledger_entries` 두 개이며 `SettlementItem`은 없다.
 
-향후 정해진 정산 주기(예: 월 단위)에 Scheduler가 기존 `SettlementGenerationService`를 호출한다. `배송 완료 → hold 기간 경과 → ledger 정산 가능 → Scheduler 실행 → SettlementGenerationService → READY 생성 → 검토·확정 → 향후 Payout` 흐름을 목표로 한다. 정산 대상 선정·계산 로직을 Scheduler에 중복 구현하지 않는다.
+## 운영·배포 설정의 코드 기준
 
-자동 생성 이후에도 ADMIN generate API는 운영·장애 대응을 위한 수동 실행 기능으로 유지할 수 있으며, ADMIN 조회·ON_HOLD·보류 해제 등 운영 기능은 계속 유지한다. `CONFIRMED`는 **정산 금액 확정**이지 지급 완료가 아니다. 실제 판매자 송금은 향후 별도 Payout 도메인에서 다루며, 지급 계좌·KYC·지급 실패·재시도는 현재 Settlement의 책임에 포함하지 않는다.
+- Backend: Java 21, Spring Boot 4.1.0, Spring Security/JPA, MySQL, Toss, Actuator. `Dockerfile`은 layered JAR와 AppCDS archive를 준비한다. `/health`는 인증 없이 `UP`을 반환한다.
+- 배포 구조는 사용자 보고 기준 Vercel Frontend / Render Backend / MySQL / 외부 object storage다. Frontend는 Next.js 16.2.11 App Router/React 19/TypeScript/CSS. `next.config.ts`는 production의 `BACKEND_API_ORIGIN`이 있을 때 `/api`, `/oauth2`, `/login/oauth2`를 같은 origin 경로에서 Backend로 rewrite한다. OAuth redirect, CORS, Refresh Cookie의 Secure/SameSite 및 forwarded header 설정은 실제 배포 환경과 함께 검증해야 한다.
+- 객체 저장소는 `storage.provider`로 MinIO(샘플 기본값) 또는 S3를 선택한다. 선택 변경은 기존 object 이전 기능이 아니다.
+- `application*.yaml`은 `DB_URL`, `JPA_DDL_AUTO` 등 환경변수 바인딩을 사용하고 개발 기본값은 `ddl-auto=update`다. 운영은 별도 환경변수에서 `validate`로 설정해야 한다. `docs/sql/*.sql`은 자동 migration이 아닌 수동 DDL/backfill 참고본이며 운영에서 실제 적용 여부는 DB와 대조해야 한다.
+- 프로젝트의 `LocalDateTime` + MySQL `DATETIME(6)`는 KST 기준 운영 설정을 전제한다. JVM `-Duser.timezone=Asia/Seoul`, JDBC `connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true`는 배포 환경에서 맞춰야 하며, 실제 `DB_URL`이나 Secret 값은 저장소 문서에 기록하지 않는다. 해결 이력은 `TROUBLESHOOTING.md`를 참조한다.
+- `application-example.yaml`의 주석형 로컬 DB URL 예시는 아직 `serverTimezone=Asia/Seoul` 표기를 사용한다. 운영에서 확인된 JDBC 설정과 혼동하지 말아야 하며 샘플 정리는 코드/설정 변경 작업으로 별도 처리한다.
+- 사용자 보고 기준으로 Settlement v1 Phase 1~7은 배포 완료됐다. 저장소의 Docker/Next/Spring 설정은 배포 구성을 설명하지만 Render/Vercel 콘솔 값과 운영 DB 스키마의 실제 상태는 이 문서 감사로 확인하지 않았다.
 
-## 4. 실제 검증 기준점
+## 빠른 검증 기준
 
-### Backend
-
-- 구매확정: 배송 완료 `OrderItem`의 현재 확정 가능 수량 전체를 Buyer가 확정하며, `confirmedQuantity`를 이후 취소·반품·교환 가능 수량에서 제외
-- 완료 교환 수량은 최종 보유 수량으로 구매확정 가능하고, 진행 중 취소·반품·교환 수량은 확정 대상에서 제외
-- 최신 작업 보고 기준 전체 suite: **711 tests / 710 success / 1 environment-dependent failure** (contextLoads의 JDBC metadata/dialect 오류)
-- Return/Exchange 수량 교차 점유, reservation/release/consume, Payment reconciliation과 기존 주문 참조 회귀를 포함
-
-### Frontend
-
-- `npm run lint`: **0 errors / 0 warnings**
-- `npx tsc --noEmit`: 성공
-- `npm run build`: 성공
-- Next.js 정적 페이지 **34개** 생성 성공
-- 공통 Pagination/조회 상태 UX 수정 후 lint/tsc/build 재검증 성공
-- `/products`, `/login`, `/order`, `/seller/products/new`의 `useSearchParams` 렌더링 경로는 Suspense boundary 적용 완료
-
-### 실제 E2E
-
-- Return 정상 요청 → 승인 → 회수 → 입고 → 검수 → 환불 → 완료 확인
-- Exchange BUYER 귀책, 다른 동일가격 Variant 교환 확인
-- 판매자 승인과 target reservation 확인
-- Toss 교환배송비 6,000원 실제 결제 SUCCEEDED 확인
-- 회수 Shipment → 입고 → RESTOCKABLE 검수 → 원 재고 복원 확인
-- 재배송 Shipment → reservation consume → `exchangedQuantity` → COMPLETED 확인
-
-아직 완료로 기록하지 않는 범위:
-
-- SELLER 귀책 Exchange 실제 E2E
-- timeout/5xx를 실제로 유발한 외부 장애 E2E
-- 공개 staging/production 외부환경 전체 회귀
-
-## 5. DB / SQL 기준
-
-- 현재 개발 설정은 Hibernate `ddl-auto:update`를 사용한다.
-- `docs/sql/*.sql`은 자동 실행 migration이 아니라 개발 DB 확인·backfill·수동 DDL 참고본이다.
-- 새 환경은 schema 생성 후 `docs/sql/category-seed.sql`을 적용해야 Seller 상품 등록과 Buyer 카테고리 필터에 사용할 최소 활성 카테고리가 생성된다.
-- Hibernate가 이미 반영한 변경을 같은 SQL로 중복 실행하지 않는다.
-- 운영 배포 전 Flyway/Liquibase 등 versioned migration 전략을 확정해야 한다.
-- 이번 기준점에서는 schema나 production profile을 변경하지 않는다.
-
-## 6. 배포 전 남은 작업
-
-1. development/staging/production profile과 환경변수 분리
-2. Secret, cookie secure/SameSite, CORS, OAuth redirect URI 점검
-3. localhost hardcoding과 Frontend API/Storage URL 외부환경 설정 점검
-4. Toss 상점용 테스트 키·webhook을 사용한 공개 HTTPS staging 회귀
-5. MinIO endpoint/bucket/CORS와 외부 영속 스토리지 운영 설정
-6. production DB versioned migration 및 backup/rollback 전략
-7. Security review와 관리자 결제·환불 관측/수동 대응 정책
-8. EC2 등 staging 배포 후 Return/Exchange 포함 전체 E2E
-9. 운영 로그·지표·경보·백업과 장애 runbook
-10. SELLER 귀책 Exchange 및 실제 timeout/5xx 보상 흐름 E2E
-11. `NEXT_PUBLIC_STORAGE_BASE_URL` 누락/오설정을 단순 이미지 없음으로 숨기지 않도록 운영 설정 오류 관측성 개선
-12. Modal 키보드 접근성(Escape/focus)과 Seller Sidebar 모바일 UX 최종 점검
-13. `/support`, `/terms`, `/privacy`의 실제 사업자/문의/개인정보 담당 정보 배포 전 확정
-
-## 7. 운영 전 주의사항
-
-- Frontend 금액·재고를 최종 신뢰하지 않는다.
-- PG timeout/5xx를 실패로 단정하지 않는다.
-- Secret/API key/token을 코드·문서·로그에 기록하지 않는다.
-- 기존 주문 Payment, PaymentCancellation, ExchangeShippingPayment의 역할을 섞지 않는다.
-- ProductVariant와 과거 주문 참조를 물리 삭제하지 않는다.
-- 운영환경에서 `ddl-auto:update`를 migration 전략으로 사용하지 않는다.
-
-
-## 8. 2026-09-07 마감 변경
-
-- ADMIN Seller 미등록 시 일반 Seller 등록 폼을 사용하며 ADMIN 신청은 자동 승인한다.
-- 일반 관리자 승인과 ADMIN 자동승인은 `SellerApprovalService` 공통 primitive를 사용한다.
-- `/api/seller/**`, `/api/sellers/**`는 authenticated matcher로 통과하고 실제 ACTIVE Seller/ownership 검증은 Service가 담당한다.
-- 공통 Pagination의 기본 page window는 최대 5개이며 처음/이전/다음/마지막 이동을 제공한다.
-- 리뷰, Buyer/Seller 문의, Admin 판매자 신청의 loading/error 숫자 표시는 실제 0과 구분한다.
-- Buyer 상품문의 삭제로 현재 페이지가 사라지는 경우 마지막 유효 페이지로 보정한다.
-- Backend schema/API 변경 없이 Frontend 마감 작업은 lint/TypeScript/build를 통과했다.
+- Backend: 변경 범위에 맞는 테스트를 우선 실행하고 필요할 때 `./gradlew test`를 실행한다. 테스트 개수를 문서 계약으로 고정하지 않는다.
+- Frontend: `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+- 배포: DB 백업 및 대상 스키마 확인 → 필요한 수동 SQL 선적용 → `ddl-auto=validate` Backend 배포 → health·OAuth·Toss·스토리지·정산 E2E 확인. `docs/sql` 전체를 일괄 실행하지 않는다.
