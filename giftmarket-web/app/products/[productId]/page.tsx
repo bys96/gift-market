@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useState } from "react";
 
 import ProductDetailActions from "@/components/product/ProductDetailActions";
 import ProductImageModal from "@/components/product/ProductImageModal";
@@ -25,9 +25,29 @@ export default function ProductDetailPage() {
 
   const productId = Number(params.productId);
 
+  const handleSectionNavigation = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    const hash = event.currentTarget.hash;
+    const section = document.getElementById(hash.slice(1));
+    if (!section) return;
+
+    event.preventDefault();
+    window.history.replaceState(window.history.state, "", hash);
+    section.scrollIntoView();
+  };
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [productId]);
+
+  useEffect(() => {
+    if (!product || product.id !== productId || !window.location.hash) return;
+
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+  }, [product, productId]);
 
   useEffect(() => {
     if (!Number.isSafeInteger(productId) || productId <= 0) {
@@ -308,15 +328,15 @@ export default function ProductDetailPage() {
 
       <section className="product-detail-content">
         <div className="product-detail-tab-list">
-          <a href="#product-description">상품 상세</a>
+          <a href="#product-description" onClick={handleSectionNavigation}>상품 상세</a>
 
-          <a href="#seller-information">판매자 정보</a>
+          <a href="#seller-information" onClick={handleSectionNavigation}>판매자 정보</a>
 
-          <a href="#product-reviews">리뷰</a>
+          <a href="#product-reviews" onClick={handleSectionNavigation}>리뷰</a>
 
-          <a href="#product-inquiries">상품 문의</a>
+          <a href="#product-inquiries" onClick={handleSectionNavigation}>상품 문의</a>
 
-          <a href="#shipping-information">배송·교환</a>
+          <a href="#shipping-information" onClick={handleSectionNavigation}>배송·교환</a>
         </div>
 
         <article
