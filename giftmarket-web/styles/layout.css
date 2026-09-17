@@ -124,7 +124,11 @@
   color: #111111;
 }
 
-.layout-header-mobile-actions,
+.layout-header-mobile-actions {
+  display: contents;
+}
+
+.layout-header-mobile-actions > .layout-header-icon-button,
 .layout-header-mobile-search {
   display: none;
 }
@@ -556,8 +560,16 @@
 
   .layout-header-mobile-actions {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+  }
+
+  .layout-header-mobile-actions > .layout-header-icon-button {
+    display: flex;
+    width: 44px;
+    height: 44px;
+    flex: none;
   }
 
   .layout-header-mobile-search {
@@ -586,19 +598,17 @@
   }
 
   .layout-header-logo {
+    min-width: 0;
     overflow: hidden;
-    max-width: calc(100% - 100px);
+    max-width: none;
+    flex-shrink: 1;
     font-size: 21px;
     text-overflow: ellipsis;
   }
 
-  .layout-header-mobile-actions {
-    gap: 2px;
-  }
-
   .layout-header-icon-button {
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
   }
 
   .layout-header-icon-button svg {

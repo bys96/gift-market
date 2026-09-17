@@ -190,15 +190,6 @@ export default function Header() {
             )}
           </nav>
 
-          {showBuyerNotifications && (
-            <div className="layout-header-notification">
-              <NotificationBell
-                context="BUYER"
-                allNotificationsHref="/notifications"
-              />
-            </div>
-          )}
-
           <div className="layout-header-mobile-actions">
             <button
               type="button"
@@ -218,6 +209,15 @@ export default function Header() {
                 </svg>
               )}
             </button>
+
+            {showBuyerNotifications && (
+              <div className="layout-header-notification">
+                <NotificationBell
+                  context="BUYER"
+                  allNotificationsHref="/notifications"
+                />
+              </div>
+            )}
 
             <button
               type="button"
