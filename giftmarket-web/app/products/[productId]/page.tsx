@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type MouseEvent, useEffect, useMemo, useState } from "react";
+import { type MouseEvent, type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import ProductDetailActions from "@/components/product/ProductDetailActions";
 import ProductImageModal from "@/components/product/ProductImageModal";
@@ -18,10 +18,13 @@ export default function ProductDetailPage() {
   const params = useParams<{ productId: string }>();
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lastSwipeAtRef = useRef(0);
 
   const productId = Number(params.productId);
 
@@ -42,6 +45,13 @@ export default function ProductDetailPage() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [productId]);
+
+  useEffect(() => {
+    const updateScrollTopVisibility = () => setShowScrollTop(window.scrollY > 480);
+    updateScrollTopVisibility();
+    window.addEventListener("scroll", updateScrollTopVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrollTopVisibility);
+  }, []);
 
   useEffect(() => {
     if (!product || product.id !== productId || !window.location.hash) return;
@@ -67,17 +77,7 @@ export default function ProductDetailPage() {
 
         setProduct(productResponse);
 
-        const representativeImageUrl = resolveImageUrl(
-          productResponse.representativeImageKey,
-        );
-
-        const firstGalleryImageUrl = productResponse.galleryImageKeys
-          .map(resolveImageUrl)
-          .find((imageUrl): imageUrl is string => Boolean(imageUrl));
-
-        setSelectedImageUrl(
-          representativeImageUrl ?? firstGalleryImageUrl ?? null,
-        );
+        setCurrentImageIndex(0);
       } catch (error) {
         setErrorMessage(
           error instanceof Error
@@ -104,6 +104,39 @@ export default function ProductDetailPage() {
 
     return [...new Set(imageUrls)];
   }, [product]);
+
+  const selectedImageUrl = productImages[currentImageIndex] ?? productImages[0] ?? null;
+
+  const moveImage = (direction: -1 | 1) => {
+    if (productImages.length < 2) return;
+    setCurrentImageIndex((index) =>
+      (index + direction + productImages.length) % productImages.length,
+    );
+  };
+
+  const handleImageTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 1) {
+      touchStartRef.current = null;
+      return;
+    }
+    touchStartRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+    };
+  };
+
+  const handleImageTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || productImages.length < 2 || event.changedTouches.length !== 1) return;
+
+    const deltaX = event.changedTouches[0].clientX - start.x;
+    const deltaY = event.changedTouches[0].clientY - start.y;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.5) return;
+
+    lastSwipeAtRef.current = Date.now();
+    moveImage(deltaX < 0 ? 1 : -1);
+  };
 
   if (isLoading) {
     return (
@@ -174,13 +207,20 @@ export default function ProductDetailPage() {
 
       <section className="product-detail">
         <div className="product-detail-gallery">
-          <div className="product-detail-image-wrapper">
+          <div
+            className="product-detail-image-wrapper"
+            onTouchStart={handleImageTouchStart}
+            onTouchEnd={handleImageTouchEnd}
+          >
             {selectedImageUrl ? (
               <button
                 type="button"
                 className="product-detail-image-button"
                 aria-label={`${product.name} 이미지 확대 보기`}
-                onClick={() => setIsImageModalOpen(true)}
+                onClick={() => {
+                  if (Date.now() - lastSwipeAtRef.current < 500) return;
+                  setIsImageModalOpen(true);
+                }}
               >
                 <Image
                   src={selectedImageUrl}
@@ -204,6 +244,30 @@ export default function ProductDetailPage() {
             {isSoldOut && (
               <div className="product-detail-sold-out-overlay">품절</div>
             )}
+
+            {productImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="product-detail-image-arrow product-detail-image-arrow-previous"
+                  aria-label="이전 상품 이미지"
+                  onClick={() => moveImage(-1)}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="product-detail-image-arrow product-detail-image-arrow-next"
+                  aria-label="다음 상품 이미지"
+                  onClick={() => moveImage(1)}
+                >
+                  ›
+                </button>
+                <span className="product-detail-image-count" aria-live="polite">
+                  {currentImageIndex + 1} / {productImages.length}
+                </span>
+              </>
+            )}
           </div>
 
           {productImages.length > 1 && (
@@ -212,7 +276,7 @@ export default function ProductDetailPage() {
               aria-label="상품 이미지 목록"
             >
               {productImages.map((imageUrl, index) => {
-                const isSelected = selectedImageUrl === imageUrl;
+                const isSelected = currentImageIndex === index;
 
                 return (
                   <button
@@ -228,7 +292,7 @@ export default function ProductDetailPage() {
                       .join(" ")}
                     aria-label={`${index + 1}번째 상품 이미지 보기`}
                     aria-pressed={isSelected}
-                    onClick={() => setSelectedImageUrl(imageUrl)}
+                    onClick={() => setCurrentImageIndex(index)}
                   >
                     <Image
                       src={imageUrl}
@@ -456,10 +520,26 @@ export default function ProductDetailPage() {
         <ProductInquirySection productId={product.id} />
       </section>
 
+      {showScrollTop && (
+        <button
+          type="button"
+          className="product-detail-scroll-top"
+          aria-label="페이지 맨 위로 이동"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          ↑
+        </button>
+      )}
+
       {isImageModalOpen && selectedImageUrl && (
         <ProductImageModal
-          imageUrl={selectedImageUrl}
+          imageUrls={productImages}
+          currentIndex={currentImageIndex}
           productName={product.name}
+          onPrevious={() => moveImage(-1)}
+          onNext={() => moveImage(1)}
+          onTouchStart={handleImageTouchStart}
+          onTouchEnd={handleImageTouchEnd}
           onClose={() => setIsImageModalOpen(false)}
         />
       )}
