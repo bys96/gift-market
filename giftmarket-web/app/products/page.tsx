@@ -28,6 +28,26 @@ interface ProductsUrlOptions {
   size?: number;
 }
 
+interface ProductQuerySnapshot {
+  categoryIdsKey: string;
+  keyword: string;
+  excludeSoldOut: boolean;
+  page: number;
+  size: number;
+}
+
+function isSameQueryExceptPage(
+  first: ProductQuerySnapshot,
+  second: ProductQuerySnapshot,
+) {
+  return (
+    first.categoryIdsKey === second.categoryIdsKey &&
+    first.keyword === second.keyword &&
+    first.excludeSoldOut === second.excludeSoldOut &&
+    first.size === second.size
+  );
+}
+
 function parsePage(value: string | null) {
   if (!value) {
     return 0;
@@ -83,6 +103,8 @@ function ProductsContent() {
    * 가장 마지막 요청의 결과만 화면에 반영한다.
    */
   const productRequestIdRef = useRef(0);
+  const displayedProductQueryRef = useRef<ProductQuerySnapshot | null>(null);
+  const productResultsStartRef = useRef<HTMLDivElement>(null);
 
   const categoryIdsKey = [
     ...searchParams.getAll("categoryIds"),
@@ -234,6 +256,13 @@ function ProductsContent() {
 
   const loadProducts = useCallback(async () => {
     const requestId = ++productRequestIdRef.current;
+    const requestedQuery: ProductQuerySnapshot = {
+      categoryIdsKey: [...categoryIds].sort((a, b) => a - b).join(","),
+      keyword,
+      excludeSoldOut,
+      page,
+      size,
+    };
 
     try {
       setIsLoading(true);
@@ -278,7 +307,28 @@ function ProductsContent() {
        * API 응답이 완료된 시점에만
        * 기존 상품 목록을 새 목록으로 한 번에 교체한다.
        */
+      const displayedQuery = displayedProductQueryRef.current;
+      const shouldScrollToResults =
+        displayedQuery !== null &&
+        displayedQuery.page !== requestedQuery.page &&
+        isSameQueryExceptPage(displayedQuery, requestedQuery);
+
       setProductPage(response);
+      displayedProductQueryRef.current = requestedQuery;
+
+      if (shouldScrollToResults) {
+        window.requestAnimationFrame(() => {
+          if (
+            requestId === productRequestIdRef.current &&
+            displayedProductQueryRef.current === requestedQuery
+          ) {
+            productResultsStartRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }
+        });
+      }
     } catch (error) {
       if (requestId !== productRequestIdRef.current) {
         return;
@@ -643,6 +693,12 @@ function ProductsContent() {
         </div>
       </div>
 
+      <div
+        ref={productResultsStartRef}
+        className="product-page-results-anchor"
+        aria-hidden="true"
+      />
+
       {isInitialLoading && (
         <div className="product-page-state">
           <p>상품을 불러오는 중입니다.</p>
@@ -658,6 +714,18 @@ function ProductsContent() {
             className="product-page-retry-button"
             onClick={handleRetry}
           >
+            다시 시도
+          </button>
+        </div>
+      )}
+
+      {!isLoading && errorMessage && productPage !== null && (
+        <div className="product-page-stale-notice" role="alert">
+          <p>
+            <strong>새 조건의 상품을 불러오지 못했습니다.</strong>
+            <span>현재 목록은 이전 검색 결과입니다.</span>
+          </p>
+          <button type="button" onClick={handleRetry}>
             다시 시도
           </button>
         </div>
