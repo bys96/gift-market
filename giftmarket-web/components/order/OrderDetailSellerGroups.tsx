@@ -12,7 +12,7 @@ import { resolveImageUrl } from "@/utils/image-url";
 import { confirmPurchase } from "@/lib/order-api";
 import { getReviewIds } from "@/lib/review-api";
 import ReviewEditorModal from "@/components/review/ReviewEditorModal";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface OrderDetailSellerGroupsProps {
   sellerOrders: BuyerSellerOrder[];
@@ -32,6 +32,11 @@ interface OrderDetailSellerGroupsProps {
 function formatPrice(price: number) {
   return `${price.toLocaleString("ko-KR")}원`;
 }
+
+type ReviewLookupState =
+  | { status: "loading"; reviewIds: null }
+  | { status: "success"; reviewIds: Record<string, number> }
+  | { status: "error"; reviewIds: null };
 
 export default function OrderDetailSellerGroups({
   sellerOrders,
@@ -57,9 +62,47 @@ export default function OrderDetailSellerGroups({
     Record<number, number>
   >({});
   const itemIds = useMemo(() => sellerOrders.flatMap(group => group.items.map(item => item.id)), [sellerOrders]);
-  const [reviewIds, setReviewIds] = useState<Record<string, number>>({});
+  const hasConfirmedItems = useMemo(
+    () => sellerOrders.some((group) => group.items.some((item) => item.confirmedQuantity > 0)),
+    [sellerOrders],
+  );
+  const [reviewLookup, setReviewLookup] = useState<ReviewLookupState>({ status: "loading", reviewIds: null });
+  const reviewRequestIdRef = useRef(0);
+  const reviewLookupLoadingRef = useRef(false);
   const [editing, setEditing] = useState<{ orderItemId:number; reviewId:number|null } | null>(null);
-  useEffect(() => { if(itemIds.length) void getReviewIds(itemIds).then(setReviewIds).catch(()=>setReviewIds({})); }, [itemIds]);
+
+  const loadReviewIds = useCallback(async () => {
+    if (reviewLookupLoadingRef.current) return;
+
+    reviewLookupLoadingRef.current = true;
+    const requestId = ++reviewRequestIdRef.current;
+    setReviewLookup({ status: "loading", reviewIds: null });
+
+    try {
+      const result = await getReviewIds(itemIds);
+      if (requestId === reviewRequestIdRef.current) {
+        setReviewLookup({ status: "success", reviewIds: result });
+      }
+    } catch {
+      if (requestId === reviewRequestIdRef.current) {
+        setReviewLookup({ status: "error", reviewIds: null });
+      }
+    } finally {
+      if (requestId === reviewRequestIdRef.current) {
+        reviewLookupLoadingRef.current = false;
+      }
+    }
+  }, [itemIds]);
+
+  useEffect(() => {
+    // 주문 상품 변경을 리뷰 조회 상태와 동기화한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadReviewIds();
+    return () => {
+      reviewRequestIdRef.current += 1;
+      reviewLookupLoadingRef.current = false;
+    };
+  }, [loadReviewIds]);
 
   const handleConfirm = async (itemId: number, quantity: number) => {
     const currentItem = sellerOrders
@@ -117,6 +160,17 @@ export default function OrderDetailSellerGroups({
         >
           {confirmationFeedback.message}
         </p>
+      )}
+      {hasConfirmedItems && reviewLookup.status === "loading" && (
+        <p className="order-detail-review-status" role="status">
+          리뷰 작성 여부를 확인하고 있습니다.
+        </p>
+      )}
+      {hasConfirmedItems && reviewLookup.status === "error" && (
+        <div className="order-detail-review-status order-detail-review-status-error" role="alert">
+          <span>리뷰 작성 여부를 확인하지 못했습니다.</span>
+          <button type="button" onClick={() => void loadReviewIds()}>다시 시도</button>
+        </div>
       )}
       {sellerOrders.map((sellerOrder) => {
         const showsTracking =
@@ -211,9 +265,9 @@ export default function OrderDetailSellerGroups({
                           </button>
                         </div>
                       )}
-                      {item.confirmedQuantity > 0 && (
-                        <button type="button" className="order-detail-review-button" onClick={()=>setEditing({orderItemId:item.id,reviewId:reviewIds[String(item.id)]??null})}>
-                          {reviewIds[String(item.id)] ? "리뷰 수정" : "리뷰 작성"}
+                      {item.confirmedQuantity > 0 && reviewLookup.status === "success" && (
+                        <button type="button" className="order-detail-review-button" onClick={()=>setEditing({orderItemId:item.id,reviewId:reviewLookup.reviewIds[String(item.id)]??null})}>
+                          {reviewLookup.reviewIds[String(item.id)] ? "리뷰 수정" : "리뷰 작성"}
                         </button>
                       )}
                     </div>
@@ -271,7 +325,7 @@ export default function OrderDetailSellerGroups({
           </section>
         );
       })}
-      {editing && <ReviewEditorModal orderItemId={editing.orderItemId} reviewId={editing.reviewId} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);void getReviewIds(itemIds).then(setReviewIds);}} />}
+      {editing && <ReviewEditorModal orderItemId={editing.orderItemId} reviewId={editing.reviewId} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);void loadReviewIds();}} />}
     </div>
   );
 }
