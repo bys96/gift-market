@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Modal from "@/components/common/modal/Modal";
 import { createOrderCancellation } from "@/lib/order-api";
 import type { BuyerSellerOrder, OrderCancellation, OrderCancellationStatus } from "@/types/order";
 
@@ -9,6 +10,16 @@ interface Props {
   sellerOrder: BuyerSellerOrder;
   cancellations: OrderCancellation[];
   onChanged: () => Promise<void>;
+}
+
+interface CancellationConfirmation {
+  items: Array<{
+    orderItemId: number;
+    quantity: number;
+    productName: string;
+    optionSnapshot: string | null;
+  }>;
+  reason: string;
 }
 
 const STATUS_LABELS: Record<OrderCancellationStatus, string> = {
@@ -27,7 +38,10 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [confirmation, setConfirmation] = useState<CancellationConfirmation | null>(null);
   const requestKeyRef = useRef<string | null>(null);
+  const submittingRef = useRef(false);
+  const confirmationCancelButtonRef = useRef<HTMLButtonElement>(null);
   const cancellableItems = useMemo(
     () => sellerOrder.items.filter((item) => item.availableCancellationQuantity > 0),
     [sellerOrder.items],
@@ -45,10 +59,39 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
     setSelected((current) => ({ ...current, [itemId]: Math.min(maximum, Math.max(1, quantity)) }));
   };
 
-  const submit = async () => {
-    const items = Object.entries(selected).map(([orderItemId, quantity]) => ({ orderItemId: Number(orderItemId), quantity }));
+  const openConfirmation = () => {
+    if (isSubmitting || submittingRef.current) return;
+
     const normalizedReason = reason.trim();
-    if (isSubmitting || items.length === 0 || !normalizedReason) return;
+    const cancellableItemById = new Map(cancellableItems.map((item) => [item.id, item]));
+    const items = Object.entries(selected).map(([orderItemId, quantity]) => {
+      const item = cancellableItemById.get(Number(orderItemId));
+      if (!item || !Number.isInteger(quantity) || quantity < 1 || quantity > item.availableCancellationQuantity) {
+        return null;
+      }
+
+      return {
+        orderItemId: item.id,
+        quantity,
+        productName: item.productName,
+        optionSnapshot: item.optionSnapshot,
+      };
+    });
+
+    if (items.length === 0 || items.some((item) => item === null) || !normalizedReason || normalizedReason.length > 500) {
+      return;
+    }
+
+    setConfirmation({
+      items: items.filter((item): item is NonNullable<typeof item> => item !== null),
+      reason: normalizedReason,
+    });
+  };
+
+  const submit = async (confirmed: CancellationConfirmation) => {
+    if (isSubmitting || submittingRef.current) return;
+
+    submittingRef.current = true;
     requestKeyRef.current ??= crypto.randomUUID();
     try {
       setIsSubmitting(true);
@@ -56,8 +99,8 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
       const result = await createOrderCancellation(orderId, {
         clientRequestKey: requestKeyRef.current,
         sellerOrderId: sellerOrder.sellerOrderId,
-        reason: normalizedReason,
-        items,
+        reason: confirmed.reason,
+        items: confirmed.items.map(({ orderItemId, quantity }) => ({ orderItemId, quantity })),
       });
       setMessage(result.status === "COMPLETED" ? "취소가 완료되었습니다."
         : result.status === "REQUESTED" ? "판매자 확인이 필요한 취소 요청입니다."
@@ -68,11 +111,14 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
       setSelected({});
       setReason("");
       setIsOpen(false);
+      setConfirmation(null);
       await onChanged();
     } catch {
       setMessage("취소 요청을 처리하지 못했습니다. 최신 주문 상태를 확인해주세요.");
+      setConfirmation(null);
       await onChanged();
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -113,10 +159,58 @@ export default function OrderCancellationPanel({ orderId, sellerOrder, cancellat
       </label>
       <div className="order-cancellation-actions">
         <button type="button" className="order-cancellation-close-button" onClick={() => setIsOpen(false)} disabled={isSubmitting}>닫기</button>
-        <button type="button" className="order-cancellation-submit-button" onClick={() => void submit()} disabled={isSubmitting || Object.keys(selected).length === 0 || !reason.trim()}>
+        <button type="button" className="order-cancellation-submit-button" onClick={openConfirmation} disabled={isSubmitting || Object.keys(selected).length === 0 || !reason.trim()}>
           {isSubmitting ? "처리 중..." : sellerOrder.status === "PAID" ? "선택 상품 취소" : "취소 요청"}
         </button>
       </div>
     </div>}
+    {confirmation && <Modal
+      overlayClassName="order-cancellation-confirm-overlay"
+      contentClassName="order-cancellation-confirm-modal"
+      ariaLabelledBy="order-cancellation-confirm-title"
+      ariaDescribedBy="order-cancellation-confirm-description"
+      initialFocusRef={confirmationCancelButtonRef}
+      closeOnEscape={!isSubmitting}
+      closeOnBackdrop={!isSubmitting}
+      onClose={() => {
+        if (!isSubmitting) setConfirmation(null);
+      }}
+    >
+      <h2 id="order-cancellation-confirm-title">주문 취소를 요청하시겠습니까?</h2>
+      <p id="order-cancellation-confirm-description">
+        선택한 상품과 수량, 취소 사유를 다시 확인해주세요.
+      </p>
+      <ul className="order-cancellation-confirm-items">
+        {confirmation.items.map((item) => <li key={item.orderItemId}>
+          <span>
+            <strong>{item.productName}</strong>
+            {item.optionSnapshot && <small>{item.optionSnapshot}</small>}
+          </span>
+          <b>{item.quantity}개</b>
+        </li>)}
+      </ul>
+      <div className="order-cancellation-confirm-reason">
+        <strong>취소 사유</strong>
+        <p>{confirmation.reason}</p>
+      </div>
+      <p className="order-cancellation-confirm-notice">
+        {sellerOrder.status === "PAID"
+          ? "결제가 완료된 주문은 취소 처리와 함께 실제 환불이 진행될 수 있습니다."
+          : "판매자 확인이 필요한 주문은 요청 처리 결과를 주문 상세에서 확인할 수 있습니다."}
+      </p>
+      <div className="order-cancellation-confirm-actions">
+        <button
+          ref={confirmationCancelButtonRef}
+          type="button"
+          onClick={() => setConfirmation(null)}
+          disabled={isSubmitting}
+        >
+          돌아가기
+        </button>
+        <button type="button" onClick={() => void submit(confirmation)} disabled={isSubmitting}>
+          {isSubmitting ? "처리 중..." : "취소 요청"}
+        </button>
+      </div>
+    </Modal>}
   </div>;
 }
