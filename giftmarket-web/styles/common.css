@@ -17,3 +17,24 @@
 .pagination-page-item {
   display: contents;
 }
+
+@media (max-width: 640px) {
+  nav.common-pagination {
+    max-width: 100%;
+    justify-content: safe center;
+    padding-block: 3px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  nav.common-pagination::-webkit-scrollbar {
+    display: none;
+  }
+
+  .common-pagination .pagination-control,
+  .common-pagination .pagination-number {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

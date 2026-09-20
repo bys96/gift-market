@@ -42,6 +42,17 @@ export default function ProductDetailPage() {
     section.scrollIntoView();
   };
 
+  const handleScrollToTop = () => {
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
+  };
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [productId]);
@@ -525,7 +536,7 @@ export default function ProductDetailPage() {
           type="button"
           className="product-detail-scroll-top"
           aria-label="페이지 맨 위로 이동"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          onClick={handleScrollToTop}
         >
           ↑
         </button>

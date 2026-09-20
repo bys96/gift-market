@@ -105,7 +105,10 @@ export default function Pagination({
   };
 
   return (
-    <nav className={className} aria-label={ariaLabel}>
+    <nav
+      className={["common-pagination", className].filter(Boolean).join(" ")}
+      aria-label={ariaLabel}
+    >
       {showFirstLast &&
         renderItem(0, "<<", {
           unavailable: safeCurrentPage === 0,
