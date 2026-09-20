@@ -74,10 +74,20 @@ export default function SellerCenterLayout({
     return <div className="seller-center-layout"><div className="seller-center-content"><div className="seller-orders-state seller-orders-state-error"><p>현재 판매자 상태에서는 판매자센터를 이용할 수 없습니다.</p><Link href="/">쇼핑몰로 돌아가기</Link></div></div></div>;
   }
 
+  const notificationToolbar = (
+    <div className="notification-center-toolbar notification-center-toolbar-seller">
+      <span>Seller Center</span>
+      <NotificationBell
+        context="SELLER"
+        allNotificationsHref="/seller/notifications"
+      />
+    </div>
+  );
+
   const isSalesManagementRoute = pathname === "/seller/products/new" || pathname.endsWith("/edit");
 
   if (seller.status === "SALES_SUSPENDED" && isSalesManagementRoute) {
-    return <div className="seller-center-layout"><SellerSidebar /><div className="seller-center-content"><div className="seller-sales-suspended-block"><strong>현재 판매가 정지된 상태입니다.</strong><p>상품 등록·수정 등 신규 판매 관련 기능은 이용할 수 없습니다. 기존 주문 및 클레임 처리는 계속할 수 있습니다.</p><Link href="/seller/products">상품 목록으로 돌아가기</Link></div></div></div>;
+    return <div className="seller-center-layout"><SellerSidebar /><div className="seller-center-content">{notificationToolbar}<div className="seller-sales-suspended-block"><strong>현재 판매가 정지된 상태입니다.</strong><p>상품 등록·수정 등 신규 판매 관련 기능은 이용할 수 없습니다. 기존 주문 및 클레임 처리는 계속할 수 있습니다.</p><Link href="/seller/products">상품 목록으로 돌아가기</Link></div></div></div>;
   }
 
   return (
@@ -85,15 +95,7 @@ export default function SellerCenterLayout({
       <SellerSidebar />
 
       <div className={`seller-center-content${seller.status === "SALES_SUSPENDED" ? " seller-center-content-sales-suspended" : ""}`}>
-        {seller.status === "ACTIVE" && (
-          <div className="notification-center-toolbar notification-center-toolbar-seller">
-            <span>Seller Center</span>
-            <NotificationBell
-              context="SELLER"
-              allNotificationsHref="/seller/notifications"
-            />
-          </div>
-        )}
+        {notificationToolbar}
         {seller.status === "SALES_SUSPENDED" && <div className="seller-sales-suspended-notice" role="status"><strong>현재 판매가 정지된 상태입니다.</strong><span>신규 판매 관련 기능은 제한되며 기존 주문 및 클레임 처리는 계속할 수 있습니다.</span></div>}
         {children}
       </div>
