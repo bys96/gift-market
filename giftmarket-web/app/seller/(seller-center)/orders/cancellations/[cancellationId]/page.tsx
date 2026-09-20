@@ -3,8 +3,8 @@
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import {
   approveSellerOrderCancellation,
@@ -36,9 +36,12 @@ function friendlyActionError(error: unknown) {
   return "취소 요청 상태가 변경되었거나 처리하지 못했습니다. 최신 상태를 확인해주세요.";
 }
 
-export default function SellerOrderCancellationDetailPage() {
+function SellerOrderCancellationDetailContent() {
   const params = useParams<{ cancellationId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listQuery = searchParams.toString();
+  const listHref = listQuery ? `/seller/orders/cancellations?${listQuery}` : "/seller/orders/cancellations";
   const cancellationId = Number(params.cancellationId);
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
@@ -131,7 +134,7 @@ export default function SellerOrderCancellationDetailPage() {
   if (error || !cancellation) {
     return (
       <main className="seller-orders-page"><div className="common-inner seller-orders-container">
-        <div className="seller-orders-state seller-orders-state-error"><p>{error || "취소 요청을 확인할 수 없습니다."}</p><button type="button" onClick={() => void loadCancellation()}>다시 시도</button><Link href="/seller/orders/cancellations">목록으로</Link></div>
+        <div className="seller-orders-state seller-orders-state-error"><p>{error || "취소 요청을 확인할 수 없습니다."}</p><button type="button" onClick={() => void loadCancellation()}>다시 시도</button><Link href={listHref}>목록으로</Link></div>
       </div></main>
     );
   }
@@ -141,7 +144,7 @@ export default function SellerOrderCancellationDetailPage() {
       <div className="common-inner seller-orders-container seller-order-detail-container">
         <header className="seller-order-detail-header">
           <div><p>CANCELLATION DETAIL</p><h1>취소 요청 상세</h1><span>{cancellation.orderNumber} · 요청 #{cancellation.cancellationId}</span></div>
-          <Link href="/seller/orders/cancellations">목록으로</Link>
+          <Link href={listHref}>목록으로</Link>
         </header>
 
         <section className="seller-order-detail-summary seller-cancellation-summary">
@@ -201,4 +204,8 @@ export default function SellerOrderCancellationDetailPage() {
       </div>
     </main>
   );
+}
+
+export default function SellerOrderCancellationDetailPage() {
+  return <Suspense fallback={<div className="seller-orders-auth-loading">취소 요청을 확인하고 있습니다.</div>}><SellerOrderCancellationDetailContent /></Suspense>;
 }

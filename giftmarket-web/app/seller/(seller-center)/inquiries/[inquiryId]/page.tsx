@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 
 import { formatInquiryDateTime } from "@/lib/inquiry-date";
 import { answerProductInquiry, getSellerProductInquiry } from "@/lib/inquiry-api";
@@ -10,9 +10,12 @@ import { getLoginRedirectUrl } from "@/lib/login-redirect";
 import { useAuthStore } from "@/stores/auth-store";
 import type { ProductInquiry } from "@/types/inquiry";
 
-export default function SellerInquiryDetailPage() {
+function SellerInquiryDetailContent() {
   const params = useParams<{ inquiryId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listQuery = searchParams.toString();
+  const listHref = `/seller/inquiries${listQuery ? `?${listQuery}` : ""}`;
   const inquiryId = Number(params.inquiryId);
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
@@ -81,7 +84,7 @@ export default function SellerInquiryDetailPage() {
       <main className="seller-inquiries-page">
         <div className="seller-inquiry-state">
           <p>{error}</p>
-          <Link href="/seller/inquiries">목록으로</Link>
+          <Link href={listHref}>목록으로</Link>
         </div>
       </main>
     );
@@ -98,7 +101,7 @@ export default function SellerInquiryDetailPage() {
             <p>PRODUCT Q&amp;A · #{inquiry.id}</p>
             <h1>상품 문의 상세</h1>
           </div>
-          <Link href="/seller/inquiries">목록으로</Link>
+          <Link href={listHref}>목록으로</Link>
         </header>
 
         <section className="seller-inquiry-card seller-inquiry-question-card">
@@ -158,4 +161,8 @@ export default function SellerInquiryDetailPage() {
       </div>
     </main>
   );
+}
+
+export default function SellerInquiryDetailPage() {
+  return <Suspense fallback={<div className="seller-inquiry-loading">문의를 불러오는 중...</div>}><SellerInquiryDetailContent /></Suspense>;
 }

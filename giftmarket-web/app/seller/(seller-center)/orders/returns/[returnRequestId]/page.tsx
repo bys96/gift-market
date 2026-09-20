@@ -3,8 +3,8 @@
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import {
   approveSellerReturnRequest,
@@ -30,9 +30,12 @@ type ActionMode = "approve" | "reject" | "collect" | "receive" | "inspect" | nul
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "-";
 const formatPrice = (value: number) => `${new Intl.NumberFormat("ko-KR").format(value)}원`;
 
-export default function SellerReturnDetailPage() {
+function SellerReturnDetailContent() {
   const params = useParams<{ returnRequestId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listQuery = searchParams.toString();
+  const listHref = `/seller/orders/returns${listQuery ? `?${listQuery}` : ""}`;
   const returnRequestId = Number(params.returnRequestId);
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
@@ -101,7 +104,7 @@ export default function SellerReturnDetailPage() {
   };
 
   if (!initialized || !isAuthenticated || !user || loading) return <div className="seller-orders-auth-loading">반품 요청을 확인하고 있습니다.</div>;
-  if (error || !request) return <main className="seller-orders-page"><div className="common-inner seller-orders-container"><div className="seller-orders-state seller-orders-state-error"><p>{error || "반품 요청을 확인할 수 없습니다."}</p><button type="button" onClick={() => void loadRequest()}>다시 시도</button><Link href="/seller/orders/returns">목록으로</Link></div></div></main>;
+  if (error || !request) return <main className="seller-orders-page"><div className="common-inner seller-orders-container"><div className="seller-orders-state seller-orders-state-error"><p>{error || "반품 요청을 확인할 수 없습니다."}</p><button type="button" onClick={() => void loadRequest()}>다시 시도</button><Link href={listHref}>목록으로</Link></div></div></main>;
 
   const timeline = [
     ["요청", request.requestedAt], ["승인", request.approvedAt], ["회수 시작", request.collectingAt],
@@ -109,7 +112,7 @@ export default function SellerReturnDetailPage() {
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
   return <main className="seller-orders-page seller-returns-page"><div className="common-inner seller-orders-container seller-order-detail-container">
-    <header className="seller-order-detail-header"><div><p>RETURN DETAIL</p><h1>반품 요청 상세</h1><span>주문 ID #{request.orderId} · 요청 #{request.returnRequestId}</span></div><Link href="/seller/orders/returns">목록으로</Link></header>
+    <header className="seller-order-detail-header"><div><p>RETURN DETAIL</p><h1>반품 요청 상세</h1><span>주문 ID #{request.orderId} · 요청 #{request.returnRequestId}</span></div><Link href={listHref}>목록으로</Link></header>
     <section className="seller-order-detail-summary seller-return-summary"><div><span>요청 상태</span><strong className={`seller-return-status seller-return-status-${request.status.toLowerCase()}`}>{RETURN_STATUS_LABELS[request.status]}</strong></div><div><span>요청일시</span><strong>{formatDate(request.requestedAt)}</strong></div><div><span>귀책</span><strong>{request.responsibility ? RETURN_RESPONSIBILITY_LABELS[request.responsibility] : "귀책 확인 전"}</strong></div></section>
     {request.status === "REFUNDING" && <p className="seller-return-state-message processing">환불 처리 중입니다. 추가 작업 없이 Backend의 최신 처리 결과를 확인해주세요.</p>}
     {request.status === "COMPLETED" && <p className="seller-return-state-message success">반품과 환불 처리가 완료되었습니다.</p>}
@@ -143,4 +146,8 @@ export default function SellerReturnDetailPage() {
     </section>
       {viewerIndex !== null && <ImageViewerModal images={request.images} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
   </div></main>;
+}
+
+export default function SellerReturnDetailPage() {
+  return <Suspense fallback={<div className="seller-orders-auth-loading">반품 요청을 확인하고 있습니다.</div>}><SellerReturnDetailContent /></Suspense>;
 }

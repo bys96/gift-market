@@ -4,8 +4,8 @@ import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
 import { approveSellerExchangeRequest, collectSellerExchange, deliverSellerExchange, getSellerExchangeRequest, inspectSellerExchange, receiveSellerExchange, rejectSellerExchangeRequest, reshipSellerExchange } from "@/lib/seller-exchange-api";
 import { useAuthStore } from "@/stores/auth-store";
@@ -15,8 +15,9 @@ type Mode = "approve" | "reject" | "collect" | "receive" | "inspect" | "reship" 
 const date = (value: string | null | undefined) => value ? new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "-";
 const money = (value: number | null | undefined) => typeof value === "number" && Number.isFinite(value) ? `${value.toLocaleString("ko-KR")}원` : "-";
 
-export default function SellerExchangeDetailPage() {
+function SellerExchangeDetailContent() {
   const params = useParams<{ exchangeRequestId: string }>(); const id = Number(params.exchangeRequestId); const router = useRouter();
+  const searchParams = useSearchParams(); const listQuery = searchParams.toString(); const listHref = `/seller/orders/exchanges${listQuery ? `?${listQuery}` : ""}`;
   const initialized = useAuthStore((s) => s.initialized); const user = useAuthStore((s) => s.user); const authenticated = useAuthStore((s) => s.isAuthenticated);
   const [request, setRequest] = useState<ExchangeRequest | null>(null); const [loading, setLoading] = useState(true); const [processing, setProcessing] = useState(false); const [error, setError] = useState(""); const [actionError, setActionError] = useState(""); const [mode, setMode] = useState<Mode>(null);
   const [responsibility, setResponsibility] = useState<ExchangeResponsibility | "">(""); const [rejectReason, setRejectReason] = useState(""); const [shippingCompany, setShippingCompany] = useState(""); const [trackingNumber, setTrackingNumber] = useState(""); const [inspections, setInspections] = useState<Record<number, ExchangeInspectionResult>>({}); const [viewer, setViewer] = useState<number | null>(null);
@@ -29,10 +30,10 @@ export default function SellerExchangeDetailPage() {
   const ship = (kind: "collect" | "reship") => { const company = shippingCompany.trim(); const tracking = trackingNumber.trim(); if (!company || !tracking) { setActionError("택배사와 송장번호를 모두 입력해주세요."); return; } void perform(() => kind === "collect" ? collectSellerExchange(id, company, tracking) : reshipSellerExchange(id, company, tracking)); };
   const inspect = () => { if (!request || request.items.some((item) => !inspections[item.orderItemId])) { setActionError("모든 상품의 재입고 검수 결과를 선택해주세요."); return; } void perform(() => inspectSellerExchange(id, { items: request.items.map((item) => ({ orderItemId: item.orderItemId, inspectionResult: inspections[item.orderItemId] })) })); };
   if (!initialized || !authenticated || !user || loading) return <div className="seller-orders-auth-loading">교환 요청을 확인하고 있습니다.</div>;
-  if (error || !request) return <main className="seller-orders-page"><div className="common-inner seller-orders-container"><div className="seller-orders-state seller-orders-state-error"><p>{error || "교환 요청을 확인할 수 없습니다."}</p><button type="button" onClick={() => void load()}>다시 시도</button><Link href="/seller/orders/exchanges">목록으로</Link></div></div></main>;
+  if (error || !request) return <main className="seller-orders-page"><div className="common-inner seller-orders-container"><div className="seller-orders-state seller-orders-state-error"><p>{error || "교환 요청을 확인할 수 없습니다."}</p><button type="button" onClick={() => void load()}>다시 시도</button><Link href={listHref}>목록으로</Link></div></div></main>;
   const timeline = [["요청", request.requestedAt], ["승인", request.approvedAt], ...(request.responsibility === "SELLER" ? [] : [["배송비 결제", request.paymentPendingAt]]), ["회수", request.collectingAt], ["입고", request.receivedAt], ["검수", request.inspectedAt], ["재배송", request.reshippingAt], ["완료", request.completedAt]] as Array<[string, string | null]>;
   return <main className="seller-orders-page seller-exchanges-page"><div className="common-inner seller-orders-container seller-order-detail-container">
-    <header className="seller-order-detail-header"><div><p>EXCHANGE DETAIL</p><h1>교환 요청 상세</h1><span>주문 ID #{request.orderId} · 요청 #{request.exchangeRequestId}</span></div><Link href="/seller/orders/exchanges">목록으로</Link></header>
+    <header className="seller-order-detail-header"><div><p>EXCHANGE DETAIL</p><h1>교환 요청 상세</h1><span>주문 ID #{request.orderId} · 요청 #{request.exchangeRequestId}</span></div><Link href={listHref}>목록으로</Link></header>
     <section className="seller-order-detail-summary seller-return-summary"><div><span>요청 상태</span><strong className={`seller-return-status seller-exchange-status-${request.status.toLowerCase()}`}>{EXCHANGE_STATUS_LABELS[request.status]}</strong></div><div><span>요청일시</span><strong>{date(request.requestedAt)}</strong></div><div><span>귀책</span><strong>{request.responsibility ? EXCHANGE_RESPONSIBILITY_LABELS[request.responsibility] : "확정 전"}</strong></div></section>
     {request.status === "PAYMENT_PENDING" && <p className="seller-return-state-message processing">구매자의 교환배송비 결제를 기다리고 있습니다. 결제기한: {date(request.paymentDueAt)}</p>}
     {request.status === "COMPLETED" && <p className="seller-return-state-message success">교환품 배송과 교환 처리가 완료되었습니다.</p>}
@@ -65,6 +66,10 @@ export default function SellerExchangeDetailPage() {
     </section>
       {viewer !== null && <ImageViewerModal images={request.images} initialIndex={viewer} label="교환 증빙 이미지" onClose={() => setViewer(null)} />}
   </div></main>;
+}
+
+export default function SellerExchangeDetailPage() {
+  return <Suspense fallback={<div className="seller-orders-auth-loading">교환 요청을 확인하고 있습니다.</div>}><SellerExchangeDetailContent /></Suspense>;
 }
 
 function Address({ title, recipient, phone, postalCode, address, detail }: { title: string; recipient: string; phone: string; postalCode: string; address: string; detail: string | null }) { return <section className="seller-order-detail-section"><h2>{title}</h2><dl className="seller-order-detail-info-list seller-return-info-list"><div><dt>이름</dt><dd>{recipient}</dd></div><div><dt>전화</dt><dd>{phone}</dd></div><div><dt>주소</dt><dd>({postalCode}) {address} {detail ?? ""}</dd></div></dl></section>; }

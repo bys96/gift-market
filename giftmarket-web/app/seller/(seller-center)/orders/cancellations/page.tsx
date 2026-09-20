@@ -3,8 +3,8 @@
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { getSellerOrderCancellations } from "@/lib/seller-order-cancellation-api";
 import Pagination from "@/components/common/Pagination";
@@ -27,6 +27,15 @@ const FILTERS: { value: FilterStatus; label: string }[] = [
   { value: "FAILED", label: "처리 실패" },
 ];
 
+function parsePage(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function parseStatus(value: string | null): FilterStatus {
+  return FILTERS.find((filter) => filter.value === value)?.value ?? "ALL";
+}
+
 function formatDate(value: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("ko-KR", {
@@ -44,26 +53,39 @@ function friendlyError(error: unknown) {
   return "취소 요청 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
 }
 
-export default function SellerOrderCancellationsPage() {
+function SellerOrderCancellationsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [cancellationPage, setCancellationPage] =
     useState<SellerOrderCancellationPage | null>(null);
-  const [status, setStatus] = useState<FilterStatus>("ALL");
-  const [page, setPage] = useState(0);
+  const status = parseStatus(searchParams.get("status"));
+  const page = parsePage(searchParams.get("page"));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadCancellations = useCallback(async () => {
+  const createListUrl = (next: { status?: FilterStatus; page?: number } = {}) => {
+    const nextStatus = next.status ?? status;
+    const nextPage = next.page ?? page;
+    const params = new URLSearchParams();
+    if (nextStatus !== "ALL") params.set("status", nextStatus);
+    if (nextPage > 0) params.set("page", String(nextPage));
+    const query = params.toString();
+    return query ? `/seller/orders/cancellations?${query}` : "/seller/orders/cancellations";
+  };
+
+  const detailQuery = createListUrl().split("?")[1] ?? "";
+
+  const loadCancellations = useCallback(async (requestStatus: FilterStatus, requestPage: number) => {
     await Promise.resolve();
     try {
       setLoading(true);
       setError("");
       const result = await getSellerOrderCancellations({
-        status: status === "ALL" ? undefined : status,
-        page,
+        status: requestStatus === "ALL" ? undefined : requestStatus,
+        page: requestPage,
         size: PAGE_SIZE,
       });
       setCancellationPage(result);
@@ -72,7 +94,7 @@ export default function SellerOrderCancellationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status]);
+  }, []);
 
   useEffect(() => {
     if (!initialized) return;
@@ -80,9 +102,9 @@ export default function SellerOrderCancellationsPage() {
       router.replace(getLoginRedirectUrl());
       return;
     }
-    const requestId = window.setTimeout(() => void loadCancellations(), 0);
+    const requestId = window.setTimeout(() => void loadCancellations(status, page), 0);
     return () => window.clearTimeout(requestId);
-  }, [initialized, isAuthenticated, loadCancellations, router, user]);
+  }, [initialized, isAuthenticated, loadCancellations, page, router, status, user]);
 
   if (!initialized || !isAuthenticated || !user) {
     return <div className="seller-orders-auth-loading">판매자 정보를 확인하고 있습니다.</div>;
@@ -108,8 +130,7 @@ export default function SellerOrderCancellationsPage() {
                   aria-selected={status === filter.value}
                   className={status === filter.value ? "is-active" : ""}
                   onClick={() => {
-                    setStatus(filter.value);
-                    setPage(0);
+                    router.push(createListUrl({ status: filter.value, page: 0 }), { scroll: false });
                   }}
                 >
                   {filter.label}
@@ -129,7 +150,7 @@ export default function SellerOrderCancellationsPage() {
           {error && (
             <div className="seller-orders-state seller-orders-state-error">
               <p>{error}</p>
-              <button type="button" onClick={() => void loadCancellations()}>다시 시도</button>
+              <button type="button" onClick={() => void loadCancellations(status, page)}>다시 시도</button>
             </div>
           )}
           {!error && cancellationPage?.cancellations.length === 0 && (
@@ -158,7 +179,7 @@ export default function SellerOrderCancellationsPage() {
                           <td data-label="요청 수량">{totalQuantity}개</td>
                           <td data-label="취소 사유"><span className="seller-cancellation-reason">{cancellation.reason}</span></td>
                           <td data-label="상태"><span className={`seller-cancellation-status seller-cancellation-status-${cancellation.status.toLowerCase()}`}>{SELLER_ORDER_CANCELLATION_STATUS_LABEL[cancellation.status]}</span></td>
-                          <td data-label="관리"><Link className="seller-orders-detail-link" href={`/seller/orders/cancellations/${cancellation.cancellationId}`}>{cancellation.status === "REQUESTED" ? "요청 확인" : "상세보기"}</Link></td>
+                          <td data-label="관리"><Link className="seller-orders-detail-link" href={`/seller/orders/cancellations/${cancellation.cancellationId}${detailQuery ? `?${detailQuery}` : ""}`}>{cancellation.status === "REQUESTED" ? "요청 확인" : "상세보기"}</Link></td>
                         </tr>
                       );
                     })}
@@ -166,11 +187,15 @@ export default function SellerOrderCancellationsPage() {
                 </table>
               </div>
 
-              <Pagination currentPage={cancellationPage.page} totalPages={cancellationPage.totalPages} ariaLabel="취소 요청 목록 페이지" disabled={loading} onPageChange={setPage} className="seller-orders-pagination" />
+              <Pagination currentPage={cancellationPage.page} totalPages={cancellationPage.totalPages} ariaLabel="취소 요청 목록 페이지" disabled={loading} onPageChange={(nextPage) => router.push(createListUrl({ page: nextPage }), { scroll: false })} className="seller-orders-pagination" />
             </>
           )}
         </section>
       </div>
     </main>
   );
+}
+
+export default function SellerOrderCancellationsPage() {
+  return <Suspense fallback={<div className="seller-orders-auth-loading">취소 요청 목록을 준비하고 있습니다.</div>}><SellerOrderCancellationsContent /></Suspense>;
 }

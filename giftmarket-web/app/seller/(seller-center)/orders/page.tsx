@@ -3,8 +3,8 @@
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 
 import { getSellerOrders } from "@/lib/seller-order-api";
 import Pagination from "@/components/common/Pagination";
@@ -27,6 +27,15 @@ const FILTERS: { value: FilterStatus; label: string }[] = [
   { value: "CANCELLED", label: "취소" },
 ];
 
+function parsePage(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function parseStatus(value: string | null): FilterStatus {
+  return FILTERS.find((filter) => filter.value === value)?.value ?? "ALL";
+}
+
 function formatPrice(value: number) {
   return `${new Intl.NumberFormat("ko-KR").format(value)}원`;
 }
@@ -48,29 +57,44 @@ function friendlyError(error: unknown) {
   return "주문 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
 }
 
-export default function SellerOrdersPage() {
+function SellerOrdersContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [orderPage, setOrderPage] = useState<SellerOrderPage | null>(null);
-  const [status, setStatus] = useState<FilterStatus>("ALL");
-  const [keywordInput, setKeywordInput] = useState("");
-  const [keyword, setKeyword] = useState("");
-  const [page, setPage] = useState(0);
+  const status = parseStatus(searchParams.get("status"));
+  const keyword = (searchParams.get("keyword") ?? "").trim().slice(0, 100);
+  const page = parsePage(searchParams.get("page"));
+  const [keywordInput, setKeywordInput] = useState(keyword);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadOrders = useCallback(async () => {
+  const createListUrl = (next: { status?: FilterStatus; keyword?: string; page?: number } = {}) => {
+    const nextStatus = next.status ?? status;
+    const nextKeyword = next.keyword === undefined ? keyword : next.keyword.trim();
+    const nextPage = next.page ?? page;
+    const params = new URLSearchParams();
+    if (nextStatus !== "ALL") params.set("status", nextStatus);
+    if (nextKeyword) params.set("keyword", nextKeyword);
+    if (nextPage > 0) params.set("page", String(nextPage));
+    const query = params.toString();
+    return query ? `/seller/orders?${query}` : "/seller/orders";
+  };
+
+  const detailQuery = createListUrl().split("?")[1] ?? "";
+
+  const loadOrders = useCallback(async (requestStatus: FilterStatus, requestKeyword: string, requestPage: number) => {
     await Promise.resolve();
 
     try {
       setLoading(true);
       setError("");
       const result = await getSellerOrders({
-        status: status === "ALL" ? undefined : status,
-        keyword,
-        page,
+        status: requestStatus === "ALL" ? undefined : requestStatus,
+        keyword: requestKeyword,
+        page: requestPage,
         size: PAGE_SIZE,
       });
       setOrderPage(result);
@@ -79,7 +103,7 @@ export default function SellerOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, page, status]);
+  }, []);
 
   useEffect(() => {
     if (!initialized) return;
@@ -87,15 +111,20 @@ export default function SellerOrdersPage() {
       router.replace(getLoginRedirectUrl());
       return;
     }
-    const requestId = window.setTimeout(() => void loadOrders(), 0);
+    const requestId = window.setTimeout(() => void loadOrders(status, keyword, page), 0);
 
     return () => window.clearTimeout(requestId);
-  }, [initialized, isAuthenticated, loadOrders, router, user]);
+  }, [initialized, isAuthenticated, keyword, loadOrders, page, router, status, user]);
+
+  useEffect(() => {
+    // 뒤로가기/앞으로가기에서 URL의 적용 검색어를 입력창에도 복원한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setKeywordInput(keyword);
+  }, [keyword]);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
-    setPage(0);
-    setKeyword(keywordInput.trim());
+    router.push(createListUrl({ keyword: keywordInput, page: 0 }), { scroll: false });
   };
 
   if (!initialized || !isAuthenticated || !user) {
@@ -122,8 +151,7 @@ export default function SellerOrdersPage() {
                   aria-selected={status === filter.value}
                   className={status === filter.value ? "is-active" : ""}
                   onClick={() => {
-                    setStatus(filter.value);
-                    setPage(0);
+                    router.push(createListUrl({ status: filter.value, page: 0 }), { scroll: false });
                   }}
                 >
                   {filter.label}
@@ -152,7 +180,7 @@ export default function SellerOrdersPage() {
           {error && (
             <div className="seller-orders-state seller-orders-state-error">
               <p>{error}</p>
-              <button type="button" onClick={() => void loadOrders()}>다시 시도</button>
+              <button type="button" onClick={() => void loadOrders(status, keyword, page)}>다시 시도</button>
             </div>
           )}
           {!error && orderPage?.orders.length === 0 && (
@@ -175,18 +203,22 @@ export default function SellerOrdersPage() {
                         <td data-label="수령인">{order.recipientName}</td>
                         <td data-label="배송상태"><span className={`seller-order-status seller-order-status-${order.status.toLowerCase()}`}>{SELLER_ORDER_STATUS_LABEL[order.status]}</span></td>
                         <td data-label="배송정보">{order.shippingCompany && order.trackingNumber ? <span className="seller-orders-shipping">{order.shippingCompany}<small>{order.trackingNumber}</small></span> : "-"}</td>
-                        <td data-label="관리"><Link className="seller-orders-detail-link" href={`/seller/orders/${order.sellerOrderId}`}>상세보기</Link></td>
+                        <td data-label="관리"><Link className="seller-orders-detail-link" href={`/seller/orders/${order.sellerOrderId}${detailQuery ? `?${detailQuery}` : ""}`}>상세보기</Link></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              <Pagination currentPage={orderPage.page} totalPages={orderPage.totalPages} ariaLabel="주문 목록 페이지" disabled={loading} onPageChange={setPage} className="seller-orders-pagination" />
+              <Pagination currentPage={orderPage.page} totalPages={orderPage.totalPages} ariaLabel="주문 목록 페이지" disabled={loading} onPageChange={(nextPage) => router.push(createListUrl({ page: nextPage }), { scroll: false })} className="seller-orders-pagination" />
             </>
           )}
         </section>
       </div>
     </main>
   );
+}
+
+export default function SellerOrdersPage() {
+  return <Suspense fallback={<div className="seller-orders-auth-loading">주문 목록을 준비하고 있습니다.</div>}><SellerOrdersContent /></Suspense>;
 }

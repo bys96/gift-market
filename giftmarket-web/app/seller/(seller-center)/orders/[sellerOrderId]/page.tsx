@@ -5,8 +5,8 @@ import Modal from "@/components/common/modal/Modal";
 
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   cancelSellerOrder,
@@ -43,9 +43,12 @@ function friendlyActionError(error: unknown) {
   return "주문 상태가 변경되었거나 요청을 처리하지 못했습니다. 최신 상태를 확인해주세요.";
 }
 
-export default function SellerOrderDetailPage() {
+function SellerOrderDetailContent() {
   const params = useParams<{ sellerOrderId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listQuery = searchParams.toString();
+  const listHref = listQuery ? `/seller/orders?${listQuery}` : "/seller/orders";
   const sellerOrderId = Number(params.sellerOrderId);
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
@@ -212,7 +215,7 @@ export default function SellerOrderDetailPage() {
   if (error || !order) {
     return (
       <main className="seller-orders-page"><div className="common-inner seller-orders-container">
-        <div className="seller-orders-state seller-orders-state-error"><p>{error || "주문 정보를 확인할 수 없습니다."}</p><button type="button" onClick={() => void loadOrder()}>다시 시도</button><Link href="/seller/orders">목록으로</Link></div>
+        <div className="seller-orders-state seller-orders-state-error"><p>{error || "주문 정보를 확인할 수 없습니다."}</p><button type="button" onClick={() => void loadOrder()}>다시 시도</button><Link href={listHref}>목록으로</Link></div>
       </div></main>
     );
   }
@@ -222,7 +225,7 @@ export default function SellerOrderDetailPage() {
       <div className="common-inner seller-orders-container seller-order-detail-container">
         <header className="seller-order-detail-header">
           <div><p>ORDER DETAIL</p><h1>주문 상세</h1><span>{order.merchantOrderId}</span></div>
-          <Link href="/seller/orders">목록으로</Link>
+          <Link href={listHref}>목록으로</Link>
         </header>
 
         <section className="seller-order-detail-summary">
@@ -347,4 +350,8 @@ export default function SellerOrderDetailPage() {
       )}
     </main>
   );
+}
+
+export default function SellerOrderDetailPage() {
+  return <Suspense fallback={<div className="seller-orders-auth-loading">주문 정보를 확인하고 있습니다.</div>}><SellerOrderDetailContent /></Suspense>;
 }
