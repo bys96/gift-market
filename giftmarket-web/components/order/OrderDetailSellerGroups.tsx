@@ -12,7 +12,7 @@ import { resolveImageUrl } from "@/utils/image-url";
 import { confirmPurchase } from "@/lib/order-api";
 import { getReviewIds } from "@/lib/review-api";
 import ReviewEditorModal from "@/components/review/ReviewEditorModal";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface OrderDetailSellerGroupsProps {
   sellerOrders: BuyerSellerOrder[];
@@ -48,28 +48,76 @@ export default function OrderDetailSellerGroups({
   onChanged,
 }: OrderDetailSellerGroupsProps) {
   const [confirmingItemId, setConfirmingItemId] = useState<number | null>(null);
-  const [confirmationError, setConfirmationError] = useState("");
+  const confirmingItemIdRef = useRef<number | null>(null);
+  const [confirmationFeedback, setConfirmationFeedback] = useState<{
+    type: "error" | "refresh";
+    message: string;
+  } | null>(null);
+  const [locallyConfirmedQuantities, setLocallyConfirmedQuantities] = useState<
+    Record<number, number>
+  >({});
   const itemIds = useMemo(() => sellerOrders.flatMap(group => group.items.map(item => item.id)), [sellerOrders]);
   const [reviewIds, setReviewIds] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<{ orderItemId:number; reviewId:number|null } | null>(null);
   useEffect(() => { if(itemIds.length) void getReviewIds(itemIds).then(setReviewIds).catch(()=>setReviewIds({})); }, [itemIds]);
 
   const handleConfirm = async (itemId: number, quantity: number) => {
+    const currentItem = sellerOrders
+      .flatMap((group) => group.items)
+      .find((item) => item.id === itemId);
+    const locallyConfirmedQuantity = locallyConfirmedQuantities[itemId];
+    const isWaitingForRefresh = locallyConfirmedQuantity !== undefined &&
+      (!currentItem || currentItem.confirmedQuantity < locallyConfirmedQuantity);
+
+    if (confirmingItemIdRef.current !== null || isWaitingForRefresh) return;
     if (!window.confirm(`구매확정 후에는 해당 ${quantity}개 상품의 취소·반품·교환을 신청할 수 없습니다.\n구매확정하시겠습니까?`)) return;
+
+    confirmingItemIdRef.current = itemId;
+    setConfirmingItemId(itemId);
+    setConfirmationFeedback(null);
+
     try {
-      setConfirmingItemId(itemId);
-      setConfirmationError("");
-      await confirmPurchase(orderId, itemId);
-      await onChanged();
+      const result = await confirmPurchase(orderId, itemId);
+      setLocallyConfirmedQuantities((current) => ({
+        ...current,
+        [itemId]: result.confirmedQuantity,
+      }));
     } catch (error) {
-      setConfirmationError(error instanceof Error ? error.message : "구매확정을 처리하지 못했습니다.");
+      setConfirmationFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "구매확정을 처리하지 못했습니다.",
+      });
+      confirmingItemIdRef.current = null;
+      setConfirmingItemId(null);
+      return;
+    }
+
+    try {
+      await onChanged();
+    } catch {
+      setConfirmationFeedback({
+        type: "refresh",
+        message: "구매확정은 완료됐지만 최신 주문 정보를 불러오지 못했습니다. 주문 상세를 다시 열어 확인해주세요.",
+      });
     } finally {
+      confirmingItemIdRef.current = null;
       setConfirmingItemId(null);
     }
   };
   return (
     <div className="order-detail-seller-groups">
-      {confirmationError && <p className="order-detail-confirmation-error">{confirmationError}</p>}
+      {confirmationFeedback && (
+        <p
+          className={
+            confirmationFeedback.type === "error"
+              ? "order-detail-confirmation-error"
+              : "order-detail-confirmation-refresh"
+          }
+          role="alert"
+        >
+          {confirmationFeedback.message}
+        </p>
+      )}
       {sellerOrders.map((sellerOrder) => {
         const showsTracking =
           ["SHIPPED", "DELIVERED"].includes(sellerOrder.status) &&
@@ -149,7 +197,12 @@ export default function OrderDetailSellerGroups({
                       {item.confirmedQuantity > 0 && (
                         <p className="order-detail-confirmed-label">구매확정 {item.confirmedQuantity}개</p>
                       )}
-                      {item.confirmableQuantity > 0 && (
+                      {locallyConfirmedQuantities[item.id] !== undefined &&
+                      item.confirmedQuantity < locallyConfirmedQuantities[item.id] ? (
+                        <p className="order-detail-confirmed-label">
+                          구매확정 완료 · 최신 정보 확인 필요
+                        </p>
+                      ) : item.confirmableQuantity > 0 && (
                         <div className="order-detail-confirmation-action">
                           <span>구매확정 가능 {item.confirmableQuantity}개</span>
                           <button type="button" disabled={confirmingItemId !== null}
