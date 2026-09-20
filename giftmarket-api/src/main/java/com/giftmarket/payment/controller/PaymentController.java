@@ -2,6 +2,7 @@ package com.giftmarket.payment.controller;
 
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
+import com.giftmarket.payment.dto.request.PaymentPreparationUpdateRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.service.PaymentService;
 import jakarta.validation.Valid;
@@ -10,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,6 +41,34 @@ public class PaymentController {
     ) {
         return ApiResponse.success(
                 paymentService.getPayment(userId, paymentId)
+        );
+    }
+
+    @GetMapping("/merchant/{merchantPaymentId}")
+    public ApiResponse<PaymentResponse> getPaymentByMerchantPaymentId(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable String merchantPaymentId
+    ) {
+        return ApiResponse.success(
+                paymentService.getPaymentByMerchantPaymentId(
+                        userId,
+                        merchantPaymentId
+                )
+        );
+    }
+
+    @PatchMapping("/{paymentId}/preparation")
+    public ApiResponse<PaymentResponse> updatePreparation(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long paymentId,
+            @Valid @RequestBody PaymentPreparationUpdateRequest request
+    ) {
+        return ApiResponse.success(
+                paymentService.updateReadyPreparation(
+                        userId,
+                        paymentId,
+                        request
+                )
         );
     }
 }

@@ -1,6 +1,7 @@
 package com.giftmarket.payment.service;
 
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
+import com.giftmarket.payment.dto.request.PaymentPreparationUpdateRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.gateway.GatewayConfirmCommand;
@@ -105,6 +106,28 @@ public class PaymentService {
         } catch (PaymentGatewayUncertainException exception) {
             return transactionService.getPayment(userId, paymentId);
         }
+    }
+
+    public PaymentResponse getPaymentByMerchantPaymentId(
+            Long userId,
+            String merchantPaymentId
+    ) {
+        return getPayment(
+                userId,
+                transactionService.getOwnedPaymentId(userId, merchantPaymentId)
+        );
+    }
+
+    public PaymentResponse updateReadyPreparation(
+            Long userId,
+            Long paymentId,
+            PaymentPreparationUpdateRequest request
+    ) {
+        return transactionService.updateReadyPreparation(
+                userId,
+                paymentId,
+                request
+        );
     }
 
     private PaymentResponse handleQuery(

@@ -227,6 +227,23 @@ public class Order extends BaseEntity {
         this.orderedAt = approvedAt;
     }
 
+    public void updatePendingPaymentDelivery(
+            String recipientName,
+            String recipientPhone,
+            String postalCode,
+            String address,
+            String addressDetail
+    ) {
+        if (status != OrderStatus.PENDING_PAYMENT) {
+            throw new IllegalStateException("결제 대기 주문만 배송 정보를 변경할 수 있습니다.");
+        }
+        this.recipientName = recipientName;
+        this.recipientPhone = recipientPhone;
+        this.postalCode = postalCode;
+        this.address = address;
+        this.addressDetail = addressDetail;
+    }
+
     public void markPaymentExpired() {
         this.status = OrderStatus.PAYMENT_EXPIRED;
     }

@@ -166,6 +166,18 @@ class PaymentServiceTest {
         verify(gatewayRegistry, never()).get(any());
     }
 
+    @Test
+    void merchantPaymentIdLookupUsesOwnedPaymentAndAuthoritativeStatus() {
+        PaymentResponse paid = response(PaymentStatus.PAID);
+        given(transactionService.getOwnedPaymentId(1L, "GM-PAY"))
+                .willReturn(2L);
+        given(transactionService.startQuery(1L, 2L))
+                .willReturn(start(PaymentConfirmStart.Action.COMPLETED, paid));
+
+        assertThat(service.getPaymentByMerchantPaymentId(1L, "GM-PAY"))
+                .isSameAs(paid);
+    }
+
     private PaymentConfirmRequest request() {
         return new PaymentConfirmRequest("provider-key", "GM-PAY", 10_000L);
     }

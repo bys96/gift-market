@@ -12,6 +12,7 @@ import com.giftmarket.order.service.OrderInventoryService;
 import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.notification.event.NewOrderCreatedEvent;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
+import com.giftmarket.payment.dto.request.PaymentPreparationUpdateRequest;
 import com.giftmarket.payment.dto.response.PaymentResponse;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentStatus;
@@ -168,6 +169,52 @@ public class PaymentTransactionService {
                                 "결제 정보를 찾을 수 없습니다."
                         ))
         );
+    }
+
+    @Transactional(readOnly = true)
+    public Long getOwnedPaymentId(
+            Long userId,
+            String merchantPaymentId
+    ) {
+        if (merchantPaymentId == null || merchantPaymentId.isBlank()) {
+            throw new PaymentException("결제 정보를 찾을 수 없습니다.");
+        }
+        return paymentRepository
+                .findByMerchantPaymentIdAndOrderUserId(
+                        merchantPaymentId,
+                        userId
+                )
+                .map(Payment::getId)
+                .orElseThrow(() -> new PaymentException(
+                        "결제 정보를 찾을 수 없습니다."
+                ));
+    }
+
+    @Transactional
+    public PaymentResponse updateReadyPreparation(
+            Long userId,
+            Long paymentId,
+            PaymentPreparationUpdateRequest request
+    ) {
+        Payment payment = getPaymentForUpdate(userId, paymentId);
+        Order order = getOrderForUpdate(userId, payment.getOrder().getId());
+
+        if (payment.getStatus() != PaymentStatus.READY
+                || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new PaymentException("결제가 시작된 주문 정보는 변경할 수 없습니다.");
+        }
+        if (!payment.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new PaymentException("결제 가능 시간이 만료되었습니다.");
+        }
+
+        order.updatePendingPaymentDelivery(
+                request.recipientName().trim(),
+                request.recipientPhone().trim(),
+                request.postalCode().trim(),
+                request.address().trim(),
+                normalizeNullable(request.addressDetail())
+        );
+        return PaymentResponse.from(payment);
     }
 
     @Transactional(readOnly = true)
@@ -611,5 +658,12 @@ public class PaymentTransactionService {
         return message.length() <= 500
                 ? message
                 : message.substring(0, 500);
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

@@ -18,6 +18,14 @@ export interface PaymentConfirmRequest {
   amount: number;
 }
 
+export interface PaymentPreparationUpdateRequest {
+  recipientName: string;
+  recipientPhone: string;
+  postalCode: string;
+  address: string;
+  addressDetail: string | null;
+}
+
 export interface PaymentSession {
   paymentId: number;
   orderId: number;

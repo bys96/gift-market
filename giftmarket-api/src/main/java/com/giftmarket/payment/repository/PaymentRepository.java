@@ -38,6 +38,11 @@ public interface PaymentRepository
             String merchantPaymentId
     );
 
+    Optional<Payment> findByMerchantPaymentIdAndOrderUserId(
+            String merchantPaymentId,
+            Long userId
+    );
+
     Optional<Payment> findByClientRequestKey(
             String clientRequestKey
     );

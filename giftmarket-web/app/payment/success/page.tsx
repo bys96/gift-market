@@ -3,11 +3,12 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { confirmPayment, getPayment } from "@/lib/payment-api";
 import {
-  clearCompletedPaymentSession,
-  getPaymentSession,
-} from "@/lib/payment-session";
+  confirmPayment,
+  getPayment,
+  getPaymentByMerchantPaymentId,
+} from "@/lib/payment-api";
+import { clearCompletedPaymentSession } from "@/lib/payment-session";
 import { useAuthStore } from "@/stores/auth-store";
 import type { PaymentResponse } from "@/types/payment";
 
@@ -47,33 +48,17 @@ function PaymentSuccessContent() {
       return;
     }
 
-    const paymentSession = getPaymentSession(merchantPaymentId);
-
-    if (
-      !paymentSession ||
-      paymentSession.merchantPaymentId !== merchantPaymentId ||
-      paymentSession.amount !== amount
-    ) {
-      window.setTimeout(() => {
-        setHasError(true);
-        setMessage(
-          "저장된 결제 정보와 일치하지 않습니다. 주문 내역을 확인해주세요.",
-        );
-      }, 0);
-      return;
-    }
-
-    window.setTimeout(() => setOrderId(paymentSession.orderId), 0);
     let disposed = false;
 
-    const finishPaid = () => {
+    const finishPaid = (payment: PaymentResponse) => {
       clearCompletedPaymentSession(merchantPaymentId);
-      router.replace(`/my/orders/${paymentSession.orderId}`);
+      router.replace(`/my/orders/${payment.orderId}`);
     };
 
     const handleStatus = (payment: PaymentResponse) => {
-      if (payment.status === "PAID") {
-        finishPaid();
+      setOrderId(payment.orderId);
+      if (["PAID", "PARTIALLY_CANCELED"].includes(payment.status)) {
+        finishPaid(payment);
         return true;
       }
       if (["FAILED", "EXPIRED", "CANCELED"].includes(payment.status)) {
@@ -84,7 +69,13 @@ function PaymentSuccessContent() {
       return false;
     };
 
-    const poll = async () => {
+    const poll = async (
+      initialPaymentId: number | null,
+      retryConfirmWhenReady: boolean,
+    ) => {
+      let paymentId = initialPaymentId;
+      let canRetryConfirm = retryConfirmWhenReady;
+
       for (let count = 0; count < MAX_POLLING_COUNT; count += 1) {
         await new Promise((resolve) =>
           window.setTimeout(resolve, POLLING_INTERVAL_MS),
@@ -92,8 +83,32 @@ function PaymentSuccessContent() {
         if (disposed) return;
 
         try {
-          const payment = await getPayment(paymentSession.paymentId);
+          const payment = paymentId === null
+            ? await getPaymentByMerchantPaymentId(merchantPaymentId)
+            : await getPayment(paymentId);
+          paymentId = payment.paymentId;
           if (handleStatus(payment)) return;
+
+          if (payment.amount !== amount) {
+            setHasError(true);
+            setMessage("결제 금액 정보가 일치하지 않습니다. 주문 내역을 확인해주세요.");
+            return;
+          }
+
+          if (payment.status === "READY" && canRetryConfirm) {
+            canRetryConfirm = false;
+            try {
+              const retried = await confirmPayment(payment.paymentId, {
+                providerPaymentKey,
+                merchantPaymentId,
+                amount,
+              });
+              if (disposed) return;
+              if (handleStatus(retried)) return;
+            } catch {
+              // 동일 confirm idempotency key로 시작된 결과를 다음 조회에서 확인합니다.
+            }
+          }
         } catch {
           // 일시적인 조회 실패는 다음 polling에서 다시 확인합니다.
         }
@@ -106,33 +121,59 @@ function PaymentSuccessContent() {
       }
     };
 
-    const confirm = async () => {
+    const confirm = async (payment: PaymentResponse) => {
+      if (handleStatus(payment)) return;
+
+      if (payment.amount !== amount) {
+        setHasError(true);
+        setMessage("결제 금액 정보가 일치하지 않습니다. 주문 내역을 확인해주세요.");
+        return;
+      }
+
+      if (payment.status !== "READY") {
+        setMessage("결제 결과를 확인 중입니다.");
+        await poll(payment.paymentId, false);
+        return;
+      }
+
       try {
-        const payment = await confirmPayment(paymentSession.paymentId, {
+        const confirmedPayment = await confirmPayment(payment.paymentId, {
           providerPaymentKey,
           merchantPaymentId,
           amount,
         });
 
-        if (!handleStatus(payment) && !disposed) {
+        if (disposed) return;
+        if (!handleStatus(confirmedPayment)) {
           setMessage("결제 결과를 확인 중입니다.");
-          await poll();
+          await poll(payment.paymentId, false);
         }
-      } catch (error) {
+      } catch {
         if (!disposed) {
-          setHasError(true);
-          setMessage(
-            error instanceof Error
-              ? error.message
-              : "결제 승인을 완료하지 못했습니다. 주문 내역을 확인해주세요.",
-          );
+          setHasError(false);
+          setMessage("결제 요청 결과를 확인하고 있습니다.");
+          await poll(payment.paymentId, true);
         }
       }
     };
 
-    void confirm();
+    const resolveAndConfirm = async () => {
+      try {
+        const payment = await getPaymentByMerchantPaymentId(merchantPaymentId);
+        if (!disposed) await confirm(payment);
+      } catch {
+        if (!disposed) {
+          setHasError(false);
+          setMessage("결제 정보를 서버에서 확인하고 있습니다.");
+          await poll(null, true);
+        }
+      }
+    };
+
+    void resolveAndConfirm();
     return () => {
       disposed = true;
+      startedRef.current = false;
     };
   }, [initialized, router, searchParams]);
 

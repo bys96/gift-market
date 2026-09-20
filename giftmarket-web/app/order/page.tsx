@@ -8,9 +8,14 @@ import OrderRecipientForm from "@/components/order/OrderRecipientForm";
 import OrderSummary from "@/components/order/OrderSummary";
 import TossPaymentWidget from "@/components/payment/TossPaymentWidget";
 import { createAddress, getMyAddresses } from "@/lib/address-api";
-import { createDirectOrder, createOrder } from "@/lib/order-api";
+import {
+  cancelOrder,
+  createDirectOrder,
+  createOrder,
+  getMyOrder,
+} from "@/lib/order-api";
 import { getProduct } from "@/lib/product-api";
-import { getPayment } from "@/lib/payment-api";
+import { getPayment, updatePaymentPreparation } from "@/lib/payment-api";
 import {
   clearCompletedPaymentSession,
   createCustomerKey,
@@ -20,7 +25,11 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
 import type { Address } from "@/types/address";
-import type { OrderCreateResponse, OrderProductItem } from "@/types/order";
+import type {
+  OrderCreateResponse,
+  OrderDetail,
+  OrderProductItem,
+} from "@/types/order";
 import type { ProductDetail } from "@/types/product";
 import type { PaymentSession } from "@/types/payment";
 
@@ -46,7 +55,7 @@ function parseCartItemIds(value: string | null): number[] {
 }
 
 interface StoredOrderPreparation {
-  fingerprintHash: string;
+  checkoutFingerprintHash: string;
   clientOrderRequestKey: string;
 }
 
@@ -62,8 +71,10 @@ async function hashOrderRequestFingerprint(value: string) {
     .join("");
 }
 
-async function resolveClientOrderRequestKey(fingerprint: string) {
-  const fingerprintHash = await hashOrderRequestFingerprint(fingerprint);
+async function resolveClientOrderRequestKey(checkoutFingerprint: string) {
+  const checkoutFingerprintHash = await hashOrderRequestFingerprint(
+    checkoutFingerprint,
+  );
 
   try {
     const storedValue = window.sessionStorage.getItem(
@@ -74,7 +85,7 @@ async function resolveClientOrderRequestKey(fingerprint: string) {
       const stored = JSON.parse(storedValue) as StoredOrderPreparation;
 
       if (
-        stored.fingerprintHash === fingerprintHash &&
+        stored.checkoutFingerprintHash === checkoutFingerprintHash &&
         typeof stored.clientOrderRequestKey === "string"
       ) {
         return stored.clientOrderRequestKey;
@@ -89,7 +100,7 @@ async function resolveClientOrderRequestKey(fingerprint: string) {
   window.sessionStorage.setItem(
     ORDER_PREPARATION_STORAGE_KEY,
     JSON.stringify({
-      fingerprintHash,
+      checkoutFingerprintHash,
       clientOrderRequestKey,
     } satisfies StoredOrderPreparation),
   );
@@ -102,6 +113,48 @@ function parsePositiveInteger(value: string | null): number | null {
 
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function hasMatchingOrderSnapshot(
+  prepared: OrderCreateResponse,
+  detail: OrderDetail,
+  expectedItems: Array<{
+    productId: number;
+    variantId: number | null;
+    quantity: number;
+    unitPrice: number;
+  }>,
+  productAmount: number,
+  shippingFee: number,
+  totalAmount: number,
+) {
+  if (
+    prepared.totalProductAmount !== productAmount ||
+    prepared.totalShippingFee !== shippingFee ||
+    prepared.totalAmount !== totalAmount ||
+    detail.totalProductAmount !== productAmount ||
+    detail.totalShippingFee !== shippingFee ||
+    detail.totalAmount !== totalAmount
+  ) {
+    return false;
+  }
+
+  const normalize = (
+    items: Array<{
+      productId: number;
+      variantId: number | null;
+      quantity: number;
+      unitPrice: number;
+    }>,
+  ) =>
+    items
+      .map((item) =>
+        [item.productId, item.variantId ?? "none", item.quantity, item.unitPrice].join(":"),
+      )
+      .sort();
+
+  return JSON.stringify(normalize(detail.items)) ===
+    JSON.stringify(normalize(expectedItems));
 }
 
 function OrderContent() {
@@ -140,6 +193,8 @@ function OrderContent() {
     useState<OrderCreateResponse | null>(null);
   const [paymentSession, setPaymentSession] =
     useState<PaymentSession | null>(null);
+  const [preparedDeliveryFingerprint, setPreparedDeliveryFingerprint] =
+    useState<string | null>(null);
   const [widgetCustomerKey] = useState(() => createCustomerKey());
   const [isWidgetLoading, setIsWidgetLoading] = useState(false);
   const [submitStage, setSubmitStage] = useState<"idle" | "preparing" | "opening">("idle");
@@ -540,7 +595,7 @@ function OrderContent() {
       return;
     }
 
-    let hasPreparedPayment = preparedOrder !== null;
+    let paymentWindowRequested = false;
 
     try {
       setIsSubmitting(true);
@@ -550,7 +605,10 @@ function OrderContent() {
       if (preparedOrder) {
         const currentPayment = await getPayment(preparedOrder.paymentId);
 
-        if (currentPayment.status === "PAID") {
+        if (
+          currentPayment.status === "PAID" ||
+          currentPayment.status === "PARTIALLY_CANCELED"
+        ) {
           clearCompletedPaymentSession(preparedOrder.merchantPaymentId);
           router.replace(`/my/orders/${preparedOrder.orderId}`);
           return;
@@ -562,6 +620,10 @@ function OrderContent() {
           return;
         }
         if (currentPayment.status !== "READY") {
+          clearCompletedPaymentSession(preparedOrder.merchantPaymentId);
+          setPreparedOrder(null);
+          setPaymentSession(null);
+          setPreparedDeliveryFingerprint(null);
           setErrorMessage(currentPayment.userMessage);
           return;
         }
@@ -569,15 +631,10 @@ function OrderContent() {
           setErrorMessage("결제창을 준비하고 있습니다. 잠시 후 다시 시도해주세요.");
           return;
         }
-
         if (!paymentSession) {
           setErrorMessage("결제 정보를 확인할 수 없습니다. 다시 시도해주세요.");
           return;
         }
-
-        setSubmitStage("opening");
-        await paymentLauncher(paymentSession);
-        return;
       }
 
       if (addressMode === "new" && saveAddress) {
@@ -610,17 +667,33 @@ function OrderContent() {
         addressDetail: recipient.addressDetail.trim() || null,
       };
 
-      const requestFingerprint = JSON.stringify({
+      const checkoutFingerprint = JSON.stringify({
         mode: isDirectOrder ? "direct" : "cart",
         cartItemIds: isDirectOrder ? null : requestedCartItemIds,
         productId: isDirectOrder ? directProductId : null,
         variantId: isDirectOrder ? directVariantId : null,
         quantity: isDirectOrder ? directQuantity : null,
-        delivery,
       });
+      const deliveryFingerprint = JSON.stringify(delivery);
+
+      if (preparedOrder) {
+        if (!paymentLauncher || !paymentSession) {
+          throw new Error("결제 정보를 확인할 수 없습니다. 다시 시도해주세요.");
+        }
+        if (preparedDeliveryFingerprint !== deliveryFingerprint) {
+          setSubmitStage("preparing");
+          await updatePaymentPreparation(preparedOrder.paymentId, delivery);
+          setPreparedDeliveryFingerprint(deliveryFingerprint);
+        }
+
+        setSubmitStage("opening");
+        paymentWindowRequested = true;
+        await paymentLauncher(paymentSession);
+        return;
+      }
 
       const clientOrderRequestKey =
-        await resolveClientOrderRequestKey(requestFingerprint);
+        await resolveClientOrderRequestKey(checkoutFingerprint);
 
       const createdOrder = isDirectOrder
         ? await createDirectOrder({
@@ -636,6 +709,47 @@ function OrderContent() {
             ...delivery,
           });
 
+      const preparedDetail = await getMyOrder(createdOrder.orderId);
+      const expectedItems = isDirectOrder
+        ? [
+            {
+              productId: directProductId,
+              variantId: directVariantId,
+              quantity: directQuantity!,
+              unitPrice: directVariant?.price ?? directProduct!.price,
+            },
+          ]
+        : cartOrderItems.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            unitPrice: item.price,
+          }));
+
+      if (
+        !hasMatchingOrderSnapshot(
+          createdOrder,
+          preparedDetail,
+          expectedItems,
+          productAmount,
+          shippingFee,
+          totalAmount,
+        )
+      ) {
+        await cancelOrder(createdOrder.orderId, {
+          clientCancelRequestKey: crypto.randomUUID(),
+          cancelReason: "결제 전 주문 정보 변경",
+        });
+        clearCompletedPaymentSession(createdOrder.merchantPaymentId);
+        throw new Error(
+          "장바구니 또는 상품 정보가 변경되었습니다. 최신 정보를 확인한 뒤 다시 결제해주세요.",
+        );
+      }
+
+      // 같은 checkout의 READY 준비 주문이 새로고침 후 재사용된 경우에도
+      // 현재 화면의 배송 snapshot을 결제창을 열기 전에 다시 동기화합니다.
+      await updatePaymentPreparation(createdOrder.paymentId, delivery);
+
       const returnPath = `/order?${searchParams.toString()}`;
       savePaymentSession(createdOrder, widgetCustomerKey, returnPath);
       const createdPaymentSession = getPaymentSession(
@@ -643,8 +757,7 @@ function OrderContent() {
       );
       setPreparedOrder(createdOrder);
       setPaymentSession(createdPaymentSession);
-      hasPreparedPayment = true;
-
+      setPreparedDeliveryFingerprint(deliveryFingerprint);
       if (!createdPaymentSession) {
         throw new Error("결제 정보를 저장하지 못했습니다. 다시 시도해주세요.");
       }
@@ -653,10 +766,11 @@ function OrderContent() {
       }
 
       setSubmitStage("opening");
+      paymentWindowRequested = true;
       await paymentLauncher(createdPaymentSession);
     } catch (error) {
       setErrorMessage(
-        hasPreparedPayment
+        paymentWindowRequested
           ? "결제가 취소되었거나 결제창이 닫혔습니다. 다시 시도할 수 있습니다."
           : error instanceof Error
           ? error.message

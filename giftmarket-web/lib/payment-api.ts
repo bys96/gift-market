@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import type { ApiResponse } from "@/types/api";
 import type {
   PaymentConfirmRequest,
+  PaymentPreparationUpdateRequest,
   PaymentResponse,
 } from "@/types/payment";
 
@@ -32,6 +33,40 @@ export async function getPayment(paymentId: number): Promise<PaymentResponse> {
 
   if (!result.success || !result.data) {
     throw new Error(result.message || "결제 상태를 확인하지 못했습니다.");
+  }
+
+  return result.data;
+}
+
+export async function getPaymentByMerchantPaymentId(
+  merchantPaymentId: string,
+): Promise<PaymentResponse> {
+  const result = await apiFetch<ApiResponse<PaymentResponse>>(
+    `/api/payments/merchant/${encodeURIComponent(merchantPaymentId)}`,
+  );
+
+  if (!result.success || !result.data) {
+    throw new Error(result.message || "결제 상태를 확인하지 못했습니다.");
+  }
+
+  return result.data;
+}
+
+export async function updatePaymentPreparation(
+  paymentId: number,
+  request: PaymentPreparationUpdateRequest,
+): Promise<PaymentResponse> {
+  const result = await apiFetch<ApiResponse<PaymentResponse>>(
+    `/api/payments/${paymentId}/preparation`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!result.success || !result.data) {
+    throw new Error(result.message || "변경된 주문 정보를 반영하지 못했습니다.");
   }
 
   return result.data;

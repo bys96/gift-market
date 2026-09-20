@@ -12,6 +12,7 @@ import com.giftmarket.order.service.OrderInventoryService;
 import com.giftmarket.order.service.SellerOrderLifecycleService;
 import com.giftmarket.notification.event.NewOrderCreatedEvent;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
+import com.giftmarket.payment.dto.request.PaymentPreparationUpdateRequest;
 import com.giftmarket.payment.entity.Payment;
 import com.giftmarket.payment.entity.PaymentMethod;
 import com.giftmarket.payment.entity.PaymentProvider;
@@ -197,6 +198,59 @@ class PaymentTransactionServiceTest {
         assertThatThrownBy(() -> service.startConfirm(
                 99L, PAYMENT_ID, request(10_000L, "GM-PAY")
         )).isInstanceOf(PaymentException.class);
+    }
+
+    @Test
+    void updatesDeliverySnapshotWhilePaymentIsReady() {
+        service.updateReadyPreparation(
+                USER_ID,
+                PAYMENT_ID,
+                new PaymentPreparationUpdateRequest(
+                        "새 수령인",
+                        "010-9999-8888",
+                        "54321",
+                        "부산광역시 새 주소",
+                        "  101호  "
+                )
+        );
+
+        assertThat(order.getRecipientName()).isEqualTo("새 수령인");
+        assertThat(order.getRecipientPhone()).isEqualTo("010-9999-8888");
+        assertThat(order.getPostalCode()).isEqualTo("54321");
+        assertThat(order.getAddress()).isEqualTo("부산광역시 새 주소");
+        assertThat(order.getAddressDetail()).isEqualTo("101호");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+    }
+
+    @Test
+    void rejectsDeliveryUpdateAfterConfirmationStarted() {
+        payment.startConfirm("provider-key", LocalDateTime.now());
+
+        assertThatThrownBy(() -> service.updateReadyPreparation(
+                USER_ID,
+                PAYMENT_ID,
+                new PaymentPreparationUpdateRequest(
+                        "새 수령인",
+                        "010-9999-8888",
+                        "54321",
+                        "부산광역시 새 주소",
+                        null
+                )
+        )).isInstanceOf(PaymentException.class);
+
+        assertThat(order.getRecipientName()).isEqualTo("받는 사람");
+    }
+
+    @Test
+    void resolvesOwnedPaymentIdByMerchantPaymentId() {
+        given(paymentRepository.findByMerchantPaymentIdAndOrderUserId(
+                "GM-PAY",
+                USER_ID
+        )).willReturn(Optional.of(payment));
+
+        assertThat(service.getOwnedPaymentId(USER_ID, "GM-PAY"))
+                .isEqualTo(PAYMENT_ID);
     }
 
     @Test
