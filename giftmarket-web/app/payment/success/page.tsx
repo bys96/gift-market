@@ -23,6 +23,7 @@ function PaymentSuccessContent() {
   const [message, setMessage] = useState("결제 승인을 확인하고 있습니다.");
   const [orderId, setOrderId] = useState<number | null>(null);
   const [hasError, setHasError] = useState(false);
+  const [isPollingTimedOut, setIsPollingTimedOut] = useState(false);
 
   useEffect(() => {
     if (!initialized) return;
@@ -115,8 +116,9 @@ function PaymentSuccessContent() {
       }
 
       if (!disposed) {
+        setIsPollingTimedOut(true);
         setMessage(
-          "결제 결과를 확인하고 있습니다. 잠시 후 주문 내역에서 확인해주세요.",
+          "결제 결과 확인이 지연되고 있습니다. 잠시 후 주문 내역에서 결제 상태를 확인해주세요.",
         );
       }
     };
@@ -180,23 +182,31 @@ function PaymentSuccessContent() {
   return (
     <div className="payment-result-page">
       <section className="payment-result-card" role="status">
-        <div className="payment-result-icon">{hasError ? "!" : "…"}</div>
+        <div className="payment-result-icon">
+          {hasError ? "!" : isPollingTimedOut ? "?" : "…"}
+        </div>
         <h1 className="payment-result-title">
-          {hasError ? "결제를 확인해주세요" : "결제 확인 중"}
+          {hasError
+            ? "결제를 확인해주세요"
+            : isPollingTimedOut
+              ? "결제 결과 확인 지연"
+              : "결제 확인 중"}
         </h1>
         <p className="payment-result-description">{message}</p>
 
-        <div className="payment-result-actions">
-          <button
-            type="button"
-            className="payment-result-button is-primary"
-            onClick={() =>
-              router.replace(orderId ? `/my/orders/${orderId}` : "/my/orders")
-            }
-          >
-            주문 내역 확인
-          </button>
-        </div>
+        {(hasError || isPollingTimedOut) && (
+          <div className="payment-result-actions">
+            <button
+              type="button"
+              className="payment-result-button is-primary"
+              onClick={() =>
+                router.replace(orderId ? `/my/orders/${orderId}` : "/my/orders")
+              }
+            >
+              주문 내역으로 이동
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );
