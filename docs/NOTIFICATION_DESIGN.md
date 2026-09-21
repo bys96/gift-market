@@ -85,7 +85,7 @@ Notification
 ## 권한 / 소유권
 
 - BUYER API는 인증 사용자의 BUYER context만 조회한다.
-- SELLER API는 인증 후 사용자에게 속한 ACTIVE Seller row를 Service에서 확인한다.
+- SELLER API는 `NotificationService`에서 인증 사용자에게 속한 Seller row를 확인하고 `ACTIVE`, `SALES_SUSPENDED`만 허용한다. `SUSPENDED`, `WITHDRAWN`은 차단한다.
 - ADMIN API는 Security의 `ROLE_ADMIN`과 Service의 ADMIN role을 모두 확인한다.
 - 개별 읽음은 `notificationId + userId + context`를 동시에 조건으로 조회한다.
 - 다른 사용자나 다른 context의 알림은 존재 여부를 노출하지 않고 동일하게 404로 처리한다.
@@ -140,6 +140,7 @@ production은 `ddl-auto=validate`이므로 Notification 코드 배포 전 `docs/
 ## Frontend v1
 
 - 일반 Header, Seller Center, Admin Center에 각 context 전용 알림 벨과 최근 10개 알림 dropdown을 연결했다.
+- Seller Center Bell은 Backend 접근 정책과 동일하게 `ACTIVE`, `SALES_SUSPENDED` 상태에서 렌더링된다.
 - 알림 벨은 최초 mount와 App Router pathname 변경 시 해당 BUYER/SELLER/ADMIN context의 unread count를 다시 조회한다. 별도 polling은 사용하지 않는다.
 - 벨을 열 때는 최신 알림 목록과 unread count를 함께 조회하고, 개별/전체 읽음 성공은 local state에 즉시 반영한다.
 - 전체 알림 화면은 `/notifications`, `/seller/notifications`, `/admin/notifications`에서 Backend pagination을 사용한다.

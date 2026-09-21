@@ -476,6 +476,9 @@ POST  /api/seller/orders/{sellerOrderId}/cancel
 - 상태별 취소 이력 표시
 - 전량 취소 상품도 주문 history 유지
 - 원 결제금액 / 누적 환불액 / 현재 결제잔액 별도 표시
+- 취소 상품·수량·사유의 기존 validation을 통과한 뒤 공통 Modal에서 최종 확인
+- Modal에는 선택 상품별 수량과 취소 사유를 표시하고, PAID 주문은 취소와 함께 실제 환불이 진행될 수 있음을 안내
+- Modal 취소 시 입력값을 유지하며, 확인 후에는 기존 submitting 상태로 중복 요청을 차단
 
 ## 24. 판매자 UI
 

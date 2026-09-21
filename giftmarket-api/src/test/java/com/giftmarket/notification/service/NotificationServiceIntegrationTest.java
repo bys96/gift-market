@@ -8,6 +8,7 @@ import com.giftmarket.notification.entity.NotificationType;
 import com.giftmarket.notification.exception.NotificationException;
 import com.giftmarket.notification.repository.NotificationRepository;
 import com.giftmarket.seller.entity.Seller;
+import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.repository.SellerRepository;
 import com.giftmarket.user.entity.AuthProvider;
 import com.giftmarket.user.entity.User;
@@ -222,22 +223,41 @@ class NotificationServiceIntegrationTest {
     }
 
     @Test
-    void rejectsSellerContextWithoutActiveSellerAndAdminContextWithoutAdminRole() {
-        User inactiveSellerUser = saveUser("inactive-seller");
-        Seller inactiveSeller = Seller.create(
-                inactiveSellerUser,
-                "비활성 상점",
-                "테스트"
-        );
-        inactiveSeller.suspend();
-        sellerRepository.save(inactiveSeller);
+    void activeSellerCanAccessSellerNotifications() {
+        assertThat(notificationService.getUnreadCount(
+                sellerUser.getId(), NotificationContext.SELLER
+        ).unreadCount()).isZero();
+    }
 
-        assertThatThrownBy(() -> notificationService.getNotifications(
-                inactiveSellerUser.getId(),
-                NotificationContext.SELLER,
-                0,
-                20
+    @Test
+    void salesSuspendedSellerCanAccessSellerNotifications() {
+        User user = saveSellerUser("sales-suspended", SellerStatus.SALES_SUSPENDED);
+
+        assertThat(notificationService.getUnreadCount(
+                user.getId(), NotificationContext.SELLER
+        ).unreadCount()).isZero();
+    }
+
+    @Test
+    void suspendedSellerCannotAccessSellerNotifications() {
+        User user = saveSellerUser("suspended", SellerStatus.SUSPENDED);
+
+        assertThatThrownBy(() -> notificationService.getUnreadCount(
+                user.getId(), NotificationContext.SELLER
         )).isInstanceOf(NotificationException.class);
+    }
+
+    @Test
+    void withdrawnSellerCannotAccessSellerNotifications() {
+        User user = saveSellerUser("withdrawn", SellerStatus.WITHDRAWN);
+
+        assertThatThrownBy(() -> notificationService.getUnreadCount(
+                user.getId(), NotificationContext.SELLER
+        )).isInstanceOf(NotificationException.class);
+    }
+
+    @Test
+    void rejectsAdminContextWithoutAdminRole() {
         assertThatThrownBy(() -> notificationService.getNotifications(
                 buyer.getId(),
                 NotificationContext.ADMIN,
@@ -316,6 +336,20 @@ class NotificationServiceIntegrationTest {
                 AuthProvider.GOOGLE,
                 unique
         ));
+    }
+
+    private User saveSellerUser(String prefix, SellerStatus status) {
+        User user = saveUser(prefix);
+        Seller seller = Seller.create(user, prefix + " 상점", "테스트");
+        switch (status) {
+            case ACTIVE -> {
+            }
+            case SALES_SUSPENDED -> seller.suspendSales();
+            case SUSPENDED -> seller.suspend();
+            case WITHDRAWN -> seller.withdraw();
+        }
+        sellerRepository.saveAndFlush(seller);
+        return user;
     }
 
     private Notification saveNotification(

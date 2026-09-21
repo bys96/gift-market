@@ -171,9 +171,9 @@ Seller Center는 `SALES_SUSPENDED` 판매자에게 열어 두되, 기존 주문�
 - Seller Center 접근 X
 - 신규 판매 X
 
-현재 프로젝트에는 `SellerStatus.WITHDRAWN`과 관련 도메인 구조가 존재하지만 실제 판매자 탈퇴 프로세스와 API는 구현되어 있지 않다.
+별도 Seller 전용 탈퇴 API는 없지만, 회원 탈퇴 transaction에서 Seller가 존재하면 활성 주문·취소·반품·교환이 없는지 검증한 뒤 Seller를 `WITHDRAWN`으로 전환한다. User 개인정보 익명화와 OAuth 연결 정리도 같은 회원 탈퇴 흐름에서 수행한다.
 
-판매자 탈퇴는 향후 별도 기능으로 구현한다. 기존 주문·취소·반품·교환이 남아 있을 때의 탈퇴 가능 조건과 잔여 업무 처리 정책도 그때 함께 설계한다.
+현재 검증에는 미귀속 정산 원장이나 READY/ON_HOLD Settlement가 포함되지 않는다. Settlement v1 도입 이후의 미정산 금액 보존을 위해 회원 탈퇴 전에 정산 상태를 확인하는 guard가 후속 작업으로 필요하다.
 
 ---
 

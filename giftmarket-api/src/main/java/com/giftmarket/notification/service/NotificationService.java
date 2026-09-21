@@ -177,19 +177,20 @@ public class NotificationService {
         switch (context) {
             case BUYER -> {
             }
-            case SELLER -> validateActiveSeller(userId);
+            case SELLER -> validateSellerNotificationAccess(userId);
             case ADMIN -> validateAdmin(userId);
         }
     }
 
-    private void validateActiveSeller(Long userId) {
-        boolean activeSeller = sellerRepository.findByUserId(userId)
-                .filter(seller -> seller.getStatus() == SellerStatus.ACTIVE)
+    private void validateSellerNotificationAccess(Long userId) {
+        boolean accessibleSeller = sellerRepository.findByUserId(userId)
+                .filter(seller -> seller.getStatus() == SellerStatus.ACTIVE
+                        || seller.getStatus() == SellerStatus.SALES_SUSPENDED)
                 .isPresent();
 
-        if (!activeSeller) {
+        if (!accessibleSeller) {
             throw new NotificationException(
-                    "활성 판매자 정보를 찾을 수 없습니다."
+                    "알림을 조회할 수 있는 판매자 정보를 찾을 수 없습니다."
             );
         }
     }

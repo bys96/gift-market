@@ -539,8 +539,14 @@ giftmarket-web/app/payment/fail/page.tsx
 
 - Toss v2 Payment Widget
 - Backend prepare amount를 widget amount와 동기화
-- success에서 Backend confirm
-- CONFIRMING polling
+- 결제창을 닫은 뒤 배송정보만 바뀌면 READY Payment와 PENDING_PAYMENT Order를 잠그고 배송 snapshot을 갱신한 후 기존 Payment를 재사용
+- 상품·Variant·수량·금액 checkout snapshot이 달라지면 stale PENDING_PAYMENT Order와 READY Payment를 취소하고 예약 재고를 복원한 뒤 새 주문을 준비
+- success callback에서 `sessionStorage`는 보조 정보로만 사용하고, 유실되어도 callback의 `merchantPaymentId`와 현재 인증 사용자로 서버 Payment를 조회
+- 서버 Payment가 READY일 때 callback 금액을 검증한 뒤 confirm하고, CONFIRMING이면 중복 confirm 없이 polling/reconciliation을 기다림
+- confirm network error·5xx는 즉시 결제 실패로 확정하지 않고 서버 상태를 다시 조회하며, READY confirm 재시도는 최대 1회로 제한
+- 1.5초 간격 최대 10회 polling 중 PAID가 확인되면 주문 상세로 자동 이동
+- polling timeout은 실패가 아니라 결과 확인 지연으로 안내하고 이때만 주문내역 이동 버튼을 제공
+- FAILED, EXPIRED, CANCELED는 결과 확인 지연과 구분해 명확한 실패로 종료
 - fail에서 안전한 사용자 문구
 - 재진입용 비민감 session 정보만 저장
 
