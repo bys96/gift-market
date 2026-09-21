@@ -414,7 +414,7 @@ gift-market
 ### 프로젝트 내려받기
 
 ```bash
-git clone <REPOSITORY_URL>
+git clone https://github.com/bys96/gift-market
 cd gift-market
 ```
 
@@ -443,37 +443,30 @@ npm run dev
 
 기본 개발 서버: `http://localhost:3000`
 
-### 환경 변수
+### 환경 설정
 
-실제 Secret은 Repository에 포함하지 않습니다. 프로젝트의 sample/example 설정을 기준으로 환경을 구성합니다.
+실제 Secret 및 Credential은 Repository에 포함하지 않습니다.
 
-```text
-# Database
-DB_URL=
-DB_USERNAME=
-DB_PASSWORD=
+로컬 실행에 필요한 환경 설정은 다음 예제 파일을 기준으로 구성합니다.
 
-# OAuth
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-KAKAO_CLIENT_ID=
-KAKAO_CLIENT_SECRET=
+- Backend: `application-example.yaml`
+- Frontend: `.env.sample`
 
-# JWT / Refresh Token
-TODO: sample 설정 기준 정확한 변수명 확인
+주요 설정 항목은 다음과 같습니다.
 
-# Storage
-TODO: sample 설정 기준 정확한 변수명 확인
+- MySQL Database
+- Google / Kakao OAuth2
+- JWT / Refresh Token
+- MinIO / Amazon S3
+- Toss Payments
+- Frontend / Backend Origin
+- Settlement 정책
 
-# Toss Payments
-TODO: sample 설정 기준 정확한 변수명 확인
+로컬 환경에서는 MinIO를 사용하고 운영 환경에서는 Amazon S3를 사용합니다.
 
-# Frontend
-NEXT_PUBLIC_API_BASE_URL=
-NEXT_PUBLIC_STORAGE_BASE_URL=
-```
+운영 환경의 Frontend는 Vercel Rewrite를 통해 Backend API로 요청을 전달하며, 운영 Database는 Hibernate `ddl-auto=validate`를 사용합니다. Schema 변경은 현재 배포 전 DDL을 수동 적용합니다.
 
-운영 환경은 `ddl-auto=validate`를 사용하며 현재 Schema 변경은 배포 전 수동 DDL을 적용합니다.
+> OAuth Secret, JWT Secret, AWS Credential, Toss Payments Key 등의 실제 값은 Repository에 포함하지 않습니다.
 
 ## 담당 범위
 
