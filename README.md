@@ -1,528 +1,403 @@
 # Gift Market
 
-> 선물 탐색부터 주문·결제·배송·클레임·판매자 정산까지 실제 커머스 흐름을 구현한 오픈마켓 서비스
+> 주문·결제·배송·클레임·판매자 정산까지 거래의 전체 생명주기를 연결한 멀티셀러 커머스 서비스
 
-Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 참고해 개발한 개인 프로젝트입니다.  
-단순 상품 CRUD를 넘어 **구매자·판매자·관리자 역할 분리, OAuth/JWT 인증, 상품/재고, 주문, Toss Payments 결제, 취소·반품·교환, 알림, 판매자 정산**까지 하나의 거래 흐름으로 연결하는 것을 목표로 구현했습니다.
+Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 참고해 개발한 개인 프로젝트입니다.
+단순한 쇼핑몰 CRUD보다 **결제 결과 유실, 멀티셀러 주문, 재고·환불 정합성, Refresh Token 동시성, 반품·교환, Ledger 기반 정산**처럼 실제 거래 시스템에서 발생하는 문제를 직접 설계하고 해결하는 데 초점을 맞췄습니다.
 
-기능 수를 늘리는 것보다 **결제 중복 처리, 재고 정합성, 부분 환불, Refresh Token 동시성, 정산 원장, 장애 복구처럼 실제 운영에서 문제가 될 수 있는 지점**을 설계하고 해결하는 데 중점을 두었습니다.
+## Links
 
-## 링크
+- **Service**: https://gift-market-test.vercel.app
+- **Backend API**: https://gift-market-api.onrender.com
+- **Repository**: https://github.com/bys96/gift-market
 
-- **Service:** https://gift-market-test.vercel.app
-- **Backend API:** https://gift-market-api.onrender.com
-- **Repository:** https://github.com/bys96/gift-market
+> 현재 배포 환경은 포트폴리오 및 기능 검증을 위한 테스트 환경입니다.
 
-> 현재 배포 환경은 포트폴리오/테스트 환경입니다.
+---
 
-## 프로젝트 개요
+## Project Overview
 
-### 개발 목적
+- **개발 형태**: 개인 프로젝트
+- **개발 기간**: 2026-07-20 ~ 진행 중
+- **담당 범위**: 요구사항 정의, 도메인/DB/API 설계, Frontend, Backend, 외부 API 연동, 배포
 
-쇼핑몰 프로젝트는 상품 CRUD와 장바구니만으로도 화면상 완성할 수 있지만, 실제 서비스에서는 결제 이후부터 훨씬 많은 상태와 예외 상황이 발생합니다.
+### 핵심 기술 과제
 
-Gift Market은 이러한 문제를 직접 다루기 위해 시작했습니다.
+| 영역          | 문제                                 | 적용 방식                                                 |
+| ------------- | ------------------------------------ | --------------------------------------------------------- |
+| 멀티셀러 주문 | 판매자별 배송·취소·정산 독립 처리    | `Order → SellerOrder → OrderItem`, `Shipment 1:N`         |
+| 결제          | PG와 내부 DB 상태 불일치             | 멱등성 Key, `CONFIRMING`, Provider 재조회, reconciliation |
+| 인증          | 동시 Refresh 요청 충돌               | DB 비관적 잠금, previous token grace                      |
+| 클레임        | 부분 취소·반품·교환의 수량·환불 충돌 | DB Lock, Snapshot, 환불 예약액 검증                       |
+| 정산          | 과거 확정 정산 훼손 방지             | `SettlementLedgerEntry` 기반 증분 원장                    |
 
-- 구매자·판매자·관리자가 서로 다른 권한과 업무를 갖는 구조
-- 결제와 주문 상태의 정합성
-- 옵션 단위 재고 예약 및 복원
-- 부분 취소와 환불
-- 반품·교환과 추가 배송
-- 브라우저/네트워크 장애 상황의 결제 복구
-- 판매자별 주문 분리
-- 거래 이후 판매자 정산
+---
 
-특히 기능을 각각 독립적으로 만드는 대신 **주문 → 결제 → 배송 → 클레임 → 정산**이 하나의 일관된 도메인 흐름으로 동작하도록 설계했습니다.
+## Screenshots
 
-### 개발 형태
+<!--
+촬영 순서 / 파일명
+1. 01-home.png                메인 Hero + 상품 목록
+2. 02-product-detail.png      상품 이미지 + 옵션 + 가격 + 구매 영역
+3. 03-checkout-payment.png    배송지 + Toss Payments 결제 UI
+4. 04-buyer-order-detail.png  주문/배송/취소·반품·교환 상태
+5. 05-seller-dashboard.png    Seller Center 주문 관리
+6. 06-seller-settlement.png   판매자 정산 요약 + 목록
+7. 07-admin-dashboard.png     Admin Dashboard / Action Center
+8. 08-admin-settlement.png    관리자 정산 관리
 
-- 개인 프로젝트
-- Frontend / Backend / Database / 배포 전체 구현
-- 개발 기간: 2026-07-20 ~
+같은 상품/주문을 사용해 구매자 → 판매자 → 관리자 흐름이 이어져 보이게 촬영합니다.
+개인정보, 주소, 결제키 등 식별정보는 노출하지 않습니다.
+이미지는 docs/images/readme/ 에 저장합니다.
+-->
 
-## 주요 기능
+### Buyer Flow
 
-### 인증 / 회원
+| 메인                                                       | 상품 상세                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| ![Gift Market 메인 화면](./docs/images/readme/01-home.png) | ![Gift Market 상품 상세 화면](./docs/images/readme/02-product-detail.png) |
+| 상품 탐색                                                  | 옵션·재고·배송 정보 기반 구매                                             |
 
-- Google / Kakao OAuth2 로그인
-- JWT Access Token / Refresh Token 인증 및 Rotation
-- Refresh Token 동시 갱신 제어 및 grace 처리
-- 회원 프로필 / 배송지 관리
-- 회원 탈퇴 Soft Delete 및 개인정보 익명화
-- 탈퇴 후 동일 OAuth 계정 신규 가입
-- USER / SELLER / ADMIN 역할 관리
+| 주문·결제                                                                 | 주문 상세                                                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| ![Gift Market 주문 및 결제](./docs/images/readme/03-checkout-payment.png) | ![Gift Market 구매자 주문 상세](./docs/images/readme/04-buyer-order-detail.png) |
+| Toss Payments 결제                                                        | 배송·취소·반품·교환 상태 확인                                                   |
 
-### 판매자 / 상품
+### Seller / Admin
 
-- 판매자 신청 / 관리자 승인·거절
-- Seller Store 및 고객센터 정보 관리
-- 상품 / 옵션 / 옵션별 재고 관리
-- 이미지 및 MP4 상세 미디어
-- S3 Presigned URL 기반 파일 처리
-- 검색 / 필터 / 페이지네이션
-- 찜 / 상품문의 / 리뷰
-- 판매자 주문 / 배송 / 문의 답변
-- 판매자 직접 주문 취소 및 부분 환불
+| Seller Center                                                              | 판매자 정산                                                               |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| ![Gift Market Seller Center](./docs/images/readme/05-seller-dashboard.png) | ![Gift Market 판매자 정산](./docs/images/readme/06-seller-settlement.png) |
+| 주문·상품·클레임 운영                                                      | Ledger 기반 정산 조회                                                     |
 
-### 주문 / 결제
+| Admin Center                                                             | 관리자 정산                                                              |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| ![Gift Market Admin Center](./docs/images/readme/07-admin-dashboard.png) | ![Gift Market 관리자 정산](./docs/images/readme/08-admin-settlement.png) |
+| 플랫폼 운영 현황                                                         | 정산 생성·보류·확정 관리                                                 |
 
-- 장바구니 주문 / 바로 구매
-- 주문 시점 상품 정보 Snapshot
-- 판매자별 SellerOrder 분리
-- 주문 시 재고 예약
-- Toss Payments 결제 승인 및 부분 취소
-- 결제 금액 서버 검증 및 멱등성 처리
-- 결제 승인 결과 유실 / sessionStorage 유실 복구
-- 결제 상태 reconciliation
-- 결제 재시도 시 오래된 주문 Snapshot 검증
+---
 
-### 취소 / 반품 / 교환
+## Main Features
 
-- 구매자 전체·부분 취소
-- 판매자 직접 취소
-- Toss 부분 환불
-- 취소·반품 수량 기반 재고 복원
-- BUYER / SELLER 취소 요청 주체 구분
-- 반품 / 교환 상태 관리
-- 교환 배송 및 추가 배송비 결제 구조
-- 진행 중 Claim 간 충돌 방지
+### 인증 / 사용자
 
-### 알림
+- Google OIDC / Kakao OAuth2 로그인
+- JWT Access Token + HttpOnly Refresh Token
+- Refresh Token Rotation 및 동시 갱신 제어
+- 프로필 / 배송지 / 회원 탈퇴·익명화
+- `USER / SELLER / ADMIN` 역할 분리
 
-- BUYER / SELLER / ADMIN Context 분리
-- 읽음 / 전체 읽음 / 미확인 수
-- 주문·배송·클레임·문의 이벤트 연동
-- Transaction AFTER_COMMIT 이후 알림 생성
-- Reference 기반 관련 화면 이동
+### 상품 / 판매자
 
-### 정산
+- 판매자 신청 및 관리자 승인·거절
+- 상품 / 옵션 그룹 / Variant / 옵션별 재고 관리
+- S3 Presigned URL 기반 이미지·동영상 업로드
+- Tiptap 기반 상품 상세 편집
+- 검색 / 카테고리 / 필터 / 찜 / 문의 / 리뷰
 
-- 판매자별 SettlementLedgerEntry
-- 상품 매출 / 배송비 / 수수료 / 환불 / 수수료 환입 기록
-- 배송 완료 후 정산 가능일 계산
-- 진행 중 Claim 정산 제외
-- READY / ON_HOLD / CONFIRMED
-- 관리자 정산 생성 / 보류 / 해제 / 확정
-- 판매자 정산 조회
-- 확정된 과거 정산 불변성 유지
-- 이후 환불은 다음 정산에 음수 원장으로 반영
+### 주문 / 결제 / 클레임
 
-> 실제 판매자 계좌 지급(Payout)은 Settlement와 분리하여 향후 구현 예정입니다.
+- 장바구니·바로구매 및 판매자별 `SellerOrder` 분리
+- 주문 시점 상품·옵션·가격·배송비 Snapshot
+- 옵션 재고 예약·차감·복원
+- Toss Payments 승인 / 조회 / 전체·부분 취소
+- 주문 준비 및 PG 요청 멱등성
+- 결제 결과 유실 시 Provider 재조회 및 reconciliation
+- 전체·부분 취소 / 반품 / 교환 / 교환배송비 결제
+- 최초배송·반품회수·교환회수·교환재배송 이력 분리
 
-## 주요 화면
+### 알림 / 정산
 
-> 실제 스크린샷/GIF 추가 필요
+- `BUYER / SELLER / ADMIN` Context별 알림
+- Transaction commit 이후 알림 저장
+- 판매자별 `SettlementLedgerEntry`
+- 매출 / 배송비 / 수수료 / 취소 / 반품 / 수수료 환입 기록
+- `READY / ON_HOLD / CONFIRMED` 정산 상태 관리
+- 확정 정산 불변성 및 이후 환불의 다음 회차 반영
 
-추천 화면:
+> 현재 Settlement는 **정산 금액 확정**까지 담당하며 실제 판매자 계좌 지급(Payout)은 후속 도메인으로 계획하고 있습니다.
 
-- 메인 화면
-- 상품 상세
-- Toss Payments 결제
-- 구매자 주문 상세
-- Seller Center
-- 판매자 정산
-- Admin
-- 모바일 화면
+---
 
-## 기술 스택
+## Tech Stack
 
-### 프론트엔드
+| 영역               | 기술                                                                          |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Frontend           | Next.js 16, React 19, TypeScript, Zustand, Tailwind CSS 4, Tiptap 3           |
+| Backend            | Java 21, Spring Boot 4, Spring Security, OAuth2 Client, Spring Data JPA, JJWT |
+| Database / Storage | MySQL, H2(Test), Amazon S3, MinIO                                             |
+| External           | Toss Payments, Google OAuth, Kakao OAuth                                      |
+| Infra              | Vercel, Render, Docker                                                        |
 
-- Next.js / React / TypeScript
-- App Router
-- CSS
-- Vercel
+---
 
-### 백엔드
-
-- Java 21
-- Spring Boot
-- Spring Security
-- Spring Data JPA
-- Bean Validation
-- OAuth2 / JWT
-
-### 데이터베이스 / 스토리지
-
-- MySQL
-- Amazon S3
-- MinIO (Local)
-
-### 결제 / 인프라
-
-- Toss Payments
-- Docker
-- Render
-- Java AppCDS
-
-## 시스템 구조
+## Architecture
 
 ```mermaid
 flowchart LR
-    U[User Browser]
+    USER[Browser]
     FE[Next.js / Vercel]
     BE[Spring Boot API / Render]
     DB[(MySQL)]
-    S3[(Amazon S3)]
+    STORAGE[(S3 / MinIO)]
     TOSS[Toss Payments]
-    OAUTH[Google / Kakao OAuth]
+    OAUTH[Google / Kakao]
 
-    U --> FE
+    USER --> FE
     FE -->|same-origin rewrite| BE
     BE --> DB
-    BE --> S3
+    BE --> STORAGE
     BE --> TOSS
     BE --> OAUTH
 ```
 
-운영 환경에서는 Vercel rewrite를 이용해 `/api`, `/oauth2`, `/login/oauth2` 요청을 Backend로 전달합니다.
-
-### 주요 거래 흐름
-
-```text
-상품 선택
-  ↓
-주문 생성 / 재고 예약
-  ↓
-Payment READY
-  ↓
-Toss Payments
-  ↓
-결제 승인
-  ↓
-Order / SellerOrder 상태 변경
-  ↓
-Settlement 초기 원장
-  ↓
-배송 / 배송 완료
-  ↓
-정산 가능일 도달
-  ↓
-Settlement 생성 / 검증 / 확정
-```
-
-## 핵심 구현
-
-### 1. 판매자 단위 주문 분리
-
-하나의 주문에 여러 판매자의 상품이 포함될 수 있어 `Order`와 `SellerOrder`를 분리했습니다.
+### 거래 구조
 
 ```text
 Order
- ├─ SellerOrder A
- │   ├─ OrderItem
- │   └─ Shipment
- └─ SellerOrder B
-     ├─ OrderItem
-     └─ Shipment
+├─ SellerOrder N
+│  ├─ OrderItem N
+│  ├─ Shipment N
+│  ├─ OrderCancellation N
+│  ├─ ReturnRequest N
+│  └─ ExchangeRequest N
+└─ Payment N
+   └─ PaymentCancellation N
+
+Seller
+├─ SellerStore
+├─ Settlement N
+└─ SettlementLedgerEntry N
 ```
 
-`Order`는 구매자의 전체 주문, `SellerOrder`는 판매자별 실제 이행 단위입니다. 특정 판매자의 배송·취소가 다른 판매자의 거래에 영향을 주지 않도록 구성했으며, 모든 SellerOrder가 취소되었을 때 부모 Order 상태를 동기화합니다.
+---
 
-### 2. 결제 응답 유실을 고려한 복구
+## Key Implementation
 
-브라우저의 `sessionStorage`가 유실되거나 Toss 승인 직후 네트워크 문제가 발생해도 Frontend 상태를 결제의 최종 기준으로 사용하지 않습니다.
+### 1. 멀티셀러 주문을 `Order → SellerOrder → OrderItem`으로 분리
+
+구매자의 전체 주문과 판매자별 실제 이행 단위를 분리했습니다.
+
+- `Order`: 구매자 관점의 전체 주문·결제
+- `SellerOrder`: 판매자별 배송·취소·클레임·정산 단위
+- `OrderItem`: 주문 시점 상품·옵션·가격 Snapshot
+- `Shipment 1:N`: 최초배송 / 반품회수 / 교환회수 / 교환재배송 이력
+
+한 판매자의 배송이나 클레임이 다른 판매자의 거래를 불필요하게 변경하지 않도록 구성했습니다.
+
+### 2. 결제 결과 유실을 전제로 멱등성과 복구 흐름 설계
+
+Toss Payments와 내부 DB는 하나의 ACID Transaction으로 묶을 수 없기 때문에 HTTP 오류를 곧바로 결제 실패로 확정하지 않았습니다.
 
 ```text
-Toss Callback
-   ↓
-merchantPaymentId + 로그인 사용자
-   ↓
-Server Payment 조회
-   ↓
-READY       → 검증 후 confirm
-CONFIRMING  → 결과 재조회
-PAID        → 성공 복구
-FAILED 등   → 실패 처리
+READY → CONFIRMING → PAID
+          ↓
+   Provider 재조회
+          ↓
+    reconciliation
 ```
 
-서버 Payment를 Source of Truth로 사용하고, confirm 예외 역시 즉시 실패로 단정하지 않고 상태 재조회와 reconciliation을 수행합니다.
+- 외부 PG 호출을 DB Transaction 밖에서 수행
+- 주문 준비 / PG 요청에 idempotency key 사용
+- timeout·5xx·응답 유실은 `CONFIRMING` 상태에서 재조회
+- callback의 브라우저 상태가 유실돼도 `merchantPaymentId`로 서버 Payment 복구
+- 서버의 영속 Payment 상태를 Source of Truth로 사용
 
-### 3. Refresh Token Rotation 동시성 제어
+### 3. 부분 취소·반품·교환의 수량·재고·환불 정합성 보장
 
-동시에 발생한 Refresh 요청이 서로의 Token을 무효화하지 않도록 Refresh Token Row에 `PESSIMISTIC_WRITE` Lock을 적용했습니다.
-
-직전 Token Hash를 짧은 grace 기간 동안 유지하고 현재 Refresh Token은 AES-GCM으로 암호화해 저장합니다. Frontend 인증 초기화도 공유 Promise로 통합해 불필요한 동시 Refresh를 줄였습니다.
-
-### 4. Ledger 기반 판매자 정산
-
-현재 주문 상태를 다시 계산해 과거 정산을 변경하는 대신 거래 이벤트를 Ledger로 기록합니다.
+부분 Claim에서는 주문 수량뿐 아니라 이미 처리된 수량과 진행 중 요청이 점유한 수량을 함께 계산합니다.
 
 ```text
-결제 성공
- ├─ SALE_PRODUCT +
- ├─ SALE_SHIPPING +
- └─ COMMISSION -
+반품 가능 수량
+= 주문 수량 - 취소 수량 - 완료 반품 수량 - 진행 중 반품 수량
 
-취소 / 반품
- ├─ REFUND -
- └─ COMMISSION_REVERSAL +
+환불 가능 금액
+= 결제 금액 - 완료 환불액 - 처리 중 환불 예약액
 ```
 
-배송 완료 후 Hold 기간을 거쳐 정산 가능 상태가 되며, 진행 중 Claim은 Settlement 생성에서 제외합니다. 이미 확정된 Settlement는 수정하지 않고 이후 환불은 다음 정산에 음수 원장으로 반영합니다.
+관련 주문 데이터를 Lock한 뒤 DB 값을 다시 검증하고, 재고 reservation / release / restore를 Claim 상태 전이에 맞춰 처리했습니다.
 
-### 5. AFTER_COMMIT 기반 알림
+### 4. Refresh Token Rotation 동시성 제어
 
-핵심 거래가 알림 저장 실패 때문에 롤백되지 않도록 비즈니스 Transaction에서는 이벤트를 발행하고, 커밋 이후 Notification을 별도 Transaction으로 생성합니다.
+동시에 여러 API가 401을 반환해 Refresh 요청이 겹치는 상황을 고려했습니다.
+
+- Refresh Token Row 조회 시 `PESSIMISTIC_WRITE` Lock
+- Current Token은 Rotation, Previous Token은 짧은 grace 경로로 처리
+- Raw Token은 SHA-256 Hash로 비교
+- Frontend 인증 초기화는 공유 Promise로 중복 Refresh 감소
+
+### 5. 현재 주문 상태가 아닌 Ledger를 기준으로 정산
+
+확정된 과거 정산이 이후 취소·반품 때문에 변경되지 않도록 거래 이벤트별 정산 원장을 남깁니다.
 
 ```text
-Business Transaction
-   ↓
-Domain Event
-   ↓
-COMMIT
-   ↓
-AFTER_COMMIT
-   ↓
-NotificationService (REQUIRES_NEW)
+결제 성공  → SALE_PRODUCT + / SALE_SHIPPING + / COMMISSION -
+취소·반품 → REFUND - / COMMISSION_REVERSAL +
 ```
 
-## 트러블슈팅
+`CONFIRMED` Settlement는 수정하지 않고, 이후 환불은 다음 정산 회차에 음수 Ledger로 반영합니다.
 
-### Refresh Token 동시 갱신
+> 상세 설계는 [`PAYMENT_ARCHITECTURE_DESIGN.md`](./docs/PAYMENT_ARCHITECTURE_DESIGN.md), [`SETTLEMENT_V1.md`](./docs/SETTLEMENT_V1.md)에서 확인할 수 있습니다.
 
-**문제**  
-여러 Refresh 요청이 동시에 실행되면서 정상 로그인 세션이 불안정해질 수 있었습니다.
+---
 
-**원인**  
-Rotation 과정에서 동일 Token을 여러 요청이 동시에 읽고 갱신할 수 있었습니다.
+## Troubleshooting
 
-**해결**
+### 1. Toss 부분취소 결과가 불명확한 문제
 
-- PESSIMISTIC_WRITE Lock
-- 이전 Token Hash grace 처리
-- 현재 Token 암호화 저장
-- Frontend 인증 초기화 공유 Promise
+- **문제**: timeout·5xx·응답 유실 시 실제 PG 취소 성공 여부를 알 수 없음
+- **해결**: 불명확한 요청은 `PaymentCancellation REQUESTED`로 유지하고 Provider 거래를 재조회
+- **결과**: 네트워크 오류를 실제 실패와 분리해 중복 환불 위험 감소
 
-**결과**  
-동시 갱신 상황에서도 일관된 Refresh Token 상태를 유지하도록 개선했습니다.
+### 2. 결제 재시도 시 오래된 주문 Snapshot 재사용
 
-### Toss 결제 결과 유실
+- **문제**: 결제창 종료 후 배송지·상품 조건이 변경돼도 기존 READY 주문이 재사용될 수 있음
+- **해결**: 재결제 전 Snapshot 재검증, 조건 변경 시 기존 주문 취소 및 예약 재고 복원 후 재생성
+- **결과**: 멱등성을 유지하면서 오래된 주문 정보로 결제되는 문제 방지
 
-**문제**  
-결제 승인 직후 네트워크 오류나 sessionStorage 유실 시 실제 결제 여부와 화면 상태가 달라질 수 있었습니다.
+### 3. 운영 DB Timestamp가 KST보다 9시간 뒤로 저장
 
-**해결**
+- **원인**: JVM / JDBC / MySQL Session timezone 불일치
+- **해결**: JVM `Asia/Seoul`, JDBC `connectionTimeZone=+09:00`, Session timezone 강제 적용
+- **결과**: PG timestamp와 애플리케이션 생성 시각을 동일한 KST 기준으로 통일
 
-- merchantPaymentId + 로그인 사용자로 서버 Payment 재조회
-- 서버 Payment를 Source of Truth로 사용
-- READY만 confirm
-- CONFIRMING은 재승인하지 않고 reconciliation
-- PAID는 성공 상태로 복구
+> 수수료 절삭 오차, Render Startup 개선 등 추가 사례는 [`docs/TROUBLESHOOTING.md`](./docs/TROUBLESHOOTING.md)에 정리했습니다.
 
-**결과**  
-브라우저 상태가 유실되어도 서버의 실제 결제 상태를 기준으로 복구할 수 있게 됐습니다.
+---
 
-### 결제 재시도 시 오래된 주문 Snapshot
+## Testing
 
-**문제**  
-결제창을 닫은 뒤 배송지 등을 변경해도 기존 준비 주문이 재사용될 수 있었습니다.
+상태 전이와 동시성 문제가 많은 거래 도메인을 중심으로 테스트했습니다.
 
-**해결**
+- 주문 생성 / Snapshot / 재고 예약
+- 결제 승인·만료·reconciliation
+- 전체·부분 취소 / 반품 / 교환
+- Refresh Token Rotation
+- Settlement Ledger 생성·집계·상태 변경
+- Admin / Seller 권한 및 운영 기능
 
-- 재시도 전 Payment / Order 재검증
-- 배송 정보만 변경된 경우 READY Order Snapshot 갱신
-- 상품 조건이 달라진 경우 기존 준비 주문 취소 및 예약 재고 복원
-- PAID / CONFIRMING 상태별 별도 처리
+```bash
+# Backend
+cd giftmarket-api
+./gradlew test
 
-**결과**  
-멱등성을 유지하면서 오래된 주문 정보로 결제되는 문제를 방지했습니다.
+# Frontend
+cd ../giftmarket-web
+npm run lint
+node --test tests/*.test.mjs
+```
 
-### 부분 환불과 정산 수수료 정합성
+---
 
-**문제**  
-여러 번의 부분 취소·반품에서 독립적으로 수수료를 계산하면 원 단위 절삭 오차가 누적될 수 있었습니다.
-
-**해결**
-
-- 최초 수수료율 Snapshot 유지
-- 누적 환불 기준 수수료 환입
-- 최초 수수료를 초과하지 않도록 상한 적용
-- 기존 Ledger 수정 대신 새로운 Entry 생성
-
-**결과**  
-여러 부분 환불에서도 최초 수수료와 최종 환입 금액의 정합성을 유지했습니다.
-
-### Render Spring Boot Startup 최적화
-
-**문제**  
-제한된 Render CPU 환경에서 Spring Boot 시작 시간이 길었습니다.
-
-**해결**  
-Java 21 Dynamic AppCDS를 Docker Image Build 과정에 적용하고 실제 환경에서 A/B 검증했습니다.
-
-**결과**  
-측정 기준 약 **258초 → 164초** 수준으로 시작 시간이 감소했습니다.
-
-### 운영 DB 시간 9시간 차이
-
-**문제**  
-운영 DB의 결제·정산 시간이 실제 KST와 9시간 차이 났습니다.
-
-**원인**  
-JVM, JDBC, MySQL Session의 Timezone 기준이 일치하지 않았습니다.
-
-**해결**  
-`LocalDateTime + DATETIME(6)` 정책에 맞춰 JVM과 JDBC Connection Timezone을 KST 기준으로 통일했습니다.
-
-**결과**  
-결제·배송·정산 시간이 동일한 KST Wall-clock 기준으로 저장되고 계산됩니다.
-
-## 프로젝트 구조
+## Project Structure
 
 ```text
 gift-market
 ├── giftmarket-api
 │   └── src/main/java/com/giftmarket
-│       ├── admin
 │       ├── auth
-│       ├── cart
-│       ├── inquiry
-│       ├── notification
-│       ├── order
-│       ├── payment
+│       ├── order           # Order / SellerOrder / Shipment / Claim
+│       ├── payment         # Payment / Cancellation / Reconciliation
 │       ├── product
-│       ├── review
 │       ├── seller
-│       ├── settlement
-│       ├── shipment
-│       ├── storage
-│       ├── user
-│       ├── wishlist
+│       ├── settlement      # Settlement / Ledger
+│       ├── notification
+│       ├── admin
 │       └── global
+│           └── storage     # S3 / MinIO abstraction
+│
 ├── giftmarket-web
-│   ├── app
+│   ├── app                 # buyer / seller / admin routes
 │   ├── components
 │   ├── lib
 │   ├── stores
-│   ├── styles
+│   ├── tests
 │   └── types
-└── docs
-    ├── DEVELOPMENT_STATUS.md
-    ├── ROADMAP.md
-    ├── SETTLEMENT_V1.md
-    ├── PAYMENT_ARCHITECTURE_DESIGN.md
-    ├── ORDER_CANCELLATION_REFUND_DESIGN.md
-    ├── ORDER_RETURN_EXCHANGE_DESIGN.md
-    ├── NOTIFICATION_DESIGN.md
-    ├── TROUBLESHOOTING.md
-    └── sql
+│
+└── docs                    # 상세 설계 / 트러블슈팅 / 로드맵
 ```
 
-## 로컬 실행 방법
+---
 
-### 프로젝트 내려받기
+## Documentation
+
+| 문서                                                                        | 내용                            |
+| --------------------------------------------------------------------------- | ------------------------------- |
+| [`DEVELOPMENT_STATUS.md`](./docs/DEVELOPMENT_STATUS.md)                     | 현재 구현·미구현 범위           |
+| [`PAYMENT_ARCHITECTURE_DESIGN.md`](./docs/PAYMENT_ARCHITECTURE_DESIGN.md)   | 결제 상태·멱등성·reconciliation |
+| [`ORDER_RETURN_EXCHANGE_DESIGN.md`](./docs/ORDER_RETURN_EXCHANGE_DESIGN.md) | 취소·반품·교환 정책             |
+| [`SETTLEMENT_V1.md`](./docs/SETTLEMENT_V1.md)                               | Ledger 기반 정산 설계           |
+| [`TROUBLESHOOTING.md`](./docs/TROUBLESHOOTING.md)                           | 실제 문제·원인·해결 기록        |
+| [`ROADMAP.md`](./docs/ROADMAP.md)                                           | 후속 개발 계획                  |
+
+> 문서와 코드가 충돌하는 경우 현재 구현 코드를 최종 기준으로 합니다.
+
+---
+
+## Getting Started
+
+### Backend
+
+Java 21, MySQL이 필요합니다. 로컬 Object Storage는 MinIO를 사용할 수 있습니다.
 
 ```bash
-git clone https://github.com/bys96/gift-market
-cd gift-market
-```
-
-### 백엔드
-
-Java 21이 필요합니다.
-
-```bash
-cd giftmarket-api
+git clone https://github.com/bys96/gift-market.git
+cd gift-market/giftmarket-api
+cp src/main/resources/application-example.yaml src/main/resources/application.yaml
 ./gradlew bootRun
 ```
 
-Windows:
+주요 환경변수:
 
-```bash
-gradlew.bat bootRun
+```text
+DB_URL / DB_USERNAME / DB_PASSWORD
+GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+KAKAO_CLIENT_ID / KAKAO_CLIENT_SECRET
+JWT_SECRET / REFRESH_TOKEN_ENCRYPTION_KEY
+MINIO_ACCESS_KEY / MINIO_SECRET_KEY
+TOSS_SECRET_KEY
 ```
 
-### 프론트엔드
+### Frontend
 
 ```bash
-cd giftmarket-web
-npm install
+cd ../giftmarket-web
+cp .env.sample .env.local
+npm ci
 npm run dev
 ```
 
-기본 개발 서버: `http://localhost:3000`
+```text
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+NEXT_PUBLIC_STORAGE_BASE_URL=...
+NEXT_PUBLIC_TOSS_CLIENT_KEY=...
+```
 
-### 환경 설정
+> Secret 값은 Repository에 포함하지 않습니다.
 
-실제 Secret 및 Credential은 Repository에 포함하지 않습니다.
+---
 
-로컬 실행에 필요한 환경 설정은 다음 예제 파일을 기준으로 구성합니다.
+## My Role
 
-- Backend: `application-example.yaml`
-- Frontend: `.env.sample`
-
-주요 설정 항목은 다음과 같습니다.
-
-- MySQL Database
-- Google / Kakao OAuth2
-- JWT / Refresh Token
-- MinIO / Amazon S3
-- Toss Payments
-- Frontend / Backend Origin
-- Settlement 정책
-
-로컬 환경에서는 MinIO를 사용하고 운영 환경에서는 Amazon S3를 사용합니다.
-
-운영 환경의 Frontend는 Vercel Rewrite를 통해 Backend API로 요청을 전달하며, 운영 Database는 Hibernate `ddl-auto=validate`를 사용합니다. Schema 변경은 현재 배포 전 DDL을 수동 적용합니다.
-
-> OAuth Secret, JWT Secret, AWS Credential, Toss Payments Key 등의 실제 값은 Repository에 포함하지 않습니다.
-
-## 담당 범위
-
-개인 프로젝트로 요구사항과 도메인 설계부터 Frontend, Backend, Database, 외부 API 연동, 배포까지 전체 개발을 담당했습니다.
-
-주요 구현 범위:
+개인 프로젝트로 전체 개발을 담당했습니다.
 
 - 도메인 / DB / REST API 설계
-- OAuth2 / JWT 인증
-- 상품 / 옵션 / 재고
-- 주문 / 결제
-- 취소 / 부분 환불
-- 반품 / 교환
-- Seller Center / Admin
-- Notification / Settlement
-- S3 Storage
-- Next.js 구매자·판매자·관리자 UI
-- Render / Vercel 배포
-- 거래 정합성 및 운영 장애 분석·개선
+- OAuth2 / JWT 인증 및 동시성 처리
+- 상품·재고 / 주문·결제·배송 / 취소·반품·교환
+- Seller Center / Admin Center / Notification / Settlement
+- S3·MinIO Storage / Toss Payments 연동
+- Next.js Frontend 및 Vercel·Render 배포
 
-## 개발을 통해 배운 점
+---
 
-### 거래 기능에서는 성공 흐름보다 실패 경로가 중요하다
+## Roadmap
 
-결제 승인 후 응답 유실, 중복 요청, 브라우저 종료, 네트워크 오류까지 고려하면서 Client 상태보다 서버의 영속 상태를 Source of Truth로 두고 멱등성과 reconciliation을 설계하는 경험을 했습니다.
+향후 상품 탐색 고도화, Settlement 자동 생성 Scheduler, Payout 도메인, Versioned DB Migration, Monitoring / Alert를 추가할 계획입니다.
 
-### 외부 API와 DB는 하나의 Transaction이 아니다
+자세한 내용은 [`docs/ROADMAP.md`](./docs/ROADMAP.md)를 참고합니다.
 
-Toss와 DB를 하나의 ACID Transaction으로 묶을 수 없기 때문에 외부 결제 성공과 내부 처리 실패가 서로 다른 시점에 발생할 수 있음을 고려해 상태 전이와 재처리 구조를 설계했습니다.
+---
 
-### 거래 이력은 현재 상태만큼 중요하다
+## License
 
-정산을 구현하며 현재 주문 금액을 재계산하는 대신 매출·수수료·환불을 Ledger로 기록해 과거 정산을 보존하고 이후 변경을 추적하도록 구성했습니다.
-
-### 동시성은 DB 레벨에서도 다뤄야 한다
-
-Refresh Token, 결제, 정산 처리에서 DB Lock, Unique Constraint, Idempotency Key를 각각의 역할에 맞게 사용했습니다.
-
-### 운영 환경은 로컬과 다르다
-
-Render Startup 성능, JVM/JDBC/MySQL Timezone, 브라우저 인증 흐름 등을 실제 배포 환경에서 확인하면서 관측과 재현을 기반으로 문제를 좁히는 경험을 했습니다.
-
-## 향후 계획
-
-- Gift Occasion — 생일, 감사, 집들이 등 선물 상황 기반 탐색
-- 메인 페이지 고도화
-- 최근 순판매량 기반 상품 랭킹
-- 상품 추천
-- 쿠폰 / 포인트
-- Settlement 자동 생성 Scheduler
-- 실제 판매자 지급 Payout
-- 판매자 계좌 / 지급 검증
-- Seller 리뷰 답글
-- Admin 클레임 중재
-- S3 Orphan Object 정리
-- Versioned DB Migration
-- Monitoring / Metrics / Alert
-- Backup / Recovery
-- Terms / Privacy / Support 정비
+This project is licensed under the [MIT License](./LICENSE).
