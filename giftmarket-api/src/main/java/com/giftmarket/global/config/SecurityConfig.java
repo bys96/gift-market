@@ -79,8 +79,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/inquiries/me")
                         .authenticated()
 
+                        .requestMatchers(
+                                "/api/admin/administrators",
+                                "/api/admin/administrators/**"
+                        )
+                        .hasRole("SUPER_ADMIN")
+
                         .requestMatchers("/api/admin/**")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         .requestMatchers(
                                 "/api/seller/**",

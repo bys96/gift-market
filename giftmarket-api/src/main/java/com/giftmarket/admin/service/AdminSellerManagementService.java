@@ -190,7 +190,7 @@ public class AdminSellerManagementService {
         }
         User admin = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new AuthenticationException("사용자를 찾을 수 없습니다."));
-        if (admin.getRole() != UserRole.ADMIN) {
+        if (!admin.getRole().isAdmin()) {
             throw new AuthenticationException("관리자 권한이 필요합니다.");
         }
         return admin;

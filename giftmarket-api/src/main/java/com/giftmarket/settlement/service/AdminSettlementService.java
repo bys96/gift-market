@@ -121,7 +121,7 @@ public class AdminSettlementService {
             throw new AuthenticationException("인증이 필요합니다.");
         }
         if (userRepository.findById(adminUserId)
-                .filter(user -> user.getRole() == UserRole.ADMIN)
+                .filter(user -> user.getRole().isAdmin())
                 .isEmpty()) {
             throw new AuthenticationException("관리자 권한이 필요합니다.");
         }

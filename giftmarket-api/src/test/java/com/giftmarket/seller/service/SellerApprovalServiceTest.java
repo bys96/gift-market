@@ -64,6 +64,21 @@ class SellerApprovalServiceTest {
     }
 
     @Test
+    void keepsSuperAdminRoleWhenSellerIsApproved() {
+        User superAdmin = org.mockito.Mockito.mock(User.class);
+        User reviewer = org.mockito.Mockito.mock(User.class);
+        SellerApplication application = SellerApplication.create(superAdmin, "최고 관리자 상점", null);
+        given(superAdmin.getRole()).willReturn(UserRole.SUPER_ADMIN);
+        given(reviewer.getId()).willReturn(2L);
+        given(sellerRepository.existsByUser(superAdmin)).willReturn(false);
+
+        new SellerApprovalService(sellerRepository).approve(application, reviewer);
+
+        verify(superAdmin, never()).changeRole(org.mockito.ArgumentMatchers.any());
+        verify(sellerRepository).save(org.mockito.ArgumentMatchers.any(Seller.class));
+    }
+
+    @Test
     void preventsDuplicateSellerCreationBeforeApproval() {
         User applicant = org.mockito.Mockito.mock(User.class);
         User reviewer = org.mockito.Mockito.mock(User.class);

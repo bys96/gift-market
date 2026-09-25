@@ -92,7 +92,7 @@ public class AdminOrderService {
     private User getAdmin(Long id) {
         if (id == null) throw new AuthenticationException("인증이 필요합니다.");
         User user = userRepository.findById(id).orElseThrow(() -> new AuthenticationException("사용자를 찾을 수 없습니다."));
-        if (user.getRole() != UserRole.ADMIN) throw new AuthenticationException("관리자 권한이 필요합니다.");
+        if (!user.getRole().isAdmin()) throw new AuthenticationException("관리자 권한이 필요합니다.");
         return user;
     }
 }

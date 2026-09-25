@@ -81,6 +81,6 @@ public class AdminExchangeService {
     private void validateAdmin(Long adminId) {
         if (adminId == null) throw new AuthenticationException("인증이 필요합니다.");
         var user = users.findById(adminId).orElseThrow(() -> new AuthenticationException("사용자를 찾을 수 없습니다."));
-        if (user.getRole() != UserRole.ADMIN) throw new AuthenticationException("관리자 권한이 필요합니다.");
+        if (!user.getRole().isAdmin()) throw new AuthenticationException("관리자 권한이 필요합니다.");
     }
 }

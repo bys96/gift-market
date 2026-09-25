@@ -5,16 +5,19 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import Modal from "@/components/common/modal/Modal";
+import { useAuthStore } from "@/stores/auth-store";
 
 interface AdminMenuItem {
   label: string;
   href: string;
   enabled: boolean;
+  superAdminOnly?: boolean;
 }
 
 const ADMIN_MENU: AdminMenuItem[] = [
   { label: "대시보드", href: "/admin", enabled: true },
   { label: "회원 관리", href: "/admin/users", enabled: true },
+  { label: "관리자 관리", href: "/admin/administrators", enabled: true, superAdminOnly: true },
   { label: "판매자 관리", href: "/admin/sellers", enabled: true },
   { label: "판매자 신청", href: "/admin/seller-applications", enabled: true },
   { label: "상품 관리", href: "/admin/products", enabled: true },
@@ -35,12 +38,14 @@ interface SidebarContentProps {
   pathname: string;
   onNavigate?: () => void;
   closeButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  isSuperAdmin: boolean;
 }
 
 function SidebarContent({
   pathname,
   onNavigate,
   closeButtonRef,
+  isSuperAdmin,
 }: SidebarContentProps) {
   return (
     <>
@@ -64,6 +69,7 @@ function SidebarContent({
 
       <nav className="admin-center-menu" aria-label="관리자 메뉴">
         {ADMIN_MENU.map((item) => {
+          if (item.superAdminOnly && !isSuperAdmin) return null;
           const active = isActive(pathname, item);
           if (!item.enabled) {
             return (
@@ -95,6 +101,7 @@ function SidebarContent({
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const isSuperAdmin = useAuthStore((state) => state.user?.role === "SUPER_ADMIN");
   const [isOpen, setIsOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const activeLabel = ADMIN_MENU.find((item) => isActive(pathname, item))?.label ?? "관리자 메뉴";
@@ -114,7 +121,7 @@ export default function AdminSidebar() {
         <span aria-hidden="true">☰</span><span><small>Admin Center</small><strong>{activeLabel}</strong></span>
       </button>
       <aside className="admin-center-sidebar admin-center-sidebar-desktop">
-        <SidebarContent pathname={pathname} />
+        <SidebarContent pathname={pathname} isSuperAdmin={isSuperAdmin} />
       </aside>
       {isOpen && (
         <Modal
@@ -124,7 +131,7 @@ export default function AdminSidebar() {
           ariaLabel="관리자 메뉴"
           initialFocusRef={closeButtonRef}
         >
-          <SidebarContent pathname={pathname} onNavigate={() => setIsOpen(false)} closeButtonRef={closeButtonRef} />
+          <SidebarContent pathname={pathname} onNavigate={() => setIsOpen(false)} closeButtonRef={closeButtonRef} isSuperAdmin={isSuperAdmin} />
         </Modal>
       )}
     </>

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface UserRepository
@@ -24,6 +25,13 @@ public interface UserRepository
             UserRole role,
             UserStatus status
     );
+
+    List<User> findAllByRoleInAndStatus(
+            Collection<UserRole> roles,
+            UserStatus status
+    );
+
+    List<User> findAllByRoleInOrderByCreatedAtAscIdAsc(Collection<UserRole> roles);
 
     @Query("""
             select u

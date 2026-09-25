@@ -72,7 +72,7 @@ public class SettlementManagementService {
         }
         User user = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new SettlementException("관리자를 찾을 수 없습니다."));
-        if (user.getRole() != UserRole.ADMIN) {
+        if (!user.getRole().isAdmin()) {
             throw new SettlementException("관리자만 정산 상태를 변경할 수 있습니다.");
         }
         return user;

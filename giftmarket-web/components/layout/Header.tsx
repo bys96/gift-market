@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import NotificationBell from "@/components/notification/NotificationBell";
 import { roleLabel } from "@/types/user";
 import { resolveImageUrl } from "@/utils/image-url";
+import { isAdminRole } from "@/lib/role";
 
 export default function Header() {
   const router = useRouter();
@@ -144,7 +145,7 @@ export default function Header() {
           </form>
 
           <nav className="layout-header-actions" aria-label="사용자 메뉴">
-            {user?.role === "ADMIN" && (
+            {isAdminRole(user?.role) && (
               <Link
                 href="/admin/seller-applications"
                 className="layout-header-action"
@@ -340,7 +341,7 @@ export default function Header() {
             className="layout-mobile-menu-list"
             aria-label="모바일 사용자 메뉴"
           >
-            {user?.role === "ADMIN" && (
+            {isAdminRole(user?.role) && (
               <Link href="/admin/seller-applications">
                 <span>관리자</span>
                 <span className="layout-mobile-menu-arrow" aria-hidden="true">

@@ -101,6 +101,18 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void superAdminCanUseExistingAdminUserApi() {
+        given(userRepository.findById(ADMIN_ID)).willReturn(Optional.of(admin));
+        given(admin.getRole()).willReturn(UserRole.SUPER_ADMIN);
+        given(userRepository.findAdminUsers(any(), any(), any(), any(), any()))
+                .willReturn(new PageImpl<>(List.of()));
+
+        var response = service.getUsers(ADMIN_ID, 0, 20, null, null, null, null);
+
+        assertThat(response.content()).isEmpty();
+    }
+
+    @Test
     void passesTrimmedKeywordFiltersPaginationAndNewestSort() {
         givenAdmin();
         given(userRepository.findAdminUsers(any(), any(), any(), any(), any()))

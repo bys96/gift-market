@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -73,8 +75,8 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(SellerApplicationCreatedEvent event) {
         try {
-            for (User admin : userRepository.findAllByRoleAndStatus(
-                    UserRole.ADMIN,
+            for (User admin : userRepository.findAllByRoleInAndStatus(
+                    List.of(UserRole.ADMIN, UserRole.SUPER_ADMIN),
                     UserStatus.ACTIVE
             )) {
                 createSafely(

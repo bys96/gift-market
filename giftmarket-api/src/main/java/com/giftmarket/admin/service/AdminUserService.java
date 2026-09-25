@@ -169,7 +169,7 @@ public class AdminUserService {
         if (adminUserId.equals(userId)) {
             throw new AdminUserOperationException("자기 자신의 상태는 변경할 수 없습니다.");
         }
-        if (user.getRole() == UserRole.ADMIN) {
+        if (user.getRole().isAdmin()) {
             throw new AdminUserOperationException("관리자 계정의 상태는 변경할 수 없습니다.");
         }
         return user;
@@ -216,7 +216,7 @@ public class AdminUserService {
         User admin = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new AuthenticationException("사용자를 찾을 수 없습니다."));
 
-        if (admin.getRole() != UserRole.ADMIN) {
+        if (!admin.getRole().isAdmin()) {
             throw new AuthenticationException("관리자 권한이 필요합니다.");
         }
 

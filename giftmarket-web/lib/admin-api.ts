@@ -17,6 +17,7 @@ import type {
   AdminCancellationDetail, AdminCancellationPage, AdminCancellationSearchParams,
   AdminReturnDetail, AdminReturnPage, AdminReturnSearchParams,
   AdminExchangeDetail, AdminExchangePage, AdminExchangeSearchParams,
+  Administrator,
 } from "@/types/admin";
 import type { ApiResponse } from "@/types/api";
 
@@ -80,6 +81,32 @@ export async function reactivateAdminUser(
     { method: "PATCH", body: JSON.stringify(request) },
   );
   if (!response.data) throw new Error("회원 정지 해제에 실패했습니다.");
+  return response.data;
+}
+
+export async function getAdministrators(): Promise<Administrator[]> {
+  const response = await apiFetch<ApiResponse<Administrator[]>>(
+    "/api/admin/administrators",
+  );
+  if (!response.data) throw new Error("관리자 목록을 불러오지 못했습니다.");
+  return response.data;
+}
+
+export async function grantAdministrator(userId: number): Promise<Administrator> {
+  const response = await apiFetch<ApiResponse<Administrator>>(
+    `/api/admin/administrators/${userId}/grant`,
+    { method: "PATCH" },
+  );
+  if (!response.data) throw new Error("관리자 지정에 실패했습니다.");
+  return response.data;
+}
+
+export async function revokeAdministrator(userId: number): Promise<Administrator> {
+  const response = await apiFetch<ApiResponse<Administrator>>(
+    `/api/admin/administrators/${userId}/revoke`,
+    { method: "PATCH" },
+  );
+  if (!response.data) throw new Error("관리자 권한 해제에 실패했습니다.");
   return response.data;
 }
 

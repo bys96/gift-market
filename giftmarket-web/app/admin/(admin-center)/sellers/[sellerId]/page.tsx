@@ -11,7 +11,7 @@ import type { AdminSellerDetail } from "@/types/admin";
 const labels = {
   sellerStatus: { ACTIVE: "정상", SALES_SUSPENDED: "판매 정지", SUSPENDED: "계정 정지", WITHDRAWN: "탈퇴" },
   userStatus: { ACTIVE: "활성", SUSPENDED: "정지", WITHDRAWN: "탈퇴" },
-  role: { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자" },
+  role: { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자", SUPER_ADMIN: "최고 관리자" },
   provider: { GOOGLE: "Google", KAKAO: "Kakao" },
   application: { PENDING: "심사 대기", APPROVED: "승인", REJECTED: "거절" },
   order: { PENDING_PAYMENT: "결제 대기", PAID: "결제 완료", PREPARING: "상품 준비", SHIPPED: "배송 중", DELIVERED: "배송 완료", CANCELLED: "취소" },

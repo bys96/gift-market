@@ -68,6 +68,12 @@
   .admin-product-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+.admin-role-success { margin-bottom: 20px; padding: 14px 17px; border: 1px solid #cde4d4; border-radius: 10px; background: #f1faf4; color: #276943; font-size: 13px; font-weight: 700; }
+.admin-administrator-table { table-layout: auto; }
+.admin-administrator-table th, .admin-administrator-table td { width: auto; }
+.admin-role-revoke-button { min-height: 34px; padding: 0 11px; border: 1px solid #e5a8a8; border-radius: 8px; background: #fff; color: var(--color-error); font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.admin-role-protected { color: #8a909a; font-size: 11px; font-weight: 700; white-space: nowrap; }
+
 .admin-user-table.admin-seller-table th:nth-child(1) { width: 18%; }
 .admin-user-table.admin-seller-table th:nth-child(2) { width: 17%; }
 .admin-user-table.admin-seller-table th:nth-child(3) { width: 22%; }
@@ -1014,6 +1020,7 @@
 .admin-user-role-user { background: #f0f1f3; color: #555c67; }
 .admin-user-role-seller { background: #fff4cc; color: #756017; }
 .admin-user-role-admin { background: #e9e7fb; color: #554aa1; }
+.admin-user-role-super_admin { background: #292e37; color: #fff; }
 .admin-user-status-active { background: #e7f7ed; color: #287548; }
 .admin-user-status-suspended { background: #fff0d8; color: #925d12; }
 .admin-user-status-withdrawn { background: #f0f1f3; color: #717680; }
@@ -1034,9 +1041,10 @@
 .admin-user-detail-header > div:nth-child(2) { min-width: 0; flex: 1; }
 .admin-user-detail-header > .admin-user-status { flex-shrink: 0; }
 .admin-user-detail-actions { display: flex; flex-shrink: 0; align-items: center; gap: 10px; }
-.admin-user-suspend-button, .admin-user-reactivate-button { min-height: 38px; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.admin-user-suspend-button, .admin-user-reactivate-button, .admin-role-grant-button { min-height: 38px; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .admin-user-suspend-button { border: 1px solid #e5a8a8; background: #fff; color: var(--color-error); }
 .admin-user-reactivate-button { border: 1px solid #292e37; background: #292e37; color: #fff; }
+.admin-role-grant-button { border: 1px solid #554aa1; background: #554aa1; color: #fff; }
 .admin-user-modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgb(0 0 0 / 48%); }
 .admin-user-modal { width: min(100%, 500px); border-radius: 16px; background: #fff; box-shadow: 0 20px 60px rgb(0 0 0 / 20%); }
 .admin-user-modal form { padding: 24px; }

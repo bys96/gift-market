@@ -197,7 +197,7 @@ public class NotificationService {
 
     private void validateAdmin(Long userId) {
         boolean admin = userRepository.findById(userId)
-                .filter(user -> user.getRole() == UserRole.ADMIN)
+                .filter(user -> user.getRole().isAdmin())
                 .isPresent();
 
         if (!admin) {

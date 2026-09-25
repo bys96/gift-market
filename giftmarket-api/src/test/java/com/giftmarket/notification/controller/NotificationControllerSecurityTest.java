@@ -104,6 +104,21 @@ class NotificationControllerSecurityTest {
         );
     }
 
+    @Test
+    void superAdminUsesExistingAdminNotificationApi() throws Exception {
+        given(notificationService.getNotifications(
+                15L, NotificationContext.ADMIN, 0, 20
+        )).willReturn(emptyPage());
+
+        mockMvc.perform(get("/api/admin/notifications")
+                        .with(authentication(superAdminAuthentication(15L))))
+                .andExpect(status().isOk());
+
+        verify(notificationService).getNotifications(
+                15L, NotificationContext.ADMIN, 0, 20
+        );
+    }
+
     private NotificationPageResponse emptyPage() {
         return new NotificationPageResponse(
                 List.of(),
@@ -129,6 +144,14 @@ class NotificationControllerSecurityTest {
                 userId,
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+    }
+
+    private UsernamePasswordAuthenticationToken superAdminAuthentication(Long userId) {
+        return new UsernamePasswordAuthenticationToken(
+                userId,
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))
         );
     }
 }

@@ -42,7 +42,7 @@ export interface AdminRecentSellerApplication {
   createdAt: string;
 }
 
-export type AdminUserRole = "USER" | "SELLER" | "ADMIN";
+export type AdminUserRole = "USER" | "SELLER" | "ADMIN" | "SUPER_ADMIN";
 export type AdminAuthProvider = "GOOGLE" | "KAKAO";
 export type AdminUserStatus = "ACTIVE" | "SUSPENDED" | "WITHDRAWN";
 export type AdminSellerStatus = "ACTIVE" | "SALES_SUSPENDED" | "SUSPENDED" | "WITHDRAWN";
@@ -102,6 +102,16 @@ export interface AdminUserSearchParams {
 
 export interface AdminUserStatusChangeRequest {
   reason: string;
+}
+
+export interface Administrator {
+  id: number;
+  name: string;
+  email: string | null;
+  role: "ADMIN" | "SUPER_ADMIN";
+  createdAt: string;
+  seller: boolean;
+  administratorAssignedAt: string | null;
 }
 
 export type AdminSellerOrderStatus = "PENDING_PAYMENT" | "PAID" | "PREPARING" | "SHIPPED" | "DELIVERED" | "CANCELLED";

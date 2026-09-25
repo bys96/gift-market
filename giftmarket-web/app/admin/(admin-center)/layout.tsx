@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import NotificationBell from "@/components/notification/NotificationBell";
 import { useAuthStore } from "@/stores/auth-store";
+import { isAdminRole } from "@/lib/role";
 
 export default function AdminCenterLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -21,10 +22,10 @@ export default function AdminCenterLayout({ children }: { children: ReactNode })
       router.replace(getLoginRedirectUrl());
       return;
     }
-    if (user.role !== "ADMIN") router.replace("/");
+    if (!isAdminRole(user.role)) router.replace("/");
   }, [initialized, isAuthenticated, router, user]);
 
-  if (!initialized || !isAuthenticated || !user || user.role !== "ADMIN") {
+  if (!initialized || !isAuthenticated || !user || !isAdminRole(user.role)) {
     return <div className="admin-center-auth-loading">관리자 권한을 확인하고 있습니다.</div>;
   }
 

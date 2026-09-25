@@ -14,10 +14,10 @@ import type {
 } from "@/types/admin";
 
 const PAGE_SIZE = 20;
-const roles: AdminUserRole[] = ["USER", "SELLER", "ADMIN"];
+const roles: AdminUserRole[] = ["USER", "SELLER", "ADMIN", "SUPER_ADMIN"];
 const providers: AdminAuthProvider[] = ["GOOGLE", "KAKAO"];
 const statuses: AdminUserStatus[] = ["ACTIVE", "SUSPENDED", "WITHDRAWN"];
-const roleLabel: Record<AdminUserRole, string> = { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자" };
+const roleLabel: Record<AdminUserRole, string> = { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자", SUPER_ADMIN: "최고 관리자" };
 const providerLabel: Record<AdminAuthProvider, string> = { GOOGLE: "Google", KAKAO: "Kakao" };
 const statusLabel: Record<AdminUserStatus, string> = { ACTIVE: "활성", SUSPENDED: "정지", WITHDRAWN: "탈퇴" };
 

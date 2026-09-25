@@ -38,7 +38,7 @@ public class SellerService {
         User user = getAuthenticatedUser(userId);
 
         if (user.getRole() != UserRole.USER
-                && user.getRole() != UserRole.ADMIN) {
+                && !user.getRole().isAdmin()) {
             throw new SellerException(
                     "판매자 등록 신청이 가능한 계정이 아닙니다."
             );
@@ -72,7 +72,7 @@ public class SellerService {
         SellerApplication savedApplication =
                 sellerApplicationRepository.save(application);
 
-        if (user.getRole() == UserRole.ADMIN) {
+        if (user.getRole().isAdmin()) {
             sellerApprovalService.approve(savedApplication, user);
         } else {
             eventPublisher.publishEvent(new SellerApplicationCreatedEvent(

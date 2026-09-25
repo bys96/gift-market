@@ -76,4 +76,7 @@ public interface SellerRepository extends JpaRepository<Seller, Long> {
             @org.springframework.data.repository.query.Param("userIds") Collection<Long> userIds,
             @org.springframework.data.repository.query.Param("status") SellerStatus status
     );
+
+    @Query("select s.user.id from Seller s where s.user.id in :userIds")
+    List<Long> findUserIdsByUserIdIn(@Param("userIds") Collection<Long> userIds);
 }

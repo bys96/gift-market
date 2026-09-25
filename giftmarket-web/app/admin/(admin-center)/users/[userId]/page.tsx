@@ -6,12 +6,14 @@ import { useParams } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import Modal from "@/components/common/modal/Modal";
-import { getAdminUser, reactivateAdminUser, suspendAdminUser } from "@/lib/admin-api";
+import { getAdminUser, grantAdministrator, reactivateAdminUser, suspendAdminUser } from "@/lib/admin-api";
 import type { AdminUserDetail } from "@/types/admin";
 import { resolveImageUrl } from "@/utils/image-url";
+import { useAuthStore } from "@/stores/auth-store";
+import { isAdminRole } from "@/lib/role";
 
 const labels = {
-  role: { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자" },
+  role: { USER: "일반 회원", SELLER: "판매자", ADMIN: "관리자", SUPER_ADMIN: "최고 관리자" },
   provider: { GOOGLE: "Google", KAKAO: "Kakao" },
   userStatus: { ACTIVE: "활성", SUSPENDED: "정지", WITHDRAWN: "탈퇴" },
   sellerStatus: { ACTIVE: "정상", SALES_SUSPENDED: "판매 정지", SUSPENDED: "계정 정지", WITHDRAWN: "탈퇴" },
@@ -28,13 +30,15 @@ function formatDateTime(value: string | null) {
 export default function AdminUserDetailPage() {
   const params = useParams<{ userId: string }>();
   const userId = Number(params.userId);
+  const currentUserRole = useAuthStore((state) => state.user?.role);
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [imageFailed, setImageFailed] = useState(false);
-  const [action, setAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [action, setAction] = useState<"suspend" | "reactivate" | "grant-admin" | null>(null);
   const [reason, setReason] = useState("");
   const [actionError, setActionError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,10 +75,10 @@ export default function AdminUserDetailPage() {
     setActionError("");
   };
 
-  const submitStatusChange = async (event: FormEvent<HTMLFormElement>) => {
+  const submitAction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedReason = reason.trim();
-    if (!normalizedReason) {
+    if (action !== "grant-admin" && !normalizedReason) {
       setActionError("사유를 입력해주세요.");
       return;
     }
@@ -86,12 +90,15 @@ export default function AdminUserDetailPage() {
         await suspendAdminUser(userId, { reason: normalizedReason });
       } else if (action === "reactivate") {
         await reactivateAdminUser(userId, { reason: normalizedReason });
+      } else if (action === "grant-admin") {
+        await grantAdministrator(userId);
+        setSuccessMessage("관리자 권한을 지정했습니다.");
       }
       await loadUser();
       setAction(null);
       setReason("");
     } catch (failure) {
-      setActionError(failure instanceof Error ? failure.message : "회원 상태를 변경하지 못했습니다.");
+      setActionError(failure instanceof Error ? failure.message : "요청을 처리하지 못했습니다.");
     } finally {
       setIsSubmitting(false);
     }
@@ -101,6 +108,7 @@ export default function AdminUserDetailPage() {
     <main className="admin-user-detail-page">
       <Link href="/admin/users" className="admin-user-back-link">← 회원 목록으로 돌아가기</Link>
 
+      {successMessage && <div className="admin-role-success" role="status">{successMessage}</div>}
       {error && <div className="admin-dashboard-error" role="alert"><span>{error}</span><button type="button" onClick={loadUser}>다시 시도</button></div>}
       {isLoading && !user ? <div className="admin-user-state">회원 정보를 불러오고 있습니다.</div> : user ? (
         <>
@@ -109,8 +117,9 @@ export default function AdminUserDetailPage() {
             <div><p>USER DETAIL · #{user.id}</p><h1>{user.name}</h1><span>{user.email ?? "이메일 정보 없음"}</span></div>
             <div className="admin-user-detail-actions">
               <span className={`admin-user-status admin-user-status-${user.status.toLowerCase()}`}>{labels.userStatus[user.status]}</span>
-              {user.role !== "ADMIN" && user.status === "ACTIVE" && <button type="button" className="admin-user-suspend-button" onClick={() => setAction("suspend")}>이용 정지</button>}
-              {user.role !== "ADMIN" && user.status === "SUSPENDED" && <button type="button" className="admin-user-reactivate-button" onClick={() => setAction("reactivate")}>정지 해제</button>}
+              {currentUserRole === "SUPER_ADMIN" && (user.role === "USER" || user.role === "SELLER") && <button type="button" className="admin-role-grant-button" onClick={() => setAction("grant-admin")}>관리자로 지정</button>}
+              {!isAdminRole(user.role) && user.status === "ACTIVE" && <button type="button" className="admin-user-suspend-button" onClick={() => setAction("suspend")}>이용 정지</button>}
+              {!isAdminRole(user.role) && user.status === "SUSPENDED" && <button type="button" className="admin-user-reactivate-button" onClick={() => setAction("reactivate")}>정지 해제</button>}
             </div>
           </header>
 
@@ -135,35 +144,29 @@ export default function AdminUserDetailPage() {
           contentClassName="admin-user-modal"
           ariaLabelledBy="admin-user-action-title"
           ariaDescribedBy="admin-user-action-description"
-          initialFocusRef={reasonRef}
+          initialFocusRef={action === "grant-admin" ? undefined : reasonRef}
           closeOnEscape={!isSubmitting}
           closeOnBackdrop={!isSubmitting}
         >
-          <form onSubmit={submitStatusChange}>
+          <form onSubmit={submitAction}>
             <header>
-              <h2 id="admin-user-action-title">{action === "suspend" ? "회원 이용 정지" : "회원 정지 해제"}</h2>
+              <h2 id="admin-user-action-title">{action === "grant-admin" ? "관리자로 지정" : action === "suspend" ? "회원 이용 정지" : "회원 정지 해제"}</h2>
               <button type="button" aria-label="닫기" onClick={closeActionModal} disabled={isSubmitting}>×</button>
             </header>
             <p id="admin-user-action-description">
-              {action === "suspend"
+              {action === "grant-admin"
+                ? `${user?.name ?? "해당 회원"}님을 관리자로 지정하시겠습니까? 기존 판매자 데이터는 그대로 유지됩니다.`
+                : action === "suspend"
                 ? "정지 사유를 입력해주세요. 정지 후 기존 Access Token 및 Refresh Token을 통한 인증이 차단됩니다."
                 : "정지 해제 사유를 입력해주세요."}
             </p>
-            <label htmlFor="admin-user-action-reason">사유</label>
-            <textarea
-              ref={reasonRef}
-              id="admin-user-action-reason"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              maxLength={500}
-              disabled={isSubmitting}
-              required
-            />
-            <div className="admin-user-reason-meta"><span>{reason.length}/500</span></div>
+            {action !== "grant-admin" && <><label htmlFor="admin-user-action-reason">사유</label>
+              <textarea ref={reasonRef} id="admin-user-action-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} disabled={isSubmitting} required />
+              <div className="admin-user-reason-meta"><span>{reason.length}/500</span></div></>}
             {actionError && <p className="admin-user-action-error" role="alert">{actionError}</p>}
             <footer>
               <button type="button" onClick={closeActionModal} disabled={isSubmitting}>취소</button>
-              <button type="submit" className={action === "suspend" ? "danger" : "primary"} disabled={isSubmitting || !reason.trim()}>{isSubmitting ? "처리 중..." : "확인"}</button>
+              <button type="submit" className={action === "suspend" ? "danger" : "primary"} disabled={isSubmitting || (action !== "grant-admin" && !reason.trim())}>{isSubmitting ? "처리 중..." : action === "grant-admin" ? "관리자로 지정" : "확인"}</button>
             </footer>
           </form>
         </Modal>
