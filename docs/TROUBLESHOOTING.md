@@ -270,13 +270,13 @@ effectiveReserved = reservedQuantity - releasedQuantity - consumedQuantity
 
 Next.js production build의 정적 페이지 생성 단계에서 `useSearchParams() should be wrapped in a suspense boundary` 오류가 발생했다. query 처리 로직이나 SSR/cache 정책을 바꾸지 않고 `/products`, `/login`, `/order`, `/seller/products/new`의 query-dependent Client Content를 기존 page의 `Suspense` 경계 아래 배치했다.
 
-검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 production build가 정상화됐고, 2026-09-07 최신 검증에서는 정적 페이지 34개 생성까지 성공했다.
+검색·필터·pagination, 로그인 redirect, 주문 query와 기존 loading UX는 유지했다. `force-dynamic`, SSR 비활성화 또는 전체 page의 Client Component 전환은 사용하지 않았다. 이후 production build가 정상화됐고, 2026-09-07 당시 검증에서는 정적 페이지 34개 생성까지 성공했다. 현재 route 수로 해석하지 않는다.
 
 # DB / 개발환경
 
 ## Return 증빙 이미지 orphan
 
-MinIO direct upload가 성공한 뒤 반품 생성 요청이 실패하면 DB에 연결되지 않은 `returns/{userId}/` object가 남을 수 있다. 반품 생성은 모든 선택 이미지 업로드 성공 후에만 실행하고 동일 화면 재시도에서는 업로드된 key를 재사용한다. 자동 삭제 작업은 아직 없으므로 운영 도입 전 prefix와 생성 시각을 기준으로 미참조 object를 정리하는 cleanup 정책이 필요하다.
+Storage Provider direct upload가 성공한 뒤 반품 생성 요청이 실패하면 DB에 연결되지 않은 `returns/{userId}/` object가 남을 수 있다. Production Provider는 AWS S3다. 반품 생성은 모든 선택 이미지 업로드 성공 후에만 실행하고 동일 화면 재시도에서는 업로드된 key를 재사용한다. 자동 삭제 작업은 아직 없으므로 prefix와 생성 시각을 기준으로 미참조 object를 정리하는 cleanup 정책이 필요하다.
 
 ## ddl-auto:update와 수동 SQL의 중복 실행
 
@@ -420,7 +420,7 @@ Wishlist를 user-scoped Backend API로 이전하고 서버를 source of truth로
 
 ### 상황 / 증상
 
-운영 Frontend는 Vercel(`https://gift-market-test.vercel.app`), Backend는 Render(`https://gift-market-api.onrender.com`)에 배포되어 있다. 기존에는 브라우저가 Render를 직접 호출하는 cross-origin이자 cross-site 구조였다. Refresh Token은 HttpOnly Cookie로 관리하고 Access Token 재발급 요청에 `credentials: "include"`를 사용했다.
+이 문제를 분석한 당시 Frontend는 Vercel(`https://gift-market-test.vercel.app`), Backend는 Render에 배포되어 있었다. 브라우저가 Backend를 직접 호출하던 cross-origin/cross-site 구조에서 Refresh Token cookie 유지 문제가 발생했다. 현재 Backend는 AWS EC2로 이전했지만 해결책인 Vercel same-origin rewrite는 그대로 유지한다.
 
 PC·모바일 Chrome에서는 로그인과 토큰 재발급이 정상이었지만 Samsung Internet에서는 OAuth 인증 성공 이후 Refresh Token Cookie가 기대대로 유지되지 않거나 Access Token 재발급을 통한 로그인 상태 복구가 실패했다.
 
@@ -602,7 +602,7 @@ app:
 
 일반 새로고침, 빠른 연속 새로고침, grace period 이후 새로고침, 멀티탭 동시 갱신에서도 서버가 같은 rotation 상태를 기준으로 처리하고 세션을 유지할 수 있는 구조로 개선했다.
 
-# Render Free Spring Boot 기동 지연 / Port Scan Timeout / AppCDS
+# 과거 Render Free Spring Boot 기동 지연 / Port Scan Timeout / AppCDS
 
 ## 문제 현상
 
@@ -752,6 +752,70 @@ Render Free의 강한 CPU throttling이 근본적인 환경 제약이며, AppCDS
 Render 또는 외부 probe가 Backend root path `/`로 요청을 보내면 root endpoint가 없어 `NoResourceFoundException`이 발생한다. 현재 `GlobalExceptionHandler`가 이를 ERROR level과 전체 stacktrace로 출력해 startup 실패처럼 보이는 로그 노이즈를 만든다.
 
 이 로그는 startup 실패나 AppCDS 문제와 무관하다. lightweight `GET /health` endpoint를 추가하고 `NoResourceFoundException`을 별도 404 응답으로 처리해, 존재하지 않는 경로가 generic 500 handler와 ERROR stacktrace로 연결되지 않도록 해결했다. Render Health Check Path는 `/health`를 사용한다.
+
+# AWS EC2 운영 이전
+
+## Render Backend → AWS EC2
+
+### 상황
+
+기존 Render Backend와 Aiven MySQL을 AWS EC2 기반 Docker 운영으로 이전했다. 현재 기준은 Ubuntu Server 24.04 LTS ARM64 `t4g.small`, Nginx, Spring Boot Docker, MySQL 8.4 계열 Docker, EBS에 영속되는 named volume이다. Render/Aiven은 현재 Production source of truth가 아니다.
+
+### 적용 구조
+
+```text
+Browser → Vercel same-origin rewrite → AWS Elastic IP HTTPS
+→ Nginx → 127.0.0.1:8080 Spring Boot Docker
+→ Docker internal network MySQL → named volume / EBS
+
+Spring Boot → AWS S3
+```
+
+- ARM64 호스트에서 애플리케이션 Docker image를 빌드·실행하고 Java 21 runtime과 기존 Dynamic AppCDS 구성을 유지했다.
+- Spring Boot port는 host `127.0.0.1:8080`에만 publish했다. MySQL `3306`은 host/public port로 publish하지 않고 Docker network에서만 접근한다.
+- Security Group은 80/443을 공개하고 SSH 22는 관리자 현재 IP 범위로 제한한다. 8080/3306을 `0.0.0.0/0`에 열지 않는다.
+- Nginx가 TLS termination을 담당하고 HTTP를 HTTPS로 redirect한다.
+
+## Vercel rewrite와 OAuth callback 유지
+
+Backend origin만 Render에서 AWS HTTPS origin으로 변경했다. 브라우저 URL과 OAuth provider에 등록된 callback 흐름을 Backend 직접 호출 구조로 바꾸지 않았다.
+
+```text
+Browser → Vercel /oauth2/... → rewrite → AWS Spring Boot → OAuth Provider
+OAuth Provider → Vercel /login/oauth2/... → rewrite → AWS Spring Boot
+```
+
+- Vercel `BACKEND_API_ORIGIN`만 AWS Backend HTTPS origin으로 갱신했다.
+- `NEXT_PUBLIC_API_BASE_URL`은 empty/unset을 유지했다. 값이 남으면 브라우저가 Backend를 직접 호출해 Samsung Internet 대응을 무력화할 수 있다.
+- Google/Kakao provider callback을 불필요하게 Backend origin으로 변경하지 않았다.
+- 이전 후 Google/Kakao 로그인과 Refresh Token cookie 흐름을 Production에서 확인했다.
+
+## Nginx HTTPS와 Let's Encrypt IP certificate
+
+- AWS Elastic IP를 대상으로 Nginx HTTPS를 구성했다.
+- Let's Encrypt IP certificate는 short-lived이므로 수동 갱신에 의존하지 않고 Certbot 자동 renewal을 설정했다.
+- renewal 성공 뒤 Nginx가 새 인증서를 읽도록 reload deploy hook을 연결했다.
+- 갱신 검증은 실제 인증서·키 내용을 출력하지 않고 dry-run 결과와 Nginx 설정 검사로 수행한다.
+
+## Aiven MySQL → EC2 Docker MySQL
+
+### 이전 절차와 검증
+
+1. 기존 Aiven 데이터를 dump하고 전송 구간과 보관 위치를 통제한다.
+2. EC2 MySQL 8.4 계열 컨테이너에 import한다.
+3. 테이블·row count·주요 FK/인덱스와 애플리케이션 조회를 확인한다.
+4. 필요한 수동 DDL을 검토·적용한 뒤 Production Spring Boot를 `ddl-auto=validate`로 기동한다.
+5. 결제·OAuth·주문 등 핵심 회귀를 확인한 뒤 트래픽을 전환한다.
+
+`ddl-auto=update`로 운영 schema를 자동 보정하지 않는다. Flyway/Liquibase는 아직 없으므로 현재는 검토된 SQL을 먼저 수동 적용하고 `validate`로 Entity와 schema 불일치를 탐지한다.
+
+## 2GB RAM 운영과 swap
+
+`t4g.small`의 제한된 메모리에서 Spring Boot image build, 애플리케이션, MySQL이 동시에 메모리를 사용한다. swap을 보조 안전망으로 구성해 순간적인 메모리 압박과 OOM 위험을 낮췄다. swap은 메모리 누수나 과도한 heap 설정의 해결책이 아니므로 컨테이너 메모리와 swap 사용량을 함께 관측해야 한다.
+
+## 남은 운영 과제
+
+MySQL 데이터는 named volume/EBS에 영속되지만 S3 자동 DB 백업은 아직 설정하지 않았다. `mysqldump → 압축 → S3 → retention` 자동화, 실패 알림, 복원 절차 문서화와 실제 restore 검증이 필요하다. EBS 영속성만으로 백업·복구 체계가 완료됐다고 판단하지 않는다.
 
 # 과거 검증 메모 (현재 결과 아님)
 

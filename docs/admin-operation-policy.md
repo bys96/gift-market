@@ -11,6 +11,8 @@ Gift Market의 Admin 조회 기능 이후 실제 서비스 운영에 필요한 �
 
 계정·판매·노출 제어는 구현되어 있다. 주문·결제·클레임 workflow에 직접 개입하는 기능은 기존 정합성 로직을 우회할 위험이 있으므로 별도 정책과 command workflow를 설계한 뒤 확장한다.
 
+관리자 공통 운영 API는 `ADMIN`과 `SUPER_ADMIN`이 사용한다. 관리자 목록과 ADMIN 권한 부여·회수 API(`/api/admin/administrators/**`)만 `SUPER_ADMIN` 전용이다. `SUPER_ADMIN` role은 DB 운영 절차로만 부여하며 Web/API에서 변경하지 않는다. Seller row가 있는 사용자에게 ADMIN을 부여해도 Seller 데이터를 제거하지 않고, ADMIN 회수 시 Seller 존재 여부에 따라 `SELLER` 또는 `USER`로 복원한다.
+
 ---
 
 ## 2. 1차 운영 기능 범위
@@ -280,8 +282,8 @@ USER_SUSPENDED
 USER_REACTIVATED
 SELLER_SALES_SUSPENDED
 SELLER_SALES_REACTIVATED
-PRODUCT_ADMIN_HIDDEN
-PRODUCT_ADMIN_UNHIDDEN
+PRODUCT_HIDDEN
+PRODUCT_UNHIDDEN
 ```
 
 목적:

@@ -47,6 +47,6 @@ Seller는 `ACTIVE`·`SALES_SUSPENDED`일 때 생성 가능하다. 대상이 없�
 | 관리자 | `GET /api/admin/settlements` (`sellerId`, `status`, `periodStart`, `periodEnd`, `page`, `size`), `/{settlementId}` |
 | 관리자 | `POST /api/admin/settlements/generate`, `/{settlementId}/hold`, `/{settlementId}/release`, `/{settlementId}/confirm` |
 
-판매자는 자신의 정산만 조회한다. 관리자 API는 `ADMIN` 전용이며 생성 요청은 판매자·기간·cutoff만 받는다. 판매자/관리자 화면은 API 데이터를 사용한다. 현재 자동 Settlement Scheduler, 실제 Payout, 계좌/KYC, 지급 상태·재시도는 없다. 향후 Scheduler는 기존 `SettlementGenerationService`를 호출해야 하며 수동 generate는 운영 대응 기능으로 남길 수 있다.
+판매자는 자신의 정산만 조회한다. 관리자 API는 Security 정책상 `ADMIN` 또는 `SUPER_ADMIN`이 사용할 수 있으며 생성 요청은 판매자·기간·cutoff만 받는다. 판매자/관리자 화면은 API 데이터를 사용한다. 현재 자동 Settlement Scheduler, 실제 Payout, 계좌/KYC, 지급 상태·재시도는 없다. 향후 Scheduler는 기존 `SettlementGenerationService`를 호출해야 하며 수동 generate는 운영 대응 기능으로 남길 수 있다.
 
 운영은 `ddl-auto=validate`이므로 정산 Entity와 DB 스키마를 대조한 뒤 수동 SQL을 먼저 적용한다. [`settlement-v1-foundation.sql`](./sql/settlement-v1-foundation.sql)은 자동 migration이 아니다. 기존 주문의 backfill이나 실제 지급은 이 SQL·정산 생성 API에 포함되지 않는다.

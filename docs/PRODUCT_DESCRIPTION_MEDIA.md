@@ -1,6 +1,6 @@
 # 상품 상세 콘텐츠 미디어
 
-> 기준: 현재 StorageProvider/S3/MinIO, Product description LONGTEXT 및 Tiptap 3 구조.
+> 기준: 현재 StorageProvider, Production AWS S3, 로컬 MinIO, Product description LONGTEXT 및 Tiptap 3 구조.
 > 운영 DB migration과 S3 object 복사/삭제는 이 작업에서 실행하지 않는다.
 
 ## 기존 이미지 문제와 확인 범위
@@ -34,7 +34,8 @@
 | PRODUCT_GALLERY | 20MB | 위와 동일 / 기존 gallery key, 최대 10장 유지 |
 | PRODUCT_CONTENT | 20MB | 위와 동일 / products/{sellerId}/content/{uuid}.{ext}, 한 번에 최대 20장 유지 |
 | PRODUCT_CONTENT_VIDEO | 50MB | MIME video/mp4 + 확장자 mp4 / products/{sellerId}/content/video/{uuid}.mp4 |
-| PROFILE, REVIEW, RETURN_EVIDENCE, EXCHANGE_EVIDENCE, BANNER | 기존 5MB | 기존 타입별 형식 제한 유지 |
+| PROFILE, REVIEW, RETURN_EVIDENCE, EXCHANGE_EVIDENCE, BANNER, STORE_LOGO | 5MB | 기존 타입별 이미지 형식 제한 유지 |
+| STORE_BANNER | 10MB | 기존 타입별 이미지 형식 제한 유지 |
 
 크기는 1MB = 1024 × 1024 bytes 기준이다. 동영상은 description당 최대 3개이며 프론트 삽입/붙여넣기 transaction과 Backend sanitizer가 모두 제한한다. 동영상만 있는 description도 콘텐츠로 유지한다.
 
@@ -43,7 +44,7 @@
 ```text
 파일 선택 → Frontend 형식/크기/영상 개수 검사
 → /api/storage/presigned-url → Storage Provider의 presigned PUT URL
-→ 브라우저에서 S3/MinIO direct PUT → 에디터에 key 삽입
+→ 브라우저에서 현재 Storage Provider로 direct PUT → 에디터에 key 삽입
 → 상품 저장 → Backend sanitizer → description HTML 저장
 → 구매자/판매자 상세에서 현재 Storage URL로 렌더링
 ```
@@ -99,7 +100,7 @@ Frontend는 기존 `fetch(url, { method: "PUT", headers: { "Content-Type": file.
 
 서명은 MIME 헤더 변조를 막지만 동일 크기의 다른 내용이나 잘못된 파일 형식까지 판별하지 않는다. 별도의 credential/public write 권한으로 업로드하는 경로는 이 URL 정책의 적용 대상이 아니므로 버킷은 익명 쓰기를 허용하면 안 된다. 배포 이전 발급 URL에는 제약이 소급 적용되지 않으며 기존 300초 만료까지 남을 수 있다.
 
-### 배포 전 수동 검증
+### Storage 정책 변경 시 수동 검증
 
 전용 테스트 key/버킷에서 확인하며 URL·credential을 로그/문서에 기록하지 않는다.
 

@@ -1,5 +1,5 @@
 -- Exchange 1 수동 적용용 MySQL DDL.
--- 운영 반영 전에는 versioned migration 도구로 옮겨 검증한다.
+-- 현재 운영은 versioned migration 도구가 없으므로 스키마·백업을 확인한 뒤 수동 적용하고 ddl-auto=validate로 검증한다.
 
 ALTER TABLE order_items
     ADD COLUMN exchanged_quantity INT NULL AFTER returned_quantity;

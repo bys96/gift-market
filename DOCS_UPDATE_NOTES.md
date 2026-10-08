@@ -1,4 +1,35 @@
-# 2026-08-28 문서 동기화 기록 (보관)
+# 문서 동기화 기록
+
+## 2026-10-08 문서 동기화
+
+> 기준: 현재 저장소의 Backend/Frontend 코드, 안전한 example 설정, 수동 SQL과 사용자가 제공한 AWS Production 운영 현황. 실제 `.env`, credential, secret, token, key 값은 확인하지 않았다.
+
+### 변경 문서와 이유
+
+- `README.md`: 현재 기능·기술 스택과 Vercel → AWS EC2/Nginx → Spring Boot/MySQL, AWS S3 운영 구조로 갱신
+- `docs/DEVELOPMENT_STATUS.md`: Notification, Settlement v1, SellerStore, 회원 탈퇴, SUPER_ADMIN을 완료 상태로 정리하고 AWS 운영·DB 백업 미완료 상태 반영
+- `docs/ROADMAP.md`: Gift Occasion, 메인·추천, 쿠폰·포인트, Payout, Settlement Scheduler, Seller Review 답글과 운영 과제를 미구현 범위로 정리
+- `docs/*_DESIGN.md`: Storage Provider/Production S3 표현, 현재 운영 회귀 기준, `ADMIN`/`SUPER_ADMIN` 권한과 실제 enum 명칭 보정
+- `docs/TROUBLESHOOTING.md`: Render/Aiven을 과거 이력으로 명확히 하고 AWS EC2·MySQL·Nginx·HTTPS·Vercel proxy 이전의 재현 가능한 핵심 내용을 추가
+- `docs/sql/*.sql`: 현재 인프라와 무관한 Render 전용 rollout 표현을 일반적인 구버전 인스턴스 종료 조건으로 보정
+
+### 코드 대조에서 확인한 핵심
+
+- Settlement는 `SellerOrder → SettlementLedgerEntry → Settlement` 계산·관리까지 구현됐고 실제 Payout과 Scheduler는 없다.
+- Storage object key는 `profiles/{userId}`, `products/{sellerId}`, `returns/{userId}`, `exchanges/{userId}`, `reviews/{userId}`, `stores/{sellerId}` 계열이며 DB에는 key를 저장하고 presigned URL은 저장하지 않는다.
+- Gift Occasion 및 Seller Review 답글 구현은 없다.
+- 관리자 공통 API는 `ADMIN`과 `SUPER_ADMIN`을 허용하고, 관리자 권한 부여·회수 API만 `SUPER_ADMIN` 전용이다.
+
+### 2026-10-08 회귀 검증
+
+- Backend: **959 tests / 959 success**
+- Frontend lint: 성공
+- Frontend `npx tsc --noEmit`: 성공
+- Frontend production build: 성공 (build 출력 기준 50 routes)
+
+---
+
+## 2026-08-28 문서 동기화 기록 (보관)
 
 > 기록일: 2026-08-28. 이 파일은 당시 작업 이력이며 현재 구현 현황 문서가 아니다. 현재 상태는 `docs/DEVELOPMENT_STATUS.md`와 실제 코드를 우선한다.
 >

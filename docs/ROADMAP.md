@@ -4,11 +4,16 @@
 
 ## 다음 우선순위
 
+- Gift Occasion / 선물 상황 taxonomy 설계
+  - 생일, 감사, 축하, 집들이, 결혼, 출산, 응원 등
+  - 현재 Product에는 일반 Category만 있으며 Gift Occasion Entity/API/UI는 없음
+  - Product와 다대다 관계를 후보로 두되 검색·운영 정책을 먼저 설계
 - 메인 페이지 고도화와 상품 탐색 API 설계
   - 최근 순판매수량 기반 인기상품
   - 찜·리뷰 기반 상품 노출
   - 카테고리별 인기상품
   - 같은 카테고리 추천
+- 쿠폰·포인트 도메인 설계
 - Settlement 자동 생성 Scheduler
   - 기존 `SettlementGenerationService` 재사용
   - 계산 로직을 Scheduler에 중복 구현하지 않음
@@ -20,10 +25,6 @@
 ### 상품 탐색·추천
 
 - 함께 구매한 상품: 현재 `OrderItem` 관계로 계산 가능하지만 데이터량과 self-join 비용을 확인한 뒤 도입
-- Gift Occasion 분류
-  - 생일, 감사, 축하, 집들이, 결혼, 출산, 응원 등
-  - 현재 Product에는 일반 Category만 있으며 Gift Occasion Entity/API/UI는 없음
-  - Product와 다대다 관계를 후보로 두되 검색·운영 정책을 먼저 설계
 
 ### 혜택
 
@@ -63,7 +64,9 @@ Settlement와 별도 도메인으로 구현한다.
 
 - Flyway/Liquibase 등 versioned DB migration 도입
 - observability: 구조화 로그, metric, tracing, alert
-- DB·object storage backup/recovery와 복구 훈련
-- S3/MinIO orphan object 탐지·정리
+- EC2 MySQL 자동 백업: `mysqldump → 압축 → S3 → retention`
+- DB restore 절차 작성·정기 복구 검증
+- object storage backup/recovery 정책 검토
+- S3 orphan object 탐지·정리
 - 운영 runbook과 장애 대응 절차 보강
 - 상품 랭킹 트래픽 증가 시 캐시 또는 기간별 집계 테이블 검토

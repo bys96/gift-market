@@ -6,7 +6,7 @@
 -- 선행 조건:
 -- 1. seller-stores-add-customer-service-details.sql 적용 완료.
 -- 2. 새 Backend/Frontend 배포 후 GET/PATCH, 새 고객센터 필드, 이미지 업로드 확인.
--- 3. 구버전 Render/blue-green 인스턴스 및 진행 요청 완전 종료, 롤백 대기 기간 종료.
+-- 3. 구버전/blue-green 애플리케이션 인스턴스 및 진행 요청 완전 종료, 롤백 대기 기간 종료.
 -- 4. 기존 자유 형식 값의 백업 및 필요한 수동 이전/폐기 검토 완료.
 -- 트래픽 전환만으로 구버전 종료를 가정하지 않는다.
 -- DROP 후 구버전 롤백 시 먼저 기존 nullable VARCHAR(255) 컬럼/데이터를 복원해야 한다.

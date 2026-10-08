@@ -75,12 +75,12 @@ Order
 - 판매자 cancellation 관리 UI
 - 누적 환불액/결제잔액 표시
 
-미완료:
+남은 운영 보강:
 
-- 공개 staging 실제 부분취소/webhook 최종 통합 검증
+- 배포·결제 설정 변경 시 실제 부분취소/webhook 회귀와 timeout/5xx 장애 주입 E2E
 - 운영자 FAILED/장기 PROCESSING 관측 및 수동 대응
 
-Return/Exchange는 별도 도메인으로 구현 완료됐으며 Cancellation의 미완료 범위가 아니다.
+Return/Exchange는 별도 도메인으로 구현 완료됐으며 Cancellation의 남은 구현 범위가 아니다.
 
 ## 4. 사용자 정책
 
@@ -560,9 +560,9 @@ SellerOrder 1 : N Shipment
 - 기존 FULL 취소 회귀
 - 구매확정 수량 취소 차단 및 구매확정/취소 동시성 회귀
 
-## 29. 운영 전 필수 검증
+## 29. 운영 회귀 체크리스트
 
-실제 공개 staging에서 반드시 확인:
+Production의 AWS 이전 후 Toss 연결과 HTTPS webhook endpoint는 확인했다. 배포 또는 결제 변경 시 다음을 다시 확인한다.
 
 - 상점용 Toss test client/secret key
 - HTTPS webhook
@@ -586,9 +586,9 @@ Cancellation 자체의 핵심 기능은 구현 완료 상태다.
 
 다음 별도 범위:
 
-1. 운영 staging 최종 검증
+1. 배포 후 결제·부분취소 회귀와 timeout/5xx 장애 주입 E2E
 2. FAILED/장기 PROCESSING 관리자 관측/수동 대응
-3. Return/Exchange를 포함한 공개 staging 회귀 검증
+3. Return/Exchange를 포함한 공개 환경 회귀 검증
 4. 관리자 주문/결제 운영 기능
 
 기존 부분취소 코드를 “미구현” 전제로 다시 만들지 않는다.

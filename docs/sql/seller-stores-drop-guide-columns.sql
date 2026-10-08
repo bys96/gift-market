@@ -10,7 +10,7 @@
 --    Entity에 없는 여분 DB 컬럼은 일반 Hibernate schema validation 대상이 아니다.
 --    저장소 application-example.yaml은 ${JPA_DDL_AUTO:update}를 사용하므로
 --    운영 설정이 validate인지 배포 설정에서 확인한다. Secret 출력은 하지 않는다.
--- 2. blue/green 전환 완료 후 구버전 Render 인스턴스와 진행 중 요청을 모두 종료한다.
+-- 2. blue/green 전환 완료 후 구버전 애플리케이션 인스턴스와 진행 중 요청을 모두 종료한다.
 --    트래픽 전환만으로 충분하지 않다. 구버전 worker/예약 작업/재시작 가능성도 확인한다.
 -- 3. 새 버전 안정화와 구버전 롤백 대기 기간을 마친 뒤 백업하고 아래 DROP 실행.
 -- 4. 적용 후 metadata 조회와 새 버전 GET/PATCH, validate 기동 확인.

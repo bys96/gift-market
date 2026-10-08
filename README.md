@@ -8,7 +8,7 @@ Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 
 ## Links
 
 - **Service**: https://gift-market-test.vercel.app
-- **Backend API**: https://gift-market-api.onrender.com
+- **Backend API**: Vercel same-origin rewrite를 통해 AWS Backend로 연결
 - **Repository**: https://github.com/bys96/gift-market
 
 > 현재 배포 환경은 포트폴리오 및 기능 검증을 위한 테스트 환경입니다.
@@ -33,50 +33,6 @@ Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 
 
 ---
 
-## Screenshots
-
-<!--
-촬영 순서 / 파일명
-1. 01-home.png                메인 Hero + 상품 목록
-2. 02-product-detail.png      상품 이미지 + 옵션 + 가격 + 구매 영역
-3. 03-checkout-payment.png    배송지 + Toss Payments 결제 UI
-4. 04-buyer-order-detail.png  주문/배송/취소·반품·교환 상태
-5. 05-seller-dashboard.png    Seller Center 주문 관리
-6. 06-seller-settlement.png   판매자 정산 요약 + 목록
-7. 07-admin-dashboard.png     Admin Dashboard / Action Center
-8. 08-admin-settlement.png    관리자 정산 관리
-
-같은 상품/주문을 사용해 구매자 → 판매자 → 관리자 흐름이 이어져 보이게 촬영합니다.
-개인정보, 주소, 결제키 등 식별정보는 노출하지 않습니다.
-이미지는 docs/images/readme/ 에 저장합니다.
--->
-
-### Buyer Flow
-
-| 메인                                                       | 상품 상세                                                                 |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------- |
-| ![Gift Market 메인 화면](./docs/images/readme/01-home.png) | ![Gift Market 상품 상세 화면](./docs/images/readme/02-product-detail.png) |
-| 상품 탐색                                                  | 옵션·재고·배송 정보 기반 구매                                             |
-
-| 주문·결제                                                                 | 주문 상세                                                                       |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| ![Gift Market 주문 및 결제](./docs/images/readme/03-checkout-payment.png) | ![Gift Market 구매자 주문 상세](./docs/images/readme/04-buyer-order-detail.png) |
-| Toss Payments 결제                                                        | 배송·취소·반품·교환 상태 확인                                                   |
-
-### Seller / Admin
-
-| Seller Center                                                              | 판매자 정산                                                               |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| ![Gift Market Seller Center](./docs/images/readme/05-seller-dashboard.png) | ![Gift Market 판매자 정산](./docs/images/readme/06-seller-settlement.png) |
-| 주문·상품·클레임 운영                                                      | Ledger 기반 정산 조회                                                     |
-
-| Admin Center                                                             | 관리자 정산                                                              |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| ![Gift Market Admin Center](./docs/images/readme/07-admin-dashboard.png) | ![Gift Market 관리자 정산](./docs/images/readme/08-admin-settlement.png) |
-| 플랫폼 운영 현황                                                         | 정산 생성·보류·확정 관리                                                 |
-
----
-
 ## Main Features
 
 ### 인증 / 사용자
@@ -85,11 +41,12 @@ Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 
 - JWT Access Token + HttpOnly Refresh Token
 - Refresh Token Rotation 및 동시 갱신 제어
 - 프로필 / 배송지 / 회원 탈퇴·익명화
-- `USER / SELLER / ADMIN` 역할 분리
+- `USER / SELLER / ADMIN / SUPER_ADMIN` 역할 분리
 
 ### 상품 / 판매자
 
 - 판매자 신청 및 관리자 승인·거절
+- `SellerStore` 상점 정보·로고·배너·고객센터 설정
 - 상품 / 옵션 그룹 / Variant / 옵션별 재고 관리
 - S3 Presigned URL 기반 이미지·동영상 업로드
 - Tiptap 기반 상품 상세 편집
@@ -117,17 +74,23 @@ Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 
 
 > 현재 Settlement는 **정산 금액 확정**까지 담당하며 실제 판매자 계좌 지급(Payout)은 후속 도메인으로 계획하고 있습니다.
 
+### Seller / Admin 운영
+
+- Seller Center의 상품·주문·배송·취소·반품·교환·문의·알림·정산 관리
+- Admin Center의 회원·판매자·상품 제재, 거래 조회, 판매자 신청, 알림·정산 관리
+- `SUPER_ADMIN` 전용 관리자 권한 부여·회수와 변경 이력
+
 ---
 
 ## Tech Stack
 
 | 영역               | 기술                                                                          |
 | ------------------ | ----------------------------------------------------------------------------- |
-| Frontend           | Next.js 16, React 19, TypeScript, Zustand, Tailwind CSS 4, Tiptap 3           |
+| Frontend           | Next.js 16, React 19, TypeScript, Zustand, 일반 CSS, Tiptap 3                 |
 | Backend            | Java 21, Spring Boot 4, Spring Security, OAuth2 Client, Spring Data JPA, JJWT |
-| Database / Storage | MySQL, H2(Test), Amazon S3, MinIO                                             |
+| Database / Storage | MySQL 8.4, H2(Test), Amazon S3(Production), MinIO(Local)                      |
 | External           | Toss Payments, Google OAuth, Kakao OAuth                                      |
-| Infra              | Vercel, Render, Docker                                                        |
+| Infra              | Vercel, AWS EC2, Nginx, Docker, EBS                                          |
 
 ---
 
@@ -137,19 +100,23 @@ Gift Market은 카카오톡 선물하기와 오픈마켓의 서비스 흐름을 
 flowchart LR
     USER[Browser]
     FE[Next.js / Vercel]
-    BE[Spring Boot API / Render]
-    DB[(MySQL)]
-    STORAGE[(S3 / MinIO)]
+    BE[Nginx HTTPS / AWS EC2]
+    APP[Spring Boot Docker / 127.0.0.1:8080]
+    DB[(MySQL 8.4 Docker / EBS)]
+    STORAGE[(AWS S3)]
     TOSS[Toss Payments]
     OAUTH[Google / Kakao]
 
     USER --> FE
     FE -->|same-origin rewrite| BE
-    BE --> DB
-    BE --> STORAGE
-    BE --> TOSS
-    BE --> OAUTH
+    BE --> APP
+    APP --> DB
+    APP --> STORAGE
+    APP --> TOSS
+    APP --> OAUTH
 ```
+
+Production은 Vercel의 `/api`, `/oauth2`, `/login/oauth2` rewrite를 유지해 브라우저 요청을 same-origin으로 처리합니다. Nginx가 HTTPS termination과 HTTP redirect를 담당하고 Spring Boot `8080`은 host loopback에만, MySQL `3306`은 Docker internal network에만 노출됩니다. MySQL 데이터는 Docker named volume/EBS에 영속되며 Production Hibernate는 `ddl-auto=validate`와 검토된 수동 SQL을 사용합니다. 자동 DB 백업과 versioned migration은 아직 후속 과제입니다.
 
 ### 거래 구조
 
@@ -261,7 +228,7 @@ READY → CONFIRMING → PAID
 - **해결**: JVM `Asia/Seoul`, JDBC `connectionTimeZone=+09:00`, Session timezone 강제 적용
 - **결과**: PG timestamp와 애플리케이션 생성 시각을 동일한 KST 기준으로 통일
 
-> 수수료 절삭 오차, Render Startup 개선 등 추가 사례는 [`docs/TROUBLESHOOTING.md`](./docs/TROUBLESHOOTING.md)에 정리했습니다.
+> 수수료 절삭 오차, AWS 이전, 과거 Render Startup 개선 등 추가 사례는 [`docs/TROUBLESHOOTING.md`](./docs/TROUBLESHOOTING.md)에 정리했습니다.
 
 ---
 
@@ -284,8 +251,11 @@ cd giftmarket-api
 # Frontend
 cd ../giftmarket-web
 npm run lint
-node --test tests/*.test.mjs
+npx tsc --noEmit
+npm run build
 ```
+
+2026-10-08 전체 회귀에서는 Backend 959/959, Frontend lint·TypeScript·production build가 모두 성공했습니다. 테스트 수와 route 수는 변경될 수 있으므로 최신 실행 결과를 우선합니다.
 
 ---
 
@@ -304,7 +274,7 @@ gift-market
 │       ├── notification
 │       ├── admin
 │       └── global
-│           └── storage     # S3 / MinIO abstraction
+│           └── storage     # AWS S3 / local MinIO abstraction
 │
 ├── giftmarket-web
 │   ├── app                 # buyer / seller / admin routes
@@ -338,7 +308,7 @@ gift-market
 
 ### Backend
 
-Java 21, MySQL이 필요합니다. 로컬 Object Storage는 MinIO를 사용할 수 있습니다.
+Java 21, MySQL이 필요합니다. 로컬 Object Storage는 MinIO를 사용할 수 있고 Production은 AWS S3를 사용합니다.
 
 ```bash
 git clone https://github.com/bys96/gift-market.git
@@ -386,13 +356,13 @@ NEXT_PUBLIC_TOSS_CLIENT_KEY=...
 - 상품·재고 / 주문·결제·배송 / 취소·반품·교환
 - Seller Center / Admin Center / Notification / Settlement
 - S3·MinIO Storage / Toss Payments 연동
-- Next.js Frontend 및 Vercel·Render 배포
+- Vercel Frontend와 AWS EC2·Nginx·Docker 기반 Backend/MySQL 운영
 
 ---
 
 ## Roadmap
 
-향후 상품 탐색 고도화, Settlement 자동 생성 Scheduler, Payout 도메인, Versioned DB Migration, Monitoring / Alert를 추가할 계획입니다.
+향후 Gift Occasion taxonomy, 메인·상품 추천 고도화, 쿠폰·포인트, Seller Review 답글, Settlement Scheduler, Payout, Versioned DB Migration, observability와 DB 자동 백업을 추가할 계획입니다.
 
 자세한 내용은 [`docs/ROADMAP.md`](./docs/ROADMAP.md)를 참고합니다.
 

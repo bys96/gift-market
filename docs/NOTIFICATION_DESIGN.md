@@ -86,7 +86,7 @@ Notification
 
 - BUYER API는 인증 사용자의 BUYER context만 조회한다.
 - SELLER API는 `NotificationService`에서 인증 사용자에게 속한 Seller row를 확인하고 `ACTIVE`, `SALES_SUSPENDED`만 허용한다. `SUSPENDED`, `WITHDRAWN`은 차단한다.
-- ADMIN API는 Security의 `ROLE_ADMIN`과 Service의 ADMIN role을 모두 확인한다.
+- ADMIN API는 Security와 Service에서 `ADMIN` 또는 `SUPER_ADMIN` role을 확인한다.
 - 개별 읽음은 `notificationId + userId + context`를 동시에 조건으로 조회한다.
 - 다른 사용자나 다른 context의 알림은 존재 여부를 노출하지 않고 동일하게 404로 처리한다.
 

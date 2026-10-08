@@ -600,11 +600,11 @@ giftmarket-web/app/payment/fail/page.tsx
 - `ExchangePaymentExpirationService.java`
 - `ExchangePaymentExpirationTransactionService.java`
 
-## 30. 운영 전 최종 통합 검증
+## 30. 운영 통합 회귀 체크리스트
 
-아래는 실제 staging에서 완료 전까지 TODO다.
+AWS 이전 후 Production HTTPS, Toss 결제 연결과 기존 webhook endpoint는 정상 확인했다. 아래는 배포·결제 설정 변경 시 다시 확인할 회귀 체크리스트이며 timeout/5xx 등 장애 주입 항목은 계속 운영 검증 대상으로 둔다.
 
-- 공개 HTTPS staging
+- 공개 HTTPS 환경
 - 상점용 Toss test key
 - 실제 결제
 - PAYMENT_STATUS_CHANGED webhook
@@ -623,7 +623,7 @@ giftmarket-web/app/payment/fail/page.tsx
 - Payment PARTIALLY_CANCELED / CANCELED 잔액 검증
 - 재고 1회 복원
 - Cart 정합성
-- 운영키 전환 전 전체 회귀
+- 결제 설정 변경 전 전체 회귀
 
 ## 31. 결제 확장 및 남은 운영 과제
 

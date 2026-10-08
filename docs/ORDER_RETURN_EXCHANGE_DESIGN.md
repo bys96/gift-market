@@ -35,7 +35,7 @@ SHIPPED 이후 기존 주문취소와 분리하여, DELIVERED 된 SellerOrder에
 - 반품은 판매자 회수/검수 후 환불한다.
 - 반품 요청/승인 시점에는 판매 가능 재고를 복원하지 않는다.
 - 반품 증빙 이미지는 모든 사유에서 선택사항이며 0~5장을 허용한다.
-- 증빙 이미지는 MinIO presigned URL로 직접 업로드하고 DB에는 objectKey와 sortOrder만 저장한다.
+- 증빙 이미지는 Storage Provider의 presigned URL로 직접 업로드하고 DB에는 objectKey와 sortOrder만 저장한다. Production Provider는 AWS S3이고 로컬 개발에서는 MinIO를 사용할 수 있다.
 - `ReturnRequest 1:N ReturnRequestImage`로만 확장하며 이미지 유무는 상태 전이·환불·재고복원에 영향을 주지 않는다.
 - Buyer/Seller 소유권 확인 후 만료되는 presigned GET URL을 응답하고 기존 반품은 `images=[]`로 조회한다.
 - Exchange 증빙 이미지는 `ExchangeRequest 1:N ExchangeRequestImage`로 구현했으며, Return과 동일하게 0~5장 optional 검증, `exchanges/{userId}/` prefix, presigned 업로드/조회 Backend가 구현되어 있다.
@@ -1020,7 +1020,7 @@ ExchangeRequest
 기본값은 원 주문 배송지이며 현재 DTO/Entity는 구매자의 회수지와 재배송지를 별도 snapshot으로 저장한다.
 배송지 원본 Address Entity FK만 저장하지 않고 요청 당시 문자열 snapshot을 보존한다.
 
-교환 증빙 이미지는 `ExchangeRequest 1:N ExchangeRequestImage`로 둔다. Return과 동일하게 모든 사유에서 0~5장 optional이며 MinIO presigned PUT으로 직접 업로드하고 DB에는 objectKey와 순서만 저장한다. 조회 권한 확인 후 presigned GET URL을 응답하며 URL 자체는 저장하지 않는다. 이번 Exchange 구현에서 `ReturnRequestImage`를 공용 `ClaimImage`로 리팩토링하지 않는다.
+교환 증빙 이미지는 `ExchangeRequest 1:N ExchangeRequestImage`로 둔다. Return과 동일하게 모든 사유에서 0~5장 optional이며 현재 Storage Provider의 presigned PUT으로 직접 업로드하고 DB에는 objectKey와 순서만 저장한다. Production은 AWS S3를 사용한다. 조회 권한 확인 후 presigned GET URL을 응답하며 URL 자체는 저장하지 않는다. 이번 Exchange 구현에서 `ReturnRequestImage`를 공용 `ClaimImage`로 리팩토링하지 않는다.
 
 교환 사유와 귀책은 ReturnReason/Responsibility와 같은 개념을 별도 Exchange 도메인에 적용한다. 귀책은 `BUYER / SELLER`이며 `OTHER`는 판매자 승인 시 확정한다. 이미지 유무는 귀책 판정이나 승인 가능 조건이 아니다.
 
@@ -1595,12 +1595,12 @@ Shipment 핵심 테스트:
 - timeout/5xx 결과 불명 복구
 - webhook 중복
 
-## 33. 운영 전 최종 통합 검증 TODO
+## 33. 운영 회귀 체크리스트
 
-기존 TODO를 유지하며 반품/교환을 추가한다.
+Production 결제·OAuth·기본 주문 연결은 AWS 이전 후 확인했다. 아래 항목은 배포 또는 관련 코드 변경 시 다시 확인할 회귀 체크리스트이며, 장애 주입이 필요한 항목은 별도 운영 TODO다.
 
 - 실제 Toss 상점용 test key
-- 공개 HTTPS staging
+- 공개 HTTPS 환경
 - 결제
 - webhook
 - 중복 webhook
@@ -1629,7 +1629,7 @@ Shipment 핵심 테스트:
 - 상품상세/정책 페이지에 교환배송비와 추가결제 24시간 기한 고지
 - 가격 차이 Variant 및 다른 Product 교환 불가 고지
 - 회수→입고→검수→재배송 교환 절차 고지
-- 운영 키 전환 전 전체 회귀
+- 결제 설정 변경 전 전체 회귀
 
 ## 34. 최종 확정 사항
 
@@ -1671,7 +1671,7 @@ Shipment 핵심 테스트:
 ```
 
 Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증, Return Backend 1~7, Buyer/Seller Return Frontend, Return 증빙 이미지와 실제 Return 정상 E2E까지 완료됐다.
-Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 만료 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환의 과거 정상 E2E 기록이 있으며, SELLER 귀책 및 실제 timeout/5xx 장애 E2E와 공개 환경 검증은 별도로 확인해야 한다.
+Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 만료 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환의 과거 정상 E2E 기록이 있으며, SELLER 귀책 및 실제 timeout/5xx 장애 주입 E2E는 별도 회귀 범위다.
 # 구매확정과 반품·교환 수량
 
 - 구매확정은 `OrderItem.confirmedQuantity` 단위로 관리한다.
