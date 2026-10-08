@@ -64,8 +64,6 @@ Settlement와 별도 도메인으로 구현한다.
 
 - Flyway/Liquibase 등 versioned DB migration 도입
 - observability: 구조화 로그, metric, tracing, alert
-- EC2 MySQL 자동 백업: `mysqldump → 압축 → S3 → retention`
-- DB restore 절차 작성·정기 복구 검증
 - object storage backup/recovery 정책 검토
 - S3 orphan object 탐지·정리
 - 운영 runbook과 장애 대응 절차 보강

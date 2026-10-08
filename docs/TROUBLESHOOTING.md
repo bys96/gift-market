@@ -813,9 +813,38 @@ OAuth Provider → Vercel /login/oauth2/... → rewrite → AWS Spring Boot
 
 `t4g.small`의 제한된 메모리에서 Spring Boot image build, 애플리케이션, MySQL이 동시에 메모리를 사용한다. swap을 보조 안전망으로 구성해 순간적인 메모리 압박과 OOM 위험을 낮췄다. swap은 메모리 누수나 과도한 heap 설정의 해결책이 아니므로 컨테이너 메모리와 swap 사용량을 함께 관측해야 한다.
 
-## 남은 운영 과제
+## EC2 MySQL 자동 백업과 restore 검증
 
-MySQL 데이터는 named volume/EBS에 영속되지만 S3 자동 DB 백업은 아직 설정하지 않았다. `mysqldump → 압축 → S3 → retention` 자동화, 실패 알림, 복원 절차 문서화와 실제 restore 검증이 필요하다. EBS 영속성만으로 백업·복구 체계가 완료됐다고 판단하지 않는다.
+### 문제와 목표
+
+Docker named volume/EBS는 인스턴스 내 데이터 영속성을 제공하지만, 운영자 실수·파일시스템 손상·인스턴스 장애에 대비한 별도 DB backup은 아니다. 운영 DB에 영향을 주지 않는 자동 dump와 실제 복원 가능성 검증이 필요했다.
+
+### 현재 적용 구조
+
+- `/home/ubuntu/gift-market-deploy/scripts/backup-mysql.sh`가 운영 MySQL 8.4 컨테이너 `giftmarket-mysql`에서 `mysqldump`를 실행한다.
+- dump를 gzip으로 압축해 private S3 bucket `gift-market-storage`의 `backups/mysql/` prefix에 업로드한다.
+- S3 upload가 완료된 뒤 EC2의 임시 backup 파일을 삭제한다. 운영 credential이나 password는 스크립트 경로·로그·문서에 기록하지 않는다.
+- `/etc/systemd/system/gift-market-db-backup.service`와 `/etc/systemd/system/gift-market-db-backup.timer`가 매일 04:00 Asia/Seoul에 실행하며 timer는 `Persistent=true`다.
+- EC2 자체 timezone이 UTC이므로 systemd의 다음 실행 시각 `19:00 UTC`는 다음날 `04:00 KST`와 같다.
+- S3 Lifecycle은 `backups/mysql/` 현재 객체 버전을 생성 14일 뒤 만료한다. 상품 이미지 등 다른 prefix에는 이 lifecycle을 적용하지 않는다.
+
+### IAM 최소 권한
+
+EC2 Instance Profile `gift-market-ec2-ssm-role`에 `GiftMarketDatabaseBackupPolicy`를 연결했다.
+
+- `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`는 `arn:aws:s3:::gift-market-storage/backups/mysql/*`로 제한한다.
+- `s3:ListBucket`은 bucket 전체 object 관리가 아니라 `backups/mysql`, `backups/mysql/*` prefix 조건으로 제한한다.
+- 상품 이미지 등 다른 S3 object 영역에는 DB backup 관리 권한을 확장하지 않는다.
+
+### 실제 검증
+
+- 수동 backup 실행과 `giftmarket-2026-10-08-073431.sql.gz` 형식의 object 생성을 확인했다.
+- S3 upload/download와 `gzip -t` 검증이 성공했다.
+- 운영 DB를 수정하지 않고 별도 임시 MySQL 8.4 컨테이너에 restore했다.
+- 복원 결과는 tables 41, users 7, products 15, orders 44, payments 37이었다.
+- 검증 후 임시 restore 컨테이너와 EC2 테스트 backup 파일을 삭제했다.
+
+따라서 현재 구성은 backup 파일 생성뿐 아니라 실제 restore 가능성까지 확인된 상태다. 향후 실패 감지·경보는 공통 observability 과제와 함께 관리한다.
 
 # 과거 검증 메모 (현재 결과 아님)
 

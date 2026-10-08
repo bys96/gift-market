@@ -162,7 +162,11 @@ Settlement 1:N SettlementLedgerEntry (settlement_id nullable)
 - production은 수동 DDL 선적용 후 `ddl-auto=validate`로 검증한다. `docs/sql/*.sql`은 자동 migration이 아니다.
 - 개발 example의 기본 `JPA_DDL_AUTO`는 `update`이므로 production 설정과 혼동하지 않는다.
 - 시간 정책은 `LocalDateTime + MySQL DATETIME(6)` KST wall-clock이다. 운영 JVM은 `-Duser.timezone=Asia/Seoul`, JDBC는 `connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true`를 사용하며 Hibernate `jdbc.time_zone`은 추가하지 않는다.
-- EC2 MySQL은 EBS에 영속되지만 S3 자동 DB 백업은 아직 없다. `mysqldump → 압축 → S3 → retention` 자동화와 restore 절차 검증은 운영 TODO다.
+- 운영 MySQL 컨테이너 `giftmarket-mysql`은 `/home/ubuntu/gift-market-deploy/scripts/backup-mysql.sh`로 매일 04:00 KST에 자동 백업한다. systemd service/timer에 `Persistent=true`를 적용해 누락된 실행을 보완한다.
+- 백업은 컨테이너에서 `mysqldump`를 수행하고 gzip 압축한 뒤 private S3 bucket의 `backups/mysql/` prefix에 업로드한다. 업로드 성공 후 EC2 임시 파일을 삭제한다.
+- S3 Lifecycle은 `backups/mysql/`의 현재 객체 버전을 생성 14일 후 만료해 rolling 14-day retention을 유지한다. 상품 이미지 등 다른 object prefix에는 이 규칙을 적용하지 않는다.
+- EC2 Instance Profile의 backup policy는 `backups/mysql/`에 대한 object Put/Get/Delete와 해당 prefix의 ListBucket으로 한정하며 다른 S3 object 영역의 관리 권한을 포함하지 않는다.
+- 수동 백업, S3 upload/download, `gzip -t`가 성공했다. 운영 DB를 변경하지 않고 별도 임시 MySQL 8.4 컨테이너에 복원해 41개 table과 주요 데이터 row를 확인한 뒤 임시 자원을 삭제했다.
 - 과거 Render/Aiven 환경은 현재 운영 기준이 아니며 이전 이력과 당시 문제 해결 기록만 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)에 보존한다.
 
 ## 5. 최신 회귀 검증

@@ -7,7 +7,7 @@
 ### 변경 문서와 이유
 
 - `README.md`: 현재 기능·기술 스택과 Vercel → AWS EC2/Nginx → Spring Boot/MySQL, AWS S3 운영 구조로 갱신
-- `docs/DEVELOPMENT_STATUS.md`: Notification, Settlement v1, SellerStore, 회원 탈퇴, SUPER_ADMIN을 완료 상태로 정리하고 AWS 운영·DB 백업 미완료 상태 반영
+- `docs/DEVELOPMENT_STATUS.md`: Notification, Settlement v1, SellerStore, 회원 탈퇴, SUPER_ADMIN과 AWS 운영 상태 반영
 - `docs/ROADMAP.md`: Gift Occasion, 메인·추천, 쿠폰·포인트, Payout, Settlement Scheduler, Seller Review 답글과 운영 과제를 미구현 범위로 정리
 - `docs/*_DESIGN.md`: Storage Provider/Production S3 표현, 현재 운영 회귀 기준, `ADMIN`/`SUPER_ADMIN` 권한과 실제 enum 명칭 보정
 - `docs/TROUBLESHOOTING.md`: Render/Aiven을 과거 이력으로 명확히 하고 AWS EC2·MySQL·Nginx·HTTPS·Vercel proxy 이전의 재현 가능한 핵심 내용을 추가
@@ -26,6 +26,14 @@
 - Frontend lint: 성공
 - Frontend `npx tsc --noEmit`: 성공
 - Frontend production build: 성공 (build 출력 기준 50 routes)
+
+### 운영 DB 자동 백업 후속 동기화
+
+- EC2 MySQL의 `mysqldump → gzip → S3` 자동 백업을 구현 완료 상태로 반영
+- systemd 매일 04:00 KST 실행과 `Persistent=true` 기록
+- `backups/mysql/` 전용 IAM 최소 권한과 S3 14일 rolling retention 기록
+- S3 upload/download, `gzip -t`, 별도 MySQL 8.4 컨테이너 restore 검증 완료 기록
+- `ROADMAP.md`에서 DB 자동 백업과 restore 검증 TODO 제거
 
 ---
 

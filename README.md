@@ -116,7 +116,7 @@ flowchart LR
     APP --> OAUTH
 ```
 
-Production은 Vercel의 `/api`, `/oauth2`, `/login/oauth2` rewrite를 유지해 브라우저 요청을 same-origin으로 처리합니다. Nginx가 HTTPS termination과 HTTP redirect를 담당하고 Spring Boot `8080`은 host loopback에만, MySQL `3306`은 Docker internal network에만 노출됩니다. MySQL 데이터는 Docker named volume/EBS에 영속되며 Production Hibernate는 `ddl-auto=validate`와 검토된 수동 SQL을 사용합니다. 자동 DB 백업과 versioned migration은 아직 후속 과제입니다.
+Production은 Vercel의 `/api`, `/oauth2`, `/login/oauth2` rewrite를 유지해 브라우저 요청을 same-origin으로 처리합니다. Nginx가 HTTPS termination과 HTTP redirect를 담당하고 Spring Boot `8080`은 host loopback에만, MySQL `3306`은 Docker internal network에만 노출됩니다. MySQL 데이터는 Docker named volume/EBS에 영속되며 Production Hibernate는 `ddl-auto=validate`와 검토된 수동 SQL을 사용합니다. 운영 DB는 매일 04:00 KST에 gzip dump를 S3 전용 prefix로 백업하고 14일 rolling retention을 적용하며, 별도 MySQL 8.4 컨테이너를 사용한 실제 restore test까지 완료했습니다. Versioned migration은 후속 과제입니다.
 
 ### 거래 구조
 
@@ -362,7 +362,7 @@ NEXT_PUBLIC_TOSS_CLIENT_KEY=...
 
 ## Roadmap
 
-향후 Gift Occasion taxonomy, 메인·상품 추천 고도화, 쿠폰·포인트, Seller Review 답글, Settlement Scheduler, Payout, Versioned DB Migration, observability와 DB 자동 백업을 추가할 계획입니다.
+향후 Gift Occasion taxonomy, 메인·상품 추천 고도화, 쿠폰·포인트, Seller Review 답글, Settlement Scheduler, Payout, Versioned DB Migration과 observability를 추가할 계획입니다.
 
 자세한 내용은 [`docs/ROADMAP.md`](./docs/ROADMAP.md)를 참고합니다.
 
