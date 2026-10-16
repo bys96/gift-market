@@ -22,34 +22,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # TEMPORARY OIDC DIAGNOSTIC: remove this entire step after resolving IAM trust.
-      - name: "[TEMP OIDC DIAGNOSTIC] Print selected token claims"
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const token = await core.getIDToken("sts.amazonaws.com");
-            const encodedPayload = token.split(".")[1];
-
-            if (!encodedPayload) {
-              core.setFailed("GitHub OIDC token payload is missing.");
-              return;
-            }
-
-            const payload = JSON.parse(
-              Buffer.from(encodedPayload, "base64url").toString("utf8")
-            );
-            const selectedClaims = {
-              iss: payload.iss ?? null,
-              aud: payload.aud ?? null,
-              sub: payload.sub ?? null,
-              repository: payload.repository ?? null,
-              ref: payload.ref ?? null,
-              job_workflow_ref: payload.job_workflow_ref ?? null,
-            };
-
-            core.info(JSON.stringify(selectedClaims, null, 2));
-      # END TEMPORARY OIDC DIAGNOSTIC
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
@@ -71,15 +43,75 @@ jobs:
 
           echo "SSM Command ID: ${COMMAND_ID}"
 
-          if ! aws ssm wait command-executed \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${{ vars.AWS_EC2_INSTANCE_ID }}"; then
+          MAX_WAIT_SECONDS=1200
+          POLL_INTERVAL_SECONDS=10
+          START_TIME_SECONDS=${SECONDS}
+          LAST_STATUS="Pending"
 
-            echo "Deployment command failed."
+          print_invocation_logs() {
             aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" \
-              --instance-id "${{ vars.AWS_EC2_INSTANCE_ID }}"
+              --instance-id "${{ vars.AWS_EC2_INSTANCE_ID }}" \
+              --query '{Status:Status,ResponseCode:ResponseCode,Output:StandardOutputContent,Error:StandardErrorContent}' \
+              || true
+          }
 
+          while (( SECONDS - START_TIME_SECONDS < MAX_WAIT_SECONDS )); do
+            if CURRENT_STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${{ vars.AWS_EC2_INSTANCE_ID }}" \
+              --query 'Status' \
+              --output text 2>/dev/null); then
+              LAST_STATUS="${CURRENT_STATUS}"
+              echo "SSM command status: ${LAST_STATUS}"
+
+              case "${LAST_STATUS}" in
+                Success)
+                  break
+                  ;;
+                Pending|InProgress|Delayed)
+                  ;;
+                Failed|Cancelled|TimedOut|Cancelling)
+                  echo "Deployment command failed with status: ${LAST_STATUS}"
+                  print_invocation_logs
+                  exit 1
+                  ;;
+                *)
+                  echo "Deployment command returned an unexpected status: ${LAST_STATUS}"
+                  print_invocation_logs
+                  exit 1
+                  ;;
+              esac
+            else
+              echo "SSM command invocation is not available yet. Retrying..."
+            fi
+
+            ELAPSED_SECONDS=$((SECONDS - START_TIME_SECONDS))
+            REMAINING_SECONDS=$((MAX_WAIT_SECONDS - ELAPSED_SECONDS))
+            if (( REMAINING_SECONDS <= 0 )); then
+              break
+            fi
+
+            if (( REMAINING_SECONDS < POLL_INTERVAL_SECONDS )); then
+              sleep "${REMAINING_SECONDS}"
+            else
+              sleep "${POLL_INTERVAL_SECONDS}"
+            fi
+          done
+
+          if [[ "${LAST_STATUS}" != "Success" ]]; then
+            if CURRENT_STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${{ vars.AWS_EC2_INSTANCE_ID }}" \
+              --query 'Status' \
+              --output text 2>/dev/null); then
+              LAST_STATUS="${CURRENT_STATUS}"
+            else
+              LAST_STATUS="Unavailable"
+            fi
+
+            echo "Deployment command exceeded the 20-minute timeout. Current status: ${LAST_STATUS}"
+            print_invocation_logs
             exit 1
           fi
 
