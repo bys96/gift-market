@@ -1,6 +1,7 @@
 name: Deploy API
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -21,6 +22,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # TEMPORARY OIDC DIAGNOSTIC: remove this entire step after resolving IAM trust.
+      - name: "[TEMP OIDC DIAGNOSTIC] Print selected token claims"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken("sts.amazonaws.com");
+            const encodedPayload = token.split(".")[1];
+
+            if (!encodedPayload) {
+              core.setFailed("GitHub OIDC token payload is missing.");
+              return;
+            }
+
+            const payload = JSON.parse(
+              Buffer.from(encodedPayload, "base64url").toString("utf8")
+            );
+            const selectedClaims = {
+              iss: payload.iss ?? null,
+              aud: payload.aud ?? null,
+              sub: payload.sub ?? null,
+              repository: payload.repository ?? null,
+              ref: payload.ref ?? null,
+              job_workflow_ref: payload.job_workflow_ref ?? null,
+            };
+
+            core.info(JSON.stringify(selectedClaims, null, 2));
+      # END TEMPORARY OIDC DIAGNOSTIC
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
