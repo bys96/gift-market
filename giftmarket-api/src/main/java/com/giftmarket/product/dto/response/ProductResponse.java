@@ -45,6 +45,8 @@ public class ProductResponse {
 
     private List<String> galleryImageKeys;
 
+    private List<GiftOccasionResponse> giftOccasions;
+
     private boolean freeShipping;
 
     private Long shippingFee;
@@ -62,6 +64,14 @@ public class ProductResponse {
     public static ProductResponse from(
             Product product,
             List<ProductImage> productImages
+    ) {
+        return from(product, productImages, List.of());
+    }
+
+    public static ProductResponse from(
+            Product product,
+            List<ProductImage> productImages,
+            List<GiftOccasionResponse> giftOccasions
     ) {
         List<String> galleryImageKeys = productImages.stream()
                 .map(ProductImage::getObjectKey)
@@ -86,6 +96,7 @@ public class ProductResponse {
                         product.getRepresentativeImageKey()
                 )
                 .galleryImageKeys(galleryImageKeys)
+                .giftOccasions(giftOccasions)
                 .freeShipping(product.isFreeShipping())
                 .shippingFee(product.getShippingFee())
                 .shippingPreparationDays(

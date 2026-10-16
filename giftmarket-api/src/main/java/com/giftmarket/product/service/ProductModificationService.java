@@ -28,6 +28,7 @@ public class ProductModificationService {
     private final ProductOptionService productOptionService;
     private final ProductVariantService productVariantService;
     private final ProductDraftService productDraftService;
+    private final GiftOccasionService giftOccasionService;
 
     @Transactional
     public ProductResponse modifyProduct(
@@ -59,6 +60,11 @@ public class ProductModificationService {
                 userId,
                 productId,
                 request.options()
+        );
+
+        giftOccasionService.synchronizeProductGiftOccasions(
+                productId,
+                request.normalizedGiftOccasionIds()
         );
 
         ProductOptionResponse savedOptions =

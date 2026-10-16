@@ -33,6 +33,7 @@ public class ProductRegistrationService {
     private final ProductOptionService productOptionService;
     private final ProductVariantService productVariantService;
     private final ProductDraftService productDraftService;
+    private final GiftOccasionService giftOccasionService;
 
     @Transactional
     public ProductRegistrationResponse registerProduct(
@@ -64,6 +65,11 @@ public class ProductRegistrationService {
 
         Long productId =
                 createdProduct.getId();
+
+        giftOccasionService.synchronizeProductGiftOccasions(
+                productId,
+                request.normalizedGiftOccasionIds()
+        );
 
         ProductOptionUpdateRequest optionRequest =
                 request.options();
@@ -110,14 +116,18 @@ public class ProductRegistrationService {
          * 일반 상품이면 ProductCreateRequest의
          * stockQuantity가 그대로 유지됩니다.
          */
-        ProductResponse finalProduct =
-                productService.updateProductStatus(
+        productService.updateProductStatus(
                         userId,
                         productId,
                         new ProductStatusUpdateRequest(
                                 ProductStatus.ON_SALE
                         )
                 );
+
+        ProductResponse finalProduct = productService.getMyProduct(
+                userId,
+                productId
+        );
 
         if (request.draftId() != null) {
             productDraftService.deleteDraft(

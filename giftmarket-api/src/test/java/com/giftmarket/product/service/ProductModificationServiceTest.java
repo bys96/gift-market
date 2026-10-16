@@ -31,6 +31,7 @@ class ProductModificationServiceTest {
     @Mock ProductOptionService productOptionService;
     @Mock ProductVariantService productVariantService;
     @Mock ProductDraftService productDraftService;
+    @Mock GiftOccasionService giftOccasionService;
     @InjectMocks ProductModificationService productModificationService;
 
     @Test

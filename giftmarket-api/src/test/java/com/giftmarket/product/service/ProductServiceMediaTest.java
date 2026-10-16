@@ -61,7 +61,7 @@ class ProductServiceMediaTest {
         ProductService service = new ProductService(products, images, mock(ProductDraftRepository.class),
                 mock(ProductOptionGroupRepository.class), mock(ProductOptionValueRepository.class),
                 mock(ProductVariantRepository.class), mock(ProductVariantOptionValueRepository.class),
-                categories, sellers, new ProductDescriptionSanitizer());
+                categories, sellers, mock(GiftOccasionService.class), new ProductDescriptionSanitizer());
         String representative = "products/12/representative/main.png";
         List<String> gallery = List.of("products/12/gallery/first.png");
         var created = service.createProduct(7L, new ProductCreateRequest(3L, "상품", null, null,

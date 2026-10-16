@@ -15,7 +15,12 @@ import ProductEditor from "@/components/seller/ProductEditor";
 import ProductOptionManager, {
   type ProductOptionEditorState,
 } from "@/components/seller/ProductOptionManager";
-import { getCategories, modifyProduct, registerProduct } from "@/lib/product-api";
+import {
+  getCategories,
+  getGiftOccasions,
+  modifyProduct,
+  registerProduct,
+} from "@/lib/product-api";
 import {
   createProductDraft,
   getProductDraftByProductId,
@@ -24,6 +29,7 @@ import {
 import { uploadImage } from "@/lib/storage-api";
 import type {
   Category,
+  GiftOccasion,
   ProductModificationRequest,
   ProductModificationVariantRequest,
   ProductOptionUpdateRequest,
@@ -196,6 +202,10 @@ export default function ProductForm({
     createInitialForm(initialProduct),
   );
   const [categories, setCategories] = useState<Category[]>([]);
+  const [giftOccasions, setGiftOccasions] = useState<GiftOccasion[]>([]);
+  const [selectedGiftOccasionIds, setSelectedGiftOccasionIds] = useState<number[]>(
+    () => (initialProduct?.giftOccasions ?? []).map((occasion) => occasion.id),
+  );
   const [representativeFile, setRepresentativeFile] = useState<File | null>(
     null,
   );
@@ -268,6 +278,29 @@ export default function ProductForm({
 
     void loadCategories();
   }, []);
+
+  useEffect(() => {
+    const loadGiftOccasions = async () => {
+      try {
+        setGiftOccasions(await getGiftOccasions());
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "선물 상황을 불러오지 못했습니다.",
+        );
+      }
+    };
+    void loadGiftOccasions();
+  }, []);
+
+  const toggleGiftOccasion = (id: number) => {
+    setSelectedGiftOccasionIds((current) => {
+      if (current.includes(id)) return current.filter((value) => value !== id);
+      if (current.length >= 3) return current;
+      return [...current, id];
+    });
+  };
 
   useEffect(() => {
     if (mode !== "edit" || !initialProduct) {
@@ -897,6 +930,8 @@ export default function ProductForm({
     return {
       categoryId: form.categoryId,
 
+      giftOccasionIds: selectedGiftOccasionIds,
+
       name: form.name,
 
       brandName: form.brandName,
@@ -1026,6 +1061,8 @@ export default function ProductForm({
 
     const draft = JSON.parse(availableDraft.draftData) as ProductDraftData;
 
+    setSelectedGiftOccasionIds(draft.giftOccasionIds ?? []);
+
     setForm({
       categoryId: draft.categoryId,
 
@@ -1113,8 +1150,11 @@ export default function ProductForm({
 
     const draft = JSON.parse(initialDraft.draftData) as ProductDraftData;
 
-    // 서버에서 복원한 최초 임시저장을 controlled 상품 폼에 반영한다.
+    // 기존 Draft에는 필드가 없을 수 있으므로 빈 선택으로 복원한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedGiftOccasionIds(draft.giftOccasionIds ?? []);
+
+    // 서버에서 복원한 최초 임시저장을 controlled 상품 폼에 반영한다.
     setForm({
       categoryId: draft.categoryId,
 
@@ -1239,6 +1279,8 @@ export default function ProductForm({
 
           variants: createRegistrationVariants(),
 
+          giftOccasionIds: selectedGiftOccasionIds,
+
           draftId,
         };
 
@@ -1272,6 +1314,8 @@ export default function ProductForm({
         options: optionRequest,
 
         variants: createModificationVariants(),
+
+        giftOccasionIds: selectedGiftOccasionIds,
 
         draftId,
       };
@@ -1401,6 +1445,32 @@ export default function ProductForm({
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                <div className="seller-product-form-field seller-product-occasion-field">
+                  <div className="seller-product-occasion-heading">
+                    <label>선물 상황</label>
+                    <strong>{selectedGiftOccasionIds.length} / 3</strong>
+                  </div>
+                  <p>이 상품과 잘 어울리는 선물 상황을 선택해주세요. 최대 3개까지 선택할 수 있습니다.</p>
+                  <div className="seller-product-occasion-options">
+                    {giftOccasions.map((occasion) => {
+                      const selected = selectedGiftOccasionIds.includes(occasion.id);
+                      const disabled = isSubmitting || (!selected && selectedGiftOccasionIds.length >= 3);
+                      return (
+                        <button
+                          key={occasion.id}
+                          type="button"
+                          className={selected ? "is-selected" : ""}
+                          aria-pressed={selected}
+                          disabled={disabled}
+                          onClick={() => toggleGiftOccasion(occasion.id)}
+                        >
+                          {occasion.name}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

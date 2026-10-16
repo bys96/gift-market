@@ -114,6 +114,20 @@ export interface Administrator {
   administratorAssignedAt: string | null;
 }
 
+export interface AdminGiftOccasion {
+  id: number;
+  name: string;
+  active: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminGiftOccasionRequest {
+  name: string;
+  displayOrder: number;
+}
+
 export type AdminSellerOrderStatus = "PENDING_PAYMENT" | "PAID" | "PREPARING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 
 export interface AdminSellerSummary {

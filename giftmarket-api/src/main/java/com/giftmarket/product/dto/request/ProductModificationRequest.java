@@ -23,6 +23,9 @@ public record ProductModificationRequest(
         )
         List<@Valid ProductModificationVariantRequest> variants,
 
+        @Size(max = 3, message = "선물 상황은 최대 3개까지 선택할 수 있습니다.")
+        List<Long> giftOccasionIds,
+
         /*
          * 수정 중 임시저장이 존재하면 Draft ID.
          * 바로 수정 완료한 경우 null.
@@ -35,5 +38,18 @@ public record ProductModificationRequest(
         return variants == null
                 ? List.of()
                 : List.copyOf(variants);
+    }
+
+    public List<Long> normalizedGiftOccasionIds() {
+        return giftOccasionIds == null ? List.of() : List.copyOf(giftOccasionIds);
+    }
+
+    public ProductModificationRequest(
+            ProductUpdateRequest product,
+            ProductOptionUpdateRequest options,
+            List<ProductModificationVariantRequest> variants,
+            Long draftId
+    ) {
+        this(product, options, variants, List.of(), draftId);
     }
 }

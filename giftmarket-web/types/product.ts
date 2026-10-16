@@ -49,6 +49,7 @@ export interface SellerProduct {
   adminHiddenAt: string | null;
   representativeImageKey: string | null;
   galleryImageKeys: string[];
+  giftOccasions: GiftOccasion[];
   freeShipping: boolean;
   shippingFee: number;
   shippingPreparationDays: number;
@@ -132,6 +133,11 @@ export interface Category {
   id: number;
   name: string;
   children: Category[];
+}
+
+export interface GiftOccasion {
+  id: number;
+  name: string;
 }
 
 /* ========================================
@@ -292,6 +298,7 @@ export interface ProductRegistrationRequest {
   product: ProductCreateRequest;
   options: ProductOptionUpdateRequest;
   variants: ProductRegistrationVariantRequest[];
+  giftOccasionIds: number[];
   draftId: number | null;
 }
 
@@ -313,5 +320,6 @@ export interface ProductModificationRequest {
   product: ProductUpdateRequest;
   options: ProductOptionUpdateRequest;
   variants: ProductModificationVariantRequest[];
+  giftOccasionIds: number[];
   draftId: number | null;
 }

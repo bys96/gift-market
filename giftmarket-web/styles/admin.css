@@ -1231,3 +1231,21 @@
   .admin-settlement-detail-actions .admin-settlement-status { width: 100%; justify-content: center; }
   .admin-settlement-detail-actions button { flex: 1; }
 }
+
+.admin-occasion-form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding: 18px; border: 1px solid #e1e3e7; border-radius: 12px; background: #fff; }
+.admin-occasion-form label { display: flex; min-width: 180px; flex: 1; flex-direction: column; gap: 7px; color: #555c67; font-size: 12px; font-weight: 700; }
+.admin-occasion-form input { min-height: 40px; padding: 0 11px; border: 1px solid #d9dde3; border-radius: 8px; font: inherit; }
+.admin-occasion-form button, .admin-occasion-actions button { min-height: 38px; padding: 0 13px; border: 1px solid #292e37; border-radius: 8px; background: #292e37; color: #fff; font-size: 12px; font-weight: 800; cursor: pointer; }
+.admin-occasion-form button.secondary, .admin-occasion-actions button { border-color: #d9dde3; background: #fff; color: #4d5560; }
+.admin-occasion-form button:disabled, .admin-occasion-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.admin-occasion-table { table-layout: auto; }
+.admin-occasion-table th, .admin-occasion-table td { width: auto; }
+.admin-occasion-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.admin-occasion-status.is-active { background: #e7f7ed; color: #287548; }
+.admin-occasion-status.is-inactive { background: #f0f1f3; color: #717680; }
+.admin-occasion-actions { display: flex; gap: 7px; }
+
+@media (max-width: 768px) {
+  .admin-occasion-form { align-items: stretch; flex-direction: column; }
+  .admin-occasion-actions { position: static !important; width: 100% !important; justify-content: flex-end !important; }
+}

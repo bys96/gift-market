@@ -684,6 +684,15 @@
   gap: 9px;
 }
 
+.seller-product-occasion-field > p { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
+.seller-product-occasion-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.seller-product-occasion-heading label { color: var(--color-text-primary); font-size: 13px; font-weight: 700; }
+.seller-product-occasion-heading strong { color: #675b20; font-size: 12px; }
+.seller-product-occasion-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.seller-product-occasion-options button { min-height: 38px; padding: 0 15px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-text-primary); font-size: 13px; font-weight: 700; cursor: pointer; }
+.seller-product-occasion-options button.is-selected { border-color: #2d3139; background: #2d3139; color: #fff; }
+.seller-product-occasion-options button:disabled { cursor: not-allowed; opacity: .42; }
+
 .seller-product-form-field > label,
 .seller-product-form-field-label-row label {
   color: var(--color-text-primary);

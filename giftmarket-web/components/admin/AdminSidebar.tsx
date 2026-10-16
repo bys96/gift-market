@@ -15,6 +15,7 @@ interface AdminMenuItem {
 }
 
 const ADMIN_MENU: AdminMenuItem[] = [
+  { label: "선물 상황 관리", href: "/admin/gift-occasions", enabled: true },
   { label: "대시보드", href: "/admin", enabled: true },
   { label: "회원 관리", href: "/admin/users", enabled: true },
   { label: "관리자 관리", href: "/admin/administrators", enabled: true, superAdminOnly: true },

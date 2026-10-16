@@ -18,8 +18,54 @@ import type {
   AdminReturnDetail, AdminReturnPage, AdminReturnSearchParams,
   AdminExchangeDetail, AdminExchangePage, AdminExchangeSearchParams,
   Administrator,
+  AdminGiftOccasion,
+  AdminGiftOccasionRequest,
 } from "@/types/admin";
 import type { ApiResponse } from "@/types/api";
+
+const GIFT_OCCASION_JSON_HEADERS = { "Content-Type": "application/json" };
+
+export async function getAdminGiftOccasions(): Promise<AdminGiftOccasion[]> {
+  const response = await apiFetch<ApiResponse<AdminGiftOccasion[]>>(
+    "/api/admin/gift-occasions",
+  );
+  return response.data ?? [];
+}
+
+export async function createAdminGiftOccasion(
+  request: AdminGiftOccasionRequest,
+): Promise<AdminGiftOccasion> {
+  const response = await apiFetch<ApiResponse<AdminGiftOccasion>>(
+    "/api/admin/gift-occasions",
+    { method: "POST", headers: GIFT_OCCASION_JSON_HEADERS, body: JSON.stringify(request) },
+  );
+  if (!response.data) throw new Error("선물 상황 생성 결과를 확인할 수 없습니다.");
+  return response.data;
+}
+
+export async function updateAdminGiftOccasion(
+  id: number,
+  request: AdminGiftOccasionRequest,
+): Promise<AdminGiftOccasion> {
+  const response = await apiFetch<ApiResponse<AdminGiftOccasion>>(
+    `/api/admin/gift-occasions/${id}`,
+    { method: "PUT", headers: GIFT_OCCASION_JSON_HEADERS, body: JSON.stringify(request) },
+  );
+  if (!response.data) throw new Error("선물 상황 수정 결과를 확인할 수 없습니다.");
+  return response.data;
+}
+
+export async function updateAdminGiftOccasionActive(
+  id: number,
+  active: boolean,
+): Promise<AdminGiftOccasion> {
+  const response = await apiFetch<ApiResponse<AdminGiftOccasion>>(
+    `/api/admin/gift-occasions/${id}/active`,
+    { method: "PATCH", headers: GIFT_OCCASION_JSON_HEADERS, body: JSON.stringify({ active }) },
+  );
+  if (!response.data) throw new Error("선물 상황 상태 변경 결과를 확인할 수 없습니다.");
+  return response.data;
+}
 
 export async function getAdminDashboard(): Promise<AdminDashboard> {
   const response = await apiFetch<ApiResponse<AdminDashboard>>(

@@ -50,6 +50,7 @@ class ProductStockIntegrationTest {
     @Autowired CategoryRepository categoryRepository;
     @Autowired EntityManager entityManager;
     @MockitoBean ProductDraftService draftService;
+    @MockitoBean GiftOccasionService giftOccasionService;
 
     private Long userId;
     private Long categoryId;

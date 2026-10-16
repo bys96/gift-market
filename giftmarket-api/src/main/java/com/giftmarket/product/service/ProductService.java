@@ -71,6 +71,7 @@ public class ProductService {
 
     private final CategoryRepository categoryRepository;
     private final SellerRepository sellerRepository;
+    private final GiftOccasionService giftOccasionService;
 
     private final ProductDescriptionSanitizer
             productDescriptionSanitizer;
@@ -357,7 +358,8 @@ public class ProductService {
 
         return ProductResponse.from(
                 product,
-                productImages
+                productImages,
+                giftOccasionService.getActiveProductGiftOccasions(product.getId())
         );
     }
 

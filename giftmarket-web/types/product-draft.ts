@@ -30,6 +30,8 @@ export interface ProductDraftOptionState {
 export interface ProductDraftData {
   categoryId: string;
 
+  giftOccasionIds?: number[];
+
   name: string;
   brandName: string;
   summary: string;

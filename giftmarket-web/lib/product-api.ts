@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import type { ApiResponse } from "@/types/api";
 import type {
   Category,
+  GiftOccasion,
   ProductCreateRequest,
   ProductDetail,
   ProductModificationRequest,
@@ -41,6 +42,13 @@ interface GetProductsParams {
 export async function getCategories(): Promise<Category[]> {
   const response = await apiFetch<ApiResponse<Category[]>>("/api/categories");
 
+  return response.data ?? [];
+}
+
+export async function getGiftOccasions(): Promise<GiftOccasion[]> {
+  const response = await apiFetch<ApiResponse<GiftOccasion[]>>(
+    "/api/gift-occasions",
+  );
   return response.data ?? [];
 }
 
