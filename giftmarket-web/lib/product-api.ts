@@ -18,11 +18,23 @@ import type {
   ProductVariantListResponse,
   ProductVariantUpdateRequest,
   SellerProduct,
+  SellerProductListItem,
   SellerProductPage,
 } from "@/types/product";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json",
+};
+
+type SellerProductListItemPayload = Omit<
+  SellerProductListItem,
+  "giftOccasions"
+> & {
+  giftOccasions?: GiftOccasion[] | null;
+};
+
+type SellerProductPagePayload = Omit<SellerProductPage, "products"> & {
+  products?: SellerProductListItemPayload[] | null;
 };
 
 interface GetProductsParams {
@@ -179,7 +191,7 @@ export async function getSellerProducts(
     params.set("status", status);
   }
 
-  const response = await apiFetch<ApiResponse<SellerProductPage>>(
+  const response = await apiFetch<ApiResponse<SellerProductPagePayload>>(
     `/api/seller/products?${params.toString()}`,
   );
 
@@ -187,7 +199,17 @@ export async function getSellerProducts(
     throw new Error("상품 목록을 확인할 수 없습니다.");
   }
 
-  return response.data;
+  return {
+    ...response.data,
+    products: Array.isArray(response.data.products)
+      ? response.data.products.map((product) => ({
+          ...product,
+          giftOccasions: Array.isArray(product.giftOccasions)
+            ? product.giftOccasions
+            : [],
+        }))
+      : [],
+  };
 }
 
 export async function getSellerProduct(

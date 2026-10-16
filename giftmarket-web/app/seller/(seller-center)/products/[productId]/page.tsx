@@ -286,6 +286,10 @@ export default function SellerProductDetailPage() {
     );
   }
 
+  const giftOccasions = Array.isArray(product.giftOccasions)
+    ? product.giftOccasions
+    : [];
+
   return (
     <main className="seller-product-detail-page">
       <div className="common-inner">
@@ -372,9 +376,9 @@ export default function SellerProductDetailPage() {
               <div className="seller-product-detail-info-item seller-product-detail-info-item-full">
                 <span>선물 상황</span>
                 <div className="seller-product-detail-gift-occasions">
-                  {product.giftOccasions.length > 0 ? (
+                  {giftOccasions.length > 0 ? (
                     <div className="seller-product-gift-occasions">
-                      {product.giftOccasions.map((occasion) => (
+                      {giftOccasions.map((occasion) => (
                         <span
                           key={occasion.id}
                           className="seller-product-gift-occasion-tag"

@@ -149,7 +149,7 @@ export default function SellerProductsPage() {
 
       const drafts = await getNewProductDrafts();
 
-      setNewProductDrafts(drafts);
+      setNewProductDrafts(Array.isArray(drafts) ? drafts : []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -438,6 +438,11 @@ export default function SellerProductsPage() {
                             const imageUrl = resolveImageUrl(
                               product.representativeImageKey,
                             );
+                            const giftOccasions = Array.isArray(
+                              product.giftOccasions,
+                            )
+                              ? product.giftOccasions
+                              : [];
 
                             return (
                               <tr key={product.id}>
@@ -478,9 +483,9 @@ export default function SellerProductsPage() {
                                 </td>
 
                                 <td>
-                                  {product.giftOccasions.length > 0 ? (
+                                  {giftOccasions.length > 0 ? (
                                     <div className="seller-product-gift-occasions">
-                                      {product.giftOccasions.map((occasion) => (
+                                      {giftOccasions.map((occasion) => (
                                         <span
                                           key={occasion.id}
                                           className="seller-product-gift-occasion-tag"
