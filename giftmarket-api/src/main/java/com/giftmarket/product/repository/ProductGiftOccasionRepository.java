@@ -17,5 +17,15 @@ public interface ProductGiftOccasionRepository extends JpaRepository<ProductGift
             """)
     List<ProductGiftOccasion> findActiveByProductId(@Param("productId") Long productId);
 
+    @Query("""
+            select pgo from ProductGiftOccasion pgo
+            join fetch pgo.giftOccasion go
+            where pgo.product.id in :productIds and go.active = true
+            order by pgo.product.id asc, go.displayOrder asc, go.id asc
+            """)
+    List<ProductGiftOccasion> findActiveByProductIdIn(
+            @Param("productIds") List<Long> productIds
+    );
+
     void deleteAllByProductId(Long productId);
 }

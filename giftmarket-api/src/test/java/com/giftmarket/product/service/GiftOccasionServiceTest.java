@@ -130,6 +130,28 @@ class GiftOccasionServiceTest {
         assertThat(captor.getValue()).hasSize(1);
     }
 
+    @Test
+    void returnsActiveOccasionsGroupedByProductForSellerList() {
+        Product firstProduct = org.mockito.Mockito.mock(Product.class);
+        Product secondProduct = org.mockito.Mockito.mock(Product.class);
+        given(firstProduct.getId()).willReturn(10L);
+        given(secondProduct.getId()).willReturn(20L);
+
+        GiftOccasion birthday = occasion(1L, "생일", 1);
+        GiftOccasion thanks = occasion(2L, "감사", 2);
+        given(productGiftOccasionRepository.findActiveByProductIdIn(List.of(10L, 20L)))
+                .willReturn(List.of(
+                        ProductGiftOccasion.create(firstProduct, birthday),
+                        ProductGiftOccasion.create(firstProduct, thanks),
+                        ProductGiftOccasion.create(secondProduct, thanks)
+                ));
+
+        var result = service.getActiveProductGiftOccasions(List.of(10L, 20L));
+
+        assertThat(result.get(10L)).extracting("name").containsExactly("생일", "감사");
+        assertThat(result.get(20L)).extracting("name").containsExactly("감사");
+    }
+
     private GiftOccasion occasion(Long id, String name, int order) {
         GiftOccasion occasion = GiftOccasion.create(name, order);
         ReflectionTestUtils.setField(occasion, "id", id);

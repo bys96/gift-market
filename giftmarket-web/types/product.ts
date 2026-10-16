@@ -72,6 +72,7 @@ export interface SellerProductListItem {
   adminHiddenReason: string | null;
   adminHiddenAt: string | null;
   representativeImageKey: string | null;
+  giftOccasions: GiftOccasion[];
   createdAt: string;
   updatedAt: string;
 }

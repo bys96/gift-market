@@ -369,6 +369,26 @@ export default function SellerProductDetailPage() {
                 <strong>{product.name}</strong>
               </div>
 
+              <div className="seller-product-detail-info-item seller-product-detail-info-item-full">
+                <span>선물 상황</span>
+                <div className="seller-product-detail-gift-occasions">
+                  {product.giftOccasions.length > 0 ? (
+                    <div className="seller-product-gift-occasions">
+                      {product.giftOccasions.map((occasion) => (
+                        <span
+                          key={occasion.id}
+                          className="seller-product-gift-occasion-tag"
+                        >
+                          #{occasion.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <strong>-</strong>
+                  )}
+                </div>
+              </div>
+
               <div className="seller-product-detail-info-item">
                 <span>판매가</span>
                 <strong>{formatPrice(product.price)}원</strong>

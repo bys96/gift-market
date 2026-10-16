@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Builder
@@ -35,11 +36,20 @@ public class ProductListResponse {
 
     private String representativeImageKey;
 
+    private List<GiftOccasionResponse> giftOccasions;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
 
     public static ProductListResponse from(Product product) {
+        return from(product, List.of());
+    }
+
+    public static ProductListResponse from(
+            Product product,
+            List<GiftOccasionResponse> giftOccasions
+    ) {
         return ProductListResponse.builder()
                 .id(product.getId())
                 .categoryId(product.getCategory().getId())
@@ -55,6 +65,7 @@ public class ProductListResponse {
                 .representativeImageKey(
                         product.getRepresentativeImageKey()
                 )
+                .giftOccasions(List.copyOf(giftOccasions))
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();

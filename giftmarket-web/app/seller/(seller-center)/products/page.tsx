@@ -3,6 +3,7 @@
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -422,6 +423,7 @@ export default function SellerProductsPage() {
                       <thead>
                         <tr>
                           <th scope="col">상품 정보</th>
+                          <th scope="col">선물 상황</th>
                           <th scope="col">판매가</th>
                           <th scope="col">재고</th>
                           <th scope="col">상태</th>
@@ -459,7 +461,12 @@ export default function SellerProductsPage() {
                                         {product.categoryName}
                                       </span>
 
-                                      <strong>{product.name}</strong>
+                                      <Link
+                                        href={`/seller/products/${product.id}`}
+                                        className="seller-products-product-name"
+                                      >
+                                        <strong>{product.name}</strong>
+                                      </Link>
 
                                       {product.brandName && (
                                         <span className="seller-products-brand">
@@ -468,6 +475,23 @@ export default function SellerProductsPage() {
                                       )}
                                     </div>
                                   </div>
+                                </td>
+
+                                <td>
+                                  {product.giftOccasions.length > 0 ? (
+                                    <div className="seller-product-gift-occasions">
+                                      {product.giftOccasions.map((occasion) => (
+                                        <span
+                                          key={occasion.id}
+                                          className="seller-product-gift-occasion-tag"
+                                        >
+                                          #{occasion.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="seller-products-empty-value">-</span>
+                                  )}
                                 </td>
 
                                 <td>

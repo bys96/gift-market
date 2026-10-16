@@ -6,6 +6,7 @@ import com.giftmarket.product.dto.request.ProductSearchCondition;
 import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
+import com.giftmarket.product.dto.response.GiftOccasionResponse;
 import com.giftmarket.product.dto.response.ProductDetailResponse;
 import com.giftmarket.product.dto.response.ProductListResponse;
 import com.giftmarket.product.dto.response.ProductPageResponse;
@@ -44,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -331,10 +333,23 @@ public class ProductService {
                             );
         }
 
-        Page<ProductListResponse> responsePage =
-                productPage.map(
-                        ProductListResponse::from
+        Map<Long, List<GiftOccasionResponse>>
+                giftOccasionsByProductId =
+                giftOccasionService.getActiveProductGiftOccasions(
+                        productPage.getContent().stream()
+                                .map(Product::getId)
+                                .toList()
                 );
+
+        Page<ProductListResponse> responsePage = productPage.map(
+                product -> ProductListResponse.from(
+                        product,
+                        giftOccasionsByProductId.getOrDefault(
+                                product.getId(),
+                                List.of()
+                        )
+                )
+        );
 
         return SellerProductPageResponse.from(responsePage);
     }

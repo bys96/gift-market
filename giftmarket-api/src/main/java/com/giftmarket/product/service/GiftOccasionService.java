@@ -17,7 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -108,6 +111,26 @@ public class GiftOccasionService {
                 .map(ProductGiftOccasion::getGiftOccasion)
                 .map(GiftOccasionResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, List<GiftOccasionResponse>> getActiveProductGiftOccasions(
+            List<Long> productIds
+    ) {
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return productGiftOccasionRepository.findActiveByProductIdIn(productIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        relation -> relation.getProduct().getId(),
+                        LinkedHashMap::new,
+                        Collectors.mapping(
+                                relation -> GiftOccasionResponse.from(relation.getGiftOccasion()),
+                                Collectors.toList()
+                        )
+                ));
     }
 
     private void validateRequestedIds(List<Long> ids) {
