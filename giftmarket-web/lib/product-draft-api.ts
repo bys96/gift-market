@@ -43,16 +43,12 @@ export async function getProductDraft(draftId: number): Promise<ProductDraft> {
 
 export async function getProductDraftByProductId(
   productId: number,
-): Promise<ProductDraft> {
-  const response = await apiFetch<ApiResponse<ProductDraft>>(
+): Promise<ProductDraft | null> {
+  const response = await apiFetch<ApiResponse<ProductDraft | null>>(
     `/api/seller/product-drafts?productId=${productId}`,
   );
 
-  if (!response.data) {
-    throw new Error("상품의 임시저장 내용을 확인할 수 없습니다.");
-  }
-
-  return response.data;
+  return response.data ?? null;
 }
 
 export async function getProductDrafts(): Promise<ProductDraft[]> {

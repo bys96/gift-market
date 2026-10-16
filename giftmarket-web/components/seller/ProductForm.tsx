@@ -313,7 +313,7 @@ export default function ProductForm({
       try {
         const draft = await getProductDraftByProductId(initialProduct.id);
 
-        if (cancelled) {
+        if (cancelled || !draft) {
           return;
         }
 

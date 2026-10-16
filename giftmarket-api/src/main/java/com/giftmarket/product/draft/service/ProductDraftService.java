@@ -92,19 +92,13 @@ public class ProductDraftService {
                 seller.getId()
         );
 
-        ProductDraft draft =
-                productDraftRepository
-                        .findBySellerIdAndProductId(
-                                seller.getId(),
-                                productId
-                        )
-                        .orElseThrow(() ->
-                                new ProductException(
-                                        "임시저장된 수정 내용을 찾을 수 없습니다."
-                                )
-                        );
-
-        return ProductDraftResponse.from(draft);
+        return productDraftRepository
+                .findBySellerIdAndProductId(
+                        seller.getId(),
+                        productId
+                )
+                .map(ProductDraftResponse::from)
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)
