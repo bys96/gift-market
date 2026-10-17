@@ -38,11 +38,11 @@ export default function ProductCard({ product }: ProductCardProps) {
     ? resolveImageUrl(product.representativeImageKey)
     : product.imageUrl;
 
-  const brandName = product.brandName ?? "브랜드 정보 없음";
+  const brandName =
+    typeof product.brandName === "string" ? product.brandName.trim() : "";
 
-  const freeShipping = isSummary
-    ? product.freeShipping
-    : product.isFreeShipping;
+  const freeShipping =
+    (isSummary ? product.freeShipping : product.isFreeShipping) === true;
 
   const isSoldOut = isSummary && product.status === "SOLD_OUT";
   const isSaleStopped =
@@ -116,13 +116,11 @@ export default function ProductCard({ product }: ProductCardProps) {
           {formatPrice(product.price)}
         </strong>
 
-        {freeShipping ? (
-          <span className="product-card-shipping">무료배송</span>
-        ) : isSummary && product.shippingFee > 0 ? (
-          <span className="product-card-shipping">
-            배송비 {formatPrice(product.shippingFee)}
-          </span>
-        ) : null}
+        <div className="product-card-shipping-area">
+          {freeShipping && (
+            <span className="product-card-shipping">무료배송</span>
+          )}
+        </div>
       </Link>
     </article>
   );
