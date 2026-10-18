@@ -596,6 +596,10 @@
   background: var(--color-background-secondary);
 }
 
+.seller-product-form-page-edit {
+  padding-bottom: 0;
+}
+
 .seller-product-form-container {
   width: 100%;
   max-width: 1120px;
@@ -1123,6 +1127,10 @@
   backdrop-filter: blur(10px);
 }
 
+.seller-product-form-actions-edit {
+  bottom: 0;
+}
+
 .seller-product-form-actions-left,
 .seller-product-form-actions-right {
   display: flex;
@@ -1228,6 +1236,10 @@
     padding: 30px 0 56px;
   }
 
+  .seller-product-form-page-edit {
+    padding-bottom: 0;
+  }
+
   .seller-product-form-title {
     font-size: 26px;
   }
@@ -1268,6 +1280,12 @@
 
   .seller-product-form-actions {
     position: static;
+  }
+
+  .seller-product-form-actions-edit {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 }
 

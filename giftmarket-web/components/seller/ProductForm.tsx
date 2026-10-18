@@ -1348,7 +1348,11 @@ export default function ProductForm({
   const isEditMode = mode === "edit";
 
   return (
-    <main className="seller-product-form-page">
+    <main
+      className={`seller-product-form-page${
+        isEditMode ? " seller-product-form-page-edit" : ""
+      }`}
+    >
       <div className="common-inner">
         <div className="seller-product-form-container">
           <header className="seller-product-form-header">
@@ -1979,7 +1983,11 @@ export default function ProductForm({
               </div>
             </section>
 
-            <div className="seller-product-form-actions">
+            <div
+              className={`seller-product-form-actions${
+                isEditMode ? " seller-product-form-actions-edit" : ""
+              }`}
+            >
               <div className="seller-product-form-actions-left">
                 <button
                   type="button"
