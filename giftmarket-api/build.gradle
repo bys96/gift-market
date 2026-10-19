@@ -56,27 +56,3 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
-
-tasks.register('seedSampleProducts', JavaExec) {
-	group = 'application'
-	description = 'Dry-runs or creates the one-time sample product seed.'
-	classpath = sourceSets.main.runtimeClasspath
-	mainClass = 'com.giftmarket.product.seed.SampleProductSeedApplication'
-
-	def sellerId = providers.gradleProperty('sellerId')
-	def dryRun = providers.gradleProperty('dryRun').orElse('true')
-	def imageManifest = providers.gradleProperty('imageManifest')
-
-	doFirst {
-		if (!sellerId.isPresent()) {
-			throw new GradleException('sellerId is required. Example: -PsellerId=1')
-		}
-		args = [
-				"--app.seed.sample-products.seller-id=${sellerId.get()}",
-				"--app.seed.sample-products.dry-run=${dryRun.get()}"
-		]
-		if (imageManifest.isPresent()) {
-			args "--app.seed.sample-products.image-manifest=${imageManifest.get()}"
-		}
-	}
-}
