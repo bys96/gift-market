@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -94,6 +96,24 @@ public class S3StorageProvider implements StorageProvider {
                     "파일 조회 URL 생성에 실패했습니다.",
                     exception
             );
+        }
+    }
+
+    @Override
+    public boolean objectExists(String objectKey) {
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(s3Properties.bucket())
+                    .key(objectKey)
+                    .build());
+            return true;
+        } catch (NoSuchKeyException exception) {
+            return false;
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception exception) {
+            if (exception.statusCode() == 404) {
+                return false;
+            }
+            throw new IllegalStateException("파일 존재 여부 확인에 실패했습니다.", exception);
         }
     }
 

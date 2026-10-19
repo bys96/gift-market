@@ -16,11 +16,19 @@ const API_BASE_URL =
 // 여러 API 요청이 동시에 401을 받아도 토큰 재발급은 한 번만 실행한다.
 let refreshPromise: Promise<string | null> | null = null;
 let refreshFailure: Error | null = null;
+let authSessionVersion = 0;
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
   }
+}
+
+// 로그아웃 뒤 이미 진행 중이던 token refresh가 인증 상태를 되살리지 못하게 한다.
+export function invalidateAuthSession(): void {
+  authSessionVersion += 1;
+  refreshPromise = null;
+  refreshFailure = null;
 }
 
 type ApiRequestOptions = RequestInit & { skipAuthRefresh?: boolean };
@@ -82,6 +90,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     return refreshPromise;
   }
 
+  const sessionVersion = authSessionVersion;
   refreshPromise = (async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
@@ -97,12 +106,15 @@ export async function refreshAccessToken(): Promise<string | null> {
       if (result?.success !== true || typeof result.data?.accessToken !== "string"
         || !result.data.accessToken) throw new Error("인증 응답을 확인하지 못했습니다.");
 
+      if (sessionVersion !== authSessionVersion) return null;
+
       const accessToken = result.data.accessToken;
 
       useAuthStore.getState().setAccessToken(accessToken);
 
       return accessToken;
     } catch (error) {
+      if (sessionVersion !== authSessionVersion) return null;
       refreshFailure = error instanceof Error ? error : new Error("인증 서버에 연결하지 못했습니다.");
       throw refreshFailure;
     } finally {

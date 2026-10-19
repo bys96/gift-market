@@ -67,7 +67,7 @@ class SellerStoreServiceTest {
     }
 
     @Test
-    void patchUpdatesAllRemainingFieldsWithoutChangingSeller() {
+    void patchUpdatesAllRemainingFieldsAndSynchronizesSeller() {
         given(sellerRepository.findByUserId(1L)).willReturn(Optional.of(seller));
         var store = SellerStore.create(seller, "기존 스토어", null);
         ReflectionTestUtils.setField(store, "id", 20L);
@@ -86,8 +86,8 @@ class SellerStoreServiceTest {
         assertThat(response.getCustomerServiceCloseTime()).isEqualTo("18:00");
         assertThat(response.getCustomerServiceClosedDays()).isEqualTo("weekends");
         assertThat(response.getCustomerServiceNote()).isEqualTo("lunch 12:00~13:00");
-        assertThat(seller.getStoreName()).isEqualTo("판매자명");
-        assertThat(seller.getIntroduction()).isEqualTo("판매자 소개");
+        assertThat(seller.getStoreName()).isEqualTo("새 스토어");
+        assertThat(seller.getIntroduction()).isEqualTo("새 소개");
         verify(storeRepository).existsByStoreNameAndIdNot("새 스토어", 20L);
         verify(storeRepository, never()).save(any());
     }

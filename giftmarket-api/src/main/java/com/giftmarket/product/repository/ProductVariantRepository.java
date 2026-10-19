@@ -37,6 +37,10 @@ public interface ProductVariantRepository
             String skuCode
     );
 
+    List<ProductVariant> findAllBySkuCodeStartingWithOrderBySkuCodeAsc(
+            String skuCodePrefix
+    );
+
     Optional<ProductVariant> findByIdAndProductId(
             Long variantId,
             Long productId

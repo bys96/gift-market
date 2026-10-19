@@ -14,5 +14,7 @@ public interface StorageProvider {
             int expirationSeconds
     );
 
+    boolean objectExists(String objectKey);
+
     void deleteObject(String objectKey);
 }

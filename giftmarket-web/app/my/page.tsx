@@ -4,7 +4,7 @@ import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, invalidateAuthSession } from "@/lib/api";
 import { getMyAddresses } from "@/lib/address-api";
 import { getMyOrders } from "@/lib/order-api";
 import { getWishlistCount } from "@/lib/wishlist-api";
@@ -106,6 +106,7 @@ export default function MyPage() {
       console.error("서버 로그아웃 처리 실패:", error);
     } finally {
       // 서버 요청이 실패해도 프론트 로그인 상태는 제거
+      invalidateAuthSession();
       clearAuth();
       useCartStore.getState().resetCart();
       useWishlistStore.getState().resetWishlist();

@@ -4,6 +4,8 @@ import com.giftmarket.global.storage.config.MinioProperties;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
+import io.minio.StatObjectArgs;
+import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,6 +74,27 @@ public class MinioStorageProvider implements StorageProvider {
                     "파일 조회 URL 생성에 실패했습니다.",
                     exception
             );
+        }
+    }
+
+    @Override
+    public boolean objectExists(String objectKey) {
+        try {
+            minioClient.statObject(
+                    StatObjectArgs.builder()
+                            .bucket(minioProperties.bucket())
+                            .object(objectKey)
+                            .build()
+            );
+            return true;
+        } catch (ErrorResponseException exception) {
+            String code = exception.errorResponse().code();
+            if ("NoSuchKey".equals(code) || "NoSuchObject".equals(code) || "NotFound".equals(code)) {
+                return false;
+            }
+            throw new IllegalStateException("파일 존재 여부 확인에 실패했습니다.", exception);
+        } catch (Exception exception) {
+            throw new IllegalStateException("파일 존재 여부 확인에 실패했습니다.", exception);
         }
     }
 
