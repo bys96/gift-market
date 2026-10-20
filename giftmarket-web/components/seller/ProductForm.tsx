@@ -51,6 +51,26 @@ const DEFAULT_EXCHANGE_SHIPPING_FEE = "6000";
 
 type ProductFormMode = "create" | "edit";
 
+type RequiredFieldTarget =
+  | "rootCategoryId"
+  | "name"
+  | "representativeImage"
+  | "description"
+  | "price"
+  | "stockQuantity"
+  | "shippingPreparationDays"
+  | "returnShippingFee"
+  | "exchangeShippingFee";
+
+class ProductFormValidationError extends Error {
+  constructor(
+    public readonly target: RequiredFieldTarget,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 type GalleryImageItem =
   | {
       id: string;
@@ -199,6 +219,7 @@ export default function ProductForm({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const representativeBlobUrlRef = useRef<string | null>(null);
   const galleryImagesRef = useRef<GalleryImageItem[]>([]);
+  const descriptionSectionRef = useRef<HTMLElement>(null);
   const submissionLockRef = useRef(false);
   const registrationRequestDispatchedRef = useRef(false);
   const registrationResultUnknownRef = useRef(false);
@@ -534,6 +555,144 @@ export default function ProductForm({
       ];
       return nextImages;
     });
+  };
+
+  const focusRequiredField = (target: RequiredFieldTarget) => {
+    const element =
+      target === "representativeImage"
+        ? representativeInputRef.current
+        : target === "description"
+          ? descriptionSectionRef.current?.querySelector<HTMLElement>(
+              ".ProseMirror",
+            ) ?? descriptionSectionRef.current
+          : document.getElementById(target);
+
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    window.setTimeout(() => {
+      element?.focus({ preventScroll: true });
+    }, 0);
+  };
+
+  const throwRequiredFieldError = (
+    target: RequiredFieldTarget,
+    message: string,
+  ): never => {
+    throw new ProductFormValidationError(target, message);
+  };
+
+  const parseRequiredFieldNumber = (
+    value: string,
+    fieldName: string,
+    target: RequiredFieldTarget,
+  ): number => {
+    try {
+      return parseRequiredNumber(value, fieldName);
+    } catch (error) {
+      return throwRequiredFieldError(
+        target,
+        error instanceof Error ? error.message : `${fieldName}을 입력해주세요.`,
+      );
+    }
+  };
+
+  const validateRequiredRegistrationFields = (startSale: boolean) => {
+    const categoryId = parseRequiredFieldNumber(
+      form.categoryId,
+      "카테고리",
+      "rootCategoryId",
+    );
+
+    if (!form.name.trim()) {
+      throwRequiredFieldError("name", "상품명을 입력해주세요.");
+    }
+
+    if (form.name.trim().length > 200) {
+      throwRequiredFieldError("name", "상품명은 200자 이하로 입력해주세요.");
+    }
+
+    if (startSale && !representativeFile && !representativeImageKey) {
+      throwRequiredFieldError(
+        "representativeImage",
+        "판매를 시작하려면 대표 이미지를 등록해주세요.",
+      );
+    }
+
+    if (startSale && !form.description.trim()) {
+      throwRequiredFieldError(
+        "description",
+        "판매를 시작하려면 상품 상세 설명을 입력해주세요.",
+      );
+    }
+
+    if (form.description.trim().length > 50000) {
+      throwRequiredFieldError(
+        "description",
+        "상품 상세 설명은 50000자 이하로 입력해주세요.",
+      );
+    }
+
+    const price = parseRequiredFieldNumber(form.price, "판매가", "price");
+
+    if (price <= 0) {
+      throwRequiredFieldError("price", "판매가는 0원보다 커야 합니다.");
+    }
+
+    if (!optionEditorState.enabled) {
+      const stockQuantity = parseRequiredFieldNumber(
+        form.stockQuantity,
+        "재고 수량",
+        "stockQuantity",
+      );
+
+      if (stockQuantity < 0) {
+        throwRequiredFieldError(
+          "stockQuantity",
+          "재고 수량은 0개 이상이어야 합니다.",
+        );
+      }
+    }
+
+    const shippingPreparationDays = parseRequiredFieldNumber(
+      form.shippingPreparationDays,
+      "출고 소요일",
+      "shippingPreparationDays",
+    );
+
+    if (shippingPreparationDays < 1 || shippingPreparationDays > 30) {
+      throwRequiredFieldError(
+        "shippingPreparationDays",
+        "출고 소요일은 1일 이상 30일 이하로 입력해주세요.",
+      );
+    }
+
+    const returnShippingFee = parseRequiredFieldNumber(
+      form.returnShippingFee,
+      "반품 배송비",
+      "returnShippingFee",
+    );
+
+    if (returnShippingFee < 0) {
+      throwRequiredFieldError(
+        "returnShippingFee",
+        "반품 배송비는 0원 이상이어야 합니다.",
+      );
+    }
+
+    const exchangeShippingFee = parseRequiredFieldNumber(
+      form.exchangeShippingFee,
+      "교환 배송비",
+      "exchangeShippingFee",
+    );
+
+    if (exchangeShippingFee < 0) {
+      throwRequiredFieldError(
+        "exchangeShippingFee",
+        "교환 배송비는 0원 이상이어야 합니다.",
+      );
+    }
+
+    return categoryId;
   };
 
   const validateCommonRequest = (stockQuantityOverride?: number) => {
@@ -1247,6 +1406,22 @@ export default function ProductForm({
       return;
     }
 
+    try {
+      validateRequiredRegistrationFields(startSale);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "상품 입력값을 확인해주세요.",
+      );
+
+      if (error instanceof ProductFormValidationError) {
+        focusRequiredField(error.target);
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      return;
+    }
+
     submissionLockRef.current = true;
     registrationRequestDispatchedRef.current = false;
 
@@ -1258,14 +1433,6 @@ export default function ProductForm({
       const commonRequest = validateCommonRequest(
         optionConfiguration.totalStockQuantity,
       );
-
-      if (startSale && !representativeFile && !representativeImageKey) {
-        throw new Error("판매를 시작하려면 대표 이미지를 등록해주세요.");
-      }
-
-      if (startSale && !form.description.trim()) {
-        throw new Error("판매를 시작하려면 상품 상세 설명을 입력해주세요.");
-      }
 
       const imageRequest = await uploadImages();
 
@@ -1720,11 +1887,14 @@ export default function ProductForm({
               </div>
             </section>
 
-            <section className="seller-product-form-section">
+            <section
+              ref={descriptionSectionRef}
+              className="seller-product-form-section"
+            >
               <header className="seller-product-form-section-header">
                 <div>
                   <span className="seller-product-form-section-number">03</span>
-                  <h2>상품 상세 설명</h2>
+                  <h2>상품 상세 설명 <span>*</span></h2>
                 </div>
                 <p>텍스트, 이미지와 MP4 동영상을 배치할 수 있습니다.</p>
               </header>

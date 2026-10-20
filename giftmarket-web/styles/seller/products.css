@@ -709,6 +709,11 @@
   font-weight: 800;
 }
 
+.seller-product-form-section-header h2 span {
+  margin-left: 3px;
+  color: var(--color-error);
+}
+
 .seller-product-form-section-header p {
   max-width: 420px;
   margin: 2px 0 0;
