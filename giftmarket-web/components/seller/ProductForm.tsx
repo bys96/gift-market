@@ -1677,6 +1677,7 @@ export default function ProductForm({
                   <input
                     id="name"
                     name="name"
+                    autoComplete="off"
                     value={form.name}
                     onChange={handleTextChange}
                     maxLength={200}
@@ -1692,6 +1693,7 @@ export default function ProductForm({
                   <input
                     id="brandName"
                     name="brandName"
+                    autoComplete="off"
                     value={form.brandName}
                     onChange={handleTextChange}
                     maxLength={100}
@@ -1942,6 +1944,7 @@ export default function ProductForm({
                       id="price"
                       name="price"
                       type="number"
+                      autoComplete="off"
                       min="1"
                       value={form.price}
                       onChange={handleTextChange}
@@ -1960,6 +1963,7 @@ export default function ProductForm({
                       name="stockQuantity"
                       type="text"
                       inputMode="numeric"
+                      autoComplete="off"
                       value={form.stockQuantity}
                       onFocus={() => {
                         if (form.stockQuantity === "0") {
@@ -2081,6 +2085,7 @@ export default function ProductForm({
                       name="shippingFee"
                       type="text"
                       inputMode="numeric"
+                      autoComplete="off"
                       value={form.shippingFee}
                       disabled={isSubmitting || form.freeShipping}
                       onFocus={() => {
@@ -2122,6 +2127,7 @@ export default function ProductForm({
                       id="shippingPreparationDays"
                       name="shippingPreparationDays"
                       type="number"
+                      autoComplete="off"
                       min="1"
                       max="30"
                       value={form.shippingPreparationDays}
@@ -2144,6 +2150,7 @@ export default function ProductForm({
                       id="returnShippingFee"
                       name="returnShippingFee"
                       type="number"
+                      autoComplete="off"
                       min="0"
                       value={form.returnShippingFee}
                       onChange={handleTextChange}
@@ -2165,6 +2172,7 @@ export default function ProductForm({
                       id="exchangeShippingFee"
                       name="exchangeShippingFee"
                       type="number"
+                      autoComplete="off"
                       min="0"
                       value={form.exchangeShippingFee}
                       onChange={handleTextChange}

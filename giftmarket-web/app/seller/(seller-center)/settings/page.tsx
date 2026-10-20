@@ -484,6 +484,7 @@ export default function SellerStoreSettingsPage() {
                         <label htmlFor="storeName">스토어명</label>
                         <input
                           id="storeName"
+                          autoComplete="off"
                           value={editForm.storeName}
                           maxLength={30}
                           onChange={handleInputChange("storeName")}
@@ -565,6 +566,7 @@ export default function SellerStoreSettingsPage() {
                         <input
                           id={name}
                           type={type}
+                          autoComplete="off"
                           inputMode={type === "tel" ? "tel" : undefined}
                           value={editForm[name] ?? ""}
                           maxLength={maxLength}

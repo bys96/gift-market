@@ -153,7 +153,7 @@ function AdminSettlementListContent() {
 
       <section className="admin-user-filter-panel admin-settlement-filter-panel" aria-label="정산 조회 조건">
         <form onSubmit={applyFilters} className="admin-settlement-filter-form">
-          <label><span>판매자 ID</span><input type="number" min="1" step="1" value={sellerInput} onChange={(event) => setSellerInput(event.target.value)} placeholder="전체 판매자" /></label>
+          <label><span>판매자 ID</span><input type="number" autoComplete="off" min="1" step="1" value={sellerInput} onChange={(event) => setSellerInput(event.target.value)} placeholder="전체 판매자" /></label>
           <label><span>상태</span><select value={statusInput} onChange={(event) => setStatusInput(event.target.value as AdminSettlementStatus | "")}><option value="">전체</option>{STATUSES.map((item) => <option key={item} value={item}>{ADMIN_SETTLEMENT_STATUS_LABEL[item]}</option>)}</select></label>
           <label><span>기간 시작 이후</span><input type="datetime-local" value={startInput} onChange={(event) => setStartInput(event.target.value)} /></label>
           <label><span>기간 종료 이전</span><input type="datetime-local" value={endInput} onChange={(event) => setEndInput(event.target.value)} /></label>
@@ -193,7 +193,7 @@ function AdminSettlementListContent() {
           <header><h2 id="admin-settlement-generate-title">정산 생성</h2><button type="button" aria-label="닫기" onClick={closeGenerate} disabled={submitting}>×</button></header>
           <p id="admin-settlement-generate-description">판매자와 관리 기간, 정산 대상 기준 시각만 지정합니다. 원장 선정과 금액 계산은 서버가 수행합니다.</p>
           <div className="admin-settlement-generate-fields">
-            <label>판매자 ID<input ref={generateSellerRef} type="number" min="1" step="1" required value={generateInput.sellerId} onChange={(event) => setGenerateInput({ ...generateInput, sellerId: event.target.value })} disabled={submitting} /></label>
+            <label>판매자 ID<input ref={generateSellerRef} type="number" autoComplete="off" min="1" step="1" required value={generateInput.sellerId} onChange={(event) => setGenerateInput({ ...generateInput, sellerId: event.target.value })} disabled={submitting} /></label>
             <label>기간 시작 (포함)<input type="datetime-local" required value={generateInput.periodStart} onChange={(event) => setGenerateInput({ ...generateInput, periodStart: event.target.value })} disabled={submitting} /></label>
             <label>기간 종료 (미포함)<input type="datetime-local" required value={generateInput.periodEnd} onChange={(event) => setGenerateInput({ ...generateInput, periodEnd: event.target.value })} disabled={submitting} /></label>
             <label>대상 기준 시각 (cutoff)<input type="datetime-local" required value={generateInput.cutoff} onChange={(event) => setGenerateInput({ ...generateInput, cutoff: event.target.value })} disabled={submitting} /></label>

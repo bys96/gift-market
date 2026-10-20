@@ -60,8 +60,8 @@ export default function AdminGiftOccasionsPage() {
       <header className="admin-users-header"><div><p>GIFT OCCASION MANAGEMENT</p><h1>선물 상황 관리</h1><span>상품에 연결할 선물 상황과 노출 순서를 관리합니다.</span></div></header>
       {error && <div className="admin-dashboard-error" role="alert"><span>{error}</span></div>}
       <form className="admin-occasion-form" onSubmit={submit}>
-        <label>이름<input value={name} maxLength={100} onChange={(event) => setName(event.target.value)} disabled={submitting} /></label>
-        <label>노출 순서<input type="number" min="0" value={displayOrder} onChange={(event) => setDisplayOrder(event.target.value)} disabled={submitting} /></label>
+        <label>이름<input autoComplete="off" value={name} maxLength={100} onChange={(event) => setName(event.target.value)} disabled={submitting} /></label>
+        <label>노출 순서<input type="number" autoComplete="off" min="0" value={displayOrder} onChange={(event) => setDisplayOrder(event.target.value)} disabled={submitting} /></label>
         <button type="submit" disabled={submitting}>{editingId === null ? "추가" : "수정 저장"}</button>
         {editingId !== null && <button type="button" className="secondary" onClick={resetForm} disabled={submitting}>취소</button>}
       </form>

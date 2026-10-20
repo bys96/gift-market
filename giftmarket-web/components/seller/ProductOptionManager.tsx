@@ -727,6 +727,7 @@ export default function ProductOptionManager({
 
                   <input
                     value={group.name}
+                    autoComplete="off"
                     maxLength={50}
                     placeholder="예: 색상"
                     disabled={disabled}
@@ -759,6 +760,7 @@ export default function ProductOptionManager({
 
                         <input
                           value={optionValue.value}
+                          autoComplete="off"
                           maxLength={100}
                           placeholder={
                             valueIndex === 0
@@ -859,6 +861,7 @@ export default function ProductOptionManager({
                         <td>
                           <input
                             value={variant.skuCode}
+                            autoComplete="off"
                             maxLength={100}
                             placeholder="SKU 코드"
                             disabled={disabled}
@@ -884,6 +887,7 @@ export default function ProductOptionManager({
                           <div className="seller-product-variant-number-input">
                             <input
                               type="text"
+                              autoComplete="off"
                               inputMode="text"
                               value={variant.additionalPrice}
                               disabled={disabled}
@@ -931,6 +935,7 @@ export default function ProductOptionManager({
                           <div className="seller-product-variant-number-input">
                             <input
                               type="text"
+                              autoComplete="off"
                               inputMode="numeric"
                               value={variant.stockQuantity}
                               disabled={disabled}
