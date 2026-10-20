@@ -54,10 +54,13 @@ type ProductFormMode = "create" | "edit";
 type RequiredFieldTarget =
   | "rootCategoryId"
   | "name"
+  | "brandName"
+  | "summary"
   | "representativeImage"
   | "description"
   | "price"
   | "stockQuantity"
+  | "shippingFee"
   | "shippingPreparationDays"
   | "returnShippingFee"
   | "exchangeShippingFee";
@@ -69,6 +72,16 @@ class ProductFormValidationError extends Error {
   ) {
     super(message);
   }
+}
+
+interface ValidatedCommonProductFields {
+  categoryId: number;
+  price: number;
+  stockQuantity?: number;
+  shippingFee: number;
+  shippingPreparationDays: number;
+  returnShippingFee: number;
+  exchangeShippingFee: number;
 }
 
 type GalleryImageItem =
@@ -596,7 +609,9 @@ export default function ProductForm({
     }
   };
 
-  const validateRequiredRegistrationFields = (startSale: boolean) => {
+  const validateRequiredRegistrationFields = (
+    startSale: boolean,
+  ): ValidatedCommonProductFields => {
     const categoryId = parseRequiredFieldNumber(
       form.categoryId,
       "카테고리",
@@ -609,6 +624,20 @@ export default function ProductForm({
 
     if (form.name.trim().length > 200) {
       throwRequiredFieldError("name", "상품명은 200자 이하로 입력해주세요.");
+    }
+
+    if (form.brandName.trim().length > 100) {
+      throwRequiredFieldError(
+        "brandName",
+        "브랜드명은 100자 이하로 입력해주세요.",
+      );
+    }
+
+    if (form.summary.trim().length > 500) {
+      throwRequiredFieldError(
+        "summary",
+        "상품 요약은 500자 이하로 입력해주세요.",
+      );
     }
 
     if (startSale && !representativeFile && !representativeImageKey) {
@@ -638,19 +667,29 @@ export default function ProductForm({
       throwRequiredFieldError("price", "판매가는 0원보다 커야 합니다.");
     }
 
-    if (!optionEditorState.enabled) {
-      const stockQuantity = parseRequiredFieldNumber(
+    const stockQuantity = optionEditorState.enabled
+      ? undefined
+      : parseRequiredFieldNumber(
         form.stockQuantity,
         "재고 수량",
         "stockQuantity",
       );
 
+    if (stockQuantity !== undefined) {
       if (stockQuantity < 0) {
         throwRequiredFieldError(
           "stockQuantity",
           "재고 수량은 0개 이상이어야 합니다.",
         );
       }
+    }
+
+    const shippingFee = form.freeShipping
+      ? 0
+      : parseRequiredFieldNumber(form.shippingFee, "배송비", "shippingFee");
+
+    if (shippingFee < 0) {
+      throwRequiredFieldError("shippingFee", "배송비는 0원 이상이어야 합니다.");
     }
 
     const shippingPreparationDays = parseRequiredFieldNumber(
@@ -692,89 +731,41 @@ export default function ProductForm({
       );
     }
 
-    return categoryId;
-  };
-
-  const validateCommonRequest = (stockQuantityOverride?: number) => {
-    const categoryId = parseRequiredNumber(form.categoryId, "카테고리");
-    const price = parseRequiredNumber(form.price, "판매가");
-    const stockQuantity =
-      stockQuantityOverride ??
-      parseRequiredNumber(form.stockQuantity, "재고 수량");
-    const shippingFee = form.freeShipping
-      ? 0
-      : parseRequiredNumber(form.shippingFee, "배송비");
-
-    const shippingPreparationDays = parseRequiredNumber(
-      form.shippingPreparationDays,
-      "출고 소요일",
-    );
-    const returnShippingFee = parseRequiredNumber(
-      form.returnShippingFee,
-      "반품 배송비",
-    );
-    const exchangeShippingFee = parseRequiredNumber(
-      form.exchangeShippingFee,
-      "교환 배송비",
-    );
-
-    if (!form.name.trim()) {
-      throw new Error("상품명을 입력해주세요.");
-    }
-
-    if (form.name.trim().length > 200) {
-      throw new Error("상품명은 200자 이하로 입력해주세요.");
-    }
-
-    if (form.brandName.trim().length > 100) {
-      throw new Error("브랜드명은 100자 이하로 입력해주세요.");
-    }
-
-    if (form.summary.trim().length > 500) {
-      throw new Error("상품 요약은 500자 이하로 입력해주세요.");
-    }
-
-    if (form.description.trim().length > 50000) {
-      throw new Error("상품 상세 설명은 50000자 이하로 입력해주세요.");
-    }
-
-    if (price <= 0) {
-      throw new Error("판매가는 0원보다 커야 합니다.");
-    }
-
-    if (stockQuantity < 0) {
-      throw new Error("재고 수량은 0개 이상이어야 합니다.");
-    }
-
-    if (shippingFee < 0) {
-      throw new Error("배송비는 0원 이상이어야 합니다.");
-    }
-
-    if (shippingPreparationDays < 1 || shippingPreparationDays > 30) {
-      throw new Error("출고 소요일은 1일 이상 30일 이하로 입력해주세요.");
-    }
-
-    if (returnShippingFee < 0) {
-      throw new Error("반품 배송비는 0원 이상이어야 합니다.");
-    }
-
-    if (exchangeShippingFee < 0) {
-      throw new Error("교환 배송비는 0원 이상이어야 합니다.");
-    }
-
     return {
       categoryId,
-      name: form.name.trim(),
-      brandName: form.brandName.trim() || null,
-      summary: form.summary.trim() || null,
-      description: form.description.trim() || null,
       price,
       stockQuantity,
-      freeShipping: form.freeShipping,
       shippingFee,
       shippingPreparationDays,
       returnShippingFee,
       exchangeShippingFee,
+    };
+  };
+
+  const createCommonRequest = (
+    validatedFields: ValidatedCommonProductFields,
+    stockQuantityOverride?: number,
+  ) => {
+    const stockQuantity =
+      stockQuantityOverride ?? validatedFields.stockQuantity;
+
+    if (stockQuantity === undefined) {
+      throw new Error("옵션 재고를 확인해주세요.");
+    }
+
+    return {
+      categoryId: validatedFields.categoryId,
+      name: form.name.trim(),
+      brandName: form.brandName.trim() || null,
+      summary: form.summary.trim() || null,
+      description: form.description.trim() || null,
+      price: validatedFields.price,
+      stockQuantity,
+      freeShipping: form.freeShipping,
+      shippingFee: validatedFields.shippingFee,
+      shippingPreparationDays: validatedFields.shippingPreparationDays,
+      returnShippingFee: validatedFields.returnShippingFee,
+      exchangeShippingFee: validatedFields.exchangeShippingFee,
     };
   };
 
@@ -1406,8 +1397,10 @@ export default function ProductForm({
       return;
     }
 
+    let validatedFields: ValidatedCommonProductFields;
+
     try {
-      validateRequiredRegistrationFields(startSale);
+      validatedFields = validateRequiredRegistrationFields(startSale);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "상품 입력값을 확인해주세요.",
@@ -1430,7 +1423,8 @@ export default function ProductForm({
       setErrorMessage("");
 
       const optionConfiguration = validateOptionConfiguration();
-      const commonRequest = validateCommonRequest(
+      const commonRequest = createCommonRequest(
+        validatedFields,
         optionConfiguration.totalStockQuantity,
       );
 
