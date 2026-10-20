@@ -26,6 +26,14 @@ const JSON_HEADERS = {
   "Content-Type": "application/json",
 };
 
+export class ProductRegistrationResponseError extends Error {
+  constructor() {
+    super(
+      "상품 등록 결과를 확인할 수 없습니다. 중복 등록을 막기 위해 다시 제출하지 말고 상품 목록에서 등록 여부를 확인해주세요.",
+    );
+  }
+}
+
 type SellerProductListItemPayload = Omit<
   SellerProductListItem,
   "giftOccasions"
@@ -149,6 +157,15 @@ export async function registerProduct(
       body: JSON.stringify(request),
     },
   );
+
+  if (
+    response?.success !== true ||
+    !response.data ||
+    !Number.isSafeInteger(response.data.productId) ||
+    response.data.productId <= 0
+  ) {
+    throw new ProductRegistrationResponseError();
+  }
 
   if (!response.data) {
     throw new Error("상품 등록 결과를 확인할 수 없습니다.");

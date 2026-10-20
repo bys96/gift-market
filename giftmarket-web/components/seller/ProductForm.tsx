@@ -19,8 +19,10 @@ import {
   getCategories,
   getGiftOccasions,
   modifyProduct,
+  ProductRegistrationResponseError,
   registerProduct,
 } from "@/lib/product-api";
+import { ApiResponseFormatError } from "@/lib/api";
 import {
   createProductDraft,
   getProductDraftByProductId,
@@ -197,6 +199,9 @@ export default function ProductForm({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const representativeBlobUrlRef = useRef<string | null>(null);
   const galleryImagesRef = useRef<GalleryImageItem[]>([]);
+  const submissionLockRef = useRef(false);
+  const registrationRequestDispatchedRef = useRef(false);
+  const registrationResultUnknownRef = useRef(false);
 
   const [form, setForm] = useState<ProductFormState>(() =>
     createInitialForm(initialProduct),
@@ -221,6 +226,8 @@ export default function ProductForm({
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRegistrationResultUnknown, setIsRegistrationResultUnknown] =
+    useState(false);
 
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
@@ -1228,9 +1235,20 @@ export default function ProductForm({
   }, [mode, initialDraft]);
 
   const handleSave = async (startSale: boolean) => {
-    if (isSubmitting || isUploadingContent) {
+    if (registrationResultUnknownRef.current) {
+      setErrorMessage(
+        "상품 등록 결과를 확인할 수 없습니다. 중복 등록을 막기 위해 다시 제출하지 말고 상품 목록에서 등록 여부를 확인해주세요.",
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+
+    if (submissionLockRef.current || isSubmitting || isUploadingContent) {
+      return;
+    }
+
+    submissionLockRef.current = true;
+    registrationRequestDispatchedRef.current = false;
 
     try {
       setIsSubmitting(true);
@@ -1284,6 +1302,7 @@ export default function ProductForm({
           draftId,
         };
 
+        registrationRequestDispatchedRef.current = true;
         await registerProduct(registrationRequest);
 
         router.replace("/seller/products");
@@ -1327,8 +1346,21 @@ export default function ProductForm({
 
       return;
     } catch (error) {
+      const isRegistrationResultUnknown =
+        mode === "create" &&
+        registrationRequestDispatchedRef.current &&
+        (error instanceof ApiResponseFormatError ||
+          error instanceof ProductRegistrationResponseError);
+
+      if (isRegistrationResultUnknown) {
+        registrationResultUnknownRef.current = true;
+        setIsRegistrationResultUnknown(true);
+      }
+
       setErrorMessage(
-        error instanceof Error
+        isRegistrationResultUnknown
+          ? "상품 등록 결과를 확인할 수 없습니다. 중복 등록을 막기 위해 다시 제출하지 말고 상품 목록에서 등록 여부를 확인해주세요."
+          : error instanceof Error
           ? error.message
           : mode === "create"
             ? "상품 등록에 실패했습니다."
@@ -1337,6 +1369,7 @@ export default function ProductForm({
 
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
+      submissionLockRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -2036,6 +2069,7 @@ export default function ProductForm({
                   onClick={() => void handleSave(true)}
                   disabled={
                     isSubmitting ||
+                    isRegistrationResultUnknown ||
                     isSavingDraft ||
                     isUploadingContent ||
                     !optionEditorState.initialized

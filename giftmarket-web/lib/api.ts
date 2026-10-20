@@ -24,6 +24,12 @@ export class ApiError extends Error {
   }
 }
 
+export class ApiResponseFormatError extends ApiError {
+  constructor(message: string, status: number) {
+    super(message, status);
+  }
+}
+
 // 로그아웃 뒤 이미 진행 중이던 token refresh가 인증 상태를 되살리지 못하게 한다.
 export function invalidateAuthSession(): void {
   authSessionVersion += 1;
@@ -76,6 +82,17 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
     throw new ApiError(
       errorResponse?.message ?? `API 요청에 실패했습니다. (${response.status})`,
+      response.status,
+    );
+  }
+
+  if (
+    parsedBody === null ||
+    typeof parsedBody !== "object" ||
+    Array.isArray(parsedBody)
+  ) {
+    throw new ApiResponseFormatError(
+      "서버 응답을 확인할 수 없습니다. 잠시 후 다시 시도해주세요.",
       response.status,
     );
   }
