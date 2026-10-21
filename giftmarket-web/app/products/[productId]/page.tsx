@@ -333,6 +333,16 @@ export default function ProductDetailPage() {
 
           <h1 className="product-detail-name">{product.name}</h1>
 
+          {product.giftOccasions.length > 0 && (
+            <div className="product-detail-gift-occasions" aria-label="선물 상황">
+              {product.giftOccasions.map((occasion) => (
+                <span key={occasion.id} className="product-detail-gift-occasion">
+                  #{occasion.name}
+                </span>
+              ))}
+            </div>
+          )}
+
           {product.summary && (
             <p className="product-detail-description">{product.summary}</p>
           )}

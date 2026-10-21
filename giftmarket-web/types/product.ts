@@ -20,6 +20,7 @@ export interface ProductSummary {
   representativeImageKey: string | null;
   freeShipping: boolean;
   shippingFee: number;
+  giftOccasions: GiftOccasion[];
 }
 
 export interface ProductPage {
@@ -193,6 +194,7 @@ export interface ProductDetail {
   shippingPreparationDays: number;
   returnShippingFee: number;
   exchangeShippingFee: number;
+  giftOccasions: GiftOccasion[];
 
   hasOptions: boolean;
   optionGroups: ProductDetailOptionGroup[];

@@ -44,6 +44,8 @@ export default function ProductCard({ product }: ProductCardProps) {
   const freeShipping =
     (isSummary ? product.freeShipping : product.isFreeShipping) === true;
 
+  const giftOccasions = isSummary ? product.giftOccasions ?? [] : [];
+
   const isSoldOut = isSummary && product.status === "SOLD_OUT";
   const isSaleStopped =
     isSummary && (product.status === "HIDDEN" || product.status === "DRAFT");
@@ -112,14 +114,24 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <h2 className="product-card-name">{product.name}</h2>
 
-        <strong className="product-card-price">
-          {formatPrice(product.price)}
-        </strong>
+        <div className="product-card-price-row">
+          <strong className="product-card-price">
+            {formatPrice(product.price)}
+          </strong>
 
-        <div className="product-card-shipping-area">
-          {freeShipping && (
+          <div className="product-card-shipping-area">
+            {freeShipping && (
             <span className="product-card-shipping">무료배송</span>
-          )}
+            )}
+          </div>
+        </div>
+
+        <div className="product-card-gift-occasions" aria-label="선물 상황">
+          {giftOccasions.slice(0, 2).map((occasion) => (
+            <span key={occasion.id} className="product-card-gift-occasion">
+              #{occasion.name}
+            </span>
+          ))}
         </div>
       </Link>
     </article>

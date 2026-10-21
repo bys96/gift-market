@@ -99,6 +99,26 @@
   word-break: keep-all;
 }
 
+.product-detail-gift-occasions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.product-detail-gift-occasion {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f4f5f6;
+  color: #6f747b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 .product-detail-description {
   margin: 14px 0 0;
   color: #777777;
@@ -646,6 +666,10 @@
 
   .product-detail-name {
     font-size: 23px;
+  }
+
+  .product-detail-gift-occasions {
+    margin-top: 12px;
   }
 
   .product-detail-description {

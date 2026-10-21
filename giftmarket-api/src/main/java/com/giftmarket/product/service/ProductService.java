@@ -218,9 +218,23 @@ public class ProductService {
                 pageable
         );
 
+        Map<Long, List<GiftOccasionResponse>>
+                giftOccasionsByProductId =
+                giftOccasionService.getActiveProductGiftOccasions(
+                        productPage.getContent().stream()
+                                .map(Product::getId)
+                                .toList()
+                );
+
         Page<ProductSummaryResponse> responsePage =
-                productPage.map(
-                        ProductSummaryResponse::from
+                productPage.map(product ->
+                        ProductSummaryResponse.from(
+                                product,
+                                giftOccasionsByProductId.getOrDefault(
+                                        product.getId(),
+                                        List.of()
+                                )
+                        )
                 );
 
         return ProductPageResponse.from(responsePage);
@@ -300,7 +314,10 @@ public class ProductService {
                 optionGroups,
                 optionValues,
                 variants,
-                variantOptionValues
+                variantOptionValues,
+                giftOccasionService.getActiveProductGiftOccasions(
+                        product.getId()
+                )
         );
     }
 

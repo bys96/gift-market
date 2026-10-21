@@ -53,6 +53,8 @@ public class ProductDetailResponse {
 
     private Long exchangeShippingFee;
 
+    private List<GiftOccasionResponse> giftOccasions;
+
     private Long sellerId;
 
     private String storeName;
@@ -71,7 +73,8 @@ public class ProductDetailResponse {
             List<ProductOptionGroup> optionGroups,
             List<ProductOptionValue> optionValues,
             List<ProductVariant> variants,
-            List<ProductVariantOptionValue> variantOptionValues
+            List<ProductVariantOptionValue> variantOptionValues,
+            List<GiftOccasionResponse> giftOccasions
     ) {
         boolean hasOptions = !optionGroups.isEmpty();
 
@@ -184,6 +187,7 @@ public class ProductDetailResponse {
                 .exchangeShippingFee(
                         product.getExchangeShippingFee()
                 )
+                .giftOccasions(List.copyOf(giftOccasions))
                 .sellerId(
                         product.getSeller().getId()
                 )

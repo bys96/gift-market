@@ -5,6 +5,8 @@ import com.giftmarket.product.entity.ProductStatus;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 @Builder
 public class ProductSummaryResponse {
@@ -29,7 +31,16 @@ public class ProductSummaryResponse {
 
     private Long shippingFee;
 
+    private List<GiftOccasionResponse> giftOccasions;
+
     public static ProductSummaryResponse from(Product product) {
+        return from(product, List.of());
+    }
+
+    public static ProductSummaryResponse from(
+            Product product,
+            List<GiftOccasionResponse> giftOccasions
+    ) {
         return ProductSummaryResponse.builder()
                 .id(product.getId())
                 .categoryId(product.getCategory().getId())
@@ -43,6 +54,7 @@ public class ProductSummaryResponse {
                 )
                 .freeShipping(product.isFreeShipping())
                 .shippingFee(product.getShippingFee())
+                .giftOccasions(List.copyOf(giftOccasions))
                 .build();
     }
 }

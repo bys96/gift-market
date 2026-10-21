@@ -2,9 +2,11 @@ package com.giftmarket.wishlist.service;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.product.dto.response.ProductSummaryResponse;
+import com.giftmarket.product.dto.response.GiftOccasionResponse;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductStatus;
 import com.giftmarket.product.repository.ProductRepository;
+import com.giftmarket.product.service.GiftOccasionService;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.repository.UserRepository;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -30,14 +33,29 @@ public class WishlistService {
     private final WishlistItemRepository wishlistItemRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final GiftOccasionService giftOccasionService;
 
     public List<ProductSummaryResponse> getWishlist(Long userId) {
         validateAuthentication(userId);
 
-        return wishlistItemRepository.findVisibleByUserId(userId)
+        List<Product> products = wishlistItemRepository.findVisibleByUserId(userId)
                 .stream()
                 .map(WishlistItem::getProduct)
-                .map(ProductSummaryResponse::from)
+                .toList();
+
+        Map<Long, List<GiftOccasionResponse>> giftOccasionsByProductId =
+                giftOccasionService.getActiveProductGiftOccasions(
+                        products.stream().map(Product::getId).toList()
+                );
+
+        return products.stream()
+                .map(product -> ProductSummaryResponse.from(
+                        product,
+                        giftOccasionsByProductId.getOrDefault(
+                                product.getId(),
+                                List.of()
+                        )
+                ))
                 .toList();
     }
 
@@ -61,7 +79,10 @@ public class WishlistService {
             wishlistItemRepository.save(WishlistItem.create(user, product));
         }
 
-        return ProductSummaryResponse.from(product);
+        return ProductSummaryResponse.from(
+                product,
+                giftOccasionService.getActiveProductGiftOccasions(productId)
+        );
     }
 
     @Transactional
