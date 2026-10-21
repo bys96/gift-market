@@ -17,6 +17,8 @@ test("my logout clears local session state and replaces the protected route with
 
   assert.match(logout, /apiFetch\("\/api\/auth\/logout",\s*\{\s*method: "POST"/s);
   assert.match(logout, /finally\s*\{[\s\S]*invalidateAuthSession\(\)[\s\S]*clearAuth\(\)[\s\S]*resetCart\(\)[\s\S]*resetWishlist\(\)[\s\S]*router\.replace\("\/"\)/);
+  assert.doesNotMatch(logout, /router\.refresh\(\)/);
+  assert.doesNotMatch(logout, /setIsLoggingOut\(false\)/);
   assert.match(source, /if \(\(!isAuthenticated \|\| !user\) && !isLoggingOut\)\s*\{\s*router\.replace\(getLoginRedirectUrl\(\)\)/);
 });
 

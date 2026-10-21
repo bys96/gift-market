@@ -111,8 +111,6 @@ export default function MyPage() {
       useCartStore.getState().resetCart();
       useWishlistStore.getState().resetWishlist();
       router.replace("/");
-      router.refresh();
-      setIsLoggingOut(false);
     }
   };
 
