@@ -44,10 +44,10 @@ export default function MyPage() {
       return;
     }
 
-    if (!isAuthenticated || !user) {
+    if ((!isAuthenticated || !user) && !isLoggingOut) {
       router.replace(getLoginRedirectUrl());
     }
-  }, [initialized, isAuthenticated, user, router]);
+  }, [initialized, isAuthenticated, user, isLoggingOut, router]);
 
   useEffect(() => {
     if (!initialized || !isAuthenticated || !user) {
