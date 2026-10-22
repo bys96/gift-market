@@ -7,6 +7,8 @@ import com.giftmarket.product.dto.request.ProductStatusUpdateRequest;
 import com.giftmarket.product.dto.request.ProductStockUpdateRequest;
 import com.giftmarket.product.dto.request.ProductUpdateRequest;
 import com.giftmarket.product.dto.response.GiftOccasionResponse;
+import com.giftmarket.product.dto.response.HomeProductPriceRangeResponse;
+import com.giftmarket.product.dto.response.HomeProductResponse;
 import com.giftmarket.product.dto.response.ProductDetailResponse;
 import com.giftmarket.product.dto.response.ProductListResponse;
 import com.giftmarket.product.dto.response.ProductPageResponse;
@@ -54,6 +56,7 @@ import java.util.stream.IntStream;
 public class ProductService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int HOME_SECTION_PRODUCT_SIZE = 4;
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
@@ -160,7 +163,10 @@ public class ProductService {
         ProductSearchCondition condition =
                 new ProductSearchCondition(
                         categoryIds,
+                        null,
                         keyword,
+                        null,
+                        null,
                         excludeSoldOut,
                         page,
                         size
@@ -173,6 +179,12 @@ public class ProductService {
     public ProductPageResponse getProducts(
             ProductSearchCondition condition
     ) {
+        if (condition.normalizedMinPrice() != null
+                && condition.normalizedMaxPrice() != null
+                && condition.normalizedMinPrice() > condition.normalizedMaxPrice()) {
+            throw new ProductException("최소 가격은 최대 가격보다 클 수 없습니다.");
+        }
+
         Pageable pageable = createPageable(
                 condition.normalizedPage(),
                 condition.normalizedSize()
@@ -211,6 +223,21 @@ public class ProductService {
                                 ProductSpecifications.nameContains(
                                         condition.normalizedKeyword()
                                 )
+                        )
+                        .and(
+                                ProductSpecifications.giftOccasionId(
+                                        condition.normalizedGiftOccasionId()
+                                )
+                        )
+                        .and(
+                                ProductSpecifications.priceAtLeast(
+                                        condition.normalizedMinPrice()
+                                )
+                        )
+                        .and(
+                                ProductSpecifications.priceAtMost(
+                                        condition.normalizedMaxPrice()
+                                )
                         );
 
         Page<Product> productPage = productRepository.findAll(
@@ -238,6 +265,37 @@ public class ProductService {
                 );
 
         return ProductPageResponse.from(responsePage);
+    }
+
+    @Transactional(readOnly = true)
+    public HomeProductResponse getHomeProducts() {
+        return new HomeProductResponse(
+                giftOccasionService.getActiveGiftOccasions(),
+                getPopularHomeProducts(),
+                List.of(
+                        new HomeProductPriceRangeResponse(
+                                "UNDER_10000",
+                                getHomeProductsByPriceRange(0L, 10_000L)
+                        ),
+                        new HomeProductPriceRangeResponse(
+                                "FROM_10001_TO_30000",
+                                getHomeProductsByPriceRange(10_001L, 30_000L)
+                        ),
+                        new HomeProductPriceRangeResponse(
+                                "FROM_30001_TO_50000",
+                                getHomeProductsByPriceRange(30_001L, 50_000L)
+                        ),
+                        new HomeProductPriceRangeResponse(
+                                "OVER_50000",
+                                getHomeProductsByPriceRange(50_001L, null)
+                        )
+                ),
+                toProductSummaries(productRepository.findVisibleOnSaleProducts(
+                        null,
+                        null,
+                        PageRequest.of(0, HOME_SECTION_PRODUCT_SIZE)
+                ))
+        );
     }
 
     @Transactional(readOnly = true)
@@ -796,6 +854,60 @@ public class ProductService {
                         "createdAt"
                 )
         );
+    }
+
+    private List<ProductSummaryResponse> getPopularHomeProducts() {
+        List<Long> productIds = productRepository.findPopularVisibleOnSaleProductIds(
+                HOME_SECTION_PRODUCT_SIZE
+        );
+
+        if (productIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Product> productsById = productRepository.findAllByIdIn(productIds)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Product::getId,
+                        product -> product
+                ));
+
+        List<Product> products = productIds.stream()
+                .map(productsById::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        return toProductSummaries(products);
+    }
+
+    private List<ProductSummaryResponse> getHomeProductsByPriceRange(
+            Long minPrice,
+            Long maxPrice
+    ) {
+        return toProductSummaries(productRepository.findVisibleOnSaleProducts(
+                minPrice,
+                maxPrice,
+                PageRequest.of(0, HOME_SECTION_PRODUCT_SIZE)
+        ));
+    }
+
+    private List<ProductSummaryResponse> toProductSummaries(
+            List<Product> products
+    ) {
+        Map<Long, List<GiftOccasionResponse>> giftOccasionsByProductId =
+                giftOccasionService.getActiveProductGiftOccasions(
+                        products.stream().map(Product::getId).toList()
+                );
+
+        return products.stream()
+                .map(product -> ProductSummaryResponse.from(
+                        product,
+                        giftOccasionsByProductId.getOrDefault(
+                                product.getId(),
+                                List.of()
+                        )
+                ))
+                .toList();
     }
 
     private String trimToNull(String value) {

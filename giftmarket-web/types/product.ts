@@ -33,6 +33,24 @@ export interface ProductPage {
   last: boolean;
 }
 
+export type HomePriceRangeCode =
+  | "UNDER_10000"
+  | "FROM_10001_TO_30000"
+  | "FROM_30001_TO_50000"
+  | "OVER_50000";
+
+export interface HomeProductPriceRange {
+  code: HomePriceRangeCode;
+  products: ProductSummary[];
+}
+
+export interface HomeProductData {
+  giftOccasions: GiftOccasion[];
+  popularProducts: ProductSummary[];
+  priceRanges: HomeProductPriceRange[];
+  newestProducts: ProductSummary[];
+}
+
 export interface SellerProduct {
   id: number;
   sellerId: number;

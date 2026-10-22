@@ -3,6 +3,7 @@ import type { ApiResponse } from "@/types/api";
 import type {
   Category,
   GiftOccasion,
+  HomeProductData,
   ProductCreateRequest,
   ProductDetail,
   ProductModificationRequest,
@@ -57,6 +58,9 @@ interface GetProductsParams {
 
   keyword?: string;
   excludeSoldOut?: boolean;
+  giftOccasionId?: number;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export async function getCategories(): Promise<Category[]> {
@@ -79,6 +83,9 @@ export async function getProducts({
   categoryIds,
   keyword,
   excludeSoldOut = false,
+  giftOccasionId,
+  minPrice,
+  maxPrice,
 }: GetProductsParams = {}): Promise<ProductPage> {
   const params = new URLSearchParams({
     page: String(page),
@@ -104,12 +111,48 @@ export async function getProducts({
     params.set("keyword", normalizedKeyword);
   }
 
+  if (
+    typeof giftOccasionId === "number" &&
+    Number.isInteger(giftOccasionId) &&
+    giftOccasionId > 0
+  ) {
+    params.set("giftOccasionId", String(giftOccasionId));
+  }
+
+  if (
+    typeof minPrice === "number" &&
+    Number.isSafeInteger(minPrice) &&
+    minPrice >= 0
+  ) {
+    params.set("minPrice", String(minPrice));
+  }
+
+  if (
+    typeof maxPrice === "number" &&
+    Number.isSafeInteger(maxPrice) &&
+    maxPrice >= 0
+  ) {
+    params.set("maxPrice", String(maxPrice));
+  }
+
   const response = await apiFetch<ApiResponse<ProductPage>>(
     `/api/products?${params.toString()}`,
   );
 
   if (!response.data) {
     throw new Error("상품 목록을 확인할 수 없습니다.");
+  }
+
+  return response.data;
+}
+
+export async function getHomeProducts(): Promise<HomeProductData> {
+  const response = await apiFetch<ApiResponse<HomeProductData>>(
+    "/api/products/home",
+  );
+
+  if (!response.data) {
+    throw new Error("메인 상품 정보를 확인할 수 없습니다.");
   }
 
   return response.data;

@@ -3,6 +3,7 @@ package com.giftmarket.product.controller;
 import com.giftmarket.global.response.ApiResponse;
 import com.giftmarket.product.dto.request.ProductSearchCondition;
 import com.giftmarket.product.dto.response.ProductDetailResponse;
+import com.giftmarket.product.dto.response.HomeProductResponse;
 import com.giftmarket.product.dto.response.ProductPageResponse;
 import com.giftmarket.product.service.ProductService;
 import jakarta.validation.Valid;
@@ -27,6 +28,11 @@ public class ProductController {
         return ApiResponse.success(
                 productService.getProducts(condition)
         );
+    }
+
+    @GetMapping("/home")
+    public ApiResponse<HomeProductResponse> getHomeProducts() {
+        return ApiResponse.success(productService.getHomeProducts());
     }
 
     @GetMapping("/{productId}")

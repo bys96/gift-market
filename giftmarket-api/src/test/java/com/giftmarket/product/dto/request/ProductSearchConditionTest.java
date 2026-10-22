@@ -12,9 +12,9 @@ class ProductSearchConditionTest {
     @Test
     void defaultsPageSizeToTwentyAndAcceptsMaximumOneHundred() {
         var defaultCondition = new ProductSearchCondition(
-                List.of(), null, false, null, null);
+                List.of(), null, null, null, null, false, null, null);
         var maximumCondition = new ProductSearchCondition(
-                List.of(), null, false, 0, 100);
+                List.of(), null, null, null, null, false, 0, 100);
 
         assertThat(defaultCondition.normalizedSize()).isEqualTo(20);
         assertThat(Validation.buildDefaultValidatorFactory()
@@ -26,7 +26,7 @@ class ProductSearchConditionTest {
     @Test
     void rejectsPageSizeOverOneHundred() {
         var condition = new ProductSearchCondition(
-                List.of(), null, false, 0, 101);
+                List.of(), null, null, null, null, false, 0, 101);
 
         assertThat(Validation.buildDefaultValidatorFactory()
                 .getValidator()

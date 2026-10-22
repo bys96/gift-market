@@ -29,16 +29,22 @@ const productListScrollPositions = new Map<string, ProductListScrollPosition>();
 
 interface ProductsUrlOptions {
   categoryIds?: number[];
+  giftOccasionId?: number | null;
   keyword?: string;
   excludeSoldOut?: boolean;
+  minPrice?: number | null;
+  maxPrice?: number | null;
   page?: number;
   size?: number;
 }
 
 interface ProductQuerySnapshot {
   categoryIdsKey: string;
+  giftOccasionId: number | null;
   keyword: string;
   excludeSoldOut: boolean;
+  minPrice: number | null;
+  maxPrice: number | null;
   page: number;
   size: number;
 }
@@ -49,8 +55,11 @@ function isSameQueryExceptPage(
 ) {
   return (
     first.categoryIdsKey === second.categoryIdsKey &&
+    first.giftOccasionId === second.giftOccasionId &&
     first.keyword === second.keyword &&
     first.excludeSoldOut === second.excludeSoldOut &&
+    first.minPrice === second.minPrice &&
+    first.maxPrice === second.maxPrice &&
     first.size === second.size
   );
 }
@@ -77,6 +86,20 @@ function parsePageSize(value: string | null) {
   )
     ? parsedValue
     : DEFAULT_PAGE_SIZE;
+}
+
+function parsePositiveInteger(value: string | null) {
+  const parsedValue = Number(value);
+  return Number.isSafeInteger(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : null;
+}
+
+function parseNonNegativeInteger(value: string | null) {
+  const parsedValue = Number(value);
+  return Number.isSafeInteger(parsedValue) && parsedValue >= 0
+    ? parsedValue
+    : null;
 }
 
 function flattenCategories(categories: Category[]): Category[] {
@@ -133,6 +156,9 @@ function ProductsContent() {
   const keyword = searchParams.get("keyword")?.trim() ?? "";
 
   const excludeSoldOut = searchParams.get("excludeSoldOut") === "true";
+  const giftOccasionId = parsePositiveInteger(searchParams.get("giftOccasionId"));
+  const minPrice = parseNonNegativeInteger(searchParams.get("minPrice"));
+  const maxPrice = parseNonNegativeInteger(searchParams.get("maxPrice"));
 
   const page = parsePage(searchParams.get("page"));
   const size = parsePageSize(searchParams.get("size"));
@@ -228,10 +254,20 @@ function ProductsContent() {
       const nextKeyword =
         options.keyword === undefined ? keyword : options.keyword.trim();
 
+      const nextGiftOccasionId =
+        options.giftOccasionId === undefined
+          ? giftOccasionId
+          : options.giftOccasionId;
+
       const nextExcludeSoldOut =
         options.excludeSoldOut === undefined
           ? excludeSoldOut
           : options.excludeSoldOut;
+
+      const nextMinPrice =
+        options.minPrice === undefined ? minPrice : options.minPrice;
+      const nextMaxPrice =
+        options.maxPrice === undefined ? maxPrice : options.maxPrice;
 
       const nextPage = options.page === undefined ? page : options.page;
       const nextSize = options.size === undefined ? size : options.size;
@@ -248,8 +284,20 @@ function ProductsContent() {
         params.set("keyword", nextKeyword);
       }
 
+      if (nextGiftOccasionId !== null) {
+        params.set("giftOccasionId", String(nextGiftOccasionId));
+      }
+
       if (nextExcludeSoldOut) {
         params.set("excludeSoldOut", "true");
+      }
+
+      if (nextMinPrice !== null) {
+        params.set("minPrice", String(nextMinPrice));
+      }
+
+      if (nextMaxPrice !== null) {
+        params.set("maxPrice", String(nextMaxPrice));
       }
 
       if (nextPage > 0) {
@@ -264,15 +312,27 @@ function ProductsContent() {
 
       return queryString ? `/products?${queryString}` : "/products";
     },
-    [categoryIds, excludeSoldOut, keyword, page, size],
+    [
+      categoryIds,
+      excludeSoldOut,
+      giftOccasionId,
+      keyword,
+      maxPrice,
+      minPrice,
+      page,
+      size,
+    ],
   );
 
   const loadProducts = useCallback(async () => {
     const requestId = ++productRequestIdRef.current;
     const requestedQuery: ProductQuerySnapshot = {
       categoryIdsKey: [...categoryIds].sort((a, b) => a - b).join(","),
+      giftOccasionId,
       keyword,
       excludeSoldOut,
+      minPrice,
+      maxPrice,
       page,
       size,
     };
@@ -285,6 +345,9 @@ function ProductsContent() {
         categoryIds,
         keyword,
         excludeSoldOut,
+        giftOccasionId: giftOccasionId ?? undefined,
+        minPrice: minPrice ?? undefined,
+        maxPrice: maxPrice ?? undefined,
         page,
         size,
       });
@@ -365,7 +428,18 @@ function ProductsContent() {
         setIsLoading(false);
       }
     }
-  }, [categoryIds, createProductsUrl, excludeSoldOut, keyword, page, router, size]);
+  }, [
+    categoryIds,
+    createProductsUrl,
+    excludeSoldOut,
+    giftOccasionId,
+    keyword,
+    maxPrice,
+    minPrice,
+    page,
+    router,
+    size,
+  ]);
 
   /*
    * URL이 optimistic 상태를 따라오면

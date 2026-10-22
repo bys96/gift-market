@@ -138,6 +138,63 @@ public interface ProductRepository extends
             Pageable pageable
     );
 
+    @EntityGraph(attributePaths = {"seller", "category"})
+    @Query("""
+            select p
+            from Product p
+            join p.seller s
+            where p.status = com.giftmarket.product.entity.ProductStatus.ON_SALE
+              and p.deletedAt is null
+              and p.adminHidden = false
+              and s.status = com.giftmarket.seller.entity.SellerStatus.ACTIVE
+              and (:minPrice is null or p.price >= :minPrice)
+              and (:maxPrice is null or p.price <= :maxPrice)
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Product> findVisibleOnSaleProducts(
+            @Param("minPrice") Long minPrice,
+            @Param("maxPrice") Long maxPrice,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            select p.id
+            from products p
+            join sellers s on s.id = p.seller_id
+            left join (
+                select oi.product_id,
+                       sum(oi.quantity - oi.canceled_quantity - oi.returned_quantity) as sales_quantity
+                from order_items oi
+                join orders o on o.id = oi.order_id
+                join seller_orders so on so.id = oi.seller_order_id
+                where o.status = 'PAID'
+                  and so.status <> 'CANCELLED'
+                group by oi.product_id
+            ) sales on sales.product_id = p.id
+            left join (
+                select wi.product_id, count(*) as wishlist_count
+                from wishlist_items wi
+                group by wi.product_id
+            ) wishes on wishes.product_id = p.id
+            where p.status = 'ON_SALE'
+              and p.deleted_at is null
+              and p.admin_hidden = false
+              and s.status = 'ACTIVE'
+            order by coalesce(sales.sales_quantity, 0) desc,
+                     case when coalesce(sales.sales_quantity, 0) = 0
+                          then coalesce(wishes.wishlist_count, 0)
+                          else 0 end desc,
+                     p.created_at desc,
+                     p.id desc
+            limit :limit
+            """, nativeQuery = true)
+    List<Long> findPopularVisibleOnSaleProductIds(
+            @Param("limit") int limit
+    );
+
+    @EntityGraph(attributePaths = {"seller", "category"})
+    List<Product> findAllByIdIn(Collection<Long> ids);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Product> findWithLockByIdAndDeletedAtIsNull(
             Long productId

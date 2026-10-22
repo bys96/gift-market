@@ -3,6 +3,7 @@ package com.giftmarket.product.dto.request;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.util.List;
 
@@ -13,7 +14,16 @@ public record ProductSearchCondition(
                         Long
                 > categoryIds,
 
+        @Positive(message = "선물 상황 ID는 1 이상이어야 합니다.")
+        Long giftOccasionId,
+
         String keyword,
+
+        @PositiveOrZero(message = "최소 가격은 0 이상이어야 합니다.")
+        Long minPrice,
+
+        @PositiveOrZero(message = "최대 가격은 0 이상이어야 합니다.")
+        Long maxPrice,
 
         Boolean excludeSoldOut,
 
@@ -42,6 +52,18 @@ public record ProductSearchCondition(
         }
 
         return keyword.trim();
+    }
+
+    public Long normalizedGiftOccasionId() {
+        return giftOccasionId;
+    }
+
+    public Long normalizedMinPrice() {
+        return minPrice;
+    }
+
+    public Long normalizedMaxPrice() {
+        return maxPrice;
     }
 
     public boolean normalizedExcludeSoldOut() {

@@ -103,6 +103,89 @@
   text-decoration: none;
 }
 
+.home-section-more:hover {
+  color: #171717;
+}
+
+.home-occasion-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+
+.home-occasion-item {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 0 17px;
+  border: 1px solid #efebdc;
+  border-radius: 16px;
+  color: #39352a;
+  background: #fffcf2;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.home-occasion-item:hover {
+  border-color: #e5d68c;
+  background: #fff8d8;
+}
+
+.home-occasion-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  color: #8b7100;
+  background: #fff0a9;
+  font-size: 14px;
+}
+
+.home-occasion-loading,
+.home-product-empty {
+  display: flex;
+  align-items: center;
+  min-height: 72px;
+  color: #777777;
+  font-size: 14px;
+}
+
+.home-price-range-tabs {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 24px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  scrollbar-width: thin;
+}
+
+.home-price-range-tabs button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid #e6e6e6;
+  border-radius: 999px;
+  color: #666666;
+  background: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.home-price-range-tabs button.is-active {
+  border-color: #262626;
+  color: #ffffff;
+  background: #262626;
+}
+
 .home-category-list {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -170,6 +253,10 @@
     grid-template-columns: repeat(4, 1fr);
     row-gap: 28px;
   }
+
+  .home-occasion-item {
+    padding: 0 15px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -209,5 +296,34 @@
 
   .home-category-name {
     font-size: 13px;
+  }
+
+  .home-section {
+    margin-top: 56px;
+  }
+
+  .home-section-header {
+    margin-bottom: 18px;
+  }
+
+  .home-section-title {
+    font-size: 24px;
+  }
+
+  .home-occasion-list {
+    gap: 9px;
+    margin-right: -16px;
+    padding-right: 16px;
+  }
+
+  .home-occasion-item {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  .home-price-range-tabs {
+    margin-bottom: 18px;
+    margin-right: -16px;
+    padding-right: 16px;
   }
 }
