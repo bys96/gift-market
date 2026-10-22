@@ -19,13 +19,19 @@ import type { Category, ProductPage, ProductSort } from "@/types/product";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PRODUCT_PAGE_SIZES = [20, 40, 60] as const;
-const PRICE_SLIDER_MAX = 300_000;
 const PRODUCT_SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
   { value: "LATEST", label: "최신순" },
   { value: "POPULAR", label: "인기순" },
   { value: "PRICE_ASC", label: "낮은 가격순" },
   { value: "PRICE_DESC", label: "높은 가격순" },
 ];
+const QUICK_PRICE_RANGES = [
+  { label: "전체", minPrice: null, maxPrice: null },
+  { label: "1만원 이하", minPrice: 0, maxPrice: 10_000 },
+  { label: "1~3만원", minPrice: 10_001, maxPrice: 30_000 },
+  { label: "3~5만원", minPrice: 30_001, maxPrice: 50_000 },
+  { label: "5만원 이상", minPrice: 50_001, maxPrice: null },
+] as const;
 interface ProductListScrollPosition {
   scrollY: number;
   productId: number;
@@ -613,6 +619,10 @@ function ProductsContent() {
   const closePriceFilter = () => setIsPriceFilterOpen(false);
   const draftMinValue = draftMinPrice === "" ? null : Number(draftMinPrice);
   const draftMaxValue = draftMaxPrice === "" ? null : Number(draftMaxPrice);
+  const selectedQuickPriceRange = QUICK_PRICE_RANGES.find(
+    (range) =>
+      range.minPrice === draftMinValue && range.maxPrice === draftMaxValue,
+  )?.label;
   const isPriceRangeInvalid =
     (draftMinValue !== null && (!Number.isSafeInteger(draftMinValue) || draftMinValue < 0)) ||
     (draftMaxValue !== null && (!Number.isSafeInteger(draftMaxValue) || draftMaxValue < 0)) ||
@@ -627,6 +637,13 @@ function ProductsContent() {
   const resetPriceFilter = () => {
     setDraftMinPrice("");
     setDraftMaxPrice("");
+  };
+
+  const handleQuickPriceRangeSelect = (
+    range: (typeof QUICK_PRICE_RANGES)[number],
+  ) => {
+    setDraftMinPrice(range.minPrice === null ? "" : String(range.minPrice));
+    setDraftMaxPrice(range.maxPrice === null ? "" : String(range.maxPrice));
   };
 
   const handleSortChange = (nextSort: ProductSort) => {
@@ -878,6 +895,7 @@ function ProductsContent() {
         </div>
 
         <div className="product-page-filter-toolbar-right">
+          <button type="button" className="product-page-filter-button" onClick={openPriceFilter}>⚙ 필터</button>
           <label className="product-page-size-select">
             <span>페이지당 상품 수</span>
             <select
@@ -900,8 +918,6 @@ function ProductsContent() {
             </select>
           </label>
 
-          <button type="button" className="product-page-filter-button" onClick={openPriceFilter}>⚙ 필터</button>
-
         </div>
       </div>
 
@@ -910,16 +926,24 @@ function ProductsContent() {
           <section className="product-filter-modal" role="dialog" aria-modal="true" aria-labelledby="price-filter-title" onMouseDown={(event) => event.stopPropagation()}>
             <header><h2 id="price-filter-title">가격 범위</h2><button type="button" aria-label="필터 닫기" onClick={closePriceFilter}>×</button></header>
             <div className="product-filter-modal-body">
+              <div className="product-filter-quick-ranges" aria-label="빠른 가격대 선택">
+                {QUICK_PRICE_RANGES.map((range) => (
+                  <button
+                    key={range.label}
+                    type="button"
+                    className={selectedQuickPriceRange === range.label ? "is-selected" : ""}
+                    aria-pressed={selectedQuickPriceRange === range.label}
+                    onClick={() => handleQuickPriceRangeSelect(range)}
+                  >
+                    {range.label}
+                  </button>
+                ))}
+              </div>
               <div className="product-filter-price-inputs">
                 <label>최소 금액<input inputMode="numeric" value={draftMinPrice} onChange={(event) => setDraftMinPrice(event.target.value.replace(/[^0-9]/g, ""))} placeholder="제한 없음" /></label>
                 <span>~</span>
                 <label>최대 금액<input inputMode="numeric" value={draftMaxPrice} onChange={(event) => setDraftMaxPrice(event.target.value.replace(/[^0-9]/g, ""))} placeholder="제한 없음" /></label>
               </div>
-              <div className="product-filter-range" aria-label="가격 범위 슬라이더">
-                <input type="range" min="0" max={PRICE_SLIDER_MAX} step="1000" value={Math.min(draftMinValue ?? 0, PRICE_SLIDER_MAX)} onChange={(event) => { const value = Number(event.target.value); setDraftMinPrice(String(draftMaxValue !== null && value > draftMaxValue ? draftMaxValue : value)); }} />
-                <input type="range" min="0" max={PRICE_SLIDER_MAX} step="1000" value={Math.min(draftMaxValue ?? PRICE_SLIDER_MAX, PRICE_SLIDER_MAX)} onChange={(event) => { const value = Number(event.target.value); setDraftMaxPrice(String(draftMinValue !== null && value < draftMinValue ? draftMinValue : value)); }} />
-              </div>
-              <p className="product-filter-range-note">슬라이더 최대값은 {PRICE_SLIDER_MAX.toLocaleString("ko-KR")}원이며, 최대 금액을 비우면 상한 없이 조회합니다.</p>
               {isPriceRangeInvalid && <p className="product-filter-error">최소 금액은 최대 금액보다 클 수 없습니다.</p>}
               <label className="product-filter-sold-out">
                 <input type="checkbox" checked={draftExcludeSoldOut} onChange={(event) => setDraftExcludeSoldOut(event.target.checked)} />

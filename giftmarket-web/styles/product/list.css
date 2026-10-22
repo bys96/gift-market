@@ -230,6 +230,7 @@
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
   transition:
     color 0.2s ease,
     font-weight 0.2s ease;
@@ -306,6 +307,7 @@
   color: #333333;
   background: #ffffff;
   font: inherit;
+  cursor: pointer;
 }
 
 .product-page-filter-button {
@@ -434,43 +436,43 @@
   color: #999999;
 }
 
-.product-filter-range {
-  position: relative;
-  height: 28px;
-  margin: 18px 2px 0;
-}
-
-.product-filter-range input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  margin: 0;
-  accent-color: #222222;
-  pointer-events: none;
-}
-
-.product-filter-range input::-webkit-slider-thumb {
-  pointer-events: auto;
-}
-
-.product-filter-range input::-moz-range-thumb {
-  pointer-events: auto;
-}
-
-.product-filter-range-note,
 .product-filter-error {
-  margin: 0;
+  margin: 10px 0 0;
   font-size: 12px;
   line-height: 1.5;
-}
-
-.product-filter-range-note {
-  color: #888888;
-}
-
-.product-filter-error {
-  margin-top: 8px;
   color: #b54242;
+}
+
+.product-filter-quick-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.product-filter-quick-ranges button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #e1e1e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #666666;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.product-filter-quick-ranges button:hover {
+  border-color: #aaaaaa;
+  color: #222222;
+}
+
+.product-filter-quick-ranges button.is-selected {
+  border-color: #222222;
+  background: #222222;
+  color: #ffffff;
 }
 
 .product-filter-sold-out {
@@ -540,6 +542,7 @@
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
   transition:
     border-color 0.2s ease,
     background-color 0.2s ease,
@@ -574,6 +577,7 @@
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .product-page-selected-filter-reset:hover {
