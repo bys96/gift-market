@@ -283,48 +283,243 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 20px;
-}
-
-.product-page-size-select {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
-  color: #555555;
-  font-size: 13px;
-  font-weight: 600;
 }
 
-.product-page-price-select,
+.product-page-size-select,
 .product-page-sort-select {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: #666666;
   font-size: 13px;
   font-weight: 600;
 }
 
-.product-page-price-select select,
+.product-page-size-select select,
 .product-page-sort-select select {
-  min-height: 36px;
-  max-width: 150px;
-  padding: 0 28px 0 10px;
+  min-height: 34px;
+  max-width: 124px;
+  padding: 0 26px 0 9px;
   border: 1px solid #dddddd;
-  border-radius: 9px;
+  border-radius: 8px;
   color: #333333;
   background: #ffffff;
   font: inherit;
 }
 
-.product-page-size-select select {
-  min-height: 36px;
-  padding: 0 30px 0 10px;
+.product-page-filter-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
   border: 1px solid #dddddd;
   border-radius: 8px;
   background: #ffffff;
   color: #333333;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.product-page-filter-button:hover {
+  border-color: #aaaaaa;
+  background: #fafafa;
+}
+
+/* ========================================
+   Price Filter Modal
+======================================== */
+
+.product-filter-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.product-filter-modal {
+  display: flex;
+  width: min(100%, 480px);
+  max-height: min(680px, calc(100vh - 48px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+}
+
+.product-filter-modal header,
+.product-filter-modal footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+}
+
+.product-filter-modal header {
+  border-bottom: 1px solid #eeeeee;
+}
+
+.product-filter-modal h2 {
+  margin: 0;
+  color: #171717;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.product-filter-modal header button {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #555555;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.product-filter-modal header button:hover {
+  background: #f5f5f5;
+}
+
+.product-filter-modal-body {
+  overflow-y: auto;
+  padding: 22px 20px 24px;
+}
+
+.product-filter-price-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+
+.product-filter-price-inputs label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #555555;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.product-filter-price-inputs input {
+  min-width: 0;
+  height: 42px;
+  padding: 0 11px;
+  border: 1px solid #dddddd;
+  border-radius: 9px;
+  color: #222222;
   font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.product-filter-price-inputs > span {
+  padding-bottom: 12px;
+  color: #999999;
+}
+
+.product-filter-range {
+  position: relative;
+  height: 28px;
+  margin: 18px 2px 0;
+}
+
+.product-filter-range input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  accent-color: #222222;
+  pointer-events: none;
+}
+
+.product-filter-range input::-webkit-slider-thumb {
+  pointer-events: auto;
+}
+
+.product-filter-range input::-moz-range-thumb {
+  pointer-events: auto;
+}
+
+.product-filter-range-note,
+.product-filter-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.product-filter-range-note {
+  color: #888888;
+}
+
+.product-filter-error {
+  margin-top: 8px;
+  color: #b54242;
+}
+
+.product-filter-sold-out {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  color: #444444;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.product-filter-sold-out input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #222222;
+}
+
+.product-filter-modal footer {
+  gap: 8px;
+  border-top: 1px solid #eeeeee;
+}
+
+.product-filter-modal footer button {
+  min-height: 44px;
+  flex: 1;
+  border: 1px solid #d9d9d9;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #444444;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.product-filter-modal footer button:last-child {
+  border-color: #222222;
+  background: #222222;
+  color: #ffffff;
+}
+
+.product-filter-modal footer button:disabled {
+  border-color: #dddddd;
+  background: #e8e8e8;
+  color: #999999;
+  cursor: not-allowed;
 }
 
 /* ========================================
@@ -916,7 +1111,6 @@
     white-space: nowrap;
   }
 
-  .product-page-price-select > span,
   .product-page-sort-select > span {
     position: absolute;
     width: 1px;
@@ -924,6 +1118,28 @@
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
+  }
+
+  .product-page-filter-toolbar-right {
+    gap: 6px;
+  }
+
+  .product-page-size-select select,
+  .product-page-sort-select select,
+  .product-page-filter-button {
+    min-height: 32px;
+    font-size: 12px;
+  }
+
+  .product-filter-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .product-filter-modal {
+    width: 100%;
+    max-height: min(78vh, 680px);
+    border-radius: 18px 18px 0 0;
   }
 
   .product-page-selected-filter {
@@ -1046,16 +1262,7 @@
 
   .product-page-filter-toolbar-right {
     width: 100%;
-    justify-content: space-between;
-  }
-
-  .product-page-sold-out-filter {
-    margin-left: auto;
-    padding-top: 0;
-  }
-
-  .product-page-sold-out-filter::before {
-    display: none;
+    justify-content: flex-end;
   }
 }
 

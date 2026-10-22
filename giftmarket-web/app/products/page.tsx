@@ -18,21 +18,14 @@ import { getCategories, getProducts } from "@/lib/product-api";
 import type { Category, ProductPage, ProductSort } from "@/types/product";
 
 const DEFAULT_PAGE_SIZE = 20;
-const PRODUCT_PAGE_SIZES = [20, 50, 100] as const;
+const PRODUCT_PAGE_SIZES = [20, 40, 60] as const;
+const PRICE_SLIDER_MAX = 300_000;
 const PRODUCT_SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
   { value: "LATEST", label: "최신순" },
   { value: "POPULAR", label: "인기순" },
   { value: "PRICE_ASC", label: "낮은 가격순" },
   { value: "PRICE_DESC", label: "높은 가격순" },
 ];
-const PRICE_RANGES = [
-  { label: "전체 가격", minPrice: null, maxPrice: null },
-  { label: "1만원 이하", minPrice: 0, maxPrice: 10_000 },
-  { label: "1만원 ~ 3만원", minPrice: 10_001, maxPrice: 30_000 },
-  { label: "3만원 ~ 5만원", minPrice: 30_001, maxPrice: 50_000 },
-  { label: "5만원 이상", minPrice: 50_001, maxPrice: null },
-] as const;
-
 interface ProductListScrollPosition {
   scrollY: number;
   productId: number;
@@ -112,6 +105,10 @@ function parsePositiveInteger(value: string | null) {
 }
 
 function parseNonNegativeInteger(value: string | null) {
+  if (value === null || value.trim() === "") {
+    return null;
+  }
+
   const parsedValue = Number(value);
   return Number.isSafeInteger(parsedValue) && parsedValue >= 0
     ? parsedValue
@@ -192,6 +189,10 @@ function ProductsContent() {
   }, [searchParams]);
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [isPriceFilterOpen, setIsPriceFilterOpen] = useState(false);
+  const [draftMinPrice, setDraftMinPrice] = useState("");
+  const [draftMaxPrice, setDraftMaxPrice] = useState("");
+  const [draftExcludeSoldOut, setDraftExcludeSoldOut] = useState(false);
 
   const [activeRootCategoryId, setActiveRootCategoryId] = useState<
     number | null
@@ -536,6 +537,20 @@ function ProductsContent() {
   }, [loadProducts]);
 
   useEffect(() => {
+    if (!isPriceFilterOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsPriceFilterOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isPriceFilterOpen]);
+
+  useEffect(() => {
     const scrollPosition = pendingScrollRestoreRef.current;
     if (!productPage || !scrollPosition) return;
 
@@ -576,18 +591,6 @@ function ProductsContent() {
     );
   };
 
-  const handleExcludeSoldOutChange = () => {
-    router.replace(
-      createProductsUrl({
-        excludeSoldOut: !excludeSoldOut,
-        page: 0,
-      }),
-      {
-        scroll: false,
-      },
-    );
-  };
-
   const handlePageSizeChange = (nextSize: number) => {
     router.replace(
       createProductsUrl({
@@ -600,8 +603,30 @@ function ProductsContent() {
     );
   };
 
-  const handlePriceRangeChange = (range: (typeof PRICE_RANGES)[number]) => {
-    router.replace(createProductsUrl({ minPrice: range.minPrice, maxPrice: range.maxPrice, page: 0 }), { scroll: false });
+  const openPriceFilter = () => {
+    setDraftMinPrice(minPrice === null ? "" : String(minPrice));
+    setDraftMaxPrice(maxPrice === null ? "" : String(maxPrice));
+    setDraftExcludeSoldOut(excludeSoldOut);
+    setIsPriceFilterOpen(true);
+  };
+
+  const closePriceFilter = () => setIsPriceFilterOpen(false);
+  const draftMinValue = draftMinPrice === "" ? null : Number(draftMinPrice);
+  const draftMaxValue = draftMaxPrice === "" ? null : Number(draftMaxPrice);
+  const isPriceRangeInvalid =
+    (draftMinValue !== null && (!Number.isSafeInteger(draftMinValue) || draftMinValue < 0)) ||
+    (draftMaxValue !== null && (!Number.isSafeInteger(draftMaxValue) || draftMaxValue < 0)) ||
+    (draftMinValue !== null && draftMaxValue !== null && draftMinValue > draftMaxValue);
+
+  const applyPriceFilter = () => {
+    if (isPriceRangeInvalid) return;
+    router.replace(createProductsUrl({ minPrice: draftMinValue, maxPrice: draftMaxValue, excludeSoldOut: draftExcludeSoldOut, page: 0 }), { scroll: false });
+    closePriceFilter();
+  };
+
+  const resetPriceFilter = () => {
+    setDraftMinPrice("");
+    setDraftMaxPrice("");
   };
 
   const handleSortChange = (nextSort: ProductSort) => {
@@ -817,29 +842,8 @@ function ProductsContent() {
 
       <div className="product-page-filter-toolbar">
         <div className="product-page-filter-toolbar-left">
-          <label className="product-page-price-select">
-            <span>가격대</span>
-            <select
-              value={`${minPrice ?? ""}:${maxPrice ?? ""}`}
-              onChange={(event) => {
-                const range = PRICE_RANGES.find(
-                  (item) => `${item.minPrice ?? ""}:${item.maxPrice ?? ""}` === event.target.value,
-                );
-                if (range) handlePriceRangeChange(range);
-              }}
-            >
-              {PRICE_RANGES.map((range) => (
-                <option key={range.label} value={`${range.minPrice ?? ""}:${range.maxPrice ?? ""}`}>
-                  {range.label}
-                </option>
-              ))}
-              {PRICE_RANGES.every((range) => range.minPrice !== minPrice || range.maxPrice !== maxPrice) && (
-                <option value={`${minPrice ?? ""}:${maxPrice ?? ""}`}>현재 범위</option>
-              )}
-            </select>
-          </label>
           {(minPrice !== null || maxPrice !== null) && (
-            <button type="button" className="product-page-selected-filter" onClick={() => handlePriceRangeChange(PRICE_RANGES[0])}>
+            <button type="button" className="product-page-selected-filter" onClick={() => router.replace(createProductsUrl({ minPrice: null, maxPrice: null, page: 0 }), { scroll: false })}>
               <span>{minPrice !== null && maxPrice !== null ? `${minPrice.toLocaleString("ko-KR")}원 ~ ${maxPrice.toLocaleString("ko-KR")}원` : minPrice !== null ? `${minPrice.toLocaleString("ko-KR")}원 이상` : `${maxPrice?.toLocaleString("ko-KR")}원 이하`}</span><span aria-hidden="true" className="product-page-selected-filter-remove">×</span>
             </button>
           )}
@@ -874,12 +878,6 @@ function ProductsContent() {
         </div>
 
         <div className="product-page-filter-toolbar-right">
-          <label className="product-page-sort-select">
-            <span>정렬</span>
-            <select value={sort} onChange={(event) => handleSortChange(event.target.value as ProductSort)}>
-              {PRODUCT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
           <label className="product-page-size-select">
             <span>페이지당 상품 수</span>
             <select
@@ -895,18 +893,43 @@ function ProductsContent() {
               ))}
             </select>
           </label>
-
-          <label className="product-page-sold-out-filter">
-            <input
-              type="checkbox"
-              checked={excludeSoldOut}
-              onChange={handleExcludeSoldOutChange}
-            />
-
-            <span>품절 상품 제외</span>
+          <label className="product-page-sort-select">
+            <span>정렬</span>
+            <select value={sort} onChange={(event) => handleSortChange(event.target.value as ProductSort)}>
+              {PRODUCT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
           </label>
+
+          <button type="button" className="product-page-filter-button" onClick={openPriceFilter}>⚙ 필터</button>
+
         </div>
       </div>
+
+      {isPriceFilterOpen && (
+        <div className="product-filter-modal-backdrop" role="presentation" onMouseDown={closePriceFilter}>
+          <section className="product-filter-modal" role="dialog" aria-modal="true" aria-labelledby="price-filter-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header><h2 id="price-filter-title">가격 범위</h2><button type="button" aria-label="필터 닫기" onClick={closePriceFilter}>×</button></header>
+            <div className="product-filter-modal-body">
+              <div className="product-filter-price-inputs">
+                <label>최소 금액<input inputMode="numeric" value={draftMinPrice} onChange={(event) => setDraftMinPrice(event.target.value.replace(/[^0-9]/g, ""))} placeholder="제한 없음" /></label>
+                <span>~</span>
+                <label>최대 금액<input inputMode="numeric" value={draftMaxPrice} onChange={(event) => setDraftMaxPrice(event.target.value.replace(/[^0-9]/g, ""))} placeholder="제한 없음" /></label>
+              </div>
+              <div className="product-filter-range" aria-label="가격 범위 슬라이더">
+                <input type="range" min="0" max={PRICE_SLIDER_MAX} step="1000" value={Math.min(draftMinValue ?? 0, PRICE_SLIDER_MAX)} onChange={(event) => { const value = Number(event.target.value); setDraftMinPrice(String(draftMaxValue !== null && value > draftMaxValue ? draftMaxValue : value)); }} />
+                <input type="range" min="0" max={PRICE_SLIDER_MAX} step="1000" value={Math.min(draftMaxValue ?? PRICE_SLIDER_MAX, PRICE_SLIDER_MAX)} onChange={(event) => { const value = Number(event.target.value); setDraftMaxPrice(String(draftMinValue !== null && value < draftMinValue ? draftMinValue : value)); }} />
+              </div>
+              <p className="product-filter-range-note">슬라이더 최대값은 {PRICE_SLIDER_MAX.toLocaleString("ko-KR")}원이며, 최대 금액을 비우면 상한 없이 조회합니다.</p>
+              {isPriceRangeInvalid && <p className="product-filter-error">최소 금액은 최대 금액보다 클 수 없습니다.</p>}
+              <label className="product-filter-sold-out">
+                <input type="checkbox" checked={draftExcludeSoldOut} onChange={(event) => setDraftExcludeSoldOut(event.target.checked)} />
+                <span>품절 상품 제외</span>
+              </label>
+            </div>
+            <footer><button type="button" onClick={resetPriceFilter}>초기화</button><button type="button" disabled={isPriceRangeInvalid} onClick={applyPriceFilter}>상품 보기</button></footer>
+          </section>
+        </div>
+      )}
 
       <div
         ref={productResultsStartRef}
