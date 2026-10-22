@@ -19,6 +19,7 @@ import com.giftmarket.product.entity.Category;
 import com.giftmarket.product.entity.Product;
 import com.giftmarket.product.entity.ProductImage;
 import com.giftmarket.product.entity.ProductStatus;
+import com.giftmarket.product.entity.ProductSort;
 import com.giftmarket.product.entity.ProductOptionGroup;
 import com.giftmarket.product.entity.ProductOptionValue;
 import com.giftmarket.product.entity.ProductVariant;
@@ -39,6 +40,7 @@ import com.giftmarket.seller.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -167,6 +169,7 @@ public class ProductService {
                         keyword,
                         null,
                         null,
+                        null,
                         excludeSoldOut,
                         page,
                         size
@@ -187,7 +190,8 @@ public class ProductService {
 
         Pageable pageable = createPageable(
                 condition.normalizedPage(),
-                condition.normalizedSize()
+                condition.normalizedSize(),
+                condition.normalizedSort()
         );
 
         List<ProductStatus> statuses =
@@ -240,10 +244,30 @@ public class ProductService {
                                 )
                         );
 
-        Page<Product> productPage = productRepository.findAll(
-                specification,
-                pageable
-        );
+        Page<Product> productPage;
+        if (condition.normalizedSort() == ProductSort.POPULAR) {
+            List<Long> categoryIds = condition.normalizedCategoryIds();
+            Page<Long> popularProductIds = productRepository.findPopularVisibleProductIds(
+                    statuses.stream().map(Enum::name).toList(),
+                    !categoryIds.isEmpty(),
+                    categoryIds.isEmpty() ? List.of(-1L) : categoryIds,
+                    condition.normalizedKeyword(),
+                    condition.normalizedGiftOccasionId(),
+                    condition.normalizedMinPrice(),
+                    condition.normalizedMaxPrice(),
+                    PageRequest.of(condition.normalizedPage(), condition.normalizedSize())
+            );
+            Map<Long, Product> productsById = productRepository.findAllByIdIn(
+                    popularProductIds.getContent()
+            ).stream().collect(java.util.stream.Collectors.toMap(Product::getId, product -> product));
+            List<Product> orderedProducts = popularProductIds.getContent().stream()
+                    .map(productsById::get)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            productPage = new PageImpl<>(orderedProducts, pageable, popularProductIds.getTotalElements());
+        } else {
+            productPage = productRepository.findAll(specification, pageable);
+        }
 
         Map<Long, List<GiftOccasionResponse>>
                 giftOccasionsByProductId =
@@ -387,7 +411,7 @@ public class ProductService {
             int size
     ) {
         Seller seller = getActiveSeller(userId);
-        Pageable pageable = createPageable(page, size);
+        Pageable pageable = createPageable(page, size, ProductSort.LATEST);
 
         Page<Product> productPage;
 
@@ -832,7 +856,8 @@ public class ProductService {
 
     private Pageable createPageable(
             int page,
-            int size
+            int size,
+            ProductSort sort
     ) {
         if (page < 0) {
             throw new ProductException(
@@ -846,14 +871,12 @@ public class ProductService {
             );
         }
 
-        return PageRequest.of(
-                page,
-                size,
-                Sort.by(
-                        Sort.Direction.DESC,
-                        "createdAt"
-                )
-        );
+        Sort sortOrder = switch (sort) {
+            case PRICE_ASC -> Sort.by(Sort.Direction.ASC, "price").and(Sort.by(Sort.Direction.DESC, "createdAt"));
+            case PRICE_DESC -> Sort.by(Sort.Direction.DESC, "price").and(Sort.by(Sort.Direction.DESC, "createdAt"));
+            default -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
+        return PageRequest.of(page, size, sortOrder);
     }
 
     private List<ProductSummaryResponse> getPopularHomeProducts() {

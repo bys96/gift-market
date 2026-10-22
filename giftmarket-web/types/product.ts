@@ -1,4 +1,5 @@
 export type ProductStatus = "DRAFT" | "ON_SALE" | "SOLD_OUT" | "HIDDEN";
+export type ProductSort = "LATEST" | "POPULAR" | "PRICE_ASC" | "PRICE_DESC";
 
 export interface Product {
   id: number;

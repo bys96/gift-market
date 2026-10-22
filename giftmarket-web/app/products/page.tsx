@@ -15,10 +15,23 @@ import {
 import ProductCard from "@/components/product/ProductCard";
 import Pagination from "@/components/common/Pagination";
 import { getCategories, getProducts } from "@/lib/product-api";
-import type { Category, ProductPage } from "@/types/product";
+import type { Category, ProductPage, ProductSort } from "@/types/product";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PRODUCT_PAGE_SIZES = [20, 50, 100] as const;
+const PRODUCT_SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
+  { value: "LATEST", label: "최신순" },
+  { value: "POPULAR", label: "인기순" },
+  { value: "PRICE_ASC", label: "낮은 가격순" },
+  { value: "PRICE_DESC", label: "높은 가격순" },
+];
+const PRICE_RANGES = [
+  { label: "전체 가격", minPrice: null, maxPrice: null },
+  { label: "1만원 이하", minPrice: 0, maxPrice: 10_000 },
+  { label: "1만원 ~ 3만원", minPrice: 10_001, maxPrice: 30_000 },
+  { label: "3만원 ~ 5만원", minPrice: 30_001, maxPrice: 50_000 },
+  { label: "5만원 이상", minPrice: 50_001, maxPrice: null },
+] as const;
 
 interface ProductListScrollPosition {
   scrollY: number;
@@ -34,6 +47,7 @@ interface ProductsUrlOptions {
   excludeSoldOut?: boolean;
   minPrice?: number | null;
   maxPrice?: number | null;
+  sort?: ProductSort;
   page?: number;
   size?: number;
 }
@@ -45,6 +59,7 @@ interface ProductQuerySnapshot {
   excludeSoldOut: boolean;
   minPrice: number | null;
   maxPrice: number | null;
+  sort: ProductSort;
   page: number;
   size: number;
 }
@@ -60,6 +75,7 @@ function isSameQueryExceptPage(
     first.excludeSoldOut === second.excludeSoldOut &&
     first.minPrice === second.minPrice &&
     first.maxPrice === second.maxPrice &&
+    first.sort === second.sort &&
     first.size === second.size
   );
 }
@@ -100,6 +116,12 @@ function parseNonNegativeInteger(value: string | null) {
   return Number.isSafeInteger(parsedValue) && parsedValue >= 0
     ? parsedValue
     : null;
+}
+
+function parseSort(value: string | null): ProductSort {
+  return PRODUCT_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as ProductSort)
+    : "LATEST";
 }
 
 function flattenCategories(categories: Category[]): Category[] {
@@ -159,6 +181,7 @@ function ProductsContent() {
   const giftOccasionId = parsePositiveInteger(searchParams.get("giftOccasionId"));
   const minPrice = parseNonNegativeInteger(searchParams.get("minPrice"));
   const maxPrice = parseNonNegativeInteger(searchParams.get("maxPrice"));
+  const sort = parseSort(searchParams.get("sort"));
 
   const page = parsePage(searchParams.get("page"));
   const size = parsePageSize(searchParams.get("size"));
@@ -268,6 +291,7 @@ function ProductsContent() {
         options.minPrice === undefined ? minPrice : options.minPrice;
       const nextMaxPrice =
         options.maxPrice === undefined ? maxPrice : options.maxPrice;
+      const nextSort = options.sort === undefined ? sort : options.sort;
 
       const nextPage = options.page === undefined ? page : options.page;
       const nextSize = options.size === undefined ? size : options.size;
@@ -299,6 +323,7 @@ function ProductsContent() {
       if (nextMaxPrice !== null) {
         params.set("maxPrice", String(nextMaxPrice));
       }
+      if (nextSort !== "LATEST") params.set("sort", nextSort);
 
       if (nextPage > 0) {
         params.set("page", String(nextPage));
@@ -319,6 +344,7 @@ function ProductsContent() {
       keyword,
       maxPrice,
       minPrice,
+      sort,
       page,
       size,
     ],
@@ -333,6 +359,7 @@ function ProductsContent() {
       excludeSoldOut,
       minPrice,
       maxPrice,
+      sort,
       page,
       size,
     };
@@ -348,6 +375,7 @@ function ProductsContent() {
         giftOccasionId: giftOccasionId ?? undefined,
         minPrice: minPrice ?? undefined,
         maxPrice: maxPrice ?? undefined,
+        sort,
         page,
         size,
       });
@@ -439,6 +467,7 @@ function ProductsContent() {
     page,
     router,
     size,
+    sort,
   ]);
 
   /*
@@ -569,6 +598,14 @@ function ProductsContent() {
         scroll: false,
       },
     );
+  };
+
+  const handlePriceRangeChange = (range: (typeof PRICE_RANGES)[number]) => {
+    router.replace(createProductsUrl({ minPrice: range.minPrice, maxPrice: range.maxPrice, page: 0 }), { scroll: false });
+  };
+
+  const handleSortChange = (nextSort: ProductSort) => {
+    router.replace(createProductsUrl({ sort: nextSort, page: 0 }), { scroll: false });
   };
 
   const handleRootCategoryClick = (categoryId: number) => {
@@ -780,6 +817,32 @@ function ProductsContent() {
 
       <div className="product-page-filter-toolbar">
         <div className="product-page-filter-toolbar-left">
+          <label className="product-page-price-select">
+            <span>가격대</span>
+            <select
+              value={`${minPrice ?? ""}:${maxPrice ?? ""}`}
+              onChange={(event) => {
+                const range = PRICE_RANGES.find(
+                  (item) => `${item.minPrice ?? ""}:${item.maxPrice ?? ""}` === event.target.value,
+                );
+                if (range) handlePriceRangeChange(range);
+              }}
+            >
+              {PRICE_RANGES.map((range) => (
+                <option key={range.label} value={`${range.minPrice ?? ""}:${range.maxPrice ?? ""}`}>
+                  {range.label}
+                </option>
+              ))}
+              {PRICE_RANGES.every((range) => range.minPrice !== minPrice || range.maxPrice !== maxPrice) && (
+                <option value={`${minPrice ?? ""}:${maxPrice ?? ""}`}>현재 범위</option>
+              )}
+            </select>
+          </label>
+          {(minPrice !== null || maxPrice !== null) && (
+            <button type="button" className="product-page-selected-filter" onClick={() => handlePriceRangeChange(PRICE_RANGES[0])}>
+              <span>{minPrice !== null && maxPrice !== null ? `${minPrice.toLocaleString("ko-KR")}원 ~ ${maxPrice.toLocaleString("ko-KR")}원` : minPrice !== null ? `${minPrice.toLocaleString("ko-KR")}원 이상` : `${maxPrice?.toLocaleString("ko-KR")}원 이하`}</span><span aria-hidden="true" className="product-page-selected-filter-remove">×</span>
+            </button>
+          )}
           {selectedCategories.map((category) => (
             <button
               key={category.id}
@@ -811,6 +874,12 @@ function ProductsContent() {
         </div>
 
         <div className="product-page-filter-toolbar-right">
+          <label className="product-page-sort-select">
+            <span>정렬</span>
+            <select value={sort} onChange={(event) => handleSortChange(event.target.value as ProductSort)}>
+              {PRODUCT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
           <label className="product-page-size-select">
             <span>페이지당 상품 수</span>
             <select

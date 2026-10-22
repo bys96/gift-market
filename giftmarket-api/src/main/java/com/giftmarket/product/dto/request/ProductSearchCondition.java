@@ -1,5 +1,6 @@
 package com.giftmarket.product.dto.request;
 
+import com.giftmarket.product.entity.ProductSort;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
@@ -24,6 +25,8 @@ public record ProductSearchCondition(
 
         @PositiveOrZero(message = "최대 가격은 0 이상이어야 합니다.")
         Long maxPrice,
+
+        ProductSort sort,
 
         Boolean excludeSoldOut,
 
@@ -64,6 +67,10 @@ public record ProductSearchCondition(
 
     public Long normalizedMaxPrice() {
         return maxPrice;
+    }
+
+    public ProductSort normalizedSort() {
+        return sort == null ? ProductSort.LATEST : sort;
     }
 
     public boolean normalizedExcludeSoldOut() {

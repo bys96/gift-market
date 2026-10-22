@@ -192,6 +192,35 @@ public interface ProductRepository extends
             @Param("limit") int limit
     );
 
+    @Query(value = """
+            select p.id from products p join sellers s on s.id = p.seller_id
+            left join (select oi.product_id, sum(oi.quantity - oi.canceled_quantity - oi.returned_quantity) sales_quantity from order_items oi join orders o on o.id = oi.order_id join seller_orders so on so.id = oi.seller_order_id where o.status = 'PAID' and so.status <> 'CANCELLED' group by oi.product_id) sales on sales.product_id = p.id
+            left join (select wi.product_id, count(*) wishlist_count from wishlist_items wi group by wi.product_id) wishes on wishes.product_id = p.id
+            where p.status in (:statuses) and p.deleted_at is null and p.admin_hidden = false and s.status = 'ACTIVE'
+              and (:hasCategories = false or p.category_id in (:categoryIds))
+              and (:keyword is null or lower(p.name) like lower(concat('%', :keyword, '%')) or lower(s.store_name) like lower(concat('%', :keyword, '%')))
+              and (:minPrice is null or p.price >= :minPrice) and (:maxPrice is null or p.price <= :maxPrice)
+              and (:giftOccasionId is null or exists (select 1 from product_gift_occasions pgo join gift_occasions go on go.id = pgo.gift_occasion_id where pgo.product_id = p.id and go.id = :giftOccasionId and go.active = true))
+            order by coalesce(sales.sales_quantity, 0) desc, case when coalesce(sales.sales_quantity, 0) = 0 then coalesce(wishes.wishlist_count, 0) else 0 end desc, p.created_at desc, p.id desc
+            """, countQuery = """
+            select count(*) from products p join sellers s on s.id = p.seller_id
+            where p.status in (:statuses) and p.deleted_at is null and p.admin_hidden = false and s.status = 'ACTIVE'
+              and (:hasCategories = false or p.category_id in (:categoryIds))
+              and (:keyword is null or lower(p.name) like lower(concat('%', :keyword, '%')) or lower(s.store_name) like lower(concat('%', :keyword, '%')))
+              and (:minPrice is null or p.price >= :minPrice) and (:maxPrice is null or p.price <= :maxPrice)
+              and (:giftOccasionId is null or exists (select 1 from product_gift_occasions pgo join gift_occasions go on go.id = pgo.gift_occasion_id where pgo.product_id = p.id and go.id = :giftOccasionId and go.active = true))
+            """, nativeQuery = true)
+    Page<Long> findPopularVisibleProductIds(
+            @Param("statuses") List<String> statuses,
+            @Param("hasCategories") boolean hasCategories,
+            @Param("categoryIds") List<Long> categoryIds,
+            @Param("keyword") String keyword,
+            @Param("giftOccasionId") Long giftOccasionId,
+            @Param("minPrice") Long minPrice,
+            @Param("maxPrice") Long maxPrice,
+            Pageable pageable
+    );
+
     @EntityGraph(attributePaths = {"seller", "category"})
     List<Product> findAllByIdIn(Collection<Long> ids);
 

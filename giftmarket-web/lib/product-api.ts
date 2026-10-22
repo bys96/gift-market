@@ -13,6 +13,7 @@ import type {
   ProductRegistrationRequest,
   ProductRegistrationResponse,
   ProductStatus,
+  ProductSort,
   ProductStatusUpdateRequest,
   ProductStockUpdateRequest,
   ProductUpdateRequest,
@@ -61,6 +62,7 @@ interface GetProductsParams {
   giftOccasionId?: number;
   minPrice?: number;
   maxPrice?: number;
+  sort?: ProductSort;
 }
 
 export async function getCategories(): Promise<Category[]> {
@@ -86,6 +88,7 @@ export async function getProducts({
   giftOccasionId,
   minPrice,
   maxPrice,
+  sort,
 }: GetProductsParams = {}): Promise<ProductPage> {
   const params = new URLSearchParams({
     page: String(page),
@@ -134,6 +137,8 @@ export async function getProducts({
   ) {
     params.set("maxPrice", String(maxPrice));
   }
+
+  if (sort && sort !== "LATEST") params.set("sort", sort);
 
   const response = await apiFetch<ApiResponse<ProductPage>>(
     `/api/products?${params.toString()}`,
