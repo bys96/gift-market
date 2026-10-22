@@ -3,7 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type SyntheticEvent,
+  type TouchEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import ProductDetailActions from "@/components/product/ProductDetailActions";
 import ProductImageModal from "@/components/product/ProductImageModal";
@@ -16,6 +23,7 @@ import { resolveProductDescriptionMedia } from "@/lib/product-media";
 
 export default function ProductDetailPage() {
   const params = useParams<{ productId: string }>();
+  const productId = Number(params.productId);
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -25,8 +33,10 @@ export default function ProductDetailPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastSwipeAtRef = useRef(0);
-
-  const productId = Number(params.productId);
+  const galleryPreloadImagesRef = useRef<HTMLImageElement[]>([]);
+  const galleryPreloadTimerRef = useRef<number | null>(null);
+  const activeProductIdRef = useRef<number | null>(productId);
+  const preloadedProductIdRef = useRef<number | null>(null);
 
   const handleSectionNavigation = (sectionId: string) => {
     const section = document.getElementById(sectionId);
@@ -55,6 +65,21 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, [productId]);
+
+  useEffect(() => {
+    activeProductIdRef.current = productId;
+    preloadedProductIdRef.current = null;
+
+    return () => {
+      if (galleryPreloadTimerRef.current !== null) {
+        window.clearTimeout(galleryPreloadTimerRef.current);
+        galleryPreloadTimerRef.current = null;
+      }
+
+      galleryPreloadImagesRef.current.forEach((image) => image.removeAttribute("src"));
+      galleryPreloadImagesRef.current = [];
+    };
   }, [productId]);
 
   useEffect(() => {
@@ -117,6 +142,58 @@ export default function ProductDetailPage() {
   }, [product]);
 
   const selectedImageUrl = productImages[currentImageIndex] ?? productImages[0] ?? null;
+
+  const handleRepresentativeImageLoad = (
+    event: SyntheticEvent<HTMLImageElement>,
+  ) => {
+    if (
+      !product ||
+      currentImageIndex !== 0 ||
+      productImages.length < 2 ||
+      preloadedProductIdRef.current === product.id ||
+      activeProductIdRef.current !== product.id
+    ) {
+      return;
+    }
+
+    const representativeImageUrl = event.currentTarget.currentSrc || event.currentTarget.src;
+    if (!representativeImageUrl) return;
+
+    preloadedProductIdRef.current = product.id;
+    galleryPreloadTimerRef.current = window.setTimeout(() => {
+      galleryPreloadTimerRef.current = null;
+      if (activeProductIdRef.current !== product.id) return;
+
+      const preloadImages = productImages.slice(1).map((imageUrl) => {
+        const preloadImage = new window.Image();
+        let preloadUrl = imageUrl;
+
+        try {
+          const optimizedUrl = new URL(representativeImageUrl, window.location.origin);
+          if (
+            optimizedUrl.pathname === "/_next/image" &&
+            optimizedUrl.searchParams.has("url")
+          ) {
+            optimizedUrl.searchParams.set("url", imageUrl);
+            preloadUrl = optimizedUrl.toString();
+          }
+        } catch {
+          // Next.js 최적화 URL을 해석하지 못해도 기존 이미지 URL로 사전 로딩한다.
+        }
+
+        preloadImage.src = preloadUrl;
+        void preloadImage.decode().catch(() => undefined);
+        return preloadImage;
+      });
+
+      if (activeProductIdRef.current !== product.id) {
+        preloadImages.forEach((image) => image.removeAttribute("src"));
+        return;
+      }
+
+      galleryPreloadImagesRef.current = preloadImages;
+    }, 0);
+  };
 
   const moveImage = (direction: -1 | 1) => {
     if (productImages.length < 2) return;
@@ -240,6 +317,7 @@ export default function ProductDetailPage() {
                   priority
                   sizes="(max-width: 768px) 100vw, 640px"
                   className="product-detail-image"
+                  onLoad={handleRepresentativeImageLoad}
                 />
 
                 <span className="product-detail-image-zoom" aria-hidden="true">
