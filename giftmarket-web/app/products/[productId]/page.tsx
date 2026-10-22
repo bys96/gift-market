@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type MouseEvent, type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import ProductDetailActions from "@/components/product/ProductDetailActions";
 import ProductImageModal from "@/components/product/ProductImageModal";
@@ -28,18 +28,18 @@ export default function ProductDetailPage() {
 
   const productId = Number(params.productId);
 
-  const handleSectionNavigation = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-      return;
-    }
-
-    const hash = event.currentTarget.hash;
-    const section = document.getElementById(hash.slice(1));
+  const handleSectionNavigation = (sectionId: string) => {
+    const section = document.getElementById(sectionId);
     if (!section) return;
 
-    event.preventDefault();
-    window.history.replaceState(window.history.state, "", hash);
-    section.scrollIntoView();
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    section.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
   };
 
   const handleScrollToTop = () => {
@@ -413,15 +413,15 @@ export default function ProductDetailPage() {
 
       <section className="product-detail-content">
         <div className="product-detail-tab-list">
-          <a href="#product-description" onClick={handleSectionNavigation}>상품 상세</a>
+          <button type="button" onClick={() => handleSectionNavigation("product-description")}>상품 상세</button>
 
-          <a href="#seller-information" onClick={handleSectionNavigation}>판매자 정보</a>
+          <button type="button" onClick={() => handleSectionNavigation("seller-information")}>판매자 정보</button>
 
-          <a href="#product-reviews" onClick={handleSectionNavigation}>리뷰</a>
+          <button type="button" onClick={() => handleSectionNavigation("product-reviews")}>리뷰</button>
 
-          <a href="#product-inquiries" onClick={handleSectionNavigation}>상품 문의</a>
+          <button type="button" onClick={() => handleSectionNavigation("product-inquiries")}>상품 문의</button>
 
-          <a href="#shipping-information" onClick={handleSectionNavigation}>배송·교환</a>
+          <button type="button" onClick={() => handleSectionNavigation("shipping-information")}>배송·교환</button>
         </div>
 
         <article
@@ -443,8 +443,6 @@ export default function ProductDetailPage() {
             </div>
           )}
         </article>
-
-        <ProductReviewSection productId={product.id} />
 
         <section
           id="seller-information"
@@ -480,6 +478,10 @@ export default function ProductDetailPage() {
           </div>
         </section>
 
+        <ProductReviewSection productId={product.id} />
+
+        <ProductInquirySection productId={product.id} />
+
         <section
           id="shipping-information"
           className="product-detail-shipping-information"
@@ -514,8 +516,8 @@ export default function ProductDetailPage() {
               <dt>교환 배송비</dt>
               <dd>
                 구매자 귀책 사유로 교환하는 경우 왕복{" "}
-                <strong>{exchangeShippingFee.toLocaleString("ko-KR")}원</strong>
-                의 배송비가 발생합니다.
+                <strong>{exchangeShippingFee.toLocaleString("ko-KR")}원</strong>의
+                배송비가 발생합니다.
               </dd>
             </div>
 
@@ -538,7 +540,6 @@ export default function ProductDetailPage() {
           </dl>
         </section>
 
-        <ProductInquirySection productId={product.id} />
       </section>
 
       {showScrollTop && (
