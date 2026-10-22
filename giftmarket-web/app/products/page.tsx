@@ -20,6 +20,13 @@ import type { Category, ProductPage } from "@/types/product";
 const DEFAULT_PAGE_SIZE = 20;
 const PRODUCT_PAGE_SIZES = [20, 50, 100] as const;
 
+interface ProductListScrollPosition {
+  scrollY: number;
+  productId: number;
+}
+
+const productListScrollPositions = new Map<string, ProductListScrollPosition>();
+
 interface ProductsUrlOptions {
   categoryIds?: number[];
   keyword?: string;
@@ -105,6 +112,7 @@ function ProductsContent() {
   const productRequestIdRef = useRef(0);
   const displayedProductQueryRef = useRef<ProductQuerySnapshot | null>(null);
   const productResultsStartRef = useRef<HTMLDivElement>(null);
+  const pendingScrollRestoreRef = useRef<ProductListScrollPosition | null>(null);
 
   const categoryIdsKey = [
     ...searchParams.getAll("categoryIds"),
@@ -128,6 +136,11 @@ function ProductsContent() {
 
   const page = parsePage(searchParams.get("page"));
   const size = parsePageSize(searchParams.get("size"));
+
+  const productListLocationKey = useMemo(() => {
+    const queryString = searchParams.toString();
+    return queryString ? `/products?${queryString}` : "/products";
+  }, [searchParams]);
 
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -409,10 +422,42 @@ function ProductsContent() {
   }, []);
 
   useEffect(() => {
+    pendingScrollRestoreRef.current =
+      productListScrollPositions.get(productListLocationKey) ?? null;
+  }, [productListLocationKey]);
+
+  useEffect(() => {
     // query parameter 변경을 상품 API 조회로 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    const scrollPosition = pendingScrollRestoreRef.current;
+    if (!productPage || !scrollPosition) return;
+
+    pendingScrollRestoreRef.current = null;
+
+    const restoreFrame = window.requestAnimationFrame(() => {
+      const maximumScrollY = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const restoredScrollY = Math.min(scrollPosition.scrollY, maximumScrollY);
+
+      window.scrollTo({ top: restoredScrollY, behavior: "auto" });
+
+      if (restoredScrollY < scrollPosition.scrollY) {
+        document
+          .querySelector<HTMLElement>(
+            `[data-product-id="${scrollPosition.productId}"]`,
+          )
+          ?.scrollIntoView({ block: "center" });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(restoreFrame);
+  }, [productListLocationKey, productPage]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -514,6 +559,33 @@ function ProductsContent() {
 
   const handleRetry = () => {
     void loadProducts();
+  };
+
+  const handleProductCardNavigation = (
+    event: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      !(event.target instanceof Element)
+    ) {
+      return;
+    }
+
+    const productLink = event.target.closest<HTMLAnchorElement>(
+      ".product-card-image-link, .product-card-content",
+    );
+    const productId = Number(productLink?.getAttribute("href")?.split("/").at(-1));
+
+    if (!Number.isSafeInteger(productId) || productId <= 0) return;
+
+    productListScrollPositions.set(productListLocationKey, {
+      scrollY: window.scrollY,
+      productId,
+    });
   };
 
   const isAllCategoryActive = displayedCategoryIds.length === 0;
@@ -751,7 +823,7 @@ function ProductsContent() {
 
       {productPage && productPage.products.length > 0 && (
         <>
-          <div className="product-list">
+          <div className="product-list" onClickCapture={handleProductCardNavigation}>
             {productPage.products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
