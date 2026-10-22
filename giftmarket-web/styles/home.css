@@ -107,45 +107,36 @@
   color: #171717;
 }
 
-.home-occasion-list {
+.home-occasion-tabs {
   display: flex;
-  gap: 12px;
+  gap: 20px;
   overflow-x: auto;
-  padding: 2px 2px 6px;
+  margin: -2px 0 24px;
+  padding: 2px 2px 8px;
   scrollbar-width: thin;
 }
 
-.home-occasion-item {
+.home-occasion-tabs button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 9px;
-  min-height: 48px;
-  padding: 0 17px;
-  border: 1px solid #efebdc;
-  border-radius: 16px;
-  color: #39352a;
-  background: #fffcf2;
+  min-height: 36px;
+  padding: 0 1px 7px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #8b8b8b;
+  background: transparent;
+  font: inherit;
   font-size: 14px;
   font-weight: 700;
-  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.home-occasion-item:hover {
-  border-color: #e5d68c;
-  background: #fff8d8;
-}
-
-.home-occasion-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 9px;
-  color: #8b7100;
-  background: #fff0a9;
-  font-size: 14px;
+.home-occasion-tabs button:hover,
+.home-occasion-tabs button.is-active {
+  border-bottom-color: #262626;
+  color: #262626;
 }
 
 .home-occasion-loading,
@@ -254,8 +245,8 @@
     row-gap: 28px;
   }
 
-  .home-occasion-item {
-    padding: 0 15px;
+  .home-occasion-tabs {
+    gap: 16px;
   }
 }
 
@@ -310,15 +301,14 @@
     font-size: 24px;
   }
 
-  .home-occasion-list {
-    gap: 9px;
+  .home-occasion-tabs {
+    gap: 15px;
     margin-right: -16px;
     padding-right: 16px;
   }
 
-  .home-occasion-item {
-    min-height: 44px;
-    padding: 0 14px;
+  .home-occasion-tabs button {
+    font-size: 13px;
   }
 
   .home-price-range-tabs {

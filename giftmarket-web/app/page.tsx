@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import ProductCard from "@/components/product/ProductCard";
-import { getHomeProducts } from "@/lib/product-api";
+import { getHomeProducts, getProducts } from "@/lib/product-api";
 import type {
   HomePriceRangeCode,
   HomeProductData,
@@ -65,6 +65,19 @@ export default function HomePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPriceRange, setSelectedPriceRange] =
     useState<HomePriceRangeCode>("UNDER_10000");
+  const [selectedOccasionId, setSelectedOccasionId] = useState<number | null>(
+    null,
+  );
+  const [occasionProductsById, setOccasionProductsById] = useState<
+    Record<number, ProductSummary[]>
+  >({});
+  const [occasionLoadingId, setOccasionLoadingId] = useState<number | null>(
+    null,
+  );
+  const [occasionErrorMessage, setOccasionErrorMessage] = useState<
+    string | null
+  >(null);
+  const [occasionErrorId, setOccasionErrorId] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +113,68 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    const occasions = homeData?.giftOccasions ?? [];
+    if (occasions.length === 0) {
+      setSelectedOccasionId(null);
+      return;
+    }
+
+    setSelectedOccasionId((currentId) =>
+      occasions.some((occasion) => occasion.id === currentId)
+        ? currentId
+        : occasions[0].id,
+    );
+  }, [homeData]);
+
+  useEffect(() => {
+    if (selectedOccasionId === null) return;
+    if (occasionProductsById[selectedOccasionId] !== undefined) return;
+
+    let isActive = true;
+
+    const loadOccasionProducts = async () => {
+      try {
+        setOccasionLoadingId(selectedOccasionId);
+        setOccasionErrorMessage(null);
+        setOccasionErrorId(null);
+
+        const response = await getProducts({
+          giftOccasionId: selectedOccasionId,
+          excludeSoldOut: true,
+          page: 0,
+          size: 4,
+        });
+
+        if (isActive) {
+          setOccasionProductsById((currentProducts) => ({
+            ...currentProducts,
+            [selectedOccasionId]: response.products,
+          }));
+        }
+      } catch (error) {
+        if (isActive) {
+          setOccasionErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "추천 상품을 불러오지 못했습니다.",
+          );
+          setOccasionErrorId(selectedOccasionId);
+        }
+      } finally {
+        if (isActive) {
+          setOccasionLoadingId(null);
+        }
+      }
+    };
+
+    void loadOccasionProducts();
+
+    return () => {
+      isActive = false;
+    };
+  }, [occasionProductsById, selectedOccasionId]);
+
   const activePriceRange = useMemo(
     () =>
       PRICE_RANGES.find((priceRange) => priceRange.code === selectedPriceRange) ??
@@ -115,6 +190,11 @@ export default function HomePage() {
     [activePriceRange.code, homeData],
   );
 
+  const selectedOccasionProducts =
+    selectedOccasionId === null
+      ? []
+      : occasionProductsById[selectedOccasionId] ?? [];
+
   const priceRangeLink = new URLSearchParams({
     excludeSoldOut: "true",
     minPrice: String(activePriceRange.minPrice),
@@ -128,40 +208,158 @@ export default function HomePage() {
       <section className="home-hero">
         <div className="home-hero-content">
           <p className="home-hero-eyebrow">마음을 전하는 가장 쉬운 방법</p>
-          <h1 className="home-hero-title">특별한 마음을<br />선물로 보내세요</h1>
-          <p className="home-hero-description">생일, 감사, 축하까지. 마음에 맞는 선물을 Gift Market에서 만나보세요.</p>
-          <Link href="/products" className="home-hero-link">선물 둘러보기</Link>
+          <h1 className="home-hero-title">
+            특별한 마음을
+            <br />
+            선물로 보내세요
+          </h1>
+          <p className="home-hero-description">
+            생일, 감사, 축하까지. 마음에 맞는 선물을 Gift Market에서 만나보세요.
+          </p>
+          <Link href="/products" className="home-hero-link">
+            선물 둘러보기
+          </Link>
         </div>
-        <div className="home-hero-visual" aria-hidden="true"><span className="home-hero-gift">🎁</span></div>
+        <div className="home-hero-visual" aria-hidden="true">
+          <span className="home-hero-gift">🎁</span>
+        </div>
       </section>
 
       <section className="home-section home-occasion-section">
-        <div className="home-section-header"><div><p className="home-section-eyebrow">GIFT OCCASIONS</p><h2 className="home-section-title">어떤 마음을 전할까요?</h2></div></div>
-        {isLoading ? <div className="home-occasion-loading">선물 상황을 불러오는 중입니다.</div> : errorMessage ? <div className="home-occasion-loading">{errorMessage}</div> : homeData?.giftOccasions.length ? (
-          <div className="home-occasion-list">
-            {homeData.giftOccasions.map((occasion) => (
-              <Link key={occasion.id} href={`/products?giftOccasionId=${occasion.id}`} className="home-occasion-item"><span className="home-occasion-icon" aria-hidden="true">✦</span><span>{occasion.name}</span></Link>
-            ))}
+        <div className="home-section-header home-section-header-occasion">
+          <div>
+            <p className="home-section-eyebrow">GIFT OCCASIONS</p>
+            <h2 className="home-section-title">상황에 맞는 선물 추천 🎁</h2>
           </div>
-        ) : <div className="home-occasion-loading">등록된 선물 상황이 없습니다.</div>}
-      </section>
-
-      <section className="home-section">
-        <div className="home-section-header"><div><p className="home-section-eyebrow">POPULAR GIFTS</p><h2 className="home-section-title">지금 인기 있는 선물</h2></div></div>
-        {errorMessage ? <div className="home-product-placeholder">{errorMessage}</div> : <ProductSection products={homeData?.popularProducts ?? []} isLoading={isLoading} emptyMessage="아직 인기 선물을 준비하고 있습니다." />}
-      </section>
-
-      <section className="home-section">
-        <div className="home-section-header home-section-header-price"><div><p className="home-section-eyebrow">PRICE RANGE</p><h2 className="home-section-title">가격대별 선물</h2></div><Link href={`/products?${priceRangeLink.toString()}`} className="home-section-more">전체 보기</Link></div>
-        <div className="home-price-range-tabs" role="tablist" aria-label="가격대 선택">
-          {PRICE_RANGES.map((priceRange) => <button key={priceRange.code} type="button" role="tab" aria-selected={selectedPriceRange === priceRange.code} className={selectedPriceRange === priceRange.code ? "is-active" : undefined} onClick={() => setSelectedPriceRange(priceRange.code)}>{priceRange.label}</button>)}
+          {selectedOccasionId !== null && (
+            <Link
+              href={`/products?giftOccasionId=${selectedOccasionId}`}
+              className="home-section-more"
+            >
+              전체 보기
+            </Link>
+          )}
         </div>
-        {errorMessage ? <div className="home-product-placeholder">{errorMessage}</div> : <ProductSection products={priceRangeProducts} isLoading={isLoading} emptyMessage="이 가격대의 판매 중인 상품이 없습니다." />}
+
+        {isLoading ? (
+          <div className="home-occasion-loading">선물 상황을 불러오는 중입니다.</div>
+        ) : errorMessage ? (
+          <div className="home-occasion-loading">{errorMessage}</div>
+        ) : homeData?.giftOccasions.length ? (
+          <>
+            <div
+              className="home-occasion-tabs"
+              role="tablist"
+              aria-label="선물 상황 선택"
+            >
+              {homeData.giftOccasions.map((occasion) => (
+                <button
+                  key={occasion.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedOccasionId === occasion.id}
+                  className={
+                    selectedOccasionId === occasion.id ? "is-active" : undefined
+                  }
+                  onClick={() => setSelectedOccasionId(occasion.id)}
+                >
+                  {occasion.name}
+                </button>
+              ))}
+            </div>
+
+            {occasionErrorId === selectedOccasionId && occasionErrorMessage ? (
+              <div className="home-product-empty">{occasionErrorMessage}</div>
+            ) : (
+              <ProductSection
+                products={selectedOccasionProducts}
+                isLoading={occasionLoadingId === selectedOccasionId}
+                emptyMessage="이 상황에 어울리는 판매 중인 상품이 없습니다."
+              />
+            )}
+          </>
+        ) : (
+          <div className="home-occasion-loading">등록된 선물 상황이 없습니다.</div>
+        )}
       </section>
 
       <section className="home-section">
-        <div className="home-section-header"><div><p className="home-section-eyebrow">NEW PRODUCTS</p><h2 className="home-section-title">새로 등록된 상품</h2></div><Link href="/products?excludeSoldOut=true" className="home-section-more">전체 보기</Link></div>
-        {errorMessage ? <div className="home-product-placeholder">{errorMessage}</div> : <ProductSection products={homeData?.newestProducts ?? []} isLoading={isLoading} emptyMessage="새로 등록된 판매 중인 상품이 없습니다." />}
+        <div className="home-section-header">
+          <div>
+            <p className="home-section-eyebrow">POPULAR GIFTS</p>
+            <h2 className="home-section-title">지금 인기 있는 선물</h2>
+          </div>
+        </div>
+        {errorMessage ? (
+          <div className="home-product-placeholder">{errorMessage}</div>
+        ) : (
+          <ProductSection
+            products={homeData?.popularProducts ?? []}
+            isLoading={isLoading}
+            emptyMessage="아직 인기 선물을 준비하고 있습니다."
+          />
+        )}
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-header home-section-header-price">
+          <div>
+            <p className="home-section-eyebrow">PRICE RANGE</p>
+            <h2 className="home-section-title">가격대별 선물</h2>
+          </div>
+          <Link
+            href={`/products?${priceRangeLink.toString()}`}
+            className="home-section-more"
+          >
+            전체 보기
+          </Link>
+        </div>
+        <div className="home-price-range-tabs" role="tablist" aria-label="가격대 선택">
+          {PRICE_RANGES.map((priceRange) => (
+            <button
+              key={priceRange.code}
+              type="button"
+              role="tab"
+              aria-selected={selectedPriceRange === priceRange.code}
+              className={
+                selectedPriceRange === priceRange.code ? "is-active" : undefined
+              }
+              onClick={() => setSelectedPriceRange(priceRange.code)}
+            >
+              {priceRange.label}
+            </button>
+          ))}
+        </div>
+        {errorMessage ? (
+          <div className="home-product-placeholder">{errorMessage}</div>
+        ) : (
+          <ProductSection
+            products={priceRangeProducts}
+            isLoading={isLoading}
+            emptyMessage="이 가격대의 판매 중인 상품이 없습니다."
+          />
+        )}
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-header">
+          <div>
+            <p className="home-section-eyebrow">NEW PRODUCTS</p>
+            <h2 className="home-section-title">새로 등록된 상품</h2>
+          </div>
+          <Link href="/products?excludeSoldOut=true" className="home-section-more">
+            전체 보기
+          </Link>
+        </div>
+        {errorMessage ? (
+          <div className="home-product-placeholder">{errorMessage}</div>
+        ) : (
+          <ProductSection
+            products={homeData?.newestProducts ?? []}
+            isLoading={isLoading}
+            emptyMessage="새로 등록된 판매 중인 상품이 없습니다."
+          />
+        )}
       </section>
     </div>
   );
