@@ -182,18 +182,6 @@ export default function HomeProductCarousel({
           >
             ←
           </button>
-          <div className="home-product-carousel-indicators" aria-label="상품 캐러셀 페이지">
-            {pages.map((_, pageIndex) => (
-              <button
-                key={pageIndex}
-                type="button"
-                aria-label={`${pageIndex + 1}번째 페이지 보기`}
-                aria-current={activePage === pageIndex ? "true" : undefined}
-                className={activePage === pageIndex ? "is-active" : undefined}
-                onClick={() => moveToPage(pageIndex)}
-              />
-            ))}
-          </div>
           <button
             type="button"
             aria-label="다음 상품 보기"

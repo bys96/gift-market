@@ -226,7 +226,6 @@
 .home-product-carousel {
   position: relative;
   min-width: 0;
-  padding-bottom: 30px;
 }
 
 .home-product-carousel-viewport {
@@ -311,7 +310,7 @@
 
 .home-product-carousel-controls {
   position: absolute;
-  inset: 0 -14px 30px;
+  inset: 0 -14px;
   pointer-events: none;
 }
 
@@ -350,32 +349,6 @@
 .home-product-carousel-controls > button:disabled {
   visibility: hidden;
   cursor: default;
-}
-
-.home-product-carousel-indicators {
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  pointer-events: auto;
-  transform: translateX(-50%);
-}
-
-.home-product-carousel-indicators button {
-  width: 6px;
-  height: 6px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: #d4d4d4;
-  cursor: pointer;
-}
-
-.home-product-carousel-indicators button.is-active {
-  width: 16px;
-  background: #333333;
 }
 
 @media (max-width: 900px) {
@@ -491,20 +464,12 @@
     flex-basis: calc((100% - 12px) / 2);
   }
 
-  .home-product-carousel {
-    padding-bottom: 0;
-  }
-
   .home-product-carousel-controls {
     display: none;
   }
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .home-product-carousel {
-    padding-bottom: 0;
-  }
-
   .home-product-carousel-controls {
     display: none;
   }

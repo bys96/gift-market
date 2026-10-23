@@ -117,7 +117,7 @@ export default function HomePage() {
           giftOccasionId: selectedOccasionId,
           excludeSoldOut: true,
           page: 0,
-          size: 8,
+          size: 11,
         });
 
         if (isActive) {

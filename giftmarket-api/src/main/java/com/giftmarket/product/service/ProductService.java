@@ -58,7 +58,7 @@ import java.util.stream.IntStream;
 public class ProductService {
 
     private static final int MAX_PAGE_SIZE = 100;
-    private static final int HOME_SECTION_PRODUCT_SIZE = 8;
+    private static final int HOME_SECTION_PRODUCT_SIZE = 11;
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
