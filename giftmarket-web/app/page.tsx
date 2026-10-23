@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import ProductCard from "@/components/product/ProductCard";
+import HomeProductCarousel from "@/components/product/HomeProductCarousel";
 import { getHomeProducts, getProducts } from "@/lib/product-api";
 import type {
   HomePriceRangeCode,
@@ -32,32 +32,6 @@ const PRICE_RANGES: Array<{
   },
   { code: "OVER_50000", label: "5만원 이상", minPrice: 50_000 },
 ];
-
-function ProductSection({
-  products,
-  isLoading,
-  emptyMessage,
-}: {
-  products: ProductSummary[];
-  isLoading: boolean;
-  emptyMessage: string;
-}) {
-  if (isLoading) {
-    return <div className="home-product-placeholder">상품을 불러오는 중입니다.</div>;
-  }
-
-  if (products.length === 0) {
-    return <div className="home-product-empty">{emptyMessage}</div>;
-  }
-
-  return (
-    <div className="product-list">
-      {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
-      ))}
-    </div>
-  );
-}
 
 export default function HomePage() {
   const [homeData, setHomeData] = useState<HomeProductData | null>(null);
@@ -143,7 +117,7 @@ export default function HomePage() {
           giftOccasionId: selectedOccasionId,
           excludeSoldOut: true,
           page: 0,
-          size: 4,
+          size: 8,
         });
 
         if (isActive) {
@@ -194,6 +168,10 @@ export default function HomePage() {
     selectedOccasionId === null
       ? []
       : occasionProductsById[selectedOccasionId] ?? [];
+  const isSelectedOccasionLoading =
+    selectedOccasionId === null ||
+    occasionLoadingId === selectedOccasionId ||
+    occasionProductsById[selectedOccasionId] === undefined;
 
   const priceRangeLink = new URLSearchParams({
     excludeSoldOut: "true",
@@ -228,7 +206,6 @@ export default function HomePage() {
       <section className="home-section home-occasion-section">
         <div className="home-section-header home-section-header-occasion">
           <div>
-            <p className="home-section-eyebrow">GIFT OCCASIONS</p>
             <h2 className="home-section-title">상황에 맞는 선물 추천 🎁</h2>
           </div>
           {selectedOccasionId !== null && (
@@ -271,9 +248,11 @@ export default function HomePage() {
             {occasionErrorId === selectedOccasionId && occasionErrorMessage ? (
               <div className="home-product-empty">{occasionErrorMessage}</div>
             ) : (
-              <ProductSection
+              <HomeProductCarousel
                 products={selectedOccasionProducts}
-                isLoading={occasionLoadingId === selectedOccasionId}
+                isLoading={isSelectedOccasionLoading}
+                viewAllHref={`/products?giftOccasionId=${selectedOccasionId}`}
+                resetKey={`occasion-${selectedOccasionId}`}
                 emptyMessage="이 상황에 어울리는 판매 중인 상품이 없습니다."
               />
             )}
@@ -286,16 +265,20 @@ export default function HomePage() {
       <section className="home-section">
         <div className="home-section-header">
           <div>
-            <p className="home-section-eyebrow">POPULAR GIFTS</p>
             <h2 className="home-section-title">지금 인기 있는 선물</h2>
           </div>
+          <Link href="/products?sort=POPULAR" className="home-section-more">
+            전체 보기
+          </Link>
         </div>
         {errorMessage ? (
           <div className="home-product-placeholder">{errorMessage}</div>
         ) : (
-          <ProductSection
+          <HomeProductCarousel
             products={homeData?.popularProducts ?? []}
             isLoading={isLoading}
+            viewAllHref="/products?sort=POPULAR"
+            resetKey="popular"
             emptyMessage="아직 인기 선물을 준비하고 있습니다."
           />
         )}
@@ -304,7 +287,6 @@ export default function HomePage() {
       <section className="home-section">
         <div className="home-section-header home-section-header-price">
           <div>
-            <p className="home-section-eyebrow">PRICE RANGE</p>
             <h2 className="home-section-title">가격대별 선물</h2>
           </div>
           <Link
@@ -333,9 +315,11 @@ export default function HomePage() {
         {errorMessage ? (
           <div className="home-product-placeholder">{errorMessage}</div>
         ) : (
-          <ProductSection
+          <HomeProductCarousel
             products={priceRangeProducts}
             isLoading={isLoading}
+            viewAllHref={`/products?${priceRangeLink.toString()}`}
+            resetKey={`price-${activePriceRange.code}`}
             emptyMessage="이 가격대의 판매 중인 상품이 없습니다."
           />
         )}
@@ -344,19 +328,20 @@ export default function HomePage() {
       <section className="home-section">
         <div className="home-section-header">
           <div>
-            <p className="home-section-eyebrow">NEW PRODUCTS</p>
             <h2 className="home-section-title">새로 등록된 상품</h2>
           </div>
-          <Link href="/products?excludeSoldOut=true" className="home-section-more">
+          <Link href="/products?sort=LATEST" className="home-section-more">
             전체 보기
           </Link>
         </div>
         {errorMessage ? (
           <div className="home-product-placeholder">{errorMessage}</div>
         ) : (
-          <ProductSection
+          <HomeProductCarousel
             products={homeData?.newestProducts ?? []}
             isLoading={isLoading}
+            viewAllHref="/products?sort=LATEST"
+            resetKey="newest"
             emptyMessage="새로 등록된 판매 중인 상품이 없습니다."
           />
         )}
