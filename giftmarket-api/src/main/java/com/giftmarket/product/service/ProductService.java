@@ -303,15 +303,15 @@ public class ProductService {
                         ),
                         new HomeProductPriceRangeResponse(
                                 "FROM_10001_TO_30000",
-                                getHomeProductsByPriceRange(10_001L, 30_000L)
+                                getHomeProductsByPriceRange(10_000L, 30_000L)
                         ),
                         new HomeProductPriceRangeResponse(
                                 "FROM_30001_TO_50000",
-                                getHomeProductsByPriceRange(30_001L, 50_000L)
+                                getHomeProductsByPriceRange(30_000L, 50_000L)
                         ),
                         new HomeProductPriceRangeResponse(
                                 "OVER_50000",
-                                getHomeProductsByPriceRange(50_001L, null)
+                                getHomeProductsByPriceRange(50_000L, null)
                         )
                 ),
                 toProductSummaries(productRepository.findVisibleOnSaleProducts(

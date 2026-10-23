@@ -28,9 +28,9 @@ const PRODUCT_SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
 const QUICK_PRICE_RANGES = [
   { label: "전체", minPrice: null, maxPrice: null },
   { label: "1만원 이하", minPrice: 0, maxPrice: 10_000 },
-  { label: "1~3만원", minPrice: 10_001, maxPrice: 30_000 },
-  { label: "3~5만원", minPrice: 30_001, maxPrice: 50_000 },
-  { label: "5만원 이상", minPrice: 50_001, maxPrice: null },
+  { label: "1~3만원", minPrice: 10_000, maxPrice: 30_000 },
+  { label: "3~5만원", minPrice: 30_000, maxPrice: 50_000 },
+  { label: "5만원 이상", minPrice: 50_000, maxPrice: null },
 ] as const;
 interface ProductListScrollPosition {
   scrollY: number;
@@ -634,6 +634,21 @@ function ProductsContent() {
     closePriceFilter();
   };
 
+  const handlePriceInputKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (
+      event.key !== "Enter" ||
+      event.nativeEvent.isComposing ||
+      isPriceRangeInvalid
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    applyPriceFilter();
+  };
+
   const resetPriceFilter = () => {
     setDraftMinPrice("");
     setDraftMaxPrice("");
@@ -695,13 +710,17 @@ function ProductsContent() {
     );
   };
 
-  const handleClearCategoryFilters = () => {
+  const handleClearFilters = () => {
     setOptimisticCategoryIds([]);
     setActiveRootCategoryId(null);
 
     router.replace(
       createProductsUrl({
         categoryIds: [],
+        giftOccasionId: null,
+        excludeSoldOut: false,
+        minPrice: null,
+        maxPrice: null,
         page: 0,
       }),
       {
@@ -742,6 +761,12 @@ function ProductsContent() {
   };
 
   const isAllCategoryActive = displayedCategoryIds.length === 0;
+  const hasActiveFilters =
+    selectedCategories.length > 0 ||
+    giftOccasionId !== null ||
+    excludeSoldOut ||
+    minPrice !== null ||
+    maxPrice !== null;
 
   return (
     <main className="product-page">
@@ -883,11 +908,33 @@ function ProductsContent() {
             </button>
           ))}
 
-          {selectedCategories.length > 0 && (
+          {giftOccasionId !== null && (
+            <button
+              type="button"
+              className="product-page-selected-filter"
+              onClick={() => router.replace(createProductsUrl({ giftOccasionId: null, page: 0 }), { scroll: false })}
+            >
+              <span>선물 상황</span>
+              <span aria-hidden="true" className="product-page-selected-filter-remove">×</span>
+            </button>
+          )}
+
+          {excludeSoldOut && (
+            <button
+              type="button"
+              className="product-page-selected-filter"
+              onClick={() => router.replace(createProductsUrl({ excludeSoldOut: false, page: 0 }), { scroll: false })}
+            >
+              <span>품절 상품 제외</span>
+              <span aria-hidden="true" className="product-page-selected-filter-remove">×</span>
+            </button>
+          )}
+
+          {hasActiveFilters && (
             <button
               type="button"
               className="product-page-selected-filter-reset"
-              onClick={handleClearCategoryFilters}
+              onClick={handleClearFilters}
             >
               전체 해제
             </button>
@@ -940,9 +987,9 @@ function ProductsContent() {
                 ))}
               </div>
               <div className="product-filter-price-inputs">
-                <label>최소 금액<input inputMode="numeric" value={draftMinPrice} onChange={(event) => setDraftMinPrice(event.target.value.replace(/[^0-9]/g, ""))} placeholder="제한 없음" /></label>
+                <label>최소 금액<input inputMode="numeric" value={draftMinPrice} onChange={(event) => setDraftMinPrice(event.target.value.replace(/[^0-9]/g, ""))} onKeyDown={handlePriceInputKeyDown} placeholder="제한 없음" /></label>
                 <span>~</span>
-                <label>최대 금액<input inputMode="numeric" value={draftMaxPrice} onChange={(event) => setDraftMaxPrice(event.target.value.replace(/[^0-9]/g, ""))} placeholder="제한 없음" /></label>
+                <label>최대 금액<input inputMode="numeric" value={draftMaxPrice} onChange={(event) => setDraftMaxPrice(event.target.value.replace(/[^0-9]/g, ""))} onKeyDown={handlePriceInputKeyDown} placeholder="제한 없음" /></label>
               </div>
               {isPriceRangeInvalid && <p className="product-filter-error">최소 금액은 최대 금액보다 클 수 없습니다.</p>}
               <label className="product-filter-sold-out">

@@ -21,16 +21,16 @@ const PRICE_RANGES: Array<{
   {
     code: "FROM_10001_TO_30000",
     label: "1만원 ~ 3만원",
-    minPrice: 10_001,
+    minPrice: 10_000,
     maxPrice: 30_000,
   },
   {
     code: "FROM_30001_TO_50000",
     label: "3만원 ~ 5만원",
-    minPrice: 30_001,
+    minPrice: 30_000,
     maxPrice: 50_000,
   },
-  { code: "OVER_50000", label: "5만원 이상", minPrice: 50_001 },
+  { code: "OVER_50000", label: "5만원 이상", minPrice: 50_000 },
 ];
 
 function ProductSection({
