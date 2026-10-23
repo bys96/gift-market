@@ -224,7 +224,9 @@
 ======================================== */
 
 .home-product-carousel {
+  position: relative;
   min-width: 0;
+  padding-bottom: 30px;
 }
 
 .home-product-carousel-viewport {
@@ -232,7 +234,7 @@
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  touch-action: pan-x;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .home-product-carousel-viewport::-webkit-scrollbar {
@@ -273,16 +275,16 @@
   padding: 20px;
   border: 1px solid #e9e9e9;
   border-radius: 18px;
-  background: #fafafa;
-  color: #444444;
+  background: #f3f4f5;
+  color: #3f4348;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
 }
 
 .home-product-carousel-view-all:hover {
-  border-color: #cfcfcf;
-  background: #f6f6f6;
+  border-color: #bfc3c7;
+  background: #eceef0;
 }
 
 .home-product-carousel-view-all-arrow {
@@ -292,8 +294,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #ffffff;
-  color: #222222;
+  background: #30343a;
+  color: #ffffff;
   font-size: 22px;
 }
 
@@ -308,37 +310,57 @@
 }
 
 .home-product-carousel-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 16px;
+  position: absolute;
+  inset: 0 -14px 30px;
+  pointer-events: none;
 }
 
 .home-product-carousel-controls > button {
+  position: absolute;
+  top: 50%;
   display: inline-flex;
   width: 30px;
   height: 30px;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid #e2e2e2;
+  border: 1px solid #d8dadd;
   border-radius: 50%;
   background: #ffffff;
-  color: #444444;
+  color: #30343a;
   font-size: 16px;
   cursor: pointer;
+  pointer-events: auto;
+  transform: translateY(-50%);
+}
+
+.home-product-carousel-controls > button:first-child {
+  left: 0;
+}
+
+.home-product-carousel-controls > button:last-child {
+  right: 0;
+}
+
+.home-product-carousel-controls > button:not(:disabled):hover {
+  border-color: #9da1a6;
+  background: #f8f8f8;
 }
 
 .home-product-carousel-controls > button:disabled {
-  color: #c2c2c2;
+  visibility: hidden;
   cursor: default;
 }
 
 .home-product-carousel-indicators {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
   display: flex;
   align-items: center;
   gap: 5px;
+  pointer-events: auto;
+  transform: translateX(-50%);
 }
 
 .home-product-carousel-indicators button {
@@ -469,11 +491,21 @@
     flex-basis: calc((100% - 12px) / 2);
   }
 
-  .home-product-carousel-controls {
-    margin-top: 12px;
+  .home-product-carousel {
+    padding-bottom: 0;
   }
 
-  .home-product-carousel-controls > button {
+  .home-product-carousel-controls {
+    display: none;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .home-product-carousel {
+    padding-bottom: 0;
+  }
+
+  .home-product-carousel-controls {
     display: none;
   }
 }
