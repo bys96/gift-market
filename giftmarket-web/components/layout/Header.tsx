@@ -147,7 +147,7 @@ export default function Header() {
           <nav className="layout-header-actions" aria-label="사용자 메뉴">
             {isAdminRole(user?.role) && (
               <Link
-                href="/admin/seller-applications"
+                href="/admin"
                 className="layout-header-action"
               >
                 관리자
@@ -342,7 +342,7 @@ export default function Header() {
             aria-label="모바일 사용자 메뉴"
           >
             {isAdminRole(user?.role) && (
-              <Link href="/admin/seller-applications">
+              <Link href="/admin">
                 <span>관리자</span>
                 <span className="layout-mobile-menu-arrow" aria-hidden="true">
                   ›

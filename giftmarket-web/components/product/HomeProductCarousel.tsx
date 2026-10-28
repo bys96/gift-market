@@ -89,7 +89,12 @@ export default function HomeProductCarousel({ products, viewAllHref, resetKey, i
           if (drag.moved) {
             suppressClickRef.current = true;
             const step = stepSize(event.currentTarget);
-            if (step) scrollTo(event.currentTarget, Math.round(event.currentTarget.scrollLeft / step) * step);
+            if (step) {
+              const max = event.currentTarget.scrollWidth - event.currentTarget.clientWidth;
+              const nearest = Math.round(event.currentTarget.scrollLeft / step) * step;
+              const target = Math.abs(max - event.currentTarget.scrollLeft) < Math.abs(nearest - event.currentTarget.scrollLeft) ? max : nearest;
+              scrollTo(event.currentTarget, target);
+            }
           }
         }}
         onPointerCancel={(event) => { dragRef.current = null; event.currentTarget.classList.remove("is-dragging"); }}
