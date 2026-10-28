@@ -1,16 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-
-import type { ProductSummary } from "@/types/product";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import ProductCard from "@/components/product/ProductCard";
+import type { ProductSummary } from "@/types/product";
 
 interface HomeProductCarouselProps {
   products: ProductSummary[];
@@ -20,178 +13,107 @@ interface HomeProductCarouselProps {
   emptyMessage: string;
 }
 
-function getItemsPerPage(width: number) {
-  if (width < 600) return 4;
-  if (width < 1024) return 3;
-  return 4;
-}
-
-export default function HomeProductCarousel({
-  products,
-  viewAllHref,
-  resetKey,
-  isLoading = false,
-  emptyMessage,
-}: HomeProductCarouselProps) {
+export default function HomeProductCarousel({ products, viewAllHref, resetKey, isLoading = false, emptyMessage }: HomeProductCarouselProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const scrollFrameRef = useRef<number | null>(null);
-  const [itemsPerPage, setItemsPerPage] = useState(4);
-  const [activePage, setActivePage] = useState(0);
+  const dragRef = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const [edges, setEdges] = useState({ start: true, end: true });
 
-  const pages = useMemo(() => {
-    const items = [
-      ...products.map((product) => ({ type: "product" as const, product })),
-      { type: "view-all" as const },
-    ];
-
-    return Array.from(
-      { length: Math.ceil(items.length / itemsPerPage) },
-      (_, index) => items.slice(index * itemsPerPage, (index + 1) * itemsPerPage),
-    );
-  }, [itemsPerPage, products]);
-
-  const moveToPage = useCallback((pageIndex: number, behavior: ScrollBehavior = "smooth") => {
-    const nextPage = Math.max(0, Math.min(pageIndex, pages.length - 1));
-    pageRefs.current[nextPage]?.scrollIntoView({
-      behavior:
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : behavior,
-      block: "nearest",
-      inline: "start",
-    });
-    setActivePage(nextPage);
-  }, [pages.length]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-
-    const updateItemsPerPage = () => {
-      setItemsPerPage(getItemsPerPage(viewport.clientWidth));
-    };
-
-    updateItemsPerPage();
-    const observer = new ResizeObserver(updateItemsPerPage);
-    observer.observe(viewport);
-
-    return () => observer.disconnect();
+  const updateEdges = useCallback(() => {
+    const el = viewportRef.current;
+    if (el) setEdges({ start: el.scrollLeft <= 1, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 });
   }, []);
 
   useEffect(() => {
-    pageRefs.current = pageRefs.current.slice(0, pages.length);
-    setActivePage(0);
-    viewportRef.current?.scrollTo({ left: 0, behavior: "auto" });
-  }, [pages.length, resetKey]);
-
-  const handleScroll = () => {
-    if (scrollFrameRef.current !== null) return;
-
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-
-      if (
-        viewport.scrollLeft + viewport.clientWidth >=
-        viewport.scrollWidth - 2
-      ) {
-        setActivePage(pages.length - 1);
-        scrollFrameRef.current = null;
-        return;
-      }
-
-      const closestPage = pageRefs.current.reduce(
-        (closestIndex, page, index) => {
-          if (!page) return closestIndex;
-
-          const currentDistance = Math.abs(page.offsetLeft - viewport.scrollLeft);
-          const closest = pageRefs.current[closestIndex];
-          const closestDistance = closest
-            ? Math.abs(closest.offsetLeft - viewport.scrollLeft)
-            : Number.POSITIVE_INFINITY;
-
-          return currentDistance < closestDistance ? index : closestIndex;
-        },
-        0,
-      );
-
-      setActivePage(closestPage);
-      scrollFrameRef.current = null;
+    const el = viewportRef.current;
+    if (!el) return;
+    el.scrollLeft = 0;
+    updateEdges();
+    const observer = new ResizeObserver(() => {
+      updateEdges();
     });
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [resetKey, products.length, isLoading, updateEdges]);
+
+  const stepSize = (el: HTMLDivElement) => {
+    const track = el.firstElementChild as HTMLElement;
+    const item = track.querySelector<HTMLElement>(".home-product-carousel-item");
+    return item ? item.getBoundingClientRect().width + (parseFloat(getComputedStyle(track).columnGap) || 0) : 0;
+  };
+  const scrollTo = (el: HTMLDivElement, left: number) => {
+    el.scrollTo({ left, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+  const move = (direction: number) => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const step = stepSize(el);
+    if (step) scrollTo(el, (Math.round(el.scrollLeft / step) + direction) * step);
   };
 
-  useEffect(() => () => {
-    if (scrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(scrollFrameRef.current);
-    }
-  }, []);
+  if (isLoading) return <div className="home-product-placeholder">상품을 불러오는 중입니다.</div>;
+  if (products.length === 0) return <div className="home-product-empty">{emptyMessage}</div>;
 
-  if (isLoading) {
-    return <div className="home-product-placeholder">상품을 불러오는 중입니다.</div>;
-  }
-
-  if (products.length === 0) {
-    return <div className="home-product-empty">{emptyMessage}</div>;
-  }
+  const mobileColumns = Math.floor((products.length - 1) / 4) * 2 + ((products.length - 1) % 4 === 0 ? 1 : 2);
+  const trackStyle = { "--desktop-count": products.length, "--mobile-count": mobileColumns } as CSSProperties;
 
   return (
     <div className="home-product-carousel">
-      <div
-        ref={viewportRef}
-        className="home-product-carousel-viewport"
-        onScroll={handleScroll}
+      <div ref={viewportRef} className="home-product-carousel-viewport" onScroll={updateEdges}
+        onDragStart={(event) => event.preventDefault()}
+        onPointerDown={(event) => {
+          if (event.pointerType !== "mouse" || event.button !== 0) return;
+          suppressClickRef.current = false;
+          dragRef.current = { x: event.clientX, left: event.currentTarget.scrollLeft, moved: false };
+        }}
+        onPointerMove={(event) => {
+          const drag = dragRef.current;
+          if (!drag) return;
+          if (Math.abs(event.clientX - drag.x) > 5) {
+            drag.moved = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            event.currentTarget.classList.add("is-dragging");
+            event.currentTarget.scrollLeft = drag.left - (event.clientX - drag.x);
+          }
+        }}
+        onPointerUp={(event) => {
+          const drag = dragRef.current;
+          if (!drag) return;
+          dragRef.current = null;
+          event.currentTarget.classList.remove("is-dragging");
+          if (drag.moved) {
+            suppressClickRef.current = true;
+            const step = stepSize(event.currentTarget);
+            if (step) scrollTo(event.currentTarget, Math.round(event.currentTarget.scrollLeft / step) * step);
+          }
+        }}
+        onPointerCancel={(event) => { dragRef.current = null; event.currentTarget.classList.remove("is-dragging"); }}
+        onClickCapture={(event) => {
+          if (suppressClickRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            suppressClickRef.current = false;
+          }
+        }}
       >
-        <div className="home-product-carousel-track">
-          {pages.map((page, pageIndex) => (
-            <div
-              key={`${resetKey}-${pageIndex}`}
-              ref={(element) => {
-                pageRefs.current[pageIndex] = element;
-              }}
-              className={`home-product-carousel-page ${page.length < itemsPerPage ? "is-incomplete" : ""} ${page.length === 1 ? "is-single" : ""}`}
-            >
-              {page.map((item) =>
-                item.type === "product" ? (
-                  <ProductCard key={item.product.id} product={item.product} />
-                ) : (
-                  <Link
-                    key="view-all"
-                    href={viewAllHref}
-                    className="home-product-carousel-view-all"
-                  >
-                    <span aria-hidden="true" className="home-product-carousel-view-all-arrow">→</span>
-                    <strong>전체 보기</strong>
-                    <span>더 많은 선물 만나보기</span>
-                  </Link>
-                ),
-              )}
+        <div className="home-product-carousel-track" style={trackStyle}>
+          {products.map((product, index) => (
+            <div key={product.id} className="home-product-carousel-item" style={{ "--mobile-column": Math.floor(index / 4) * 2 + index % 2 + 1, "--mobile-row": Math.floor((index % 4) / 2) + 1 } as CSSProperties}>
+              <ProductCard product={product} />
             </div>
           ))}
+          <Link href={viewAllHref} className="home-product-carousel-item home-product-carousel-view-all">
+            <span aria-hidden="true" className="home-product-carousel-view-all-arrow">→</span>
+            <strong>전체 보기</strong>
+            <span>더 많은 선물 만나보기</span>
+          </Link>
         </div>
       </div>
-
-      {pages.length > 1 && (
-        <div className="home-product-carousel-controls">
-          <button
-            type="button"
-            aria-label="이전 상품 보기"
-            disabled={activePage === 0}
-            onClick={() => moveToPage(activePage - 1)}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            aria-label="다음 상품 보기"
-            disabled={activePage === pages.length - 1}
-            onClick={() => moveToPage(activePage + 1)}
-          >
-            →
-          </button>
-        </div>
-      )}
+      <div className="home-product-carousel-controls">
+        <button type="button" aria-label="이전 상품 보기" disabled={edges.start} onClick={() => move(-1)}>←</button>
+        <button type="button" aria-label="다음 상품 보기" disabled={edges.end} onClick={() => move(1)}>→</button>
+      </div>
     </div>
   );
 }
