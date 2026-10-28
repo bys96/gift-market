@@ -260,8 +260,9 @@
 
 @media (min-width: 1024px) {
   .home-product-carousel-track:has(> :nth-child(5)) {
-    grid-template-columns: repeat(var(--desktop-count), var(--card-width)) calc(var(--card-width) * 1.5 + 20px);
+    grid-template-columns: repeat(var(--desktop-count), var(--card-width)) var(--card-width) calc(var(--card-width) / 2);
   }
+  .home-product-carousel-track:has(> :nth-child(5))::after { content: ""; }
 }
 
 .home-product-carousel-view-all {
@@ -380,8 +381,9 @@
     --card-width: calc((100% - 60px) / 3.5);
   }
   .home-product-carousel-track:has(> :nth-child(4)) {
-    grid-template-columns: repeat(var(--desktop-count), var(--card-width)) calc(var(--card-width) * 1.5 + 20px);
+    grid-template-columns: repeat(var(--desktop-count), var(--card-width)) var(--card-width) calc(var(--card-width) / 2);
   }
+  .home-product-carousel-track:has(> :nth-child(4))::after { content: ""; }
 }
 
 @media (max-width: 640px) {
@@ -457,15 +459,16 @@
   .home-product-carousel-track,
   .home-product-carousel-track:has(> :nth-child(4)) {
     --card-width: calc((100% - 24px) / 2.5);
-    grid-template-columns: repeat(var(--mobile-count), var(--card-width)) var(--card-width);
+    grid-template-columns: repeat(var(--mobile-count), var(--card-width));
     grid-template-rows: repeat(2, auto);
     gap: 20px 12px;
   }
-  .home-product-carousel-track:has(> :nth-child(3)) {
-    grid-template-columns: repeat(var(--mobile-count), var(--card-width)) calc(var(--card-width) * 1.5 + 12px);
+  .home-product-carousel-track:has(> :nth-child(5)) {
+    grid-template-columns: repeat(var(--mobile-count), var(--card-width)) calc(var(--card-width) / 2);
   }
+  .home-product-carousel-track:has(> :nth-child(4))::after { content: none; }
+  .home-product-carousel-track:has(> :nth-child(5))::after { content: ""; grid-column: calc(var(--mobile-count) + 1); grid-row: 1 / 3; }
   .home-product-carousel-item { grid-column: var(--mobile-column); grid-row: var(--mobile-row); }
-  .home-product-carousel-view-all { grid-column: calc(var(--mobile-count) + 1); grid-row: 1 / 3; }
   .home-product-carousel-controls {
     display: none;
   }

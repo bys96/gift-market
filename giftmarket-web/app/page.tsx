@@ -39,9 +39,13 @@ export default function HomePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPriceRange, setSelectedPriceRange] =
     useState<HomePriceRangeCode>("UNDER_10000");
-  const [selectedOccasionId, setSelectedOccasionId] = useState<number | null>(
+  const [preferredOccasionId, setSelectedOccasionId] = useState<number | null>(
     null,
   );
+  const occasions = homeData?.giftOccasions ?? [];
+  const selectedOccasionId = occasions.some((occasion) => occasion.id === preferredOccasionId)
+    ? preferredOccasionId
+    : occasions[0]?.id ?? null;
   const [occasionProductsById, setOccasionProductsById] = useState<
     Record<number, ProductSummary[]>
   >({});
@@ -86,20 +90,6 @@ export default function HomePage() {
       isMounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    const occasions = homeData?.giftOccasions ?? [];
-    if (occasions.length === 0) {
-      setSelectedOccasionId(null);
-      return;
-    }
-
-    setSelectedOccasionId((currentId) =>
-      occasions.some((occasion) => occasion.id === currentId)
-        ? currentId
-        : occasions[0].id,
-    );
-  }, [homeData]);
 
   useEffect(() => {
     if (selectedOccasionId === null) return;
@@ -208,14 +198,6 @@ export default function HomePage() {
           <div>
             <h2 className="home-section-title">상황에 맞는 선물 추천 🎁</h2>
           </div>
-          {selectedOccasionId !== null && (
-            <Link
-              href={`/products?giftOccasionId=${selectedOccasionId}`}
-              className="home-section-more"
-            >
-              전체 보기
-            </Link>
-          )}
         </div>
 
         {isLoading ? (
@@ -267,9 +249,6 @@ export default function HomePage() {
           <div>
             <h2 className="home-section-title">지금 인기 있는 선물</h2>
           </div>
-          <Link href="/products?sort=POPULAR" className="home-section-more">
-            전체 보기
-          </Link>
         </div>
         {errorMessage ? (
           <div className="home-product-placeholder">{errorMessage}</div>
@@ -289,12 +268,6 @@ export default function HomePage() {
           <div>
             <h2 className="home-section-title">가격대별 선물</h2>
           </div>
-          <Link
-            href={`/products?${priceRangeLink.toString()}`}
-            className="home-section-more"
-          >
-            전체 보기
-          </Link>
         </div>
         <div className="home-price-range-tabs" role="tablist" aria-label="가격대 선택">
           {PRICE_RANGES.map((priceRange) => (
@@ -330,9 +303,6 @@ export default function HomePage() {
           <div>
             <h2 className="home-section-title">새로 등록된 상품</h2>
           </div>
-          <Link href="/products?sort=LATEST" className="home-section-more">
-            전체 보기
-          </Link>
         </div>
         {errorMessage ? (
           <div className="home-product-placeholder">{errorMessage}</div>
