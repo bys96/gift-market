@@ -17,9 +17,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -130,6 +132,19 @@ class PaymentCancellationTransactionServiceTest {
     }
 
     @Test
+    void canceledStatusWithoutMatchingTransactionDoesNotComplete() {
+        given(orderRepository.findByIdForUpdate(10L)).willReturn(Optional.of(order));
+        given(cancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(cancellation));
+        GatewayPaymentQueryResult result = new GatewayPaymentQueryResult(
+                GatewayPaymentStatus.CANCELED, "provider-key", "other-transaction", "merchant-id",
+                10_000L, "KRW", PaymentMethod.CARD, null, "CANCELED", now.minusDays(1), 0L, now);
+        assertThatThrownBy(() -> service.completeFromReconciliationQuery(20L, 30L, result))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThat(cancellation.getStatus()).isEqualTo(PaymentCancellationStatus.REQUESTED);
+        verifyNoInteractions(inventoryService);
+    }
+
+    @Test
     void explicitDeclineReturnsPaidAndDoesNotRestoreInventory() {
         given(orderRepository.findByIdForUpdate(10L)).willReturn(Optional.of(order));
         given(cancellationRepository.findByIdForUpdate(30L))
@@ -198,7 +213,8 @@ class PaymentCancellationTransactionServiceTest {
         return new GatewayPaymentQueryResult(
                 GatewayPaymentStatus.CANCELED, "provider-key", "cancel-transaction",
                 "merchant-id", 10_000L, "KRW", PaymentMethod.CARD, null,
-                "CANCELED", now.minusDays(1), 0L, now
+                "CANCELED", now.minusDays(1), 0L, now, true,
+                List.of(new GatewayCancellationTransaction("cancel-transaction", 10_000L, "고객 요청", "DONE", now, 0L))
         );
     }
 }

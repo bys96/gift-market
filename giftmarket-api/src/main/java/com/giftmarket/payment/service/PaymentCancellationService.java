@@ -6,6 +6,8 @@ import com.giftmarket.payment.exception.PaymentException;
 import com.giftmarket.payment.gateway.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +27,16 @@ public class PaymentCancellationService {
                 }
                 if (query.status() != GatewayPaymentStatus.PAID) {
                     throw new PaymentException("결제 취소 결과를 확인 중입니다.");
+                }
+                if (!Objects.equals(query.providerPaymentKey(), start.providerPaymentKey())
+                        || !Objects.equals(query.merchantPaymentId(), start.merchantPaymentId())
+                        || !Objects.equals(query.amount(), start.amount())
+                        || !Objects.equals(query.currency(), start.currency())
+                        || !Objects.equals(query.remainingAmount(), start.amount())) {
+                    throw new PaymentException("결제 취소 결과를 확인 중입니다.");
+                }
+                if (start.requestedAt() == null || !start.requestedAt().plusDays(15).isAfter(LocalDateTime.now())) {
+                    throw new PaymentException("결제 취소 결과를 확인 중입니다. 운영자에게 문의해주세요.");
                 }
             }
             GatewayCancelResult result = gateway.cancel(new GatewayCancelCommand(

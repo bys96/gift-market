@@ -72,7 +72,9 @@ class PartialPaymentCancellationReconciliationServiceTest {
         PartialCancellationReconciliationStart start = start(null);
         given(reconciliationTransactions.start(10L, requestedAt.plusMinutes(1))).willReturn(start);
         given(gatewayRegistry.get(PaymentProvider.TOSS)).willReturn(gateway);
-        given(gateway.getPayment("provider-key")).willReturn(query(List.of()));
+        given(gateway.getPayment("provider-key")).willReturn(new GatewayPaymentQueryResult(
+                GatewayPaymentStatus.PAID, "provider-key", "latest", "merchant-id", 10_000L,
+                "KRW", null, null, "DONE", null, 10_000L, null, true, List.of()));
         given(gateway.cancel(any())).willReturn(cancelResult());
 
         service.reconcileOne(10L, requestedAt.plusMinutes(1), requestedAt.plusMinutes(2));
@@ -83,6 +85,16 @@ class PartialPaymentCancellationReconciliationServiceTest {
         assertThat(command.getValue().reason()).isEqualTo("reason");
         assertThat(command.getValue().idempotencyKey()).isEqualTo("same-key");
         verify(cancellationTransactions).complete(any(), any());
+    }
+
+    @Test
+    void mismatchedBalanceDoesNotRetryUnidentifiedCancellation() {
+        given(reconciliationTransactions.start(10L, requestedAt.plusMinutes(1))).willReturn(start(null));
+        given(gatewayRegistry.get(PaymentProvider.TOSS)).willReturn(gateway);
+        given(gateway.getPayment("provider-key")).willReturn(query(List.of()));
+        service.reconcileOne(10L, requestedAt.plusMinutes(1), requestedAt.plusMinutes(2));
+        verify(gateway, never()).cancel(any());
+        verifyNoInteractions(cancellationTransactions);
     }
 
     @Test

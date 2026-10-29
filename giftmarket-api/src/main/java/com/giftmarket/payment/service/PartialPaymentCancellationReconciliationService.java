@@ -130,6 +130,8 @@ public class PartialPaymentCancellationReconciliationService {
         boolean retryableState = query.status() == GatewayPaymentStatus.PAID
                 || query.status() == GatewayPaymentStatus.PARTIALLY_CANCELED;
         return retryableState && Boolean.TRUE.equals(query.partialCancelable())
+                && start.expectedRemainingAmount() != null && start.cancelAmount() != null
+                && Objects.equals(query.remainingAmount(), start.expectedRemainingAmount() + start.cancelAmount())
                 ? ReconciliationResult.RETRY_SAFE : ReconciliationResult.UNRESOLVED;
     }
 

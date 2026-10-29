@@ -39,7 +39,7 @@ class PaymentCancellationServiceTest {
         OrderCancelResponse response = new OrderCancelResponse(10L, OrderStatus.CANCELLED, PaymentStatus.CANCELED, "이미 완료");
         when(transactions.start(1L, 10L, request)).thenReturn(new PaymentCancelStart(
                 PaymentCancelStart.Action.COMPLETED, 20L, 30L, PaymentProvider.TOSS,
-                null, null, null, null, null, null, response));
+                null, null, null, null, null, null, null, response));
         assertSame(response, service.cancel(1L, 10L, request));
         verifyNoInteractions(registry, gateway);
     }
@@ -68,7 +68,7 @@ class PaymentCancellationServiceTest {
         PaymentCancelStart start = start(PaymentCancelStart.Action.QUERY);
         GatewayPaymentQueryResult paid = new GatewayPaymentQueryResult(
                 GatewayPaymentStatus.PAID, "payment-key", "tx", "merchant-id", 1000L,
-                "KRW", PaymentMethod.CARD, null, "DONE", LocalDateTime.now());
+                "KRW", PaymentMethod.CARD, null, "DONE", LocalDateTime.now(), 1000L, null);
         when(transactions.start(1L, 10L, request)).thenReturn(start);
         when(registry.get(PaymentProvider.TOSS)).thenReturn(gateway);
         when(gateway.getPayment("payment-key")).thenReturn(paid);
@@ -79,9 +79,24 @@ class PaymentCancellationServiceTest {
         verify(gateway).cancel(argThat(command -> command.idempotencyKey().equals("cancel-idempotency")));
     }
 
+    @Test
+    void expiredManualRetryQueriesButDoesNotCancelAgain() {
+        PaymentCancelStart expired = new PaymentCancelStart(PaymentCancelStart.Action.QUERY,
+                20L, 30L, PaymentProvider.TOSS, "payment-key", "merchant-id", 1000L,
+                "KRW", "고객 요청", "cancel-idempotency", LocalDateTime.now().minusDays(15), null);
+        when(transactions.start(1L, 10L, request)).thenReturn(expired);
+        when(registry.get(PaymentProvider.TOSS)).thenReturn(gateway);
+        when(gateway.getPayment("payment-key")).thenReturn(new GatewayPaymentQueryResult(
+                GatewayPaymentStatus.PAID, "payment-key", "tx", "merchant-id", 1000L,
+                "KRW", PaymentMethod.CARD, null, "DONE", LocalDateTime.now(), 1000L, null));
+        assertThrows(PaymentException.class, () -> service.cancel(1L, 10L, request));
+        verify(gateway, never()).cancel(any());
+        verify(transactions, never()).explicitFailure(anyLong(), anyLong(), anyLong(), any(), any());
+    }
+
     private PaymentCancelStart start(PaymentCancelStart.Action action) {
         return new PaymentCancelStart(action, 20L, 30L, PaymentProvider.TOSS, "payment-key",
-                "merchant-id", 1000L, "KRW", "고객 요청", "cancel-idempotency", null);
+                "merchant-id", 1000L, "KRW", "고객 요청", "cancel-idempotency", LocalDateTime.now(), null);
     }
     private GatewayCancelResult canceledResult() {
         return new GatewayCancelResult(GatewayPaymentStatus.CANCELED, "payment-key", "cancel-tx",

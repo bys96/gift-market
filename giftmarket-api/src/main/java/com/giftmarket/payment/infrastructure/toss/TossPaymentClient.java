@@ -21,6 +21,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,43 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Slf4j
 public class TossPaymentClient {
+
+    private static final Set<String> CONFIRM_DECLINES = Set.of(
+            "INVALID_STOPPED_CARD", "INVALID_REJECT_CARD", "INVALID_CARD_LOST_OR_STOLEN",
+            "EXCEED_MAX_DAILY_PAYMENT_COUNT", "EXCEED_MAX_PAYMENT_AMOUNT",
+            "NOT_SUPPORTED_INSTALLMENT_PLAN_CARD_OR_MERCHANT", "INVALID_CARD_INSTALLMENT_PLAN",
+            "NOT_SUPPORTED_MONTHLY_INSTALLMENT_PLAN", "INVALID_REQUEST", "INVALID_REQUIRED_PARAM",
+            "EXCEED_MAX_CARD_INSTALLMENT_PLAN", "NOT_ALLOWED_POINT_USE", "BELOW_MINIMUM_AMOUNT",
+            "INVALID_CARD_EXPIRATION", "INVALID_CARD_NUMBER", "RESTRICTED_TRANSFER_ACCOUNT",
+            "EXCEED_MAX_ONE_DAY_WITHDRAW_AMOUNT", "EXCEED_MAX_ONE_TIME_WITHDRAW_AMOUNT",
+            "EXCEED_MAX_AMOUNT", "INVALID_ACCOUNT_INFO_RE_REGISTER", "NOT_AVAILABLE_PAYMENT",
+            "EXCEED_MAX_MONTHLY_PAYMENT_AMOUNT"
+    );
+    private static final Set<String> CONFIRM_403_DECLINES = Set.of(
+            "REJECT_CARD_COMPANY", "REJECT_ACCOUNT_PAYMENT", "REJECT_CARD_PAYMENT",
+            "REJECT_TOSSPAY_INVALID_ACCOUNT", "EXCEED_MAX_AUTH_COUNT", "EXCEED_MAX_ONE_DAY_AMOUNT",
+            "NOT_AVAILABLE_BANK", "INVALID_PASSWORD", "FDS_ERROR"
+    );
+    private static final Set<String> CANCEL_400_DECLINES = Set.of(
+            "INVALID_REFUND_ACCOUNT_INFO", "INVALID_REFUND_ACCOUNT_NUMBER", "INVALID_BANK",
+            "EXCEED_CANCEL_AMOUNT_DISCOUNT_AMOUNT", "REFUND_REJECTED",
+            "FORBIDDEN_BANK_REFUND_REQUEST", "FAILED_CLOSED_ACCOUNT_REFUND", "INVALID_REQUEST"
+    );
+    private static final Set<String> CANCEL_403_DECLINES = Set.of(
+            "NOT_CANCELABLE_AMOUNT", "NOT_PARTIAL_CANCELABLE_PAYMENT", "EXCEED_MAX_REFUND_DUE",
+            "NOT_ALLOWED_PARTIAL_REFUND_WAITING_DEPOSIT", "NOT_ALLOWED_PARTIAL_REFUND",
+            "NOT_CANCELABLE_PAYMENT_FOR_DORMANT_USER", "EXCEED_CANCEL_LIMIT"
+    );
+
+    static boolean isConfirmDecline(int status, String code) {
+        return (status == 400 && CONFIRM_DECLINES.contains(code))
+                || (status == 403 && CONFIRM_403_DECLINES.contains(code));
+    }
+
+    static boolean isCancelDecline(int status, String code) {
+        return (status == 400 && CANCEL_400_DECLINES.contains(code))
+                || (status == 403 && CANCEL_403_DECLINES.contains(code));
+    }
 
     private static final Pattern ERROR_CODE_PATTERN = Pattern.compile(
             "\\\"code\\\"\\s*:\\s*\\\"([^\\\"]+)\\\""
@@ -134,9 +172,9 @@ public class TossPaymentClient {
                     error.code(),
                     error.message()
             );
-            if (exception.getStatusCode().value() == 400) {
+            if (isConfirmDecline(exception.getStatusCode().value(), error.code())) {
                 throw new PaymentGatewayDeclinedException(
-                        "TOSS_" + exception.getStatusCode().value(),
+                        error.code(),
                         "결제 승인이 거절되었습니다. 결제 정보를 다시 확인해주세요."
                 );
             }
@@ -292,7 +330,7 @@ public class TossPaymentClient {
             TossErrorDetails error = extractErrorDetails(exception);
             log.warn("Toss cancel response failed. responseReceived=true, exceptionType={}, httpStatus={}, errorCode={}, message={}",
                     exception.getClass().getSimpleName(), exception.getStatusCode().value(), error.code(), error.message());
-            if (exception.getStatusCode().is4xxClientError()) {
+            if (isCancelDecline(exception.getStatusCode().value(), error.code())) {
                 throw new PaymentGatewayDeclinedException(error.code(), "결제 취소를 완료하지 못했습니다.");
             }
             throw new PaymentGatewayUncertainException("결제 취소 결과를 확인 중입니다.", exception);

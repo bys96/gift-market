@@ -15,6 +15,8 @@ import com.giftmarket.payment.gateway.PaymentGatewayDeclinedException;
 import com.giftmarket.payment.gateway.PaymentGatewayRegistry;
 import com.giftmarket.payment.gateway.PaymentGatewayUncertainException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.ArgumentCaptor;
@@ -64,6 +66,19 @@ class PaymentServiceTest {
         verify(transactionService, never()).fail(any(), any(), any(), any(), any());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ALREADY_PROCESSING_REQUEST", "ALREADY_PROCESSED_PAYMENT"})
+    void uncertainTossApprovalDoesNotFailOrRestoreInventory(String code) {
+        PaymentResponse confirming = response(PaymentStatus.CONFIRMING);
+        given(transactionService.startConfirm(any(), any(), any()))
+                .willReturn(start(PaymentConfirmStart.Action.CONFIRM, null));
+        given(gatewayRegistry.get(PaymentProvider.TOSS)).willReturn(gateway);
+        given(gateway.confirm(any())).willThrow(new PaymentGatewayUncertainException(code, null));
+        given(transactionService.getPayment(1L, 2L)).willReturn(confirming);
+        assertThat(service.confirm(1L, 2L, request()).status()).isEqualTo(PaymentStatus.CONFIRMING);
+        verify(transactionService, never()).fail(any(), any(), any(), any(), any());
+    }
+
     @Test
     void definitiveDeclineMarksFailed() {
         given(transactionService.startConfirm(any(), any(), any()))
@@ -76,6 +91,17 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> service.confirm(1L, 2L, request()))
                 .isInstanceOf(PaymentException.class);
         verify(transactionService).fail(1L, 2L, "DECLINED", "거절", null);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"REJECT_CARD_COMPANY", "REJECT_ACCOUNT_PAYMENT", "REJECT_CARD_PAYMENT"})
+    void confirmedTossDeclineUsesFailureTransaction(String code) {
+        given(transactionService.startConfirm(any(), any(), any()))
+                .willReturn(start(PaymentConfirmStart.Action.CONFIRM, null));
+        given(gatewayRegistry.get(PaymentProvider.TOSS)).willReturn(gateway);
+        given(gateway.confirm(any())).willThrow(new PaymentGatewayDeclinedException(code, "거절"));
+        assertThatThrownBy(() -> service.confirm(1L, 2L, request())).isInstanceOf(PaymentException.class);
+        verify(transactionService).fail(1L, 2L, code, "거절", null);
     }
 
     @Test

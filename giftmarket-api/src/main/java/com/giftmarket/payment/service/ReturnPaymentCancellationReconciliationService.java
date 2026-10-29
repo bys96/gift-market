@@ -51,6 +51,10 @@ public class ReturnPaymentCancellationReconciliationService {
             GatewayPaymentQueryResult query = gateway.getPayment(start.providerPaymentKey());
             ReconcileResult result = reconcileQuery(start, value, query);
             if (result == ReconcileResult.RETRY_SAFE) {
+                if (value.getRequestedAt() == null || !value.getRequestedAt().plusDays(15).isAfter(LocalDateTime.now())) {
+                    log.warn("Return refund retry skipped because idempotency validity elapsed. paymentCancellationId={}", paymentCancellationId);
+                    return;
+                }
                 GatewayCancelResult canceled = gateway.cancel(GatewayCancelCommand.partial(
                         start.providerPaymentKey(), start.merchantPaymentId(), start.originalAmount(), start.currency(),
                         start.reason(), start.idempotencyKey(), start.cancelAmount()));
@@ -98,8 +102,13 @@ public class ReturnPaymentCancellationReconciliationService {
             completionService.complete(start.returnRequestId());
             return ReconcileResult.COMPLETED;
         }
+        Long recordedRefunds = cancellationRepository.sumAmountByPaymentIdAndStatus(
+                start.paymentId(), PaymentCancellationStatus.SUCCEEDED);
+        long expectedBalance = start.originalAmount() - (recordedRefunds == null ? 0L : recordedRefunds);
         boolean safe = (query.status() == GatewayPaymentStatus.PAID || query.status() == GatewayPaymentStatus.PARTIALLY_CANCELED)
-                && Boolean.TRUE.equals(query.partialCancelable());
+                && Boolean.TRUE.equals(query.partialCancelable())
+                && expectedBalance >= start.cancelAmount()
+                && Objects.equals(query.remainingAmount(), expectedBalance);
         return safe ? ReconcileResult.RETRY_SAFE : ReconcileResult.UNRESOLVED;
     }
 

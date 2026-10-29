@@ -157,7 +157,10 @@ public class PaymentCancellationTransactionService {
     public OrderCancelResponse completeFromQuery(Long userId, Long paymentId, Long cancellationId, GatewayPaymentQueryResult result) {
         Payment payment = getPayment(paymentId);
         if (!Objects.equals(payment.getOrder().getUser().getId(), userId)) throw new PaymentException("결제 정보를 찾을 수 없습니다.");
-        return completeLocked(payment, getOrder(payment.getOrder().getId()), getCancellation(cancellationId),
+        Order order = getOrder(payment.getOrder().getId());
+        PaymentCancellation cancellation = getCancellation(cancellationId);
+        validateQueryCancellation(cancellation, result);
+        return completeLocked(payment, order, cancellation,
                 result.status(), result.providerPaymentKey(), result.providerTransactionId(), result.merchantPaymentId(),
                 result.amount(), result.remainingAmount(), result.currency(), result.providerStatus(), result.canceledAt());
     }
@@ -170,6 +173,7 @@ public class PaymentCancellationTransactionService {
                 .findFirstByPaymentIdAndStatusOrderByIdDesc(paymentId, PaymentCancellationStatus.REQUESTED)
                 .orElseThrow(() -> new PaymentException("취소 요청을 찾을 수 없습니다."));
         cancellation = getCancellation(cancellation.getId());
+        validateQueryCancellation(cancellation, result);
         return completeLocked(payment, order, cancellation, result.status(), result.providerPaymentKey(),
                 result.providerTransactionId(), result.merchantPaymentId(), result.amount(),
                 result.remainingAmount(), result.currency(), result.providerStatus(), result.canceledAt());
@@ -182,10 +186,13 @@ public class PaymentCancellationTransactionService {
             GatewayPaymentQueryResult result
     ) {
         Payment payment = getPayment(paymentId);
+        Order order = getOrder(payment.getOrder().getId());
+        PaymentCancellation cancellation = getCancellation(cancellationId);
+        validateQueryCancellation(cancellation, result);
         return completeLocked(
                 payment,
-                getOrder(payment.getOrder().getId()),
-                getCancellation(cancellationId),
+                order,
+                cancellation,
                 result.status(),
                 result.providerPaymentKey(),
                 result.providerTransactionId(),
@@ -196,6 +203,24 @@ public class PaymentCancellationTransactionService {
                 result.providerStatus(),
                 result.canceledAt()
         );
+    }
+
+    private void validateQueryCancellation(PaymentCancellation cancellation, GatewayPaymentQueryResult result) {
+        if (cancellation.getStatus() == PaymentCancellationStatus.SUCCEEDED) return;
+        if (result.cancellations() == null || cancellation.getRequestedAt() == null) {
+            throw new PaymentException("결제 취소 거래를 확인 중입니다.");
+        }
+        var matches = result.cancellations().stream()
+                .filter(tx -> Objects.equals(tx.amount(), cancellation.getAmount()))
+                .filter(tx -> Objects.equals(tx.reason(), cancellation.getReason()))
+                .filter(tx -> tx.providerTransactionId() != null && !tx.providerTransactionId().isBlank())
+                .filter(tx -> "DONE".equalsIgnoreCase(tx.status()))
+                .filter(tx -> Objects.equals(tx.remainingAmount(), result.remainingAmount()))
+                .filter(tx -> tx.canceledAt() != null && !tx.canceledAt().isBefore(cancellation.getRequestedAt()))
+                .toList();
+        if (matches.size() != 1 || !Objects.equals(matches.getFirst().providerTransactionId(), result.providerTransactionId())) {
+            throw new PaymentException("결제 취소 거래를 확인 중입니다.");
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -302,11 +327,11 @@ public class PaymentCancellationTransactionService {
 
     private PaymentCancelStart start(PaymentCancelStart.Action action, Payment p, PaymentCancellation c) {
         return new PaymentCancelStart(action, p.getId(), c.getId(), p.getProvider(), p.getProviderPaymentKey(),
-                p.getMerchantPaymentId(), p.getAmount(), p.getCurrency(), c.getReason(), c.getIdempotencyKey(), null);
+                p.getMerchantPaymentId(), p.getAmount(), p.getCurrency(), c.getReason(), c.getIdempotencyKey(), c.getRequestedAt(), null);
     }
     private PaymentCancelStart completed(Order o, Payment p, String m) {
         return new PaymentCancelStart(PaymentCancelStart.Action.COMPLETED, p == null ? null : p.getId(), null,
-                p == null ? null : p.getProvider(), null, null, null, null, null, null, response(o,p,m));
+                p == null ? null : p.getProvider(), null, null, null, null, null, null, null, response(o,p,m));
     }
     private OrderCancelResponse response(Order o, Payment p, String m) {
         return new OrderCancelResponse(o.getId(), o.getStatus(), p == null ? null : p.getStatus(), m);
