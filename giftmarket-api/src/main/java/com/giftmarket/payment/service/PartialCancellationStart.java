@@ -16,5 +16,5 @@ public record PartialCancellationStart(
         String reason,
         String idempotencyKey
 ) {
-    public enum Action { EXECUTE, WAITING_APPROVAL, COMPLETED }
+    public enum Action { EXECUTE, WAITING_APPROVAL, WAITING_RECONCILIATION, COMPLETED }
 }

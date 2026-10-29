@@ -37,12 +37,12 @@ public class PartialPaymentCancellationTransactionService {
 
     @Transactional
     public PartialCancellationStart start(Long cancellationId) {
-        OrderCancellation reference = orderCancellationRepository.findById(cancellationId)
+        OrderCancellationOwnershipProjection reference = orderCancellationRepository.findOrderAndSellerOrderIds(cancellationId)
                 .orElseThrow(this::notAvailable);
-        Long orderId = reference.getOrder().getId();
-        Long sellerOrderId = reference.getSellerOrder().getId();
-        Payment payment = paymentRepository.findFirstByOrderIdOrderByIdDesc(orderId)
-                .flatMap(value -> paymentRepository.findByIdForUpdate(value.getId()))
+        Long orderId = reference.getOrderId();
+        Long sellerOrderId = reference.getSellerOrderId();
+        Payment payment = paymentRepository.findLatestIdByOrderId(orderId)
+                .flatMap(paymentRepository::findByIdForUpdate)
                 .orElseThrow(this::notAvailable);
         Order order = orderRepository.findByIdForUpdate(orderId).orElseThrow(this::notAvailable);
         SellerOrder sellerOrder = sellerOrderRepository
@@ -52,6 +52,15 @@ public class PartialPaymentCancellationTransactionService {
 
         if (cancellation.getStatus() == OrderCancellationStatus.COMPLETED) {
             return completed(cancellationId, payment);
+        }
+        PaymentCancellation existing = paymentCancellationRepository
+                .findByOrderCancellationIdForUpdate(cancellationId).orElse(null);
+        if (existing != null && (existing.getStatus() == PaymentCancellationStatus.REQUESTED
+                || existing.getStatus() == PaymentCancellationStatus.SUCCEEDED)) {
+            if (!Objects.equals(existing.getPayment().getId(), payment.getId())) throw notAvailable();
+            return new PartialCancellationStart(PartialCancellationStart.Action.WAITING_RECONCILIATION,
+                    cancellationId, payment.getId(), existing.getId(), payment.getProvider(), null, null,
+                    null, null, null, null, null);
         }
         if (cancellation.isRequiresSellerApproval()
                 && cancellation.getStatus() == OrderCancellationStatus.REQUESTED) {

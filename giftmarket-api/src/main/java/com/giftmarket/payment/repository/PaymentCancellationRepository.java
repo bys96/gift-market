@@ -28,6 +28,10 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
 
     Optional<PaymentCancellation> findByOrderCancellationId(Long orderCancellationId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from PaymentCancellation c where c.orderCancellation.id = :id")
+    Optional<PaymentCancellation> findByOrderCancellationIdForUpdate(@Param("id") Long orderCancellationId);
+
     Optional<PaymentCancellation> findByReturnRequestId(Long returnRequestId);
 
     @Query("""

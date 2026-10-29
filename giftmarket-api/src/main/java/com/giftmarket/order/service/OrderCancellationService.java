@@ -107,26 +107,23 @@ public class OrderCancellationService {
                 request.sellerOrderId(),
                 clientRequestKey,
                 reason,
-                requestedQuantities
+                requestedQuantities,
+                false
         );
         if (existing.isPresent()) {
             return existing.get();
         }
 
         Payment payment = paymentRepository
-                .findFirstByOrderIdAndOrderUserIdOrderByIdDesc(orderId, userId)
-                .flatMap(value -> paymentRepository.findByIdAndOrderUserIdForUpdate(
-                        value.getId(),
+                .findLatestIdByOrderIdAndUserId(orderId, userId)
+                .flatMap(paymentId -> paymentRepository.findByIdAndOrderUserIdForUpdate(
+                        paymentId,
                         userId
                 ))
                 .orElseThrow(this::orderNotFound);
-        if (!payment.isRefundableState()) {
-            throw new OrderException("결제가 완료된 주문만 상품 취소를 요청할 수 있습니다.");
-        }
 
         Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId)
                 .orElseThrow(this::orderNotFound);
-        validateOrderStatus(order);
 
         existing = findExisting(
                 userId,
@@ -134,11 +131,17 @@ public class OrderCancellationService {
                 request.sellerOrderId(),
                 clientRequestKey,
                 reason,
-                requestedQuantities
+                requestedQuantities,
+                true
         );
         if (existing.isPresent()) {
             return existing.get();
         }
+
+        if (!payment.isRefundableState()) {
+            throw new OrderException("결제가 완료된 주문만 상품 취소를 요청할 수 있습니다.");
+        }
+        validateOrderStatus(order);
 
         SellerOrder sellerOrder = sellerOrderRepository.findByIdAndOrderIdForUpdate(
                         request.sellerOrderId(),
@@ -197,15 +200,20 @@ public class OrderCancellationService {
             Long sellerOrderId,
             String clientRequestKey,
             String reason,
-            Map<Long, Integer> requestedQuantities
+            Map<Long, Integer> requestedQuantities,
+            boolean forUpdate
     ) {
-        return orderCancellationRepository.findByClientRequestKey(clientRequestKey)
+        Optional<OrderCancellation> existing = forUpdate
+                ? orderCancellationRepository.findByClientRequestKeyForUpdate(clientRequestKey)
+                : orderCancellationRepository.findByClientRequestKey(clientRequestKey);
+        return existing
                 .map(cancellation -> {
                     if (!cancellation.getOrder().getUser().getId().equals(userId)) {
                         throw new OrderException("이미 사용된 취소 요청 키입니다.");
                     }
-                    List<OrderCancellationItem> items = orderCancellationItemRepository
-                            .findAllByOrderCancellationIdOrderByIdAsc(cancellation.getId());
+                    List<OrderCancellationItem> items = forUpdate
+                            ? orderCancellationItemRepository.findAllByCancellationIdForUpdate(cancellation.getId())
+                            : orderCancellationItemRepository.findAllByOrderCancellationIdOrderByIdAsc(cancellation.getId());
                     validateIdempotentRequest(
                             cancellation,
                             items,

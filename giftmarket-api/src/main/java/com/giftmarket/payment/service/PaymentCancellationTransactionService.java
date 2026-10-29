@@ -86,12 +86,9 @@ public class PaymentCancellationTransactionService {
 
     @Transactional
     public PaymentCancelStart start(Long userId, Long orderId, OrderCancelRequest request) {
-        Order ownedOrder = orderRepository.findByIdAndUserId(orderId, userId)
-                .orElseThrow(() -> new OrderException("주문 정보를 찾을 수 없습니다."));
-        Payment payment = paymentRepository
-                .findFirstByOrderIdAndOrderUserIdOrderByIdDesc(orderId, userId).orElse(null);
-        if (payment != null) payment = getPayment(payment.getId());
-        Order order = orderRepository.findByIdAndUserIdForUpdate(ownedOrder.getId(), userId)
+        Payment payment = paymentRepository.findLatestIdByOrderIdAndUserId(orderId, userId)
+                .map(this::getPayment).orElse(null);
+        Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId)
                 .orElseThrow(() -> new OrderException("주문 정보를 찾을 수 없습니다."));
 
         if (order.getStatus() == OrderStatus.CANCELLED) return completed(order, payment, "이미 취소된 주문입니다.");

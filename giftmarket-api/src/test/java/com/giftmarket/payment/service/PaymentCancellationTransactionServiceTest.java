@@ -171,11 +171,9 @@ class PaymentCancellationTransactionServiceTest {
                 now, now.plusMinutes(30)
         );
         ReflectionTestUtils.setField(readyPayment, "id", 21L);
-        given(orderRepository.findByIdAndUserId(11L, 1L))
-                .willReturn(Optional.of(pendingOrder));
-        given(paymentRepository.findFirstByOrderIdAndOrderUserIdOrderByIdDesc(
+        given(paymentRepository.findLatestIdByOrderIdAndUserId(
                 11L, 1L
-        )).willReturn(Optional.of(readyPayment));
+        )).willReturn(Optional.of(21L));
         given(paymentRepository.findByIdForUpdate(21L))
                 .willReturn(Optional.of(readyPayment));
         given(orderRepository.findByIdAndUserIdForUpdate(11L, 1L))

@@ -111,8 +111,8 @@ class OrderCancellationServiceTest {
                 .willReturn(Optional.empty());
         given(orderRepository.findByIdAndUserIdForUpdate(ORDER_ID, USER_ID))
                 .willReturn(Optional.of(order));
-        given(paymentRepository.findFirstByOrderIdAndOrderUserIdOrderByIdDesc(ORDER_ID, USER_ID))
-                .willReturn(Optional.of(payment));
+        given(paymentRepository.findLatestIdByOrderIdAndUserId(ORDER_ID, USER_ID))
+                .willReturn(Optional.of(5L));
         given(paymentRepository.findByIdAndOrderUserIdForUpdate(5L, USER_ID))
                 .willReturn(Optional.of(payment));
         given(sellerOrderRepository.findByIdAndOrderIdForUpdate(SELLER_ORDER_ID, ORDER_ID))
@@ -264,7 +264,7 @@ class OrderCancellationServiceTest {
                 USER_ID, ORDER_ID, request(SELLER_ORDER_ID, item(ORDER_ITEM_ID, 1))
         )).isInstanceOf(OrderException.class);
 
-        verify(orderRepository, never()).findByIdAndUserIdForUpdate(any(), any());
+        verify(orderRepository).findByIdAndUserIdForUpdate(ORDER_ID, USER_ID);
         verify(cancellationRepository, never()).saveAndFlush(any());
     }
 
@@ -406,6 +406,24 @@ class OrderCancellationServiceTest {
         verify(orderRepository, never()).findByIdAndUserIdForUpdate(any(), any());
         verify(cancellationRepository, never()).saveAndFlush(any());
         verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void identicalRequestCommittedWhileWaitingIsReadAfterOrderLock() {
+        String requestKey = UUID.randomUUID().toString();
+        OrderCancellation existing = OrderCancellation.createRequested(
+                order, sellerOrder, requestKey, "단순 변심", java.time.LocalDateTime.now());
+        ReflectionTestUtils.setField(existing, "id", 100L);
+        OrderCancellationItem existingItem = OrderCancellationItem.create(existing, orderItem, 1);
+        given(cancellationRepository.findByClientRequestKey(requestKey)).willReturn(Optional.empty());
+        given(cancellationRepository.findByClientRequestKeyForUpdate(requestKey)).willReturn(Optional.of(existing));
+        given(cancellationItemRepository.findAllByCancellationIdForUpdate(100L)).willReturn(List.of(existingItem));
+        given(payment.isRefundableState()).willReturn(false);
+        ReflectionTestUtils.setField(order, "status", OrderStatus.CANCELLED);
+        OrderCancellationResponse response = service.create(USER_ID, ORDER_ID,
+                new OrderCancellationCreateRequest(requestKey, SELLER_ORDER_ID, "단순 변심", List.of(item(ORDER_ITEM_ID, 1))));
+        assertThat(response.cancellationId()).isEqualTo(100L);
+        verify(cancellationRepository, never()).saveAndFlush(any());
     }
 
     @Test

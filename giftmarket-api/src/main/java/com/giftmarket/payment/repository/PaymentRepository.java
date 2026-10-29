@@ -34,6 +34,15 @@ public interface PaymentRepository
     List<Payment> findLatestByOrderIds(@Param("orderIds") List<Long> orderIds);
     Optional<Payment> findFirstByOrderIdAndOrderUserIdOrderByIdDesc(Long orderId, Long userId);
 
+    @Query("""
+            select max(p.id) from Payment p
+            where p.order.id = :orderId and p.order.user.id = :userId
+            """)
+    Optional<Long> findLatestIdByOrderIdAndUserId(@Param("orderId") Long orderId, @Param("userId") Long userId);
+
+    @Query("select max(p.id) from Payment p where p.order.id = :orderId")
+    Optional<Long> findLatestIdByOrderId(@Param("orderId") Long orderId);
+
     Optional<Payment> findByMerchantPaymentId(
             String merchantPaymentId
     );

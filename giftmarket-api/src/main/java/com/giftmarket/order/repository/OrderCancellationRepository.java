@@ -59,6 +59,13 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
 
     Optional<OrderCancellation> findByClientRequestKey(String clientRequestKey);
 
+    @Query("select c.order.id as orderId, c.sellerOrder.id as sellerOrderId from OrderCancellation c where c.id = :id")
+    Optional<OrderCancellationOwnershipProjection> findOrderAndSellerOrderIds(@Param("id") Long cancellationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from OrderCancellation c where c.clientRequestKey = :key")
+    Optional<OrderCancellation> findByClientRequestKeyForUpdate(@Param("key") String clientRequestKey);
+
     List<OrderCancellation> findAllByOrderIdOrderByRequestedAtDescIdDesc(Long orderId);
 
     List<OrderCancellation> findAllBySellerOrderIdOrderByRequestedAtDescIdDesc(Long sellerOrderId);

@@ -92,7 +92,7 @@ class PartialPaymentCancellationPreparationServiceTest {
         given(existing.getAmount()).willReturn(10_000L);
         given(existing.getIdempotencyKey()).willReturn("same-key");
         given(existing.getReason()).willReturn("stored-provider-reason");
-        given(paymentCancellationRepository.findByOrderCancellationId(30L))
+        given(paymentCancellationRepository.findByOrderCancellationIdForUpdate(30L))
                 .willReturn(Optional.of(existing));
         clearInvocations(orderCancellation);
 
@@ -110,7 +110,7 @@ class PartialPaymentCancellationPreparationServiceTest {
         PaymentCancellation existing = mock(PaymentCancellation.class);
         given(existing.getPayment()).willReturn(payment);
         given(existing.getAmount()).willReturn(10_000L);
-        given(paymentCancellationRepository.findByOrderCancellationId(30L))
+        given(paymentCancellationRepository.findByOrderCancellationIdForUpdate(30L))
                 .willReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.prepare(30L, 9_000L))

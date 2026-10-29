@@ -3,6 +3,8 @@ package com.giftmarket.order.repository;
 import com.giftmarket.order.entity.OrderCancellationItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 import java.util.List;
 import org.springframework.data.jpa.repository.Query;
@@ -12,6 +14,10 @@ public interface OrderCancellationItemRepository extends JpaRepository<OrderCanc
 
     @EntityGraph(attributePaths = "orderItem")
     List<OrderCancellationItem> findAllByOrderCancellationIdOrderByIdAsc(Long orderCancellationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select ci from OrderCancellationItem ci where ci.orderCancellation.id = :id order by ci.id")
+    List<OrderCancellationItem> findAllByCancellationIdForUpdate(@Param("id") Long cancellationId);
 
     @EntityGraph(attributePaths = "orderItem")
     List<OrderCancellationItem> findAllByOrderCancellationIdInOrderByOrderCancellationIdAscOrderItemIdAsc(

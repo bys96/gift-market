@@ -38,7 +38,7 @@ public class PartialPaymentCancellationPreparationService {
                 .orElseThrow(() -> new OrderException("주문 취소 요청을 찾을 수 없습니다."));
 
         PaymentCancellation existing = paymentCancellationRepository
-                .findByOrderCancellationId(cancellationId)
+                .findByOrderCancellationIdForUpdate(cancellationId)
                 .orElse(null);
         if (existing != null) {
             if (!existing.getPayment().getId().equals(payment.getId())

@@ -43,6 +43,7 @@ class PartialPaymentCancellationTransactionServiceTest {
     @Mock Order order;
     @Mock SellerOrder sellerOrder;
     @Mock OrderCancellation cancellation;
+    @Mock OrderCancellationOwnershipProjection ownership;
     @Mock PaymentCancellation pgCancellation;
     private PartialPaymentCancellationTransactionService service;
 
@@ -75,6 +76,18 @@ class PartialPaymentCancellationTransactionServiceTest {
         assertThat(result.action()).isEqualTo(PartialCancellationStart.Action.EXECUTE);
         assertThat(result.cancelAmount()).isEqualTo(3_000L);
         assertThat(result.idempotencyKey()).isEqualTo("same-key");
+    }
+
+    @Test
+    void existingRequestedRefundWaitsForReconciliationInsteadOfExecutingAgain() {
+        stubLockedGraph();
+        given(cancellation.getStatus()).willReturn(OrderCancellationStatus.PROCESSING);
+        given(paymentCancellationRepository.findByOrderCancellationIdForUpdate(1L)).willReturn(Optional.of(pgCancellation));
+        given(pgCancellation.getStatus()).willReturn(PaymentCancellationStatus.REQUESTED);
+        given(pgCancellation.getPayment()).willReturn(payment);
+        given(pgCancellation.getId()).willReturn(30L);
+        assertThat(service.start(1L).action()).isEqualTo(PartialCancellationStart.Action.WAITING_RECONCILIATION);
+        org.mockito.Mockito.verifyNoInteractions(refundCalculator, preparationService);
     }
 
     @Test
@@ -263,10 +276,14 @@ class PartialPaymentCancellationTransactionServiceTest {
         given(payment.isRefundableState()).willReturn(true);
         given(order.getStatus()).willReturn(OrderStatus.PAID);
         given(paymentRepository.findFirstByOrderIdOrderByIdDesc(10L)).willReturn(Optional.of(payment));
+        given(paymentRepository.findLatestIdByOrderId(10L)).willReturn(Optional.of(20L));
         given(paymentRepository.findByIdForUpdate(20L)).willReturn(Optional.of(payment));
         given(orderRepository.findByIdForUpdate(10L)).willReturn(Optional.of(order));
         given(sellerOrderRepository.findByIdAndOrderIdForUpdate(11L, 10L)).willReturn(Optional.of(sellerOrder));
         given(orderCancellationRepository.findById(1L)).willReturn(Optional.of(cancellation));
+        given(orderCancellationRepository.findOrderAndSellerOrderIds(1L)).willReturn(Optional.of(ownership));
+        given(ownership.getOrderId()).willReturn(10L);
+        given(ownership.getSellerOrderId()).willReturn(11L);
         given(orderCancellationRepository.findByIdForUpdate(1L)).willReturn(Optional.of(cancellation));
     }
 
