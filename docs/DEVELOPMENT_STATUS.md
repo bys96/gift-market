@@ -2,6 +2,31 @@
 
 > 이 문서는 현재 Backend, Frontend, 설정과 수동 SQL을 기준으로 한 구현 상태다. 문서와 코드가 충돌하면 코드가 최종 기준이다. 향후 작업은 [`ROADMAP.md`](./ROADMAP.md)에서 관리한다.
 
+## 소스 대조 요약 (2026-10-29)
+
+아래 완료는 관련 코드의 주요 흐름이 존재한다는 뜻이며 운영 검증 완료를 뜻하지 않는다. **검증 필요**는 구현 여부와 별개로 실제 실행·외부 서비스·배포 설정 확인이 남았다는 표시다. 이번 문서 작업에서는 테스트나 운영 시스템을 실행·조회하지 않았다.
+
+| 영역 | 코드 기준 상태 및 판단 근거 | 추가 검증 |
+| --- | --- | --- |
+| 회원·인증 | 구현 완료: Google/Kakao OAuth 가입·로그인, JWT/refresh 및 회원 관리. 별도 이메일·비밀번호 회원가입은 확인되지 않음. `auth/controller/AuthController.java`, `auth/service/`, `user/service/UserService.java`, `giftmarket-web/app/login/page.tsx` | OAuth callback, 토큰 재발급·탈퇴 및 권한 경계 |
+| 상품 탐색 | 구현 완료: 목록·상세·카테고리·검색·필터. `product/controller/ProductController.java`, `product/service/ProductService.java`, `product/repository/ProductSpecifications.java`, `product/dto/request/ProductSearchCondition.java`, `giftmarket-web/lib/product-api.ts`, `giftmarket-web/app/products/` | 검색 품질·실제 데이터·모바일 |
+| 장바구니·찜 | 구현 완료: `cart/controller/CartController.java`, `cart/service/CartService.java`, `wishlist/controller/WishlistController.java`, `wishlist/service/WishlistService.java`, `giftmarket-web/lib/cart-api.ts`, `giftmarket-web/lib/wishlist-api.ts` | 로그인·재고 변경 시 동기화 |
+| 주문·내역 | 구현 완료: `order/controller/OrderController.java`, `order/service/OrderService.java`, `order/repository/OrderRepository.java`, `order/dto/request/OrderCreateRequest.java`, `giftmarket-web/lib/order-api.ts`, `giftmarket-web/app/order/`, `giftmarket-web/app/my/orders/` | 다중 판매자·동시 주문·금액과 재고 |
+| 결제·실패 복구 | 구현 완료: Toss 승인·취소·webhook·reconciliation. `payment/controller/PaymentController.java`, `payment/service/PaymentService.java`, `payment/service/PaymentReconciliationService.java`, `payment/repository/PaymentRepository.java`, `payment/dto/request/PaymentConfirmRequest.java`, `giftmarket-web/lib/payment-api.ts`, `giftmarket-web/app/payment/` | PG 결과 불명·중복·webhook 및 운영 연동 |
+| 배송·확정·취소·반품·교환 | 구현 완료: 구매자·판매자 workflow와 환불·재고 처리. `order/controller/`, `order/service/PurchaseConfirmationService.java`, `order/service/ReturnRequestService.java`, `order/service/ExchangeRequestService.java`, `payment/service/PartialPaymentCancellationReconciliationService.java`, `giftmarket-web/components/order/`, `giftmarket-web/app/seller/(seller-center)/orders/` | 실제 배송, 부분 수량·동시 클레임·환불 및 교환배송비 결제 |
+| 리뷰·문의 | 구현 완료: `review/controller/ReviewController.java`, `review/service/ReviewService.java`, `review/repository/ReviewRepository.java`, `inquiry/controller/`, `inquiry/service/`, `giftmarket-web/components/product/ProductReviewSection.tsx`, `ProductInquirySection.tsx`, `giftmarket-web/lib/review-api.ts`, `inquiry-api.ts` | 구매확정 자격·비밀문의·판매자 답변 |
+| 판매자 신청·센터 | 구현 완료: `seller/service/SellerApprovalService.java`, `seller/controller/`, `giftmarket-web/lib/seller-api.ts`, `giftmarket-web/app/seller/` | 승인 rollback·활성 Seller 소유권 및 운영 시나리오 |
+| 관리자 운영 | 부분 구현: 대시보드·조회·제재·신청 승인·정산 관리 구현, 강제 환불·클레임 중재는 미구현. `admin/controller/`, `admin/service/AdminDashboardService.java`, `giftmarket-web/lib/admin-api.ts`, `giftmarket-web/app/admin/(admin-center)/` | 권한·감사 및 실제 운영 절차 |
+| 옵션·재고·이미지 | 구현 완료: `product/service/ProductRegistrationService.java`, `ProductVariantService.java`, `product/repository/ProductVariantRepository.java`, `product/dto/request/ProductRegistrationRequest.java`, `global/storage/service/StorageService.java`, `giftmarket-web/components/seller/ProductForm.tsx` | 동시 재고 변경·업로드 및 보관 객체 정리 |
+| 선물 상황 | 구현 완료: 관리자가 생성·수정·활성 상태 관리, 판매자가 상품에 최대 3개 연결, 구매자 홈과 목록에서 조회·필터. `admin/controller/AdminGiftOccasionController.java`, `product/service/GiftOccasionService.java`, `product/repository/ProductGiftOccasionRepository.java`, `product/dto/request/GiftOccasionCreateRequest.java`, `giftmarket-web/lib/admin-api.ts`, `lib/product-api.ts`, `app/admin/(admin-center)/gift-occasions/`, `components/seller/ProductForm.tsx`, `app/page.tsx`, `app/products/page.tsx` | 실제 분류 데이터·필터 및 비활성 처리 |
+| 쿠폰·포인트·프로모션 | 미구현: 관련 독립 도메인과 구매 적용 흐름을 소스에서 확인하지 못함 | 정책·거래 및 정산 영향 설계 |
+| 정산 | 부분 구현: 원장과 수동 생성·확정 및 판매자·관리자 조회는 존재, 자동 생성과 실제 송금은 없음. `settlement/controller/`, `settlement/service/SettlementGenerationService.java`, `settlement/repository/`, `settlement/dto/`, `giftmarket-web/lib/seller-settlement-api.ts`, `admin-settlement-api.ts` | 클레임·수수료 환입·회차 및 지급 운영 정책 |
+| 배포·저장 | 부분 구현/검증 필요: 설정상 Vercel rewrite, Docker, MySQL, S3/MinIO 추상화와 수동 DDL. `giftmarket-web/next.config.ts`, `giftmarket-api/src/main/java/com/giftmarket/global/storage/`, `docs/sql/` | 실제 AWS·DB·백업·복구·외부 연동 및 현재 배포 상태 |
+
+Java 경로는 `giftmarket-api/src/main/java/com/giftmarket/` 기준이다. DTO·Repository와 API 연결은 대표 흐름을 기준으로 기록했으며 모든 분기나 운영 데이터의 완전성을 보증하지 않는다.
+
+선물 상황 관계는 `GiftOccasion`과 `ProductGiftOccasion` Entity의 상품-상황 연결 및 `(product_id, gift_occasion_id)` 유일 제약으로 표현된다. [`sql/gift-occasions.sql`](./sql/gift-occasions.sql)은 수동 DDL 참고본이며 자동 migration이나 현재 운영 DB 적용 확인이 아니다. 별도의 전체 ERD 최신성은 확인되지 않았고, Notification·Settlement 등의 기존 도메인별 관계도는 각 설계 문서와 Entity를 함께 확인한다.
+
 ## 1. 현재 서비스 범위
 
 Gift Market은 다중 판매자 주문, Toss 결제, 배송, 취소·반품·교환, 알림과 정산 금액 확정까지 연결된 오픈마켓형 서비스다. 정산 v1은 실제 지급이 아니라 판매자별 매출 원장과 정산 금액 확정까지 담당한다.
@@ -33,6 +58,7 @@ Gift Market은 다중 판매자 주문, Toss 결제, 배송, 취소·반품·교
 - 옵션 그룹·옵션 값·Variant 조합과 재고
 - 과거 주문 참조를 위한 inactive Variant 보존과 같은 조합 재활성화
 - 구매자 상품 목록·상세·검색·카테고리·품절 제외·URL 기반 pagination/filter
+- 선물 상황 관리·상품 연결과 구매자 홈 추천 탭 및 목록 필터
 - 회원별 Wishlist와 Cart
 - 상품문의 작성·수정·삭제, 비밀문의 masking, 판매자 답변 등록·수정
 - 구매확정된 OrderItem 기준 리뷰, 이미지, soft delete 후 같은 row 재사용
@@ -137,6 +163,8 @@ Settlement 1:N SettlementLedgerEntry (settlement_id nullable)
 - 구매확정 성공 후 상세 refresh 실패를 mutation 실패와 구분
 - 리뷰 상태 조회 실패를 리뷰 없음과 구분하고 영역 단위 재시도
 - Seller 주문·취소·반품·교환·상품문의 목록의 필터/page를 URL query로 보존
+- 홈 상품 캐러셀은 PC 4.5개·태블릿 3.5개, 모바일 2행과 다음 열 0.5개를 표시하고 드래그·스크롤과 마지막 전체 보기 카드 끝 정렬을 지원한다. 상품은 모바일에서 위→아래→다음 열 순서다 (`giftmarket-web/components/product/HomeProductCarousel.tsx`, `giftmarket-web/styles/home.css`).
+- 상품 상세 600px 이하에서 5개 탭을 균등 배치한다 (`giftmarket-web/styles/product/content.css`). 헤더 관리자 메뉴는 `/admin`으로 연결된다 (`giftmarket-web/components/layout/Header.tsx`). 기존 상세 탭에는 스크롤 연동 활성 상태 구현이 확인되지 않았다. 이 UI의 실기기 검증은 필요하다.
 
 ## 3. 부분 구현·현재 불일치
 
@@ -145,6 +173,8 @@ Settlement 1:N SettlementLedgerEntry (settlement_id nullable)
 - 상세 미디어와 프로필 등 일부 object는 실패·이탈 시 orphan cleanup이 완전 자동화되어 있지 않다.
 
 ## 4. 운영·배포 현재 기준
+
+아래 운영 상태와 성공 기록은 기존 문서에 남은 설정·작업 이력이다. 2026-10-29 문서 대조에서는 실제 운영 자원, 현재 설정과 외부 연동을 재확인하지 않았다.
 
 - Backend: Java 21, Spring Boot 4.1.0, Spring Security/JPA, MySQL, Toss Payments, Actuator
 - Frontend: Next.js 16.2.11 App Router, React 19, TypeScript, Zustand, 일반 CSS

@@ -362,7 +362,7 @@ NEXT_PUBLIC_TOSS_CLIENT_KEY=...
 
 ## Roadmap
 
-향후 Gift Occasion taxonomy, 메인·상품 추천 고도화, 쿠폰·포인트, Seller Review 답글, Settlement Scheduler, Payout, Versioned DB Migration과 observability를 추가할 계획입니다.
+선물 상황 관리와 상품 연결·구매자 필터는 구현되어 있으며, 향후 분류 품질과 탐색 경험을 개선할 계획입니다. 추천 고도화, 쿠폰·포인트, Seller Review 답글, Settlement Scheduler, Payout, Versioned DB Migration과 observability는 후속 과제입니다. 현재 구현과 운영 검증 범위는 [개발 현황](docs/DEVELOPMENT_STATUS.md), 우선순위는 [로드맵](docs/ROADMAP.md)을 확인하세요.
 
 자세한 내용은 [`docs/ROADMAP.md`](./docs/ROADMAP.md)를 참고합니다.
 

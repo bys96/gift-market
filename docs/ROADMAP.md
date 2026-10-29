@@ -1,70 +1,32 @@
 # Gift Market Roadmap
 
-> [`DEVELOPMENT_STATUS.md`](./DEVELOPMENT_STATUS.md)는 현재 구현 상태, 이 문서는 아직 구현하지 않은 후속 작업을 관리한다. 계획 항목을 완료 기능으로 해석하지 않는다.
+> 현재 구현 상태는 [`DEVELOPMENT_STATUS.md`](./DEVELOPMENT_STATUS.md)를 따른다. 아래 항목은 기존 기능의 검증·개선 또는 아직 없는 기능이며, 우선순위는 출시 준비 관점이다.
 
-## 다음 우선순위
+## P0 — 실제 서비스 출시 전 필수
 
-- Gift Occasion / 선물 상황 taxonomy 설계
-  - 생일, 감사, 축하, 집들이, 결혼, 출산, 응원 등
-  - 현재 Product에는 일반 Category만 있으며 Gift Occasion Entity/API/UI는 없음
-  - Product와 다대다 관계를 후보로 두되 검색·운영 정책을 먼저 설계
-- 메인 페이지 고도화와 상품 탐색 API 설계
-  - 최근 순판매수량 기반 인기상품
-  - 찜·리뷰 기반 상품 노출
-  - 카테고리별 인기상품
-  - 같은 카테고리 추천
-- 쿠폰·포인트 도메인 설계
-- Settlement 자동 생성 Scheduler
-  - 기존 `SettlementGenerationService` 재사용
-  - 계산 로직을 Scheduler에 중복 구현하지 않음
-  - ADMIN generate는 운영·장애 대응용 수동 트리거로 유지 가능
-- Seller 회원 탈퇴 시 미귀속 ledger·미확정 Settlement guard 정책
+- **검증 — 주문·결제·재고 정합성:** 다중 판매자 주문, 동시 재고 예약, 결제 준비 변경, 중복 요청 및 실패 후 복원 시나리오를 DB와 PG 결과까지 대조한다.
+- **검증 — 결제 실패·결과 불명:** Toss 승인·부분취소, webhook 중복·지연, reconciliation 및 orphan recovery를 테스트 환경과 실제 배포 설정에서 재확인한다.
+- **검증 — 배송·클레임:** 배송 완료, 구매확정, 부분 취소·반품·교환과 환불 및 재고 복원을 경계 수량과 동시 요청을 포함해 확인한다.
+- **검증 — 인증·운영 보안:** Google/Kakao 로그인과 재발급, 사용자·판매자 소유권, ADMIN/SUPER_ADMIN 권한, secret 관리, HTTPS·네트워크 노출과 storage 권한을 점검한다.
+- **검증 — 실제 구매 시나리오:** 모바일·PC에서 상품 탐색부터 주문, 결제, 배송, 취소·반품·교환까지 외부 연동과 운영 절차를 종단 간 확인한다.
+- **운영 준비:** 배포 DB 스키마와 수동 DDL 및 seed 적용 상태, 백업 실행·복구와 알림, 장애 대응 및 롤백 절차를 재점검한다. 기존 백업·복구 이력은 현재 성공을 보장하지 않는다.
+- 약관·개인정보처리방침·고객지원의 실제 운영 문구를 확정한다.
 
-## 중기
+## P1 — 주요 기능 완성
 
-### 상품 탐색·추천
+- **개선 — Seller·Admin:** 운영 권한과 감사 내역을 점검하고 Seller 리뷰 관리·답글, 관리자 강제 환불·클레임 중재를 정책 확정 후 추가한다. command는 기존 결제·재고·클레임 불변식을 재사용한다.
+- **개선 — 정산:** 기존 원장·수동 생성·확정 흐름을 운영 시나리오로 검증하고 Seller 탈퇴 시 미귀속 원장·미확정 Settlement guard 정책을 정한다. 자동 생성 Scheduler는 `SettlementGenerationService`를 재사용하고 수동 generate는 운영 대응용으로 유지한다.
+- **개선 — 검색:** 검색어·정렬 정확도, 품절·필터와 페이지 경계 및 성능을 실제 데이터로 평가한다.
+- **개선 — 선물 상황 탐색:** 관리자 분류, 판매자 상품 지정, 구매자 홈·목록 필터가 이미 연결되어 있다. 운영 taxonomy·분류 품질, 활성 상태 변경과 탐색 경험을 검증하고 개선한다.
+- **운영 기반:** Flyway/Liquibase 등 versioned DB migration 도입, 구조화 로그·metric·tracing·alert, object storage 백업·복구 및 orphan object 정리, 운영 runbook을 보강한다.
 
-- 함께 구매한 상품: 현재 `OrderItem` 관계로 계산 가능하지만 데이터량과 self-join 비용을 확인한 뒤 도입
+## P2 — 출시 후 개선 가능
 
-### 혜택
-
-- 쿠폰
-- 포인트
-
-쿠폰과 포인트는 표시 기능만 추가할 수 없다. 주문금액 snapshot, 결제 승인, 전체·부분취소, 반품, 환불 잔액과 Settlement 원장에 미치는 영향을 포함해 별도 도메인으로 설계한다.
-
-### Seller·Admin
-
-- Seller 리뷰 관리와 답글
-- Admin 강제 환불·클레임 중재 등 command형 운영 기능
-- 단순 상태 UPDATE가 아니라 기존 결제·재고·클레임 불변식을 재사용하는 workflow로 구현
-
-### 서비스 UI·문서
-
-- 약관·개인정보처리방침·고객지원의 실제 운영 문구 확정
-- global error/not-found와 운영 오류 안내 보강
-- 남아 있는 browser `alert`/`confirm`을 기존 공통 Modal로 점진적으로 통일
-- 접근성·실기기 모바일 회귀 점검
-
-## 장기·운영
+- 추천 고도화: 찜·리뷰 기반 노출, 카테고리별 인기상품과 같은 카테고리 추천. 함께 구매한 상품은 데이터량과 self-join 비용을 확인한 뒤 도입한다.
+- 쿠폰·포인트·프로모션: 주문금액 snapshot, 결제 승인, 전체·부분취소, 반품, 환불 잔액과 정산 원장 영향을 포함해 별도 설계한다.
+- 접근성·실기기 모바일 회귀, global error/not-found 안내, 남아 있는 browser `alert`/`confirm`의 점진적 개선.
+- 상품 랭킹 트래픽 증가 시 캐시 또는 기간별 집계 테이블을 검토한다.
 
 ### Payout
 
-Settlement와 별도 도메인으로 구현한다.
-
-- 실제 판매자 송금
-- 지급 계좌와 계좌 인증
-- KYC·지급 검증
-- `Payout`, `PayoutAttempt`
-- 지급 실패·재시도와 provider 연동
-
-`Settlement.CONFIRMED`는 계속 “정산 금액 확정”을 의미하며 지급 완료 상태로 재사용하지 않는다.
-
-### 데이터·인프라
-
-- Flyway/Liquibase 등 versioned DB migration 도입
-- observability: 구조화 로그, metric, tracing, alert
-- object storage backup/recovery 정책 검토
-- S3 orphan object 탐지·정리
-- 운영 runbook과 장애 대응 절차 보강
-- 상품 랭킹 트래픽 증가 시 캐시 또는 기간별 집계 테이블 검토
+Settlement와 별도 도메인으로 실제 판매자 송금, 지급 계좌·계좌 인증, KYC·지급 검증, `Payout`/`PayoutAttempt`, 지급 실패·재시도와 provider 연동을 설계한다. `Settlement.CONFIRMED`는 정산 금액 확정이며 지급 완료가 아니다.
