@@ -93,10 +93,9 @@ function LoginContent() {
               alt=""
               width={20}
               height={20}
-              className="login-google-logo"
+              className="login-provider-icon"
             />
-
-            <span className="login-google-text">Google로 계속하기</span>
+            <span className="login-provider-text">Google 로그인</span>
           </a>
 
           <a
@@ -105,12 +104,13 @@ function LoginContent() {
             onClick={handleOAuthLogin}
           >
             <Image
-              src="/images/auth/kakao-login-simple.svg"
-              alt="카카오 로그인"
-              width={112}
-              height={46}
-              className="login-kakao-image"
+              src="/images/auth/kakao-symbol.png"
+              alt=""
+              width={20}
+              height={20}
+              className="login-provider-icon"
             />
+            <span className="login-provider-text">카카오 로그인</span>
           </a>
         </div>
 
