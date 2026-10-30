@@ -105,10 +105,10 @@ function LoginContent() {
             onClick={handleOAuthLogin}
           >
             <Image
-              src="/images/auth/kakao-login.png"
+              src="/images/auth/kakao-login-simple.svg"
               alt="카카오 로그인"
-              width={300}
-              height={45}
+              width={112}
+              height={46}
               className="login-kakao-image"
             />
           </a>

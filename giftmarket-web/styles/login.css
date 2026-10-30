@@ -77,7 +77,7 @@
   display: flex;
   width: 300px;
   max-width: 100%;
-  height: 45px;
+  height: 46px;
   align-items: center;
   box-sizing: border-box;
   border: 1px solid #747775;
@@ -98,12 +98,14 @@
 }
 
 .login-google-text {
+  flex: 1;
   margin-left: 10px;
-  margin-right: 12px;
+  margin-right: 42px;
   font-family: "Google Sans", Arial, sans-serif;
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -118,18 +120,22 @@
 
 /* Kakao 공식 표준 버튼 이미지 */
 .login-provider-kakao {
-  display: block;
+  display: flex;
   width: 300px;
   max-width: 100%;
-  border-radius: 6px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #fee500;
   text-decoration: none;
   transition: box-shadow 0.15s ease;
 }
 
 .login-kakao-image {
   display: block;
-  width: 100%;
-  height: auto;
+  width: 112px;
+  height: 46px;
 }
 
 .login-provider-kakao:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
