@@ -404,3 +404,8 @@
     border-radius: 14px;
   }
 }
+
+.order-history-image-wrapper, .order-history-product-name a { cursor: pointer; }
+.order-history-product-name a { color: inherit; text-decoration: none; }
+.order-history-product-name a:hover { text-decoration: underline; }
+.order-history-product-name a:focus-visible, .order-history-image-wrapper:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

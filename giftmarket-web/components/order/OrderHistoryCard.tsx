@@ -24,14 +24,7 @@ function formatDateTime(date: string) {
   }).format(new Date(date));
 }
 export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
-  const representativeItem = order.items[0];
-  const additionalItemCount = order.items.length - 1;
-
-  if (!representativeItem) {
-    return null;
-  }
-
-  const imageUrl = resolveImageUrl(representativeItem.representativeImageKey);
+  if (order.items.length === 0) return null;
 
   return (
     <article className="order-history-card">
@@ -57,12 +50,14 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
         </Link>
       </div>
 
-      <div className="order-history-body">
-        <div className="order-history-image-wrapper">
+      {order.items.map((item, index) => {
+        const imageUrl = resolveImageUrl(item.representativeImageKey);
+        return <div className="order-history-body" key={item.id}>
+        <Link href={`/products/${item.productId}`} className="order-history-image-wrapper" aria-label={`${item.productName} 상품 상세`}>
           {imageUrl ? (
             <Image
               src={imageUrl}
-              alt={representativeItem.productName}
+              alt={item.productName}
               fill
               sizes="112px"
               className="order-history-image"
@@ -70,7 +65,7 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
           ) : (
             <div className="order-history-image-empty">이미지 없음</div>
           )}
-        </div>
+        </Link>
 
         <div className="order-history-product-info">
           <span
@@ -83,25 +78,22 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
           </span>
 
           <h2 className="order-history-product-name">
-            {representativeItem.productName}
-
-            {additionalItemCount > 0 && (
-              <span> 외 {additionalItemCount}건</span>
-            )}
+            <Link href={`/products/${item.productId}`}>{item.productName}</Link>
           </h2>
 
           <p className="order-history-product-option">
-            {representativeItem.optionSnapshot
-              ? `${representativeItem.optionSnapshot} · `
+            {item.optionSnapshot
+              ? `${item.optionSnapshot} · `
               : ""}
-            수량 {representativeItem.quantity}개
+            수량 {item.quantity}개
           </p>
 
-          <strong className="order-history-price">
+          {index === 0 && <strong className="order-history-price">
             {formatPrice(order.totalAmount)}
-          </strong>
+          </strong>}
         </div>
-      </div>
+      </div>;
+      })}
     </article>
   );
 }

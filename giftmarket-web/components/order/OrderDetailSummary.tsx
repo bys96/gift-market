@@ -31,7 +31,7 @@ export default function OrderDetailSummary({ order }: OrderDetailSummaryProps) {
         </div>
 
         <div className="order-detail-payment-row order-detail-payment-total">
-          <dt>원 결제금액</dt>
+          <dt>결제금액</dt>
 
           <dd>{formatPrice(order.totalAmount)}</dd>
         </div>

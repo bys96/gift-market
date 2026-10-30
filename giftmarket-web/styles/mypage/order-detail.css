@@ -954,7 +954,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .order-cancellation-stepper {
+  .order-cancellation-stepper-slot {
     grid-column: 1 / -1;
     justify-self: end;
   }
@@ -1028,3 +1028,9 @@
 .review-image-field{margin-top:20px}.review-image-field>div:first-child{display:flex;justify-content:space-between;font-size:13px}.review-image-previews{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.review-image-previews>div{position:relative;width:76px;height:76px;overflow:hidden;border-radius:9px}.review-image-previews img{width:100%;height:100%;object-fit:cover}.review-image-previews button{position:absolute;top:4px;right:4px;width:22px;height:22px;border:0;border-radius:50%;background:rgb(0 0 0 / 65%);color:#fff;cursor:pointer}.review-image-add{display:inline-block;padding:9px 12px;border:1px solid var(--color-border);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}.review-image-add input{position:absolute;width:1px;height:1px;clip:rect(0 0 0 0)}
 .review-editor-error{color:#c62828;font-size:13px}.review-editor footer{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}.review-editor footer button{min-width:90px;padding:11px 16px;border:1px solid #222;border-radius:9px;background:#fff;font-weight:700;cursor:pointer}.review-editor footer button:last-child{background:#222;color:#fff}.review-editor footer button:disabled{opacity:.5;cursor:not-allowed}.review-editor footer .review-delete-button{margin-right:auto;border-color:#c62828;color:#c62828}
 @media(max-width:600px){.order-detail-review-status-error{align-items:stretch;flex-direction:column}.order-detail-review-status-error button{width:100%}.review-editor-overlay{align-items:end;padding:0}.review-editor{max-height:92vh;border-radius:18px 18px 0 0}.review-editor footer button{flex:1}}
+
+.order-cancellation-select-item label { cursor: pointer; }
+.order-cancellation-select-item label:hover strong { text-decoration: underline; }
+.order-cancellation-select-item label:focus-within strong { text-decoration: underline; }
+.order-cancellation-stepper-slot { width: 96px; height: 32px; }
+.order-cancellation-open-button, .order-return-open-button, .order-exchange-open { display: inline-flex; align-items: center; justify-content: center; height: 40px; min-height: 40px; padding: 0 16px; font-size: 13px; font-weight: 700; line-height: 1; }
