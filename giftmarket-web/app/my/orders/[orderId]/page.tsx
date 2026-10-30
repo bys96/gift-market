@@ -139,6 +139,7 @@ export default function MyOrderDetailPage() {
     setReturns(latestReturns);
     setExchanges(latestExchanges);
     setReturnsError("");
+    setExchangesError("");
   };
 
   if (!authInitialized) {

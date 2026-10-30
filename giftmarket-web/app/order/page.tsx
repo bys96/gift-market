@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import OrderProductList from "@/components/order/OrderProductList";
 import OrderRecipientForm from "@/components/order/OrderRecipientForm";
 import OrderSummary from "@/components/order/OrderSummary";
 import TossPaymentWidget from "@/components/payment/TossPaymentWidget";
-import { createAddress, getMyAddresses } from "@/lib/address-api";
+import { createAddress, getMyAddresses, setDefaultAddress } from "@/lib/address-api";
 import {
   cancelOrder,
   createDirectOrder,
@@ -178,11 +178,13 @@ function OrderContent() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
   const [addressMode, setAddressMode] = useState<"saved" | "new">("new");
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [saveAddress, setSaveAddress] = useState(false);
+  const [makeSelectedDefault, setMakeSelectedDefault] = useState(false);
   const [addressName, setAddressName] = useState("");
   const [setAsDefault, setSetAsDefault] = useState(false);
   const [directProduct, setDirectProduct] = useState<ProductDetail | null>(null);
@@ -481,6 +483,7 @@ function OrderContent() {
 
     setAddressMode("saved");
     setSelectedAddressId(addressId);
+    setMakeSelectedDefault(false);
     setSaveAddress(false);
     setRecipient({
       name: selectedAddress.recipientName,
@@ -495,6 +498,7 @@ function OrderContent() {
   const handleSelectNewAddress = () => {
     setAddressMode("new");
     setSelectedAddressId(null);
+    setMakeSelectedDefault(false);
     setSaveAddress(false);
     setAddressName("");
     setSetAsDefault(false);
@@ -586,7 +590,7 @@ function OrderContent() {
   };
 
   const handleSubmit = async () => {
-    if (isSubmitting || !validateOrder()) {
+    if (submittingRef.current || !validateOrder()) {
       return;
     }
 
@@ -596,11 +600,48 @@ function OrderContent() {
     }
 
     let paymentWindowRequested = false;
+    submittingRef.current = true;
 
     try {
       setIsSubmitting(true);
       setSubmitStage(preparedOrder ? "opening" : "preparing");
       setErrorMessage("");
+
+      let defaultAddressId = addressMode === "saved" && makeSelectedDefault ? selectedAddressId : null;
+      if (addressMode === "new" && saveAddress) {
+        const savedAddress = await createAddress({
+          name: addressName.trim(),
+          recipientName: recipient.name.trim(),
+          phoneNumber: recipient.phone.trim(),
+          postalCode: recipient.postalCode.trim(),
+          address: recipient.address.trim(),
+          detailAddress: recipient.addressDetail.trim() || null,
+          isDefault: false,
+        });
+
+        if (setAsDefault && !savedAddress.isDefault) defaultAddressId = savedAddress.id;
+        setAddresses((current) => [
+          savedAddress,
+          ...current.map((address) =>
+            savedAddress.isDefault ? { ...address, isDefault: false } : address,
+          ),
+        ]);
+        setAddressMode("saved");
+        setSelectedAddressId(savedAddress.id);
+        setMakeSelectedDefault(setAsDefault && !savedAddress.isDefault);
+        setSaveAddress(false);
+      }
+
+      if (defaultAddressId !== null) {
+        try {
+          await setDefaultAddress(defaultAddressId);
+        } catch (error) {
+          throw new Error(error instanceof Error ? error.message : "기본 배송지를 변경하지 못했습니다.");
+        }
+        setAddresses((current) => current.map((address) => ({ ...address, isDefault: address.id === defaultAddressId })));
+        setMakeSelectedDefault(false);
+        setSetAsDefault(false);
+      }
 
       if (preparedOrder) {
         const currentPayment = await getPayment(preparedOrder.paymentId);
@@ -637,28 +678,6 @@ function OrderContent() {
         }
       }
 
-      if (addressMode === "new" && saveAddress) {
-        const savedAddress = await createAddress({
-          name: addressName.trim(),
-          recipientName: recipient.name.trim(),
-          phoneNumber: recipient.phone.trim(),
-          postalCode: recipient.postalCode.trim(),
-          address: recipient.address.trim(),
-          detailAddress: recipient.addressDetail.trim() || null,
-          isDefault: setAsDefault,
-        });
-
-        setAddresses((current) => [
-          savedAddress,
-          ...current.map((address) =>
-            savedAddress.isDefault ? { ...address, isDefault: false } : address,
-          ),
-        ]);
-        setAddressMode("saved");
-        setSelectedAddressId(savedAddress.id);
-        setSaveAddress(false);
-      }
-
       const delivery = {
         recipientName: recipient.name.trim(),
         recipientPhone: recipient.phone.trim(),
@@ -685,7 +704,6 @@ function OrderContent() {
           await updatePaymentPreparation(preparedOrder.paymentId, delivery);
           setPreparedDeliveryFingerprint(deliveryFingerprint);
         }
-
         setSubmitStage("opening");
         paymentWindowRequested = true;
         await paymentLauncher(paymentSession);
@@ -785,6 +803,7 @@ function OrderContent() {
         await loadCart();
       }
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
       setSubmitStage("idle");
     }
@@ -857,6 +876,8 @@ function OrderContent() {
             onAddressNameChange={setAddressName}
             setAsDefault={setAsDefault}
             onSetAsDefaultChange={setSetAsDefault}
+            makeSelectedDefault={makeSelectedDefault}
+            onMakeSelectedDefaultChange={setMakeSelectedDefault}
             canSaveAddress={addresses.length < 10}
           />
 

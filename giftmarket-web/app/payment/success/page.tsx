@@ -53,7 +53,7 @@ function PaymentSuccessContent() {
 
     const finishPaid = (payment: PaymentResponse) => {
       clearCompletedPaymentSession(merchantPaymentId);
-      router.replace(`/my/orders/${payment.orderId}`);
+      if (!disposed) router.replace(`/my/orders/${payment.orderId}`);
     };
 
     const handleStatus = (payment: PaymentResponse) => {

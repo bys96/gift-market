@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import ImageViewerModal from "@/components/common/modal/ImageViewerModal";
@@ -17,7 +16,6 @@ import {
   type ReturnRequest,
   type ReturnRequestStatus,
 } from "@/types/return";
-import { formatKoreanPhoneNumber } from "@/utils/phone";
 
 interface Props {
   orderId: number;
@@ -34,18 +32,11 @@ interface Props {
     addressDetail: string | null;
   };
   onChanged: () => Promise<void>;
+  formOpen: boolean;
+  onCloseForm: () => void;
+  onSubmittingChange: (busy: boolean) => void;
 }
 
-interface PostcodeData {
-  zonecode: string;
-  address: string;
-  roadAddress: string;
-  jibunAddress: string;
-}
-type PostcodeConstructor = new (options: {
-  oncomplete: (data: PostcodeData) => void;
-}) => { open: () => void };
-type PostcodeWindow = Window & { daum?: { Postcode?: PostcodeConstructor } };
 
 const HOLDING_STATUSES = new Set<ReturnRequestStatus>([
   "REQUESTED",
@@ -86,21 +77,17 @@ export default function OrderReturnPanel({
   loadError,
   collectionAddress,
   onChanged,
+  formOpen,
+  onCloseForm,
+  onSubmittingChange,
 }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
+  const submittingRef = useRef(false);
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [reasonType, setReasonType] =
     useState<ReturnReasonType>("CHANGE_OF_MIND");
   const [reason, setReason] = useState("");
-  const [recipientName, setRecipientName] = useState(
-    collectionAddress.recipientName,
-  );
-  const [phone, setPhone] = useState(collectionAddress.phone);
-  const [postalCode, setPostalCode] = useState(collectionAddress.postalCode);
-  const [address, setAddress] = useState(collectionAddress.address);
-  const [addressDetail, setAddressDetail] = useState(
-    collectionAddress.addressDetail ?? "",
-  );
+  const { recipientName, phone, postalCode, address } = collectionAddress;
+  const addressDetail = collectionAddress.addressDetail ?? "";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
@@ -197,25 +184,6 @@ export default function OrderReturnPanel({
     }));
   };
 
-  const searchAddress = () => {
-    if (isSubmitting) return;
-    const Postcode = (window as PostcodeWindow).daum?.Postcode;
-    if (!Postcode) {
-      setFormError(
-        "주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
-      );
-      return;
-    }
-    new Postcode({
-      oncomplete: (data) => {
-        changed();
-        setPostalCode(data.zonecode);
-        setAddress(data.roadAddress || data.jibunAddress || data.address);
-        setAddressDetail("");
-      },
-    }).open();
-  };
-
   const selectImages = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -250,7 +218,7 @@ export default function OrderReturnPanel({
       orderItemId: Number(orderItemId),
       quantity,
     }));
-    if (isSubmitting) return;
+    if (submittingRef.current) return;
     if (!items.length) {
       setFormError("반품할 상품을 한 개 이상 선택해주세요.");
       return;
@@ -268,10 +236,8 @@ export default function OrderReturnPanel({
       setFormError("회수 주소의 필수 정보를 모두 입력해주세요.");
       return;
     }
-    if (!/^0\d{1,2}-\d{3,4}-\d{4}$/.test(phone)) {
-      setFormError("올바른 연락처를 입력해주세요.");
-      return;
-    }
+    submittingRef.current = true;
+    onSubmittingChange(true);
     requestKeyRef.current ??= crypto.randomUUID();
     try {
       setIsSubmitting(true);
@@ -304,7 +270,7 @@ export default function OrderReturnPanel({
       selectedImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
       setSelectedImages([]);
       if (imageInputRef.current) imageInputRef.current.value = "";
-      setIsOpen(false);
+      onCloseForm();
       setMessage("반품 요청이 접수되었습니다.");
     } catch (error) {
       setFormError(
@@ -312,12 +278,9 @@ export default function OrderReturnPanel({
           ? error.message
           : "반품 요청을 처리하지 못했습니다.",
       );
-      try {
-        await onChanged();
-      } catch {
-        /* 기존 화면을 유지하고 원래 요청 오류를 표시한다. */
-      }
+      submittingRef.current = false;
       setIsSubmitting(false);
+      onSubmittingChange(false);
       return;
     }
     try {
@@ -325,16 +288,14 @@ export default function OrderReturnPanel({
     } catch {
       setMessage("반품 요청은 접수되었지만 최신 내역을 불러오지 못했습니다.");
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
+      onSubmittingChange(false);
     }
   };
 
   return (
     <div className="order-return-area">
-      <Script
-        src="https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
-        strategy="afterInteractive"
-      />
       <div className="order-return-heading">
         <strong>반품</strong>
         {sellerOrder.status === "DELIVERED" && (
@@ -490,24 +451,12 @@ export default function OrderReturnPanel({
           {message}
         </p>
       )}
-      {canCreate && !isOpen && (
-        <button
-          type="button"
-          className="order-return-open-button"
-          onClick={() => {
-            setIsOpen(true);
-            setMessage("");
-          }}
-        >
-          반품 신청
-        </button>
-      )}
       {sellerOrder.status === "DELIVERED" && !isLoading && !canCreate && (
         <p className="order-return-notice">
           현재 추가로 반품 신청할 수 있는 수량이 없습니다.
         </p>
       )}
-      {canCreate && isOpen && (
+      {canCreate && formOpen && (
         <div className="order-return-form">
           <h3>반품 상품 선택</h3>
           <div className="order-return-select-list">
@@ -599,55 +548,9 @@ export default function OrderReturnPanel({
             </div>)}</div>}
           </div>
           <h3>회수 주소</h3>
-          <div className="order-return-fields">
-            <label>
-              <span>회수 수령인</span>
-              <input
-                value={recipientName}
-                onChange={(event) => {
-                  changed();
-                  setRecipientName(event.target.value);
-                }}
-                maxLength={100}
-                disabled={isSubmitting}
-              />
-            </label>
-            <label>
-              <span>연락처</span>
-              <input
-                value={phone}
-                onChange={(event) => {
-                  changed();
-                  setPhone(formatKoreanPhoneNumber(event.target.value));
-                }}
-                maxLength={13}
-                disabled={isSubmitting}
-              />
-            </label>
-            <label className="order-return-full">
-              <span>주소</span>
-              <div className="order-return-address-row">
-                <input value={postalCode} readOnly placeholder="우편번호" />
-                <button
-                  type="button"
-                  onClick={searchAddress}
-                  disabled={isSubmitting}
-                >
-                  주소 검색
-                </button>
-              </div>
-              <input value={address} readOnly placeholder="기본 주소" />
-              <input
-                value={addressDetail}
-                onChange={(event) => {
-                  changed();
-                  setAddressDetail(event.target.value);
-                }}
-                maxLength={255}
-                placeholder="상세주소"
-                disabled={isSubmitting}
-              />
-            </label>
+          <div className="order-return-collection-address">
+            <p>{recipientName} · {phone}</p>
+            <p>({postalCode}) {address} {addressDetail}</p>
           </div>
           {formError && (
             <p className="order-return-error" role="alert">
@@ -658,7 +561,7 @@ export default function OrderReturnPanel({
             <button
               type="button"
               className="order-return-close-button"
-              onClick={() => setIsOpen(false)}
+              onClick={onCloseForm}
               disabled={isSubmitting}
             >
               닫기

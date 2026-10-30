@@ -65,6 +65,45 @@ class ReturnRequestServiceTest {
     private OrderItem orderItem;
     private Shipment shipment;
 
+    @Test
+    void rejectsMissingOrderAddressAndDoesNotPersist() {
+        for (String field : List.of("recipientName", "recipientPhone", "postalCode", "address")) {
+            Object original = ReflectionTestUtils.getField(order, field);
+            for (String value : new String[] {null, "", "   "}) {
+                ReflectionTestUtils.setField(order, field, value);
+                assertThatThrownBy(() -> service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1)))).isInstanceOf(OrderException.class);
+                verify(returnRequestRepository, never()).saveAndFlush(any());
+            }
+            ReflectionTestUtils.setField(order, field, original);
+        }
+    }
+
+    @Test
+    void usesOrderAddressAndAllowsMissingAddressDetail() {
+        for (String detail : new String[] {null, "", "   "}) {
+            ReflectionTestUtils.setField(order, "addressDetail", detail);
+            var response = service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1)));
+            assertThat(response.collectionRecipientName()).isEqualTo(order.getRecipientName());
+            assertThat(response.collectionPhone()).isEqualTo(order.getRecipientPhone());
+            assertThat(response.collectionPostalCode()).isEqualTo(order.getPostalCode());
+            assertThat(response.collectionAddress()).isEqualTo(order.getAddress());
+            assertThat(response.collectionAddressDetail()).isNull();
+        }
+    }
+
+    @Test
+    void acceptsLongOrderCollectionAddresses() {
+        for (int length : new int[] {256, 500}) {
+            String address = "a".repeat(length);
+            String detail = "b".repeat(length);
+            ReflectionTestUtils.setField(order, "address", address);
+            ReflectionTestUtils.setField(order, "addressDetail", detail);
+            var result = service.create(USER_ID, ORDER_ID, SELLER_ORDER_ID, request(ReturnReasonType.DEFECTIVE, item(ORDER_ITEM_ID, 1)));
+            assertThat(result.collectionAddress()).isEqualTo(address);
+            assertThat(result.collectionAddressDetail()).isEqualTo(detail);
+        }
+    }
+
     @BeforeEach
     void setUp() {
         service = spy(new ReturnRequestService(

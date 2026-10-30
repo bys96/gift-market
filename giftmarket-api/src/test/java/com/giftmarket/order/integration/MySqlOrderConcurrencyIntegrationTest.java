@@ -8,6 +8,20 @@ import com.giftmarket.order.dto.request.OrderCancellationCreateRequest;
 import com.giftmarket.order.dto.request.OrderCancellationItemRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
+import com.giftmarket.order.dto.request.ReturnRequestCreateRequest;
+import com.giftmarket.order.dto.request.ReturnRequestItemRequest;
+import com.giftmarket.order.dto.request.ExchangeRequestCreateRequest;
+import com.giftmarket.order.dto.request.ExchangeRequestItemRequest;
+import com.giftmarket.order.entity.ReturnReasonType;
+import com.giftmarket.order.entity.ExchangeReasonType;
+import com.giftmarket.order.entity.Shipment;
+import com.giftmarket.order.entity.ShipmentType;
+import com.giftmarket.order.service.ReturnRequestService;
+import com.giftmarket.order.service.ExchangeRequestService;
+import com.giftmarket.order.repository.ReturnRequestRepository;
+import com.giftmarket.order.repository.ExchangeRequestRepository;
+import com.giftmarket.order.dto.response.ReturnRequestResponse;
+import com.giftmarket.order.dto.response.ExchangeRequestResponse;
 import com.giftmarket.order.entity.OrderStatus;
 import com.giftmarket.order.entity.OrderCancellationStatus;
 import com.giftmarket.order.entity.OrderItem;
@@ -151,6 +165,10 @@ class MySqlOrderConcurrencyIntegrationTest {
         }
     }
 
+    @Autowired ReturnRequestService returnRequests;
+    @Autowired ExchangeRequestService exchangeRequests;
+    @Autowired ReturnRequestRepository returnRepository;
+    @Autowired ExchangeRequestRepository exchangeRepository;
     @Autowired OrderService orderService;
     @Autowired PaymentService paymentService;
     @Autowired PaymentCancellationService cancellationService;
@@ -407,6 +425,105 @@ class MySqlOrderConcurrencyIntegrationTest {
             return result;
         }
     }
+
+    @Test
+    void concurrentReturnsAllowOnlyOneClaim() throws Exception { assertClaimRace(false, false); }
+
+    @Test
+    void concurrentExchangesAllowOnlyOneClaim() throws Exception { assertClaimRace(true, true); }
+
+    @Test
+    void concurrentReturnAndExchangeAllowOnlyOneClaim() throws Exception { assertClaimRace(false, true); }
+
+    private void assertClaimRace(boolean firstExchange, boolean secondExchange) throws Exception {
+        ClaimFixture f = claimFixture();
+        List<Object> results = concurrently(() -> claim(f, firstExchange), () -> claim(f, secondExchange));
+        assertThat(results.stream().filter(value -> value instanceof ReturnRequestResponse || value instanceof ExchangeRequestResponse)).hasSize(1);
+        assertThat(results.stream().filter(OrderException.class::isInstance)).hasSize(1);
+        assertThat(returnRepository.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.orderId()).size() + exchangeRepository.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.orderId()).size()).isEqualTo(1);
+        assertThatThrownBy(() -> claim(f, !firstExchange)).isInstanceOf(OrderException.class);
+        assertThat(orderItems.findById(f.itemId()).orElseThrow().getReturnedQuantity()).isZero();
+        assertThat(products.findById(f.productId()).orElseThrow().getStockQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void missingRequiredCollectionAddressRejectsBothClaimsAndOptionalDetailIsAccepted() {
+        for (String field : List.of("recipientName", "recipientPhone", "postalCode", "address")) {
+            for (String value : new String[] {"", "   "}) {
+                ClaimFixture f = claimFixture();
+                transactions.executeWithoutResult(status -> { var order = orders.findById(f.orderId()).orElseThrow(); org.springframework.test.util.ReflectionTestUtils.setField(order, field, value); });
+                assertThatThrownBy(() -> claim(f, false)).isInstanceOf(OrderException.class);
+                assertThatThrownBy(() -> claim(f, true)).isInstanceOf(OrderException.class);
+                assertThat(returnRepository.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.orderId())).isEmpty();
+                assertThat(exchangeRepository.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.orderId())).isEmpty();
+                assertThat(products.findById(f.productId()).orElseThrow().getStockQuantity()).isEqualTo(1);
+            }
+        }
+        for (String detail : new String[] {null, "", "   "}) {
+            ClaimFixture f = claimFixture();
+            transactions.executeWithoutResult(status -> { var order = orders.findById(f.orderId()).orElseThrow(); org.springframework.test.util.ReflectionTestUtils.setField(order, "addressDetail", detail); });
+            assertThat(claim(f, false)).isInstanceOf(ReturnRequestResponse.class);
+            ClaimFixture other = claimFixture();
+            transactions.executeWithoutResult(status -> { var order = orders.findById(other.orderId()).orElseThrow(); org.springframework.test.util.ReflectionTestUtils.setField(order, "addressDetail", detail); });
+            assertThat(claim(other, true)).isInstanceOf(ExchangeRequestResponse.class);
+        }
+    }
+
+    @Test
+    void claimForAnotherOrderItemRemainsAllowed() {
+        ClaimFixture f = claimFixture();
+        Long secondItemId = transactions.execute(status -> {
+            var order = orders.findById(f.orderId()).orElseThrow();
+            var sellerOrder = sellerOrders.findById(f.sellerOrderId()).orElseThrow();
+            var original = products.findById(f.productId()).orElseThrow();
+            var secondProduct = Product.createDraft(original.getSeller(), original.getCategory(), "second product", "brand", "summary", "description", 10_000L, 1, null, true, 0L, 1, 3_000L, 6_000L);
+            secondProduct.startSale(); entityManager.persist(secondProduct);
+            OrderItem item = OrderItem.create(order, secondProduct, null, original.getSeller(), sellerOrder, null, "second product", null, "store", null, null, 10_000L, 0L, 1, true, 0L, 3_000L, 6_000L);
+            entityManager.persist(item); entityManager.flush(); return item.getId();
+        });
+        assertThat(claim(f, false)).isInstanceOf(ReturnRequestResponse.class);
+        assertThat(claim(new ClaimFixture(f.buyerId(), f.orderId(), f.sellerOrderId(), secondItemId, f.productId()), true)).isInstanceOf(ExchangeRequestResponse.class);
+    }
+
+    @Test
+    void claimStoresFullLongOrderAddresses() {
+        for (int length : new int[] {256, 500}) {
+            for (boolean exchange : new boolean[] {false, true}) {
+                ClaimFixture f = claimFixture();
+                String address = "a".repeat(length);
+                String detail = "b".repeat(length);
+                transactions.executeWithoutResult(status -> { var order = orders.findById(f.orderId()).orElseThrow(); org.springframework.test.util.ReflectionTestUtils.setField(order, "address", address); org.springframework.test.util.ReflectionTestUtils.setField(order, "addressDetail", detail); });
+                Object response = claim(f, exchange);
+                if (response instanceof ReturnRequestResponse result) { assertThat(result.collectionAddress()).isEqualTo(address); assertThat(result.collectionAddressDetail()).isEqualTo(detail); }
+                else { ExchangeRequestResponse result = (ExchangeRequestResponse) response; assertThat(result.collectionAddress()).isEqualTo(address); assertThat(result.collectionAddressDetail()).isEqualTo(detail); }
+            }
+        }
+    }
+
+    private Object claim(ClaimFixture f, boolean exchange) {
+        if (exchange) return exchangeRequests.create(f.buyerId(), f.orderId(), f.sellerOrderId(), new ExchangeRequestCreateRequest(
+                UUID.randomUUID().toString(), ExchangeReasonType.DEFECTIVE, "reason", "tampered", "tampered", "tampered", "tampered", null,
+                "recipient", "010-1234-5678", "12345", "Seoul", null, List.of(new ExchangeRequestItemRequest(f.itemId(), 1, null)), List.of()));
+        return returnRequests.create(f.buyerId(), f.orderId(), f.sellerOrderId(), new ReturnRequestCreateRequest(
+                UUID.randomUUID().toString(), ReturnReasonType.DEFECTIVE, "reason", "tampered", "tampered", "tampered", "tampered", null, List.of(new ReturnRequestItemRequest(f.itemId(), 1)), List.of()));
+    }
+
+    private ClaimFixture claimFixture() {
+        Fixture f = fixture();
+        OrderCreateResponse created = orderService.createDirectOrder(f.buyer1(), request(f.productId()));
+        return transactions.execute(status -> {
+            var order = orders.findById(created.orderId()).orElseThrow();
+            order.markPaid(LocalDateTime.now().minusDays(2));
+            var sellerOrder = sellerOrders.findAllByOrderIdOrderByIdAsc(order.getId()).getFirst();
+            sellerOrder.markPaid(); sellerOrder.prepare(LocalDateTime.now().minusDays(2)); sellerOrder.markShipped(LocalDateTime.now().minusDays(1)); sellerOrder.markDelivered(LocalDateTime.now());
+            Shipment shipment = Shipment.createShipped(sellerOrder, ShipmentType.ORIGINAL_OUTBOUND, "test", "test", LocalDateTime.now().minusDays(1));
+            shipment.deliver(LocalDateTime.now()); entityManager.persist(shipment);
+            products.findById(f.productId()).orElseThrow().increaseStock(1);
+            var item = orderItems.findAllByOrderIdOrderByIdAsc(order.getId()).getFirst();
+            return new ClaimFixture(f.buyer1(), order.getId(), sellerOrder.getId(), item.getId(), f.productId());
+        });
+    }
+    private record ClaimFixture(Long buyerId, Long orderId, Long sellerOrderId, Long itemId, Long productId) {}
 
     private Fixture fixture() {
         return transactions.execute(status -> {

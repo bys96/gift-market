@@ -123,7 +123,7 @@ public class ReturnRequestService {
                 .toList();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ReturnRequestResponse create(
             Long userId,
             Long orderId,
@@ -174,9 +174,11 @@ public class ReturnRequestService {
         try {
             returnRequest = returnRequestRepository.saveAndFlush(ReturnRequest.createRequested(
                     order, sellerOrder, normalized.clientRequestKey(), normalized.reasonType(),
-                    normalized.reason(), normalized.collectionRecipientName(),
-                    normalized.collectionPhone(), normalized.collectionPostalCode(),
-                    normalized.collectionAddress(), normalized.collectionAddressDetail(),
+                    normalized.reason(), requiredText(order.getRecipientName(), 100, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC218\uB839\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    requiredText(order.getRecipientPhone(), 30, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC5F0\uB77D\uCC98\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    requiredText(order.getPostalCode(), 20, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC6B0\uD3B8\uBC88\uD638\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    requiredText(order.getAddress(), 500, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC8FC\uC18C\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    nullableText(order.getAddressDetail(), 500),
                     currentTime()
             ));
         } catch (DataIntegrityViolationException exception) {
@@ -238,11 +240,6 @@ public class ReturnRequestService {
                             || !existing.getSellerOrder().getId().equals(sellerOrderId)
                             || existing.getReasonType() != requested.reasonType()
                             || !existing.getReason().equals(requested.reason())
-                            || !existing.getCollectionRecipientName().equals(requested.collectionRecipientName())
-                            || !existing.getCollectionPhone().equals(requested.collectionPhone())
-                            || !existing.getCollectionPostalCode().equals(requested.collectionPostalCode())
-                            || !existing.getCollectionAddress().equals(requested.collectionAddress())
-                            || !java.util.Objects.equals(existing.getCollectionAddressDetail(), requested.collectionAddressDetail())
                             || !quantities.equals(requested.quantities())
                             || !imageObjectKeys.equals(requested.imageObjectKeys())) {
                         throw new OrderException("반품 요청 키가 최초 요청과 다른 내용으로 재사용되었습니다.");
@@ -341,11 +338,7 @@ public class ReturnRequestService {
         List<String> imageObjectKeys = normalizeImageObjectKeys(request.imageObjectKeys());
         return new NormalizedRequest(
                 key, request.reasonType(), reason,
-                requiredText(request.collectionRecipientName(), 100, "회수 수령인 이름을 입력해주세요."),
-                requiredText(request.collectionPhone(), 30, "회수 연락처를 입력해주세요."),
-                requiredText(request.collectionPostalCode(), 20, "회수 우편번호를 입력해주세요."),
-                requiredText(request.collectionAddress(), 255, "회수 주소를 입력해주세요."),
-                nullableText(request.collectionAddressDetail(), 255), quantities, imageObjectKeys
+                null, null, null, null, null, quantities, imageObjectKeys
         );
     }
 

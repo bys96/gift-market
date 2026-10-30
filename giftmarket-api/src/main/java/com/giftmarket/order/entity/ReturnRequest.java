@@ -126,13 +126,13 @@ public class ReturnRequest extends BaseEntity {
     @Column(
             name = "collection_address",
             nullable = false,
-            length = 255
+            length = 500
     )
     private String collectionAddress;
 
     @Column(
             name = "collection_address_detail",
-            length = 255
+            length = 500
     )
     private String collectionAddressDetail;
 

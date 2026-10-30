@@ -31,6 +31,8 @@ interface OrderRecipientFormProps {
   setAsDefault: boolean;
   onSetAsDefaultChange: (checked: boolean) => void;
   canSaveAddress: boolean;
+  makeSelectedDefault: boolean;
+  onMakeSelectedDefaultChange: (checked: boolean) => void;
 }
 
 export default function OrderRecipientForm({
@@ -53,6 +55,8 @@ export default function OrderRecipientForm({
   setAsDefault,
   onSetAsDefaultChange,
   canSaveAddress,
+  makeSelectedDefault,
+  onMakeSelectedDefaultChange,
 }: OrderRecipientFormProps) {
   const detailAddressRef = useRef<HTMLInputElement | null>(null);
   const addressSearchButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -207,6 +211,15 @@ export default function OrderRecipientForm({
               readOnly={addressMode === "saved"}
             />
           </div>
+
+          {addressMode === "saved" && selectedAddress && !selectedAddress.isDefault && (
+            <div className="order-save-address-box">
+              <label className="order-save-address-check">
+                <input type="checkbox" checked={makeSelectedDefault} onChange={(event) => onMakeSelectedDefaultChange(event.target.checked)} />
+                기본 배송지로 설정
+              </label>
+            </div>
+          )}
 
           {addressMode === "new" && (
             <div className="order-save-address-box">

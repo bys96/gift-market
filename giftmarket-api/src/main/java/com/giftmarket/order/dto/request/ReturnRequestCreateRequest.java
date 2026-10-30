@@ -18,11 +18,11 @@ public record ReturnRequestCreateRequest(
         String clientRequestKey,
         @NotNull ReturnReasonType reasonType,
         @NotBlank @Size(max = 500) String reason,
-        @NotBlank @Size(max = 100) String collectionRecipientName,
-        @NotBlank @Size(max = 30) String collectionPhone,
-        @NotBlank @Size(max = 20) String collectionPostalCode,
-        @NotBlank @Size(max = 255) String collectionAddress,
-        @Size(max = 255) String collectionAddressDetail,
+        String collectionRecipientName,
+        String collectionPhone,
+        String collectionPostalCode,
+        String collectionAddress,
+        String collectionAddressDetail,
         @NotNull @Size(min = 1, max = 100)
         List<@Valid ReturnRequestItemRequest> items,
         @Size(max = 5)

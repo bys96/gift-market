@@ -70,6 +70,45 @@ class ExchangeRequestServiceTest {
     private OrderItem orderItem;
     private Product product;
 
+    @Test
+    void rejectsMissingOrderAddressAndDoesNotPersist() {
+        for (String field : List.of("recipientName", "recipientPhone", "postalCode", "address")) {
+            Object original = ReflectionTestUtils.getField(order, field);
+            for (String value : new String[] {null, "", "   "}) {
+                ReflectionTestUtils.setField(order, field, value);
+                assertThatThrownBy(() -> create(request(ExchangeReasonType.DEFECTIVE, 1, List.of()))).isInstanceOf(OrderException.class);
+                verify(exchangeRequestRepository, never()).saveAndFlush(any());
+            }
+            ReflectionTestUtils.setField(order, field, original);
+        }
+    }
+
+    @Test
+    void usesOrderAddressAndAllowsMissingAddressDetail() {
+        for (String detail : new String[] {null, "", "   "}) {
+            ReflectionTestUtils.setField(order, "addressDetail", detail);
+            var response = create(request(ExchangeReasonType.DEFECTIVE, 1, List.of()));
+            assertThat(response.collectionRecipientName()).isEqualTo(order.getRecipientName());
+            assertThat(response.collectionPhone()).isEqualTo(order.getRecipientPhone());
+            assertThat(response.collectionPostalCode()).isEqualTo(order.getPostalCode());
+            assertThat(response.collectionAddress()).isEqualTo(order.getAddress());
+            assertThat(response.collectionAddressDetail()).isNull();
+        }
+    }
+
+    @Test
+    void acceptsLongOrderCollectionAddresses() {
+        for (int length : new int[] {256, 500}) {
+            String address = "a".repeat(length);
+            String detail = "b".repeat(length);
+            ReflectionTestUtils.setField(order, "address", address);
+            ReflectionTestUtils.setField(order, "addressDetail", detail);
+            var result = create(request(ExchangeReasonType.DEFECTIVE, 1, List.of()));
+            assertThat(result.collectionAddress()).isEqualTo(address);
+            assertThat(result.collectionAddressDetail()).isEqualTo(detail);
+        }
+    }
+
     @BeforeEach
     void setUp() {
         service = spy(new ExchangeRequestService(

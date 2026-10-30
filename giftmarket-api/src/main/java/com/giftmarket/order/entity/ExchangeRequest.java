@@ -62,9 +62,9 @@ public class ExchangeRequest extends BaseEntity {
     private String collectionPhone;
     @Column(name = "collection_postal_code", nullable = false, length = 20)
     private String collectionPostalCode;
-    @Column(name = "collection_address", nullable = false, length = 255)
+    @Column(name = "collection_address", nullable = false, length = 500)
     private String collectionAddress;
-    @Column(name = "collection_address_detail", length = 255)
+    @Column(name = "collection_address_detail", length = 500)
     private String collectionAddressDetail;
 
     @Column(name = "reshipping_recipient_name", nullable = false, length = 100)
@@ -73,9 +73,9 @@ public class ExchangeRequest extends BaseEntity {
     private String reshippingPhone;
     @Column(name = "reshipping_postal_code", nullable = false, length = 20)
     private String reshippingPostalCode;
-    @Column(name = "reshipping_address", nullable = false, length = 255)
+    @Column(name = "reshipping_address", nullable = false, length = 500)
     private String reshippingAddress;
-    @Column(name = "reshipping_address_detail", length = 255)
+    @Column(name = "reshipping_address_detail", length = 500)
     private String reshippingAddressDetail;
 
     @ManyToOne(fetch = FetchType.LAZY)

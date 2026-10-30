@@ -89,7 +89,7 @@ public class ExchangeRequestService {
         )).toList();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ExchangeRequestResponse create(
             Long userId, Long orderId, Long sellerOrderId, ExchangeRequestCreateRequest request
     ) {
@@ -141,9 +141,11 @@ public class ExchangeRequestService {
         try {
             exchangeRequest = exchangeRequestRepository.saveAndFlush(ExchangeRequest.createRequested(
                     order, sellerOrder, normalized.clientRequestKey(), normalized.reasonType(), normalized.reason(),
-                    normalized.collectionRecipientName(), normalized.collectionPhone(),
-                    normalized.collectionPostalCode(), normalized.collectionAddress(),
-                    normalized.collectionAddressDetail(), normalized.reshippingRecipientName(),
+                    requiredText(order.getRecipientName(), 100, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC218\uB839\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    requiredText(order.getRecipientPhone(), 30, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC5F0\uB77D\uCC98\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    requiredText(order.getPostalCode(), 20, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC6B0\uD3B8\uBC88\uD638\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    requiredText(order.getAddress(), 500, "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC8FC\uC18C\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
+                    nullableText(order.getAddressDetail(), "\uC8FC\uBB38 \uD68C\uC218\uC9C0 \uC0C1\uC138\uC8FC\uC18C\uB97C \uD655\uC778\uD574\uC8FC\uC138\uC694."), normalized.reshippingRecipientName(),
                     normalized.reshippingPhone(), normalized.reshippingPostalCode(),
                     normalized.reshippingAddress(), normalized.reshippingAddressDetail(), currentTime()
             ));
@@ -323,11 +325,6 @@ public class ExchangeRequestService {
                 && existing.getSellerOrder().getId().equals(sellerOrderId)
                 && existing.getReasonType() == request.reasonType()
                 && existing.getReason().equals(request.reason())
-                && existing.getCollectionRecipientName().equals(request.collectionRecipientName())
-                && existing.getCollectionPhone().equals(request.collectionPhone())
-                && existing.getCollectionPostalCode().equals(request.collectionPostalCode())
-                && existing.getCollectionAddress().equals(request.collectionAddress())
-                && Objects.equals(existing.getCollectionAddressDetail(), request.collectionAddressDetail())
                 && existing.getReshippingRecipientName().equals(request.reshippingRecipientName())
                 && existing.getReshippingPhone().equals(request.reshippingPhone())
                 && existing.getReshippingPostalCode().equals(request.reshippingPostalCode())
@@ -359,15 +356,11 @@ public class ExchangeRequestService {
         return new NormalizedRequest(
                 normalizeRequestKey(request.clientRequestKey()), request.reasonType(),
                 requiredText(request.reason(), 500, "교환 사유를 입력해주세요."),
-                requiredText(request.collectionRecipientName(), 100, "회수 수령인 이름을 입력해주세요."),
-                requiredText(request.collectionPhone(), 30, "회수 연락처를 입력해주세요."),
-                requiredText(request.collectionPostalCode(), 20, "회수 우편번호를 입력해주세요."),
-                requiredText(request.collectionAddress(), 255, "회수 주소를 입력해주세요."),
-                nullableText(request.collectionAddressDetail(), "회수 상세 주소를 확인해주세요."),
+                null, null, null, null, null,
                 requiredText(request.reshippingRecipientName(), 100, "재배송 수령인 이름을 입력해주세요."),
                 requiredText(request.reshippingPhone(), 30, "재배송 연락처를 입력해주세요."),
                 requiredText(request.reshippingPostalCode(), 20, "재배송 우편번호를 입력해주세요."),
-                requiredText(request.reshippingAddress(), 255, "재배송 주소를 입력해주세요."),
+                requiredText(request.reshippingAddress(), 500, "재배송 주소를 입력해주세요."),
                 nullableText(request.reshippingAddressDetail(), "재배송 상세 주소를 확인해주세요."),
                 items, imageKeys
         );
@@ -433,7 +426,7 @@ public class ExchangeRequestService {
     private String nullableText(String value, String message) {
         if (value == null || value.isBlank()) return null;
         String normalized = value.trim();
-        if (normalized.length() > 255) throw new OrderException(message);
+        if (normalized.length() > 500) throw new OrderException(message);
         return normalized;
     }
 
