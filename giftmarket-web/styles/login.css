@@ -106,14 +106,13 @@
   object-fit: contain;
 }
 
-.login-provider-google .login-provider-icon {
+.login-provider-google .login-provider-icon,
+.login-provider-kakao .login-provider-icon {
   width: 20px;
   height: 20px;
 }
 
 .login-provider-kakao .login-provider-icon {
-  width: 25px;
-  height: 25px;
   margin-left: 5px;
 }
 
