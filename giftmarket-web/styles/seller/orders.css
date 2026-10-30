@@ -90,3 +90,22 @@
 @media (max-width: 520px) { .seller-order-cancellation-summary-section { align-items: stretch; flex-direction: column; }.seller-order-cancellation-summary-section > a { justify-content: center; } }
 @media (max-width: 900px) { .seller-order-cancel-action { align-items: stretch; flex-direction: column; } }
 @media (max-width: 520px) { .seller-order-cancel-modal form { padding: 20px; }.seller-order-cancel-modal footer { display: grid; grid-template-columns: 1fr 1fr; }.seller-order-cancel-modal footer button { width: 100%; } }
+
+.seller-order-cancel-modal { max-height: min(90vh, 850px); overflow-y: auto; }
+.seller-cancel-selection-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+.seller-cancel-selection-header button { padding: 6px 9px; border: 1px solid var(--color-border); border-radius: 7px; background: #fff; color: var(--color-text-primary); font-size: 12px; cursor: pointer; }
+.seller-cancel-items { display: grid; gap: 8px; }
+.seller-cancel-item { display: grid; grid-template-columns: minmax(0, 1fr) 75px; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--color-border); border-radius: 9px; }
+.seller-order-cancel-modal .seller-cancel-item-label { display: flex; align-items: center; min-width: 0; gap: 9px; margin: 0; cursor: pointer; }
+.seller-cancel-item-image { position: relative; display: grid; width: 56px; height: 56px; flex: 0 0 56px; place-items: center; overflow: hidden; border-radius: 7px; background: #f6f6f6; font-size: 9px; }
+.seller-cancel-item-image img { object-fit: cover; }
+.seller-cancel-item-info { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.seller-cancel-item-info strong { overflow-wrap: anywhere; font-size: 13px; }
+.seller-cancel-item-info small { color: var(--color-text-secondary); font-size: 11px; font-weight: 400; }
+.seller-order-cancel-modal .seller-cancel-quantity { display: grid; gap: 4px; margin: 0; font-size: 11px; }
+.seller-cancel-quantity input { box-sizing: border-box; width: 100%; min-height: 34px; padding: 4px; border: 1px solid var(--color-border); border-radius: 6px; }
+.seller-order-cancel-modal .seller-cancel-notice { margin: 12px 0; color: var(--color-text-secondary); font-size: 12px; }
+.seller-cancel-confirm { margin: 12px 0; padding: 12px; border-radius: 8px; background: #f7f8fa; font-size: 12px; }
+.seller-cancel-confirm ul { margin: 8px 0; padding-left: 18px; }
+.seller-cancel-confirm span { color: var(--color-text-secondary); }
+@media (max-width: 520px) { .seller-cancel-item { grid-template-columns: minmax(0, 1fr) 64px; gap: 7px; } .seller-cancel-item-image { width: 44px; height: 44px; flex-basis: 44px; } }

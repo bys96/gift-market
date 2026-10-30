@@ -90,7 +90,7 @@ public class OrderCancellationService {
                 .toList();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public OrderCancellationResponse create(
             Long userId,
             Long orderId,

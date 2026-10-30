@@ -3,6 +3,7 @@ package com.giftmarket.order.service;
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
+import com.giftmarket.order.dto.request.OrderCancellationItemRequest;
 import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
@@ -211,7 +212,7 @@ public class SellerOrderManagementService {
         );
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public OrderCancellationResponse createCancel(
             Long userId,
             Long sellerOrderId,
@@ -220,7 +221,7 @@ public class SellerOrderManagementService {
         return createCancelForExecution(userId, sellerOrderId, request).cancellation();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public SellerOrderCancellationCreateResult createCancelForExecution(
             Long userId,
             Long sellerOrderId,
@@ -229,10 +230,11 @@ public class SellerOrderManagementService {
         validateCancelReason(request);
         String clientRequestKey = normalizeClientRequestKey(request.clientRequestKey());
         String reason = request.cancelReason().trim();
+        Map<Long, Integer> requested = normalizeSellerCancellationItems(request.items());
         Seller seller = getActiveSellerForCancellation(userId);
 
         Optional<OrderCancellationResponse> existing = findExistingSellerCancellation(
-                seller, sellerOrderId, clientRequestKey, reason
+                seller, sellerOrderId, clientRequestKey, reason, requested
         );
         if (existing.isPresent()) {
             return new SellerOrderCancellationCreateResult(existing.get(), false);
@@ -246,7 +248,7 @@ public class SellerOrderManagementService {
                 .findByIdAndSellerIdForUpdate(sellerOrderId, seller.getId())
                 .orElseThrow(this::sellerOrderNotFound);
 
-        existing = findExistingSellerCancellation(seller, sellerOrderId, clientRequestKey, reason);
+        existing = findExistingSellerCancellation(seller, sellerOrderId, clientRequestKey, reason, requested);
         if (existing.isPresent()) {
             return new SellerOrderCancellationCreateResult(existing.get(), false);
         }
@@ -264,14 +266,24 @@ public class SellerOrderManagementService {
             throw new SellerException("취소 가능한 주문 상품이 없습니다.");
         }
 
+        Map<Long, OrderItem> itemsById = cancellableItems.stream().collect(Collectors.toMap(OrderItem::getId, item -> item));
+        if (requested != null) {
+            for (var entry : requested.entrySet()) {
+                OrderItem item = itemsById.get(entry.getKey());
+                if (item == null || entry.getValue() > item.getRemainingQuantity()) {
+                    throw new SellerException("취소 상품 또는 수량을 확인해주세요.");
+                }
+            }
+        }
         OrderCancellation cancellation = orderCancellationRepository.saveAndFlush(
                 OrderCancellation.createSellerRequested(
-                        order, sellerOrder, clientRequestKey, reason, LocalDateTime.now()
+                        order, sellerOrder, clientRequestKey, reason, LocalDateTime.now(), requested != null
                 )
         );
         List<OrderCancellationItem> cancellationItems = cancellableItems.stream()
+                .filter(item -> requested == null || requested.containsKey(item.getId()))
                 .map(item -> OrderCancellationItem.create(
-                        cancellation, item, item.getRemainingQuantity()
+                        cancellation, item, requested == null ? item.getRemainingQuantity() : requested.get(item.getId())
                 ))
                 .toList();
         orderCancellationItemRepository.saveAll(cancellationItems);
@@ -311,6 +323,9 @@ public class SellerOrderManagementService {
     ) {
         String shippingCompany = request.shippingCompany().trim();
         String trackingNumber = request.trackingNumber().trim();
+        if (trackingNumber.length() > 100 || !trackingNumber.matches("[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")) {
+            throw new SellerException("운송장번호는 영문, 숫자와 중간 하이픈만 사용할 수 있습니다.");
+        }
         return transition(
                 userId,
                 sellerOrderId,
@@ -342,11 +357,16 @@ public class SellerOrderManagementService {
                     sellerOrder.markShipped(shipment.getShippedAt());
                     synchronizeLegacyShippingSnapshot(sellerOrder, shipment);
                     if (firstShippedTransition) {
+                        List<OrderItem> shippedItems = orderItemRepository.findAllBySellerOrderIdOrderByIdAsc(sellerOrder.getId()).stream()
+                                .filter(item -> item.getRemainingQuantity() > 0)
+                                .toList();
+                        if (shippedItems.isEmpty()) throw new SellerException("발송 가능한 상품이 없습니다.");
                         eventPublisher.publishEvent(new OrderShippedEvent(
                                 sellerOrder.getOrder().getUser().getId(),
                                 sellerOrder.getOrder().getId(),
                                 sellerOrder.getId(),
-                                sellerOrder.getSeller().getStoreName()
+                                shippedItems.getFirst().getProductName(),
+                                shippedItems.size()
                         ));
                     }
                 }
@@ -499,7 +519,8 @@ public class SellerOrderManagementService {
             Seller seller,
             Long sellerOrderId,
             String clientRequestKey,
-            String reason
+            String reason,
+            Map<Long, Integer> requested
     ) {
         return orderCancellationRepository.findByClientRequestKey(clientRequestKey)
                 .map(cancellation -> {
@@ -507,13 +528,32 @@ public class SellerOrderManagementService {
                             != com.giftmarket.order.entity.OrderCancellationRequesterType.SELLER
                             || !cancellation.getSellerOrder().getId().equals(sellerOrderId)
                             || !cancellation.getSellerOrder().getSeller().getId().equals(seller.getId())
-                            || !cancellation.getReason().equals(reason)) {
+                            || !cancellation.getReason().equals(reason)
+                            || cancellation.isSellerItemsExplicit() != (requested != null)) {
                         throw new SellerException("이미 사용된 취소 요청 키입니다.");
                     }
                     List<OrderCancellationItem> items = orderCancellationItemRepository
                             .findAllByOrderCancellationIdOrderByIdAsc(cancellation.getId());
+                    if (requested != null && !requested.equals(items.stream().collect(Collectors.toMap(
+                            item -> item.getOrderItem().getId(), OrderCancellationItem::getQuantity)))) {
+                        throw new SellerException("이미 사용된 취소 요청 키입니다.");
+                    }
                     return OrderCancellationResponse.from(cancellation, items);
                 });
+    }
+
+    private Map<Long, Integer> normalizeSellerCancellationItems(List<OrderCancellationItemRequest> items) {
+        if (items == null) return null;
+        if (items.isEmpty() || items.size() > 100) throw new SellerException("취소할 상품을 선택해주세요.");
+        Map<Long, Integer> result = new java.util.HashMap<>();
+        for (OrderCancellationItemRequest item : items) {
+            if (item == null || item.orderItemId() == null || item.orderItemId() <= 0
+                    || item.quantity() == null || item.quantity() <= 0
+                    || result.putIfAbsent(item.orderItemId(), item.quantity()) != null) {
+                throw new SellerException("취소 상품 또는 수량을 확인해주세요.");
+            }
+        }
+        return result;
     }
 
     private void validateCancelableSellerOrderStatus(SellerOrder sellerOrder) {

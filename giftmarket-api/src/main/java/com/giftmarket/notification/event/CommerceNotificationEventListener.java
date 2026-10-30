@@ -36,12 +36,18 @@ public class CommerceNotificationEventListener {
                 event.buyerUserId(),
                 NotificationContext.BUYER,
                 NotificationType.ORDER_SHIPPED,
-                "상품이 발송되었습니다.",
-                event.storeName() + " 상품이 발송되었습니다.",
+                "배송이 시작되었습니다.",
+                event.firstProductName() + (event.productCount() > 1 ? " 외 " + (event.productCount() - 1) + "개 상품이" : subjectParticle(event.firstProductName())) + " 발송되었습니다.",
                 "/my/orders/" + event.orderId(),
                 "orderShipped",
                 event.sellerOrderId()
         );
+    }
+
+    private String subjectParticle(String productName) {
+        int last = productName.codePointBefore(productName.length());
+        if (last < 0xAC00 || last > 0xD7A3) return "이(가)";
+        return (last - 0xAC00) % 28 == 0 ? "가" : "이";
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

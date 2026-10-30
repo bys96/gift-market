@@ -32,6 +32,10 @@ import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.service.OrderService;
 import com.giftmarket.order.service.OrderCancellationWorkflowService;
+import com.giftmarket.order.service.SellerOrderManagementService;
+import com.giftmarket.order.service.OrderCancellationService;
+import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
+import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.cart.entity.CartItem;
 import com.giftmarket.payment.dto.request.PaymentConfirmRequest;
 import com.giftmarket.payment.entity.Payment;
@@ -181,6 +185,8 @@ class MySqlOrderConcurrencyIntegrationTest {
     @Autowired OrderCancellationRepository cancellations;
     @Autowired PaymentCancellationRepository refunds;
     @Autowired OrderCancellationWorkflowService partialCancellation;
+    @Autowired SellerOrderManagementService sellerManagement;
+    @Autowired OrderCancellationService buyerCancellation;
     @Autowired PartialPaymentCancellationReconciliationService partialReconciliation;
     @MockitoSpyBean PaymentRepository payments;
     @MockitoBean PaymentGatewayRegistry gatewayRegistry;
@@ -262,6 +268,122 @@ class MySqlOrderConcurrencyIntegrationTest {
         assertThat(products.findById(f.productId()).orElseThrow().getStockQuantity()).isZero();
         verify(gateway, times(1)).confirm(any());
         verifyNoInteractions(tossPaymentClient);
+    }
+
+    @Test
+    void twoSellerCancellationsDuringRefundDoNotRefundTwice() throws Exception {
+        PaidFixture f = paidFixture();
+        f.pg().holdFirstCancellation = true;
+        var first = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)));
+        var second = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)));
+        var results = concurrentlyWhileFirstRefundIsPending(f.pg(),
+                () -> partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), first),
+                () -> partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), second));
+        assertThat(results.stream().filter(OrderCancellationResponse.class::isInstance)).hasSize(1);
+        assertPartialState(f, 2, 0, 20_000L, 1);
+        assertThat(f.pg().cancelCalls).isEqualTo(1);
+    }
+
+    @Test
+    void sellerDuplicateDuringRefundAndCompletedRetryRefundOnlyOnce() throws Exception {
+        PaidFixture f = paidFixture();
+        var request = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 1)));
+        f.pg().holdFirstCancellation = true;
+        var results = concurrentlyWhileFirstRefundIsPending(f.pg(),
+                () -> partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), request),
+                () -> partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), request));
+        assertThat(results).allMatch(OrderCancellationResponse.class::isInstance);
+        var first = (OrderCancellationResponse) results.getFirst();
+        var retry = partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), request);
+        assertThat(retry.cancellationId()).isEqualTo(first.cancellationId());
+        assertPartialState(f, 1, 0, 10_000L, 1);
+        assertThat(f.pg().cancelCalls).isEqualTo(1);
+    }
+
+    @Test
+    void sellerAndBuyerDuringRefundCannotRefundSameQuantityTwice() throws Exception {
+        PaidFixture f = paidFixture();
+        f.pg().holdFirstCancellation = true;
+        var seller = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)));
+        var buyer = new OrderCancellationCreateRequest(UUID.randomUUID().toString(), f.sellerOrderId(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)));
+        var results = concurrentlyWhileFirstRefundIsPending(f.pg(),
+                () -> partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), seller),
+                () -> partialCancellation.create(f.buyerId(), f.order().orderId(), buyer));
+        assertThat(results.stream().filter(OrderCancellationResponse.class::isInstance)).hasSize(1);
+        assertPartialState(f, 2, 0, 20_000L, 1);
+        assertThat(f.pg().cancelCalls).isEqualTo(1);
+    }
+
+    @Test
+    void sellerAndBuyerCannotCancelSameRemainingQuantityConcurrently() throws Exception {
+        PaidFixture f = paidFixture();
+        var sellerRequest = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)));
+        var buyerRequest = new OrderCancellationCreateRequest(UUID.randomUUID().toString(), f.sellerOrderId(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)));
+        var results = concurrently(
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), sellerRequest),
+                () -> buyerCancellation.create(f.buyerId(), f.order().orderId(), buyerRequest));
+        assertThat(results.stream().filter(value -> value instanceof com.giftmarket.order.service.SellerOrderCancellationCreateResult || value instanceof OrderCancellationResponse)).hasSize(1);
+        assertThat(cancellations.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.order().orderId())).hasSize(1);
+        assertThat(refunds.countByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.SUCCEEDED)).isZero();
+    }
+
+    @Test
+    void sellerCancellationAndShippingCannotBothStart() throws Exception {
+        PaidFixture f = paidFixture();
+        sellerManagement.prepare(f.sellerUserId(), f.sellerOrderId());
+        var request = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 1)));
+        var results = concurrently(
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), request),
+                () -> sellerManagement.ship(f.sellerUserId(), f.sellerOrderId(), new SellerOrderShipRequest("carrier", "TRACK-1")));
+        assertThat(results.stream().filter(value -> value instanceof com.giftmarket.order.service.SellerOrderCancellationCreateResult || value instanceof com.giftmarket.order.dto.response.SellerOrderDetailResponse)).hasSize(1);
+        assertThat(cancellations.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.order().orderId()).size()).isLessThanOrEqualTo(1);
+    }
+
+    @Test
+    void sellerCancellationSameKeyConcurrentIsIdempotent() throws Exception {
+        PaidFixture f = paidFixture();
+        String key = UUID.randomUUID().toString();
+        var request = new SellerOrderCancelRequest(key, "reason", List.of(new OrderCancellationItemRequest(f.item1(), 1)));
+        var results = concurrently(
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), request),
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), request));
+        assertThat(results).allMatch(com.giftmarket.order.service.SellerOrderCancellationCreateResult.class::isInstance);
+        assertThat(cancellations.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.order().orderId())).hasSize(1);
+        assertThat(refunds.countByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.SUCCEEDED)).isZero();
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void sellerCancellationSameKeyDifferentItemsConflicts() throws Exception {
+        PaidFixture f = paidFixture();
+        String key = UUID.randomUUID().toString();
+        var results = concurrently(
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), new SellerOrderCancelRequest(key, "reason", List.of(new OrderCancellationItemRequest(f.item1(), 1)))),
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), new SellerOrderCancelRequest(key, "reason", List.of(new OrderCancellationItemRequest(f.item2(), 1)))));
+        assertThat(results.stream().filter(com.giftmarket.order.service.SellerOrderCancellationCreateResult.class::isInstance)).hasSize(1);
+        assertThat(results.stream().filter(com.giftmarket.seller.exception.SellerException.class::isInstance)).hasSize(1);
+        assertThat(cancellations.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.order().orderId())).hasSize(1);
+    }
+
+    @Test
+    void differentItemsCanBeCanceledAfterPreviousSellerCancellationCompletes() {
+        PaidFixture f = paidFixture();
+        var first = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 1)));
+        var second = new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item2(), 1)));
+        assertThat(partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), first).status()).isEqualTo(OrderCancellationStatus.COMPLETED);
+        assertThat(partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(), second).status()).isEqualTo(OrderCancellationStatus.COMPLETED);
+        assertPartialState(f, 1, 1, 20_000L, 2);
+    }
+
+    @Test
+    void twoSellerRequestsForSameItemCannotBothStart() throws Exception {
+        PaidFixture f = paidFixture();
+        var results = concurrently(
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)))),
+                () -> sellerManagement.createCancelForExecution(f.sellerUserId(), f.sellerOrderId(), new SellerOrderCancelRequest(UUID.randomUUID().toString(), "reason", List.of(new OrderCancellationItemRequest(f.item1(), 2)))));
+        assertThat(results.stream().filter(com.giftmarket.order.service.SellerOrderCancellationCreateResult.class::isInstance)).hasSize(1);
+        assertThat(results.stream().filter(com.giftmarket.seller.exception.SellerException.class::isInstance)).hasSize(1);
+        assertThat(cancellations.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.order().orderId())).hasSize(1);
     }
 
     @Test
@@ -364,7 +486,7 @@ class MySqlOrderConcurrencyIntegrationTest {
             CartItem cart2 = CartItem.create(buyer, second, null, 2);
             entityManager.persist(cart1); entityManager.persist(cart2);
             entityManager.flush();
-            return new long[]{buyer.getId(), first.getId(), second.getId(), cart1.getId(), cart2.getId()};
+            return new long[]{buyer.getId(), first.getId(), second.getId(), cart1.getId(), cart2.getId(), owner.getId()};
         });
         OrderCreateResponse order = orderService.createOrder(ids[0], new OrderCreateRequest(UUID.randomUUID().toString(),
                 List.of(ids[3], ids[4]), "구매자", "010-1234-5678", "12345", "서울", null));
@@ -375,11 +497,11 @@ class MySqlOrderConcurrencyIntegrationTest {
         Long firstItem = items.stream().filter(item -> item.getProduct().getId().equals(ids[1])).map(OrderItem::getId).findFirst().orElseThrow();
         Long secondItem = items.stream().filter(item -> item.getProduct().getId().equals(ids[2])).map(OrderItem::getId).findFirst().orElseThrow();
         Long sellerOrder = sellerOrders.findAllByOrderIdOrderByIdAsc(order.orderId()).getFirst().getId();
-        return new PaidFixture(ids[0], ids[1], ids[2], firstItem, secondItem, sellerOrder, order, pg);
+        return new PaidFixture(ids[0], ids[1], ids[2], firstItem, secondItem, sellerOrder, order, pg, ids[5]);
     }
 
     private record PaidFixture(Long buyerId, Long product1, Long product2, Long item1, Long item2,
-                               Long sellerOrderId, OrderCreateResponse order, FakePg pg) { }
+                               Long sellerOrderId, OrderCreateResponse order, FakePg pg, Long sellerUserId) { }
 
     private static class FakePg {
         final PaymentGateway gateway = mock(PaymentGateway.class);

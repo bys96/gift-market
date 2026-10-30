@@ -4,6 +4,7 @@ public record OrderShippedEvent(
         Long buyerUserId,
         Long orderId,
         Long sellerOrderId,
-        String storeName
+        String firstProductName,
+        int productCount
 ) {
 }

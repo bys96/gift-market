@@ -169,7 +169,8 @@ class NotificationEventIntegrationTest {
                 buyer.getId(),
                 72L,
                 73L,
-                "선물 상점"
+                "무선 이어폰",
+                1
         ));
         commitTransaction();
 
@@ -185,8 +186,21 @@ class NotificationEventIntegrationTest {
                 NotificationContext.BUYER
         );
         assertThat(buyerNotification.getType()).isEqualTo(NotificationType.ORDER_SHIPPED);
-        assertThat(buyerNotification.getMessage()).isEqualTo("선물 상점 상품이 발송되었습니다.");
+        assertThat(buyerNotification.getMessage()).isEqualTo("무선 이어폰이 발송되었습니다.");
         assertThat(buyerNotification.getTargetUrl()).isEqualTo("/my/orders/72");
+    }
+
+    @Test
+    void shippingNotificationUsesProductCountAndSellerOrder() {
+        User buyer = saveUser("shipping-products");
+        entityManager.flush();
+        eventPublisher.publishEvent(new OrderShippedEvent(buyer.getId(), 72L, 73L, "무선 이어폰", 3));
+        eventPublisher.publishEvent(new OrderShippedEvent(buyer.getId(), 72L, 74L, "텀블러", 1));
+        commitTransaction();
+        var notifications = notificationRepository.findAllByUserIdAndContext(
+                buyer.getId(), NotificationContext.BUYER, PageRequest.of(0, 10));
+        assertThat(notifications.getContent()).extracting(Notification::getMessage)
+                .containsExactlyInAnyOrder("무선 이어폰 외 2개 상품이 발송되었습니다.", "텀블러가 발송되었습니다.");
     }
 
     @Test

@@ -82,6 +82,9 @@ public class OrderCancellation extends BaseEntity {
     )
     private boolean requiresSellerApproval;
 
+    @Column(name = "seller_items_explicit", nullable = false, columnDefinition = "boolean default false")
+    private boolean sellerItemsExplicit;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderCancellationStatus status;
@@ -192,7 +195,14 @@ public class OrderCancellation extends BaseEntity {
             String reason,
             LocalDateTime requestedAt
     ) {
-        return new OrderCancellation(
+        return createSellerRequested(order, sellerOrder, clientRequestKey, reason, requestedAt, false);
+    }
+
+    public static OrderCancellation createSellerRequested(
+            Order order, SellerOrder sellerOrder, String clientRequestKey, String reason,
+            LocalDateTime requestedAt, boolean sellerItemsExplicit
+    ) {
+        OrderCancellation cancellation = new OrderCancellation(
                 order,
                 sellerOrder,
                 clientRequestKey,
@@ -202,6 +212,8 @@ public class OrderCancellation extends BaseEntity {
                 OrderCancellationStatus.REQUESTED,
                 requestedAt
         );
+        cancellation.sellerItemsExplicit = sellerItemsExplicit;
+        return cancellation;
     }
 
     public void startProcessing(LocalDateTime processedAt) {

@@ -996,17 +996,23 @@
 
 .order-detail-confirmation-action span,
 .order-detail-confirmed-label {
-  color: #6750a4;
-  font-size: 13px;
-  font-weight: 700;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .order-detail-confirmation-action button {
-  border: 1px solid #6750a4;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: #fff;
-  color: #6750a4;
-  padding: 8px 14px;
+  color: var(--color-text-primary);
+  padding: 0 14px;
+  font-size: 13px;
+  line-height: 1;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1037,3 +1043,6 @@
 
 .order-return-collection-address { padding: 12px; border: 1px solid var(--color-border); border-radius: 9px; background: #fff; color: var(--color-text-primary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .order-return-collection-address p { margin: 0; }
+
+.order-return-open-button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 600px) { .order-detail-confirmation-action { flex-wrap: wrap; gap: 8px; } }

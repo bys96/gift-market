@@ -2,6 +2,7 @@ package com.giftmarket.order.service;
 
 import com.giftmarket.order.dto.request.SellerOrderShipRequest;
 import com.giftmarket.order.dto.request.SellerOrderCancelRequest;
+import com.giftmarket.order.dto.request.OrderCancellationItemRequest;
 import com.giftmarket.order.dto.response.SellerOrderCancelValidationResponse;
 import com.giftmarket.order.dto.response.SellerOrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderCancellationResponse;
@@ -352,6 +353,48 @@ class SellerOrderManagementServiceTest {
     }
 
     @Test
+    void createsOnlySelectedQuantity() {
+        givenCancelableSellerOrder();
+        given(orderItem.getRemainingQuantity()).willReturn(2);
+        service.createCancel(USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                "123e4567-e89b-12d3-a456-426614174000", "판매자 사유", List.of(new OrderCancellationItemRequest(40L, 1))));
+        ArgumentCaptor<List<OrderCancellationItem>> items = ArgumentCaptor.forClass(List.class);
+        verify(orderCancellationItemRepository).saveAll(items.capture());
+        assertThat(items.getValue()).singleElement().satisfies(item -> {
+            assertThat(item.getOrderItem()).isSameAs(orderItem);
+            assertThat(item.getQuantity()).isEqualTo(1);
+        });
+    }
+
+    @Test
+    void cancelsOnlyRequestedItemsFromSellerOrder() {
+        givenCancelableSellerOrder();
+        OrderItem other = orderItem();
+        given(other.getId()).willReturn(41L);
+        given(orderItemRepository.findAllBySellerOrderIdForUpdate(SELLER_ORDER_ID))
+                .willReturn(List.of(orderItem, other));
+        service.createCancel(USER_ID, SELLER_ORDER_ID, new SellerOrderCancelRequest(
+                "123e4567-e89b-12d3-a456-426614174000", "판매자 사유", List.of(new OrderCancellationItemRequest(41L, 1))));
+        ArgumentCaptor<List<OrderCancellationItem>> items = ArgumentCaptor.forClass(List.class);
+        verify(orderCancellationItemRepository).saveAll(items.capture());
+        assertThat(items.getValue()).singleElement().satisfies(item -> assertThat(item.getOrderItem()).isSameAs(other));
+    }
+
+    @Test
+    void rejectsInvalidSelectionAndExcessQuantity() {
+        givenCancelableSellerOrder();
+        for (var items : List.of(List.of(new OrderCancellationItemRequest(40L, 2)),
+                List.of(new OrderCancellationItemRequest(999L, 1)),
+                List.of(new OrderCancellationItemRequest(40L, 1), new OrderCancellationItemRequest(40L, 1)),
+                List.<OrderCancellationItemRequest>of())) {
+            assertThatThrownBy(() -> service.createCancel(USER_ID, SELLER_ORDER_ID,
+                    new SellerOrderCancelRequest("123e4567-e89b-12d3-a456-426614174000", "판매자 사유", items)))
+                    .isInstanceOf(SellerException.class);
+        }
+        verify(orderCancellationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void activeCancellationBlocksSellerCancellationCreation() {
         givenCancelableSellerOrder();
         given(orderCancellationRepository.existsBySellerOrderIdAndStatusIn(
@@ -413,6 +456,37 @@ class SellerOrderManagementServiceTest {
 
         assertThat(response.cancellationId()).isEqualTo(70L);
         verify(orderCancellationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void partialCancellationKeyComparesItemQuantities() {
+        OrderCancellation existing = OrderCancellation.createSellerRequested(
+                order, sellerOrder, "123e4567-e89b-12d3-a456-426614174000", "판매자 사유", LocalDateTime.now(), true);
+        ReflectionTestUtils.setField(existing, "id", 70L);
+        given(orderCancellationRepository.findByClientRequestKey("123e4567-e89b-12d3-a456-426614174000"))
+                .willReturn(Optional.of(existing));
+        OrderCancellationItem existingItem = OrderCancellationItem.create(existing, orderItem, 1);
+        given(orderCancellationItemRepository.findAllByOrderCancellationIdOrderByIdAsc(70L))
+                .willReturn(List.of(existingItem));
+        var same = new SellerOrderCancelRequest("123e4567-e89b-12d3-a456-426614174000", "판매자 사유",
+                List.of(new OrderCancellationItemRequest(40L, 1)));
+        assertThat(service.createCancel(USER_ID, SELLER_ORDER_ID, same).cancellationId()).isEqualTo(70L);
+        var different = new SellerOrderCancelRequest("123e4567-e89b-12d3-a456-426614174000", "판매자 사유",
+                List.of(new OrderCancellationItemRequest(40L, 2)));
+        assertThatThrownBy(() -> service.createCancel(USER_ID, SELLER_ORDER_ID, different)).isInstanceOf(SellerException.class);
+        assertThatThrownBy(() -> service.createCancel(USER_ID, SELLER_ORDER_ID, sellerCancelRequest())).isInstanceOf(SellerException.class);
+        verify(orderCancellationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void legacyFullCancellationKeyCannotBeReusedAsExplicitItems() {
+        OrderCancellation existing = OrderCancellation.createSellerRequested(
+                order, sellerOrder, "123e4567-e89b-12d3-a456-426614174000", "판매자 사유", LocalDateTime.now());
+        given(orderCancellationRepository.findByClientRequestKey("123e4567-e89b-12d3-a456-426614174000"))
+                .willReturn(Optional.of(existing));
+        var request = new SellerOrderCancelRequest("123e4567-e89b-12d3-a456-426614174000", "판매자 사유",
+                List.of(new OrderCancellationItemRequest(40L, 1)));
+        assertThatThrownBy(() -> service.createCancel(USER_ID, SELLER_ORDER_ID, request)).isInstanceOf(SellerException.class);
     }
 
     @Test
@@ -550,7 +624,6 @@ class SellerOrderManagementServiceTest {
         sellerOrder.prepare(LocalDateTime.now());
         givenLockedSellerOrder();
         given(user.getId()).willReturn(77L);
-        given(seller.getStoreName()).willReturn("선물 상점");
         given(shipmentRepository.existsBySellerOrderIdAndType(
                 SELLER_ORDER_ID,
                 ShipmentType.ORIGINAL_OUTBOUND
@@ -574,8 +647,31 @@ class SellerOrderManagementServiceTest {
                     assertThat(event.buyerUserId()).isEqualTo(77L);
                     assertThat(event.orderId()).isEqualTo(ORDER_ID);
                     assertThat(event.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
-                    assertThat(event.storeName()).isEqualTo("선물 상점");
+                    assertThat(event.firstProductName()).isEqualTo(orderItem.getProductName());
+                    assertThat(event.productCount()).isEqualTo(1);
                 });
+    }
+
+    @Test
+    void shipmentEventCountsOnlyRemainingItemsForItsSellerOrder() {
+        sellerOrder.prepare(LocalDateTime.now());
+        givenLockedSellerOrder();
+        OrderItem second = orderItem();
+        OrderItem canceled = orderItem();
+        given(second.getRemainingQuantity()).willReturn(1);
+        given(canceled.getRemainingQuantity()).willReturn(0);
+        given(orderItemRepository.findAllBySellerOrderIdOrderByIdAsc(SELLER_ORDER_ID))
+                .willReturn(List.of(orderItem, canceled, second));
+
+        service.ship(USER_ID, SELLER_ORDER_ID, new SellerOrderShipRequest("택배사", "1234"));
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue()).isInstanceOfSatisfying(OrderShippedEvent.class, event -> {
+            assertThat(event.firstProductName()).isEqualTo(orderItem.getProductName());
+            assertThat(event.productCount()).isEqualTo(2);
+            assertThat(event.sellerOrderId()).isEqualTo(SELLER_ORDER_ID);
+        });
     }
 
     @Test

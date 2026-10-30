@@ -3,6 +3,8 @@ package com.giftmarket.order.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
+import java.util.List;
 
 public record SellerOrderCancelRequest(
         @NotBlank(message = "취소 요청 키를 입력해 주세요.")
@@ -14,6 +16,10 @@ public record SellerOrderCancelRequest(
 
         @NotBlank(message = "취소 사유를 입력해 주세요.")
         @Size(max = 500, message = "취소 사유는 500자 이내로 입력해 주세요.")
-        String cancelReason
+        String cancelReason,
+        @Size(min = 1, max = 100) List<@Valid OrderCancellationItemRequest> items
 ) {
+    public SellerOrderCancelRequest(String clientRequestKey, String cancelReason) {
+        this(clientRequestKey, cancelReason, null);
+    }
 }

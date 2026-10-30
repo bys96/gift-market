@@ -101,6 +101,7 @@ export interface SellerOrderShipRequest {
 export interface SellerOrderCancelRequest {
   clientRequestKey: string;
   reason: string;
+  items: Array<{ orderItemId: number; quantity: number }>;
 }
 
 export interface SellerOrderCancelResponse {

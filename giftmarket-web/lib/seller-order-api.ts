@@ -62,6 +62,7 @@ export async function cancelSellerOrder(
       body: JSON.stringify({
         clientRequestKey: request.clientRequestKey,
         cancelReason: request.reason,
+        items: request.items,
       }),
     },
   );

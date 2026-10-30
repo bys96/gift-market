@@ -6,7 +6,7 @@ import Modal from "@/components/common/modal/Modal";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelSellerOrder,
@@ -66,6 +66,9 @@ function SellerOrderDetailContent() {
   const [cancelRequestKey, setCancelRequestKey] = useState("");
   const [cancelProcessing, setCancelProcessing] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [cancelSelection, setCancelSelection] = useState<Record<number, number>>({});
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const cancelSubmittingRef = useRef(false);
 
   const totalProductAmount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.totalPrice, 0) ?? 0,
@@ -82,6 +85,10 @@ function SellerOrderDetailContent() {
   ).length ?? 0;
 
   const canCancelOrder = order?.status === "PAID" || order?.status === "PREPARING";
+  const hasActiveCancellation = order?.cancellations.some((item) => item.status === "REQUESTED" || item.status === "PROCESSING") ?? false;
+  const cancellableItems = order?.items.filter((item) => item.remainingQuantity > 0 && !hasActiveCancellation) ?? [];
+  const selectedItems = order?.items.filter((item) => cancelSelection[item.orderItemId] > 0) ?? [];
+  const invalidateCancelRequest = () => { setCancelRequestKey(""); setCancelConfirm(false); setCancelError(""); };
 
   const loadOrder = useCallback(async (quiet = false) => {
     await Promise.resolve();
@@ -89,7 +96,7 @@ function SellerOrderDetailContent() {
     if (!Number.isInteger(sellerOrderId) || sellerOrderId <= 0) {
       setError("올바른 주문 정보가 아닙니다.");
       setLoading(false);
-      return;
+      return false;
     }
     try {
       if (!quiet) setLoading(true);
@@ -98,8 +105,10 @@ function SellerOrderDetailContent() {
       setOrder(result);
       setShippingCompany(result.shippingCompany ?? "");
       setTrackingNumber(result.trackingNumber ?? "");
+      return true;
     } catch {
       setError("주문 정보를 불러오지 못했습니다. 접근 권한이나 주문 상태를 확인해주세요.");
+      return false;
     } finally {
       if (!quiet) setLoading(false);
     }
@@ -145,6 +154,10 @@ function SellerOrderDetailContent() {
       setActionError("배송사와 운송장번호는 각각 100자 이내로 입력해주세요.");
       return;
     }
+    if (!/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(tracking)) {
+      setActionError("운송장번호는 영문, 숫자와 중간 하이픈만 사용할 수 있습니다.");
+      return;
+    }
     void runAction(() => shipSellerOrder(sellerOrderId, {
       shippingCompany: company,
       trackingNumber: tracking,
@@ -152,18 +165,16 @@ function SellerOrderDetailContent() {
   };
 
   const openCancelModal = () => {
-    setCancelReason("");
     setCancelError("");
-    setCancelRequestKey(window.crypto.randomUUID());
+    setCancelConfirm(false);
     setCancelModalOpen(true);
   };
 
   const closeCancelModal = () => {
     if (cancelProcessing) return;
     setCancelModalOpen(false);
-    setCancelReason("");
     setCancelError("");
-    setCancelRequestKey("");
+    setCancelConfirm(false);
   };
 
   const handleCancelSubmit = async () => {
@@ -172,14 +183,27 @@ function SellerOrderDetailContent() {
       setCancelError("취소 사유를 입력해주세요.");
       return;
     }
-    if (!cancelRequestKey || cancelProcessing) return;
+    if (cancelSubmittingRef.current || cancelProcessing) return;
+    const items = selectedItems.map((item) => ({ orderItemId: item.orderItemId, quantity: cancelSelection[item.orderItemId] }));
+    if (items.length === 0 || items.some(({ orderItemId, quantity }) => {
+      const item = cancellableItems.find((value) => value.orderItemId === orderItemId);
+      return !item || !Number.isInteger(quantity) || quantity < 1 || quantity > item.remainingQuantity;
+    })) {
+      setCancelError("취소할 상품과 수량을 확인해주세요.");
+      return;
+    }
+    if (!cancelConfirm) { setCancelConfirm(true); return; }
+    const requestKey = cancelRequestKey || window.crypto.randomUUID();
+    setCancelRequestKey(requestKey);
+    cancelSubmittingRef.current = true;
 
     try {
       setCancelProcessing(true);
       setCancelError("");
       const cancellation = await cancelSellerOrder(sellerOrderId, {
-        clientRequestKey: cancelRequestKey,
+        clientRequestKey: requestKey,
         reason,
+        items,
       });
 
       if (cancellation.status !== "COMPLETED") {
@@ -191,12 +215,14 @@ function SellerOrderDetailContent() {
         return;
       }
 
-      await loadOrder(true);
+      const refreshed = await loadOrder(true);
       setCancelModalOpen(false);
       setCancelReason("");
       setCancelError("");
       setCancelRequestKey("");
-      window.alert("주문이 취소되었습니다.");
+      setCancelSelection({});
+      setCancelConfirm(false);
+      if (refreshed) window.alert("주문이 취소되었습니다.");
     } catch (cancelFailure) {
       setCancelError(
         cancelFailure instanceof Error
@@ -204,6 +230,7 @@ function SellerOrderDetailContent() {
           : "주문 취소를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.",
       );
     } finally {
+      cancelSubmittingRef.current = false;
       setCancelProcessing(false);
     }
   };
@@ -330,20 +357,54 @@ function SellerOrderDetailContent() {
               <button type="button" aria-label="주문 취소 모달 닫기" disabled={cancelProcessing} onClick={closeCancelModal}>×</button>
             </header>
             <p id="seller-order-cancel-modal-description">환불이 완료되면 주문 취소가 확정되며, 복구할 수 없습니다.</p>
+            <div className="seller-cancel-selection-header">
+              <strong>취소할 상품</strong>
+              <button type="button" disabled={cancelProcessing || cancellableItems.length === 0} onClick={() => {
+                const allSelected = cancellableItems.every((item) => Boolean(cancelSelection[item.orderItemId]));
+                setCancelSelection(allSelected ? {} : Object.fromEntries(cancellableItems.map((item) => [item.orderItemId, item.remainingQuantity])));
+                invalidateCancelRequest();
+              }}>{cancellableItems.length > 0 && cancellableItems.every((item) => Boolean(cancelSelection[item.orderItemId])) ? "전체 해제" : "전체 선택"}</button>
+            </div>
+            {hasActiveCancellation && <p className="seller-cancel-notice" role="status">진행 중인 취소 요청이 있어 추가 취소할 수 없습니다.</p>}
+            <div className="seller-cancel-items">
+              {order.items.map((item) => {
+                const enabled = item.remainingQuantity > 0 && !hasActiveCancellation;
+                const quantity = cancelSelection[item.orderItemId];
+                const imageUrl = resolveImageUrl(item.representativeImageKey);
+                return <div className="seller-cancel-item" key={item.orderItemId}>
+                  <label className="seller-cancel-item-label">
+                    <input type="checkbox" disabled={cancelProcessing || !enabled} checked={Boolean(quantity)} onChange={(event) => {
+                      const checked = event.target.checked;
+                      setCancelSelection((current) => { const next = { ...current }; if (checked) next[item.orderItemId] = 1; else delete next[item.orderItemId]; return next; });
+                      invalidateCancelRequest();
+                    }} />
+                    <span className="seller-cancel-item-image">{imageUrl ? <Image src={imageUrl} alt="" fill sizes="56px" /> : <span>이미지 없음</span>}</span>
+                    <span className="seller-cancel-item-info"><strong>{item.productName}</strong><small>{item.optionSnapshot ?? "기본 상품"} · 주문 {item.quantity}개 · 취소 가능 {enabled ? item.remainingQuantity : 0}개</small></span>
+                  </label>
+                  <label className="seller-cancel-quantity"><span>취소 수량</span><input type="number" aria-label={`${item.productName} 취소 수량`} min={1} max={item.remainingQuantity} value={quantity ?? 1} disabled={cancelProcessing || !enabled || !quantity} onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setCancelSelection((current) => ({ ...current, [item.orderItemId]: Math.max(1, Math.min(item.remainingQuantity, Number.isFinite(value) ? Math.floor(value) : 1)) }));
+                    invalidateCancelRequest();
+                  }} /></label>
+                </div>;
+              })}
+            </div>
+            <p className="seller-cancel-notice">예상 금액은 취소 처리 시 확정됩니다.</p>
+            {cancelConfirm && <div className="seller-cancel-confirm" role="status"><strong>선택 상품 확인</strong><ul>{selectedItems.map((item) => <li key={item.orderItemId}>{item.productName} · {cancelSelection[item.orderItemId]}개</li>)}</ul><span>최종 환불금액은 서버에서 확정됩니다.</span></div>}
             <label htmlFor="seller-order-cancel-reason">취소 사유</label>
             <textarea
               id="seller-order-cancel-reason"
               value={cancelReason}
               maxLength={500}
               disabled={cancelProcessing}
-              onChange={(event) => { setCancelReason(event.target.value); setCancelError(""); }}
+              onChange={(event) => { setCancelReason(event.target.value); invalidateCancelRequest(); }}
               placeholder="취소 사유를 입력해주세요."
             />
             <div className="seller-order-cancel-reason-meta">{cancelReason.length}/500</div>
             {cancelError && <p className="seller-order-cancel-error" role="alert">{cancelError}</p>}
             <footer>
               <button type="button" disabled={cancelProcessing} onClick={closeCancelModal}>닫기</button>
-              <button type="submit" className="danger" disabled={cancelProcessing || !cancelReason.trim()}>{cancelProcessing ? "취소 처리 중..." : "주문 취소"}</button>
+              <button type="submit" className="danger" disabled={cancelProcessing || !cancelReason.trim() || selectedItems.length === 0 || hasActiveCancellation}>{cancelProcessing ? "취소 처리 중..." : cancelConfirm ? "취소 요청" : "선택 상품 확인"}</button>
             </footer>
           </form>
         </Modal>
