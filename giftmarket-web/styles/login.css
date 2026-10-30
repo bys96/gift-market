@@ -57,6 +57,14 @@
    OAuth Buttons
 ======================================== */
 
+@font-face {
+  font-family: "Google Sans";
+  src: url("/images/auth/google-sans-medium.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
 .login-provider-list {
   display: flex;
   flex-direction: column;
@@ -68,6 +76,7 @@
 .login-provider-google {
   display: flex;
   width: 300px;
+  max-width: 100%;
   height: 45px;
   align-items: center;
   box-sizing: border-box;
@@ -85,6 +94,7 @@
   display: block;
   flex: 0 0 auto;
   margin-left: 12px;
+  background: #ffffff;
 }
 
 .login-google-text {
@@ -110,15 +120,24 @@
 .login-provider-kakao {
   display: block;
   width: 300px;
-  height: 45px;
+  max-width: 100%;
+  border-radius: 6px;
   text-decoration: none;
+  transition: box-shadow 0.15s ease;
 }
 
 .login-kakao-image {
   display: block;
-  width: 300px;
-  height: 45px;
+  width: 100%;
+  height: auto;
 }
+
+.login-provider-kakao:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+.login-provider-kakao:active { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3); }
+.login-provider-google:focus-visible,
+.login-provider-kakao:focus-visible { outline: 3px solid #3b65c4; outline-offset: 3px; }
+.login-provider-google[aria-disabled="true"],
+.login-provider-kakao[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
 
 /* ========================================
    Notice
@@ -175,8 +194,7 @@
   }
 
   .login-provider-google,
-  .login-provider-kakao,
-  .login-kakao-image {
+  .login-provider-kakao {
     width: min(300px, 100%);
   }
 }

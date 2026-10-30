@@ -89,7 +89,7 @@ function LoginContent() {
             onClick={handleOAuthLogin}
           >
             <Image
-              src="/images/auth/google-logo.svg"
+              src="/images/auth/google-g-official.png"
               alt=""
               width={20}
               height={20}
