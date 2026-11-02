@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { setProductSort } from "@/lib/product-sort";
 import type { ApiResponse } from "@/types/api";
 import type {
   Category,
@@ -14,6 +15,7 @@ import type {
   ProductRegistrationResponse,
   ProductStatus,
   ProductSort,
+  ProductSuggestions,
   ProductStatusUpdateRequest,
   ProductStockUpdateRequest,
   ProductUpdateRequest,
@@ -27,6 +29,13 @@ import type {
 const JSON_HEADERS = {
   "Content-Type": "application/json",
 };
+
+export async function getProductSuggestions(query: string, signal: AbortSignal): Promise<ProductSuggestions> {
+  const params = new URLSearchParams({ q: query });
+  const response = await apiFetch<ApiResponse<ProductSuggestions>>(`/api/products/suggest?${params}`, { signal, skipAuthRefresh: true });
+  if (!response.data) throw new Error("추천 상품을 불러오지 못했습니다.");
+  return response.data;
+}
 
 export class ProductRegistrationResponseError extends Error {
   constructor() {
@@ -138,7 +147,7 @@ export async function getProducts({
     params.set("maxPrice", String(maxPrice));
   }
 
-  if (sort && sort !== "LATEST") params.set("sort", sort);
+  setProductSort(params, sort);
 
   const response = await apiFetch<ApiResponse<ProductPage>>(
     `/api/products?${params.toString()}`,

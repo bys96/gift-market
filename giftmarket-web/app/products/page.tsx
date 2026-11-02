@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  FormEvent,
   Suspense,
   useCallback,
   useEffect,
@@ -14,7 +13,9 @@ import {
 
 import ProductCard from "@/components/product/ProductCard";
 import Pagination from "@/components/common/Pagination";
+import SearchBox from "@/components/common/SearchBox";
 import { getCategories, getProducts } from "@/lib/product-api";
+import { parseProductSort, setProductSort } from "@/lib/product-sort";
 import type { Category, ProductPage, ProductSort } from "@/types/product";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -46,7 +47,7 @@ interface ProductsUrlOptions {
   excludeSoldOut?: boolean;
   minPrice?: number | null;
   maxPrice?: number | null;
-  sort?: ProductSort;
+  sort?: ProductSort | null;
   page?: number;
   size?: number;
 }
@@ -58,7 +59,7 @@ interface ProductQuerySnapshot {
   excludeSoldOut: boolean;
   minPrice: number | null;
   maxPrice: number | null;
-  sort: ProductSort;
+  sort: ProductSort | undefined;
   page: number;
   size: number;
 }
@@ -121,12 +122,6 @@ function parseNonNegativeInteger(value: string | null) {
     : null;
 }
 
-function parseSort(value: string | null): ProductSort {
-  return PRODUCT_SORT_OPTIONS.some((option) => option.value === value)
-    ? (value as ProductSort)
-    : "LATEST";
-}
-
 function flattenCategories(categories: Category[]): Category[] {
   return categories.flatMap((category) => [
     category,
@@ -184,7 +179,7 @@ function ProductsContent() {
   const giftOccasionId = parsePositiveInteger(searchParams.get("giftOccasionId"));
   const minPrice = parseNonNegativeInteger(searchParams.get("minPrice"));
   const maxPrice = parseNonNegativeInteger(searchParams.get("maxPrice"));
-  const sort = parseSort(searchParams.get("sort"));
+  const sort = parseProductSort(searchParams.get("sort"));
 
   const page = parsePage(searchParams.get("page"));
   const size = parsePageSize(searchParams.get("size"));
@@ -330,7 +325,7 @@ function ProductsContent() {
       if (nextMaxPrice !== null) {
         params.set("maxPrice", String(nextMaxPrice));
       }
-      if (nextSort !== "LATEST") params.set("sort", nextSort);
+      setProductSort(params, nextSort);
 
       if (nextPage > 0) {
         params.set("page", String(nextPage));
@@ -583,12 +578,10 @@ function ProductsContent() {
     return () => window.cancelAnimationFrame(restoreFrame);
   }, [productListLocationKey, productPage]);
 
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSearch = (value: string) => {
     router.push(
       createProductsUrl({
-        keyword: searchKeyword,
+        keyword: value,
         page: 0,
       }),
       {
@@ -661,8 +654,8 @@ function ProductsContent() {
     setDraftMaxPrice(range.maxPrice === null ? "" : String(range.maxPrice));
   };
 
-  const handleSortChange = (nextSort: ProductSort) => {
-    router.replace(createProductsUrl({ sort: nextSort, page: 0 }), { scroll: false });
+  const handleSortChange = (nextSort: ProductSort | "") => {
+    router.replace(createProductsUrl({ sort: nextSort || null, page: 0 }), { scroll: false });
   };
 
   const handleRootCategoryClick = (categoryId: number) => {
@@ -786,24 +779,9 @@ function ProductsContent() {
         </p>
       </header>
 
-      <form className="product-page-search-form" onSubmit={handleSearch}>
-        <label htmlFor="product-search" className="sr-only">
-          상품 검색
-        </label>
-
-        <input
-          id="product-search"
-          type="search"
-          value={searchKeyword}
-          placeholder="상품명으로 검색"
-          className="product-page-search-input"
-          onChange={(event) => setSearchKeyword(event.target.value)}
-        />
-
-        <button type="submit" className="product-page-search-button">
-          검색
-        </button>
-      </form>
+      <SearchBox id="product-search" className="product-page-search-form" inputClassName="product-page-search-input"
+        buttonClassName="product-page-search-button" value={searchKeyword} onChange={setSearchKeyword}
+        onSearch={handleSearch} placeholder="상품명으로 검색" />
 
       <section className="product-page-category-filter">
         <div className="product-page-category-primary">
@@ -960,7 +938,8 @@ function ProductsContent() {
           </label>
           <label className="product-page-sort-select">
             <span>정렬</span>
-            <select value={sort} onChange={(event) => handleSortChange(event.target.value as ProductSort)}>
+            <select value={sort ?? (keyword ? "" : "LATEST")} onChange={(event) => handleSortChange(event.target.value as ProductSort | "")}>
+              {keyword && <option value="">관련도순</option>}
               {PRODUCT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>

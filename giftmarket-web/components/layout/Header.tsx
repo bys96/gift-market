@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuthStore } from "@/stores/auth-store";
@@ -10,6 +10,7 @@ import NotificationBell from "@/components/notification/NotificationBell";
 import { roleLabel } from "@/types/user";
 import { resolveImageUrl } from "@/utils/image-url";
 import { isAdminRole } from "@/lib/role";
+import SearchBox from "@/components/common/SearchBox";
 
 export default function Header() {
   const router = useRouter();
@@ -86,10 +87,8 @@ export default function Header() {
     };
   }, [isMobileMenuOpen]);
 
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const trimmedKeyword = keyword.trim();
+  const handleSearch = (value: string) => {
+    const trimmedKeyword = value.trim();
 
     if (!trimmedKeyword) {
       return;
@@ -122,27 +121,13 @@ export default function Header() {
             Gift Market
           </Link>
 
-          <form
+          <SearchBox
             className="layout-header-search layout-header-desktop-search"
-            onSubmit={handleSearch}
-          >
-            <label htmlFor="layout-header-search-input" className="sr-only">
-              상품 검색
-            </label>
-
-            <input
-              id="layout-header-search-input"
-              type="search"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="선물할 상품을 검색해 보세요"
-              autoComplete="off"
-            />
-
-            <button type="submit" aria-label="검색">
-              검색
-            </button>
-          </form>
+            id="layout-header-search-input"
+            value={keyword}
+            onChange={setKeyword}
+            onSearch={handleSearch}
+          />
 
           <nav className="layout-header-actions" aria-label="사용자 메뉴">
             {isAdminRole(user?.role) && (
@@ -241,25 +226,7 @@ export default function Header() {
             isMobileSearchOpen ? "layout-header-mobile-search-open" : ""
           }`}
         >
-          <form onSubmit={handleSearch}>
-            <label
-              htmlFor="layout-header-mobile-search-input"
-              className="sr-only"
-            >
-              상품 검색
-            </label>
-
-            <input
-              id="layout-header-mobile-search-input"
-              type="search"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="선물할 상품을 검색해 보세요"
-              autoComplete="off"
-            />
-
-            <button type="submit">검색</button>
-          </form>
+          <SearchBox id="layout-header-mobile-search-input" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
         </div>
       </header>
 

@@ -1,6 +1,11 @@
 export type ProductStatus = "DRAFT" | "ON_SALE" | "SOLD_OUT" | "HIDDEN";
 export type ProductSort = "LATEST" | "POPULAR" | "PRICE_ASC" | "PRICE_DESC";
 
+export interface ProductSuggestions {
+  products: Array<{ id: number; name: string; imageUrl: string | null; price: number }>;
+  keywords: string[];
+}
+
 export interface Product {
   id: number;
   name: string;

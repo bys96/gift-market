@@ -17,6 +17,7 @@
 @import "../styles/return.css";
 @import "../styles/exchange.css";
 @import "../styles/policy.css";
+@import "../styles/search-autocomplete.css";
 
 :root {
   --background: #ffffff;

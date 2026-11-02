@@ -21,6 +21,16 @@ public interface ProductRepository extends
         JpaRepository<Product, Long>,
         JpaSpecificationExecutor<Product> {
 
+    @Query("""
+            select p from Product p join p.seller s
+            where p.status = com.giftmarket.product.entity.ProductStatus.ON_SALE
+              and p.stockQuantity > 0 and p.deletedAt is null and p.adminHidden = false
+              and s.status = com.giftmarket.seller.entity.SellerStatus.ACTIVE
+              and lower(p.name) like lower(concat('%', :keyword, '%')) escape '!'
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Product> findSuggestionProducts(@Param("keyword") String keyword, Pageable pageable);
+
     long countByStatusAndDeletedAtIsNull(ProductStatus status);
 
     long countBySellerIdAndDeletedAtIsNull(Long sellerId);
