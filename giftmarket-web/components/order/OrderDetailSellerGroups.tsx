@@ -343,10 +343,10 @@ function ClaimPanels({ orderId, sellerOrder, returns, exchanges, returnsLoading,
     {refreshError && <p role="alert">신청은 접수되었으나 최신 주문 정보를 불러오지 못했습니다. 주문 상세를 다시 확인해주세요.</p>}
     {canRequest && !refreshError && <button type="button" className="order-return-open-button" disabled={busy} aria-expanded={expanded} onClick={() => { setExpanded((value) => !value); setMode(null); setFormVersion((value) => value + 1); }}>반품/교환</button>}
     {expanded && canRequest && <div className="order-claim-switch" role="group" aria-label="신청 유형">
-      <button type="button" aria-pressed={mode === "return"} disabled={busy} onClick={() => switchMode("return")}>반품</button>
-      <button type="button" aria-pressed={mode === "exchange"} disabled={busy} onClick={() => switchMode("exchange")}>교환</button>
+      <button type="button" className="order-claim-type-button" aria-pressed={mode === "return"} disabled={busy} onClick={() => switchMode("return")}>반품</button>
+      <button type="button" className="order-claim-type-button" aria-pressed={mode === "exchange"} disabled={busy} onClick={() => switchMode("exchange")}>교환</button>
     </div>}
-    <OrderReturnPanel key={`return-${formVersion}`} orderId={orderId} sellerOrder={sellerOrder} returns={returns} exchanges={exchanges} isLoading={returnsLoading} loadError={returnsError} collectionAddress={collectionAddress} onChanged={refresh} formOpen={mode === "return" && canRequest} onCloseForm={() => { setMode(null); setExpanded(false); }} onSubmittingChange={setBusy} />
-    <OrderExchangePanel key={`exchange-${formVersion}`} orderId={orderId} sellerOrder={sellerOrder} exchanges={exchanges} returns={returns} isLoading={exchangesLoading} loadError={exchangesError} defaultAddress={collectionAddress} userId={userId} onChanged={refresh} formOpen={mode === "exchange" && canRequest} onCloseForm={() => setMode(null)} onSubmittingChange={setBusy} />
+    {(returns.length > 0 || returnsError || (expanded && canRequest && mode === "return")) && <OrderReturnPanel key={`return-${formVersion}`} orderId={orderId} sellerOrder={sellerOrder} returns={returns} exchanges={exchanges} isLoading={returnsLoading} loadError={returnsError} collectionAddress={collectionAddress} onChanged={refresh} formOpen={expanded && mode === "return" && canRequest} onCloseForm={() => { setMode(null); setExpanded(false); }} onSubmittingChange={setBusy} />}
+    {(exchanges.length > 0 || exchangesError || (expanded && canRequest && mode === "exchange")) && <OrderExchangePanel key={`exchange-${formVersion}`} orderId={orderId} sellerOrder={sellerOrder} exchanges={exchanges} returns={returns} isLoading={exchangesLoading} loadError={exchangesError} defaultAddress={collectionAddress} userId={userId} onChanged={refresh} formOpen={expanded && mode === "exchange" && canRequest} onCloseForm={() => setMode(null)} onSubmittingChange={setBusy} />}
   </>;
 }
