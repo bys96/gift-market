@@ -11,3 +11,66 @@
 
 .order-claim-switch{display:flex;gap:8px;margin-top:14px}.order-claim-switch .order-claim-type-button{flex:1;height:40px;min-height:40px;padding:0 16px;border:1px solid #d7d9de;border-radius:9px;background:#fff;color:#333;font-size:13px;font-weight:700;line-height:1;cursor:pointer}.order-claim-switch .order-claim-type-button[aria-pressed="true"]{border-color:#333;background:#f1f2f4}.order-claim-switch .order-claim-type-button:disabled{opacity:.55;cursor:not-allowed}
 .order-exchange-area .order-exchange-route b{color:#666}.order-exchange-area .order-exchange-address-summary.is-same section:last-child{background:#f7f8fa}.order-exchange-area .order-exchange-shipments section:first-child{border-left-color:#888}.order-exchange-area .order-exchange-timeline li.is-active:before{background:#666}.order-exchange-area .order-exchange-timeline li.is-active>span{border-color:#666;background:#666}.order-exchange-area .order-exchange-timeline li.is-active strong{color:#333}.order-exchange-area .order-exchange-status.is-received,.order-exchange-area .order-exchange-status.is-inspected{background:#f1f2f4;color:#555}
+
+/* Shared buyer claim application styles; history and payment cards keep their own styles. */
+.order-claim-form.order-claim-form {
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid #e2e5e9;
+  border-radius: 12px;
+  background: #fff;
+  color: #282828;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.order-claim-form .order-claim-form-header { padding: 0 0 16px; border-bottom: 1px solid #ececec; }
+.order-claim-form .order-claim-form-header h3 { margin: 0; color: #191919; font-size: 17px; font-weight: 700; line-height: 1.4; }
+.order-claim-form .order-claim-form-header p { margin: 5px 0 0; color: #777; font-size: 12px; line-height: 1.6; }
+.order-claim-form .order-claim-form-section { margin: 0; padding: 18px 0; border-top: 0; border-bottom: 1px solid #ececec; }
+.order-claim-form .order-claim-form-section > h4,
+.order-claim-form .order-return-evidence > div:first-child { margin: 0 0 12px; color: #282828; font-size: 13px; font-weight: 700; line-height: 1.5; }
+.order-claim-form .order-claim-form-section > h4 small { color: #888; font-size: 11px; font-weight: 500; }
+.order-claim-form .order-claim-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.order-claim-form .order-claim-fields label,
+.order-claim-form .order-exchange-address label { display: grid; min-width: 0; gap: 7px; }
+.order-claim-form .order-claim-fields label > span,
+.order-claim-form .order-exchange-address label > span { color: #282828; font-size: 12px; font-weight: 700; line-height: 1.5; }
+.order-claim-form :is(.order-claim-fields, .order-exchange-address, .order-exchange-target) :is(input:not([type="checkbox"]):not([type="file"]), select, textarea) {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid #d7d9de;
+  border-radius: 8px;
+  background: #fff;
+  color: #282828;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.order-claim-form :is(.order-claim-fields, .order-exchange-address) :is(input, select, textarea) { width: 100%; }
+.order-claim-form textarea { resize: vertical; }
+.order-claim-form input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; padding: 0; flex: none; }
+.order-claim-form .order-claim-fields small { color: #888; font-size: 11px; text-align: right; }
+.order-claim-form .order-claim-required { color: #b42318; font-weight: 700; }
+.order-claim-form :is(.order-return-evidence > p, .order-exchange-evidence > p) { margin: 7px 0 12px; color: #777; font-size: 12px; line-height: 1.6; }
+.order-claim-form :is(.order-return-error, .order-exchange-error, .order-exchange-option-empty) { margin: 12px 0 0; color: #b42318; font-size: 12px; line-height: 1.5; }
+.order-claim-form :is(.order-return-select-item, .order-exchange-select) { margin: 0 0 8px; padding: 12px; border: 1px solid #e2e5e9; border-radius: 9px; background: #f7f8fa; }
+.order-claim-form :is(.order-return-select-item, .order-exchange-select) strong { color: #282828; font-size: 13px; font-weight: 700; line-height: 1.5; }
+.order-claim-form :is(.order-return-select-item small, .order-exchange-product-check small, .order-exchange-product-check em) { color: #777; font-size: 11px; font-weight: 400; line-height: 1.5; }
+.order-claim-form .order-exchange-target { background: #fff; }
+.order-claim-form .order-return-stepper { height: 40px; box-sizing: border-box; background: #fff; }
+.order-claim-form .order-return-stepper button { height: 38px; }
+.order-claim-form :is(.order-return-evidence > button, .order-exchange-image-add) { min-height: 40px; padding: 0 16px; border: 1px solid #d7d9de; border-radius: 8px; background: #fff; color: #333; font-size: 13px; font-weight: 700; line-height: 1; }
+.order-claim-form :is(.order-return-collection-address, .order-exchange-address-compact) { padding: 12px; border: 1px solid #e2e5e9; border-radius: 9px; background: #f7f8fa; font-size: 13px; line-height: 1.6; }
+.order-claim-form .order-exchange-address-compact p { margin: 8px 0 0; }
+.order-claim-form .order-claim-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.order-claim-form .order-claim-actions button { box-sizing: border-box; height: 40px; min-height: 40px; padding: 0 16px; border: 1px solid #333; border-radius: 8px; background: #333; color: #fff; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; }
+.order-claim-form .order-claim-actions button:first-child { border-color: #d7d9de; background: #fff; color: #333; }
+.order-claim-form button:disabled { cursor: not-allowed; opacity: .5; }
+@media (max-width: 680px) {
+  .order-claim-form.order-claim-form { padding: 15px; }
+  .order-claim-form .order-claim-form-section { padding: 16px 0; }
+  .order-claim-form .order-claim-fields { grid-template-columns: 1fr; }
+  .order-claim-form .order-claim-actions button { flex: 1; width: 100%; }
+}

@@ -457,8 +457,13 @@ export default function OrderReturnPanel({
         </p>
       )}
       {canCreate && formOpen && (
-        <div className="order-return-form">
-          <h3>반품 상품 선택</h3>
+        <div className="order-return-form order-claim-form">
+          <header className="order-claim-form-header">
+            <h3>반품 신청</h3>
+            <p>반품할 상품과 수량을 선택하고 사유를 입력해주세요.</p>
+          </header>
+          <section className="order-claim-form-section">
+          <h4>반품할 상품 · 수량</h4>
           <div className="order-return-select-list">
             {returnableItems.map((item) => {
               const quantity = selected[item.id];
@@ -502,7 +507,10 @@ export default function OrderReturnPanel({
               );
             })}
           </div>
-          <div className="order-return-fields">
+          </section>
+          <section className="order-claim-form-section">
+          <h4>반품 사유</h4>
+          <div className="order-return-fields order-claim-fields">
             <label>
               <span>반품 사유</span>
               <select
@@ -521,7 +529,7 @@ export default function OrderReturnPanel({
               </select>
             </label>
             <label className="order-return-full">
-              <span>상세 사유</span>
+              <span>상세 사유 <span className="order-claim-required" aria-label="필수">*</span></span>
               <textarea
                 value={reason}
                 onChange={(event) => {
@@ -536,7 +544,8 @@ export default function OrderReturnPanel({
               <small>{reason.length}/500</small>
             </label>
           </div>
-          <div className="order-return-evidence">
+          </section>
+          <section className="order-return-evidence order-claim-form-section">
             <div><strong>증빙 사진 (선택)</strong><span>{selectedImages.length}/5</span></div>
             <p>상품 상태나 문제 상황을 확인할 수 있는 사진을 첨부하면 판매자가 요청을 확인하는 데 도움이 됩니다.</p>
             <input ref={imageInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={isSubmitting || selectedImages.length >= 5} onChange={selectImages} />
@@ -546,18 +555,20 @@ export default function OrderReturnPanel({
               <img src={image.previewUrl} alt={`${image.file.name} 미리보기`} />
               <button type="button" aria-label={`${image.file.name} 삭제`} disabled={isSubmitting} onClick={() => removeImage(index)}>×</button>
             </div>)}</div>}
-          </div>
-          <h3>회수 주소</h3>
+          </section>
+          <section className="order-claim-form-section">
+          <h4>회수 주소</h4>
           <div className="order-return-collection-address">
             <p>{recipientName} · {phone}</p>
             <p>({postalCode}) {address} {addressDetail}</p>
           </div>
+          </section>
           {formError && (
             <p className="order-return-error" role="alert">
               {formError}
             </p>
           )}
-          <div className="order-return-actions">
+          <div className="order-return-actions order-claim-actions">
             <button
               type="button"
               className="order-return-close-button"
