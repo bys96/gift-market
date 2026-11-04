@@ -118,19 +118,3 @@ settlement:
 
 storage:
   provider: ${STORAGE_PROVIDER:minio}
-
-search:
-  semantic:
-    enabled: ${SEARCH_SEMANTIC_ENABLED:false}
-    max-candidates: ${SEARCH_MAX_CANDIDATES:100}
-  reindex:
-    enabled: ${SEARCH_REINDEX_ENABLED:false}
-  gemini:
-    api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
-    dimensions: ${GEMINI_EMBEDDING_DIMENSIONS:768}
-    connect-timeout-ms: ${GEMINI_CONNECT_TIMEOUT_MS:1000}
-    read-timeout-ms: ${GEMINI_READ_TIMEOUT_MS:2000}
-    cache-max-entries: ${GEMINI_QUERY_CACHE_MAX_ENTRIES:128}
-    cache-ttl-seconds: ${GEMINI_QUERY_CACHE_TTL_SECONDS:300}
-    min-interval-ms: ${GEMINI_MIN_INTERVAL_MS:1000}
