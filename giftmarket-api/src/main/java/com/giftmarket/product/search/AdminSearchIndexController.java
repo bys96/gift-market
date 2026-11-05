@@ -13,4 +13,12 @@ public class AdminSearchIndexController {
     public ApiResponse<MeiliIndexService.Result> reindex(@RequestParam(defaultValue = "false") boolean restart) {
         return ApiResponse.success(index.reindex(restart));
     }
+    @GetMapping("/settings")
+    public ApiResponse<MeiliIndexService.SettingsResult> settings() {
+        return ApiResponse.success(index.settings(false));
+    }
+    @PostMapping("/settings")
+    public ApiResponse<MeiliIndexService.SettingsResult> applySettings() {
+        return ApiResponse.success(index.settings(true));
+    }
 }

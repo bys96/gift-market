@@ -27,6 +27,7 @@ public class MeiliIndexService {
     private long completedAt;
     private final Map<Long, String> previous = new HashMap<>();
     public record Result(long nextCursor, String status, int processed) {}
+    public record SettingsResult(String status, boolean matches, int terms, String expectedHash, String actualHash) {}
 
     public MeiliIndexService(JdbcTemplate jdbc, MeiliClient client, MeiliProperties config) {
         this.jdbc = jdbc; this.client = client; this.config = config;
@@ -36,6 +37,24 @@ public class MeiliIndexService {
     public void changed() { revision.incrementAndGet(); ready = false; }
     public void rebuild() { rebuild.set(true); changed(); }
     public void deleted(long id) { deleted.add(id); changed(); }
+
+    /** Reloads the small dictionary; settings only, without touching documents/cursor/readiness. */
+    public SettingsResult settings(boolean apply) {
+        if (!config.indexingEnabled()) return new SettingsResult("DISABLED", false, 0, null, null);
+        if (!lock.tryLock()) return new SettingsResult("BUSY", false, 0, null, null);
+        try {
+            var expected = config.effectiveSynonyms();
+            var actual = client.synonyms();
+            boolean updated = apply && !expected.equals(actual);
+            if (updated) { client.updateSynonyms(expected); actual = client.synonyms(); }
+            boolean matches = expected.equals(actual);
+            return new SettingsResult(matches ? (updated ? "APPLIED" : "VERIFIED") : "MISMATCH", matches,
+                    expected.size(), MeiliSynonyms.hash(expected), MeiliSynonyms.hash(actual));
+        } catch (RuntimeException ex) {
+            log.warn("Search settings verification failed type={}", ex.getClass().getSimpleName());
+            return new SettingsResult("RETRY", false, 0, null, null);
+        } finally { lock.unlock(); }
+    }
 
     /** Restartable whole-catalog scan also catches bulk SQL/relationship changes and missed events. */
     public void synchronize() {

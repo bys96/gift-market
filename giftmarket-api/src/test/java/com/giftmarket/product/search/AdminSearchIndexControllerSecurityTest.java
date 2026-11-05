@@ -22,11 +22,31 @@ import java.util.List;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = AdminSearchIndexController.class)
 @Import({SecurityConfig.class, GlobalExceptionHandler.class})
 class AdminSearchIndexControllerSecurityTest {
+    @Test void settingsEndpointsKeepExistingAdminAuthorizationAndResponseEnvelope() throws Exception {
+        given(index.settings(true)).willReturn(new MeiliIndexService.SettingsResult("APPLIED", true, 2, "hash", "hash"));
+        given(index.settings(false)).willReturn(new MeiliIndexService.SettingsResult("VERIFIED", true, 2, "hash", "hash"));
+        for (String role : List.of("ROLE_ADMIN", "ROLE_SUPER_ADMIN")) {
+            mockMvc.perform(post("/api/admin/product-search/settings").with(authentication(auth(role))))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("APPLIED"));
+            mockMvc.perform(get("/api/admin/product-search/settings").with(authentication(auth(role))))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.matches").value(true));
+        }
+        for (String role : List.of("ROLE_USER", "ROLE_SELLER")) {
+            mockMvc.perform(post("/api/admin/product-search/settings").with(authentication(auth(role))))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/admin/product-search/settings").with(authentication(auth(role))))
+                    .andExpect(status().isForbidden());
+        }
+        mockMvc.perform(post("/api/admin/product-search/settings")).andExpect(status().is3xxRedirection());
+        mockMvc.perform(get("/api/admin/product-search/settings")).andExpect(status().is3xxRedirection());
+    }
 
     @Autowired MockMvc mockMvc;
     @MockitoBean MeiliIndexService index;

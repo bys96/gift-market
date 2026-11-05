@@ -17,6 +17,7 @@ public class MeiliProperties {
     private int timeoutMs = 800;
     private int maxMatches = 1000;
     private Map<String, List<String>> synonyms = new LinkedHashMap<>();
+    private String synonymsLocation = "classpath:search/korean-synonyms.properties";
     public boolean enabled() { return "meilisearch".equals(engine); }
     // Meilisearch searches must keep their existing indexing even when the opt-in flag is false.
     public boolean indexingEnabled() { return enabled() || indexingEnabled; }
@@ -36,4 +37,7 @@ public class MeiliProperties {
     public void setMaxMatches(int value) { maxMatches = value; }
     public Map<String, List<String>> getSynonyms() { return synonyms; }
     public void setSynonyms(Map<String, List<String>> value) { synonyms = value; }
+    public String getSynonymsLocation() { return synonymsLocation; }
+    public void setSynonymsLocation(String value) { synonymsLocation = value; }
+    public Map<String, List<String>> effectiveSynonyms() { return MeiliSynonyms.load(synonymsLocation, synonyms); }
 }

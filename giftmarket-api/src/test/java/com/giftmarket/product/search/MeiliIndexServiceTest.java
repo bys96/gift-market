@@ -13,6 +13,17 @@ class MeiliIndexServiceTest {
     MeiliClient client;
     MeiliIndexService index;
     MeiliProperties config;
+    @Test void settingsOnlyUpdateKeepsReadyIndexAndDoesNotReuploadDocuments() {
+        index.reindex(false);
+        assertThat(index.ready()).isTrue();
+        clearInvocations(client);
+        when(client.synonyms()).thenReturn(Map.of(), config.effectiveSynonyms());
+        assertThat(index.settings(true).status()).isEqualTo("APPLIED");
+        assertThat(index.ready()).isTrue();
+        verify(client).updateSynonyms(config.effectiveSynonyms());
+        verify(client, times(2)).synonyms();
+        verifyNoMoreInteractions(client);
+    }
     @BeforeEach void setup() {
         jdbc = new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:mem:meili_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("create table sellers(id bigint, status varchar(20))");

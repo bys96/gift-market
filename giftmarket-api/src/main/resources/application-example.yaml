@@ -129,7 +129,5 @@ search:
   timeout-ms: 800
   max-matches: 1000
   sync-delay-ms: 5000
-  synonyms:
-    "[이불]": ["침구", "침구류"]
-    "[침구]": ["이불", "침구류"]
-    "[침구류]": ["침구", "이불"]
+  # Built-in UTF-8 dictionary; file:/... also supports settings-only reload without an API restart.
+  synonyms-location: ${SEARCH_SYNONYMS_LOCATION:classpath:search/korean-synonyms.properties}

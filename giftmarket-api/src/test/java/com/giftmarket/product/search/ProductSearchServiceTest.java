@@ -12,6 +12,40 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class ProductSearchServiceTest {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void zeroHitsDistinguishProviderNoMatchFromDatabaseFilteringWithoutFallback(boolean hasCandidates) {
+        var config = new MeiliProperties(); config.setEngine("meilisearch");
+        var products = mock(ProductService.class);
+        var client = mock(MeiliClient.class);
+        var reader = mock(SearchProductReader.class);
+        var index = mock(MeiliIndexService.class);
+        when(index.ready()).thenReturn(true);
+        var condition = new ProductSearchCondition(List.of(), null, "이불", null, null, null, true, 0, 20);
+        var candidates = hasCandidates ? List.of(1L) : List.<Long>of();
+        var empty = new ProductPageResponse(List.of(), 0, 20, 0, 0, true, true);
+        when(client.search("이불")).thenReturn(candidates);
+        when(reader.read(candidates, condition, false)).thenReturn(empty);
+        var search = new ProductSearchService(products, config, client, reader, index);
+        assertThat(search.search(condition)).isSameAs(empty);
+        verify(reader).read(candidates, condition, false);
+        verifyNoInteractions(products);
+        verify(index, never()).rebuild();
+    }
+
+    @Test void unreadyIndexUsesMysqlAndDoesNotPretendEngineReturnedZeroHits() {
+        var config = new MeiliProperties(); config.setEngine("meilisearch");
+        var products = mock(ProductService.class);
+        var client = mock(MeiliClient.class);
+        var reader = mock(SearchProductReader.class);
+        var index = mock(MeiliIndexService.class);
+        var condition = new ProductSearchCondition(List.of(), null, "이불", null, null, null, true, 0, 20);
+        var empty = new ProductPageResponse(List.of(), 0, 20, 0, 0, true, true);
+        when(products.getProducts(condition)).thenReturn(empty);
+        assertThat(new ProductSearchService(products, config, client, reader, index).search(condition)).isSameAs(empty);
+        verify(products).getProducts(condition);
+        verifyNoInteractions(client, reader);
+    }
     @Test
     void enabledSearchHydratesIdsAndFallsBackOnFailureOrConcurrentCommit() {
         var products = mock(ProductService.class);

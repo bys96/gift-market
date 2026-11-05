@@ -53,8 +53,20 @@ public class MeiliClient {
                         "displayedAttributes", List.of("id"),
                         "pagination", Map.of("maxTotalHits", config.getMaxMatches() + 1),
                         "typoTolerance", Map.of("enabled", true, "minWordSizeForTypos", Map.of("oneTypo", 2, "twoTypos", 6)),
-                        "synonyms", config.getSynonyms()))
+                        "synonyms", config.effectiveSynonyms()))
                 .retrieve().body(Task.class));
+    }
+
+    public Map<String, List<String>> synonyms() {
+        var result = http.get().uri(path() + "/settings/synonyms").retrieve()
+                .body(new org.springframework.core.ParameterizedTypeReference<Map<String, List<String>>>() { });
+        if (result == null) throw new IllegalStateException("missing-synonyms");
+        return MeiliSynonyms.normalize(result);
+    }
+
+    public void updateSynonyms(Map<String, List<String>> synonyms) {
+        await(http.put().uri(path() + "/settings/synonyms").contentType(MediaType.APPLICATION_JSON)
+                .body(synonyms).retrieve().body(Task.class));
     }
 
     public void upsert(List<Map<String, Object>> documents) {

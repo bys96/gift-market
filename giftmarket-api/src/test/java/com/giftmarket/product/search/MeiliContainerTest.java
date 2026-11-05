@@ -9,6 +9,49 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("meili-container")
 class MeiliContainerTest {
+    // Cold Docker hosts may exceed the production request budget; retry only the idempotent settings operation.
+    private void configureWithRetry(MeiliClient client) {
+        for (int attempt = 0; ; attempt++) {
+            try { client.configure(); return; }
+            catch (IllegalStateException ex) {
+                if (attempt >= 2 || !"index-task-pending".equals(ex.getMessage())) throw ex;
+            }
+        }
+    }
+    @Test void dictionaryFixesMissingSynonymsOnExistingDocumentsWithoutReupload() {
+        try (var container = new GenericContainer<>(DockerImageName.parse("getmeili/meilisearch:v1.16.0"))
+                .withExposedPorts(7700).withEnv("MEILI_NO_ANALYTICS", "true")
+                .withEnv("MEILI_MASTER_KEY", "local-test-only-not-a-production-key")
+                .withEnv("MEILI_MAX_INDEXING_MEMORY", "128Mb").withEnv("MEILI_MAX_INDEXING_THREADS", "1")
+                .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/health"))) {
+            container.start();
+            var config = new MeiliProperties();
+            config.setIndexingEnabled(true);
+            config.setApiKey("local-test-only-not-a-production-key");
+            config.setUrl("http://" + container.getHost() + ":" + container.getMappedPort(7700));
+            config.setTimeoutMs(3000);
+            var client = new MeiliClient(config);
+            configureWithRetry(client);
+            assertThat(client.synonyms()).isEqualTo(config.effectiveSynonyms());
+            client.updateSynonyms(Map.of());
+            client.upsert(List.of(Map.of("id", 101, "name", "호텔 침구 세트", "category", "침구"),
+                    Map.of("id", 102, "name", "포근한 담요", "category", "담요"),
+                    Map.of("id", 103, "name", "머그컵")));
+            assertThat(client.search("침구")).contains(101L);
+            assertThat(client.search("이불")).isEmpty(); // Content exists, missing expansion.
+            var index = new MeiliIndexService(org.mockito.Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class), client, config);
+            assertThat(index.settings(true).status()).isEqualTo("APPLIED");
+            assertThat(index.settings(false).matches()).isTrue();
+            assertThat(index.settings(true).status()).isEqualTo("VERIFIED");
+            assertThat(client.search("이불")).containsExactly(101L);
+            assertThat(client.search("블랭킷")).containsExactly(102L);
+            assertThat(client.search("매트리스")).isEmpty(); // No content, not a synonym/settings failure.
+            assertThat(client.search("텀블러")).doesNotContain(103L); // Distinct product types stay distinct.
+            client.updateSynonyms(Map.of());
+            assertThat(index.settings(false).status()).isEqualTo("MISMATCH");
+            assertThat(client.search("이불")).isEmpty();
+        }
+    }
     @Test
     void realEngineKoreanTyposSynonymsWhitespaceAndDocumentLifecycle() {
         try (var container = new GenericContainer<>(DockerImageName.parse("getmeili/meilisearch:v1.16.0"))
@@ -23,7 +66,7 @@ class MeiliContainerTest {
             config.setApiKey("local-test-only-not-a-production-key");
             config.setSynonyms(Map.of("침구류", List.of("이불"), "이불", List.of("침구류")));
             var client = new MeiliClient(config);
-            client.configure();
+            configureWithRetry(client);
             // Explicitly synthetic product data: this does NOT assert the contents of a production product.
             client.upsert(List.of(Map.of("id", 1, "name", "편안한 숙면 페브릭 세트", "nameCompact", "편안한숙면페브릭세트",
                     "description", "이불과 베개 커버", "category", "침구", "occasions", List.of("부모님 감사선물")),
