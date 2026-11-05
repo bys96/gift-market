@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { getProductSuggestions } from "@/lib/product-api";
 import { moveSuggestionIndex, scheduleSuggestionRequest } from "@/lib/suggestion-request";
@@ -19,7 +17,6 @@ interface Props {
 }
 
 export default function SearchBox({ id, value, onChange, onSearch, className, inputClassName, buttonClassName, placeholder = "선물할 상품을 검색해 보세요" }: Props) {
-  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const queryRef = useRef(value.trim());
   const [open, setOpen] = useState(false);
@@ -28,10 +25,7 @@ export default function SearchBox({ id, value, onChange, onSearch, className, in
   const [result, setResult] = useState<{ query: string; data: ProductSuggestions } | null>(null);
   const query = value.trim();
   const currentResult = result?.query === query ? result.data : null;
-  const items = [
-    ...(currentResult?.products ?? []).map((product) => ({ type: "product" as const, product })),
-    ...(currentResult?.keywords ?? []).map((keyword) => ({ type: "keyword" as const, keyword })),
-  ];
+  const items = currentResult?.keywords ?? [];
   const visible = open && query.length > 0;
 
   useEffect(() => {
@@ -55,8 +49,7 @@ export default function SearchBox({ id, value, onChange, onSearch, className, in
     const item = items[index];
     if (!item) return;
     setOpen(false); setActive(-1);
-    if (item.type === "product") router.push(`/products/${item.product.id}`);
-    else { onChange(item.keyword); onSearch(item.keyword); }
+    onChange(item); onSearch(item);
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,18 +78,14 @@ export default function SearchBox({ id, value, onChange, onSearch, className, in
         onChange={(event) => { queryRef.current = event.target.value.trim(); onChange(event.target.value); setResult(null); setStatus("idle"); setActive(-1); setOpen(true); }} />
       <button type="submit" className={buttonClassName}>검색</button>
       {visible && <div className="search-suggestions">
-        {(status === "idle" || status === "loading") && <p role="status">추천 상품을 찾고 있습니다.</p>}
-        {status === "error" && <p role="status">추천 상품을 불러오지 못했습니다.</p>}
+        {(status === "idle" || status === "loading") && <p role="status">추천 검색어를 찾고 있습니다.</p>}
+        {status === "error" && <p role="status">추천 검색어를 불러오지 못했습니다.</p>}
         {status === "success" && items.length === 0 && <p role="status">검색 결과가 없습니다.</p>}
         <ul id={`${id}-suggestions`} role="listbox" aria-label="검색 추천">
-          {items.map((item, index) => <li id={`${id}-option-${index}`} key={item.type === "product" ? `p${item.product.id}` : `k${item.keyword}`}
+          {items.map((item, index) => <li id={`${id}-option-${index}`} key={`k${item}`}
             role="option" aria-selected={active === index} className={active === index ? "search-suggestion-active" : ""}
             onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => choose(index)}>
-            {item.type === "product" ? <>
-              {item.product.imageUrl ? <Image src={item.product.imageUrl} width={42} height={42} alt="" unoptimized /> : <span className="search-suggestion-placeholder" />}
-              <span className="search-suggestion-name">{item.product.name}</span>
-              <strong>{item.product.price.toLocaleString("ko-KR")}원</strong>
-            </> : <><span className="search-suggestion-keyword-icon" aria-hidden="true">⌕</span><span className="search-suggestion-name">{item.keyword}</span><small>추천 검색어</small></>}
+            <span className="search-suggestion-keyword-icon" aria-hidden="true">⌕</span><span className="search-suggestion-name">{item}</span><small>추천 검색어</small>
           </li>)}
         </ul>
       </div>}
