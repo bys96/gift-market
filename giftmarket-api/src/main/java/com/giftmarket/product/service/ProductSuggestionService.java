@@ -13,16 +13,34 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductSuggestionService {
     private final ProductRepository products;
     private final StorageService storage;
+    private final com.giftmarket.product.search.ProductSearchService search;
 
     public ProductSuggestionService(ProductRepository products, StorageService storage) {
+        this(products, storage, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ProductSuggestionService(ProductRepository products, StorageService storage,
+            com.giftmarket.product.search.ProductSearchService search) {
         this.products = products;
         this.storage = storage;
+        this.search = search;
     }
 
     @Transactional(readOnly = true)
     public ProductSuggestionsResponse suggest(String query) {
         if (query == null || query.isBlank() || query.trim().length() > 100) {
             return new ProductSuggestionsResponse(List.of(), List.of());
+        }
+        if (search != null) {
+            var indexed = search.suggestions(query);
+            if (indexed.isPresent()) {
+                var found = indexed.get();
+                return new ProductSuggestionsResponse(found.stream().map(product ->
+                        new ProductSuggestionsResponse.Item(product.getId(), product.getName(),
+                                imageUrl(product.getRepresentativeImageKey()), product.getPrice())).toList(),
+                        found.stream().map(com.giftmarket.product.dto.response.ProductSummaryResponse::getName).distinct().limit(5).toList());
+            }
         }
         String escaped = query.trim().replace("!", "!!").replace("%", "!%").replace("_", "!_");
         List<Product> found = products.findSuggestionProducts(escaped, PageRequest.of(0, 5));

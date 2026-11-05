@@ -1,0 +1,38 @@
+# Standalone opt-in stack. Existing deployment scripts do not reference this file.
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.16.0
+    profiles: [search]
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set a separate strong Meilisearch master key}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MAX_INDEXING_MEMORY: 128Mb
+      MEILI_MAX_INDEXING_THREADS: "1"
+      MEILI_HTTP_PAYLOAD_SIZE_LIMIT: 4Mb
+      MEILI_LOG_LEVEL: WARN
+    volumes:
+      - meili_data:/meili_data
+    networks: [search]
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 0.50
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:7700/health]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+networks:
+  search:
+    name: giftmarket-search
+    internal: true
+volumes:
+  meili_data:

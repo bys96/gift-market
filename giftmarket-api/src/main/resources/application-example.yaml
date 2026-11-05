@@ -118,3 +118,17 @@ settlement:
 
 storage:
   provider: ${STORAGE_PROVIDER:minio}
+
+# Optional search; MySQL remains the default and fallback.
+search:
+  engine: ${SEARCH_ENGINE:mysql}
+  url: ${MEILI_URL:http://meilisearch:7700}
+  api-key: ${MEILI_API_KEY:}
+  index: giftmarket_products
+  timeout-ms: 800
+  max-matches: 1000
+  sync-delay-ms: 5000
+  synonyms:
+    "[이불]": ["침구", "침구류"]
+    "[침구]": ["이불", "침구류"]
+    "[침구류]": ["침구", "이불"]

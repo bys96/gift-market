@@ -56,7 +56,16 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform { excludeTags 'mysql-container' }
+	useJUnitPlatform { excludeTags 'mysql-container', 'meili-container' }
+}
+
+tasks.register('meiliIntegrationTest', Test) {
+    description = 'Runs opt-in isolated Meilisearch container tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'meili-container' }
+    shouldRunAfter tasks.named('test')
 }
 
 tasks.register('mysqlIntegrationTest', Test) {

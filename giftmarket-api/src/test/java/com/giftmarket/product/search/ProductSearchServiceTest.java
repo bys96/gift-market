@@ -11,9 +11,35 @@ import static org.mockito.Mockito.*;
 
 class ProductSearchServiceTest {
     @Test
+    void enabledSearchHydratesIdsAndFallsBackOnFailureOrConcurrentCommit() {
+        var products = mock(ProductService.class);
+        var config = new MeiliProperties(); config.setEngine("meilisearch");
+        var client = mock(MeiliClient.class);
+        var reader = mock(SearchProductReader.class);
+        var index = mock(MeiliIndexService.class);
+        when(index.ready()).thenReturn(true);
+        var search = new ProductSearchService(products, config, client, reader, index);
+        var condition = new ProductSearchCondition(List.of(3L), null, "bedding", 100L, 500L, ProductSort.PRICE_ASC, true, 1, 2);
+        var result = new ProductPageResponse(List.of(), 1, 2, 0, 0, false, true);
+        doReturn(List.of(4L, 5L)).when(client).search("bedding");
+        when(reader.read(List.of(4L, 5L), condition, false)).thenReturn(result);
+        assertThat(search.search(condition)).isSameAs(result);
+        verifyNoInteractions(products);
+        when(client.search("bedding")).thenThrow(new IllegalStateException("unavailable"));
+        when(products.getProducts(condition)).thenReturn(result);
+        assertThat(search.search(condition)).isSameAs(result);
+        verify(products).getProducts(condition);
+        doReturn(List.of(4L, 5L)).when(client).search("bedding");
+        when(index.revision()).thenReturn(1L, 2L);
+        assertThat(search.search(condition)).isSameAs(result);
+        verify(products, times(2)).getProducts(condition);
+    }
+
+    @Test
     void delegatesAllKeywordsFiltersSortsAndPagesWithoutExternalProvider() {
         var products = mock(ProductService.class);
-        var search = new ProductSearchService(products);
+        var search = new ProductSearchService(products, new MeiliProperties(), mock(MeiliClient.class),
+                mock(SearchProductReader.class), mock(MeiliIndexService.class));
         for (String keyword : new String[]{null, "gift", "gift set", "missing"}) {
             for (ProductSort sort : ProductSort.values()) {
                 var condition = new ProductSearchCondition(List.of(3L), 4L, keyword, 100L, 500L,
