@@ -12,6 +12,7 @@ class MeiliIndexServiceTest {
     JdbcTemplate jdbc;
     MeiliClient client;
     MeiliIndexService index;
+    MeiliProperties config;
     @BeforeEach void setup() {
         jdbc = new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:mem:meili_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("create table sellers(id bigint, status varchar(20))");
@@ -23,8 +24,27 @@ class MeiliIndexServiceTest {
         jdbc.update("insert into categories values (1,'Bedding')");
         jdbc.update("insert into products values (1,1,1,'Fabric Set',null,'Sleep','<p>Actual description</p>','ON_SALE',null,false)");
         client = mock(MeiliClient.class);
-        var config = new MeiliProperties(); config.setEngine("meilisearch");
+        config = new MeiliProperties(); config.setEngine("meilisearch");
         index = new MeiliIndexService(jdbc, client, config);
+    }
+    @Test void mysqlDisablesIndexingByDefault() {
+        config.setEngine("mysql");
+        assertThat(index.reindex(true)).isEqualTo(new MeiliIndexService.Result(0, "DISABLED", 0));
+        index.synchronize();
+        assertThat(index.ready()).isFalse();
+        verifyNoInteractions(client);
+    }
+    @Test void mysqlCanIndexAndSynchronizeWhenExplicitlyEnabled() {
+        config.setEngine("mysql");
+        config.setIndexingEnabled(true);
+        assertThat(config.enabled()).isFalse();
+        assertThat(index.reindex(true).status()).isEqualTo("COMPLETE");
+        verify(client).configure();
+        clearInvocations(client);
+        index.changed();
+        index.synchronize();
+        assertThat(index.ready()).isTrue();
+        verify(client).upsert(anyList());
     }
     @Test void indexesChangesDeletesAndSkipsUnchangedIdempotently() {
         assertThat(index.reindex(false).status()).isEqualTo("COMPLETE");

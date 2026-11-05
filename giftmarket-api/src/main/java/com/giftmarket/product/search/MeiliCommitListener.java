@@ -6,14 +6,14 @@ import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.event.spi.*;
 import org.hibernate.persister.entity.EntityPersister;
 import org.springframework.beans.factory.SmartInitializingSingleton;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** After-commit invalidation only: no network/DB work or business-method changes. */
 @Configuration
 @EnableScheduling
-@ConditionalOnProperty(name = "search.engine", havingValue = "meilisearch")
+@ConditionalOnExpression("'${search.engine:mysql}' == 'meilisearch' or ${search.indexing-enabled:false}")
 public class MeiliCommitListener implements SmartInitializingSingleton,
         PostCommitInsertEventListener, PostCommitUpdateEventListener, PostCommitDeleteEventListener {
     private final EntityManagerFactory factory;

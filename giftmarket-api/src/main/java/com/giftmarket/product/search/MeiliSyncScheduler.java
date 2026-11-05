@@ -1,6 +1,6 @@
 package com.giftmarket.product.search;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -8,7 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /** Never occupy the application's payment/order scheduler while waiting on the search engine. */
 @Configuration
-@ConditionalOnProperty(name = "search.engine", havingValue = "meilisearch")
+@ConditionalOnExpression("'${search.engine:mysql}' == 'meilisearch' or ${search.indexing-enabled:false}")
 public class MeiliSyncScheduler {
     private final MeiliIndexService index;
     public MeiliSyncScheduler(MeiliIndexService index) { this.index = index; }

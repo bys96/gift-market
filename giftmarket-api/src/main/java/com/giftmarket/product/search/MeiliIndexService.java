@@ -31,7 +31,7 @@ public class MeiliIndexService {
     public MeiliIndexService(JdbcTemplate jdbc, MeiliClient client, MeiliProperties config) {
         this.jdbc = jdbc; this.client = client; this.config = config;
     }
-    public boolean ready() { return config.enabled() && ready && completedRevision == revision.get(); }
+    public boolean ready() { return config.indexingEnabled() && ready && completedRevision == revision.get(); }
     public long revision() { return revision.get(); }
     public void changed() { revision.incrementAndGet(); ready = false; }
     public void rebuild() { rebuild.set(true); changed(); }
@@ -39,13 +39,13 @@ public class MeiliIndexService {
 
     /** Restartable whole-catalog scan also catches bulk SQL/relationship changes and missed events. */
     public void synchronize() {
-        if (!config.enabled()) return;
+        if (!config.indexingEnabled()) return;
         if (ready && System.currentTimeMillis() - completedAt < 60000) return;
         reindex(false);
     }
 
     public Result reindex(boolean restart) {
-        if (!config.enabled()) return new Result(0, "DISABLED", 0);
+        if (!config.indexingEnabled()) return new Result(0, "DISABLED", 0);
         if (!lock.tryLock()) return new Result(cursor, "BUSY", 0);
         try {
             ready = false;

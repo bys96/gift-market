@@ -122,6 +122,7 @@ storage:
 # Optional search; MySQL remains the default and fallback.
 search:
   engine: ${SEARCH_ENGINE:mysql}
+  indexing-enabled: ${SEARCH_INDEXING_ENABLED:false}
   url: ${MEILI_URL:http://meilisearch:7700}
   api-key: ${MEILI_API_KEY:}
   index: giftmarket_products

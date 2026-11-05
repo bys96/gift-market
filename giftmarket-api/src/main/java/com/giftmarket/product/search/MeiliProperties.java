@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "search")
 public class MeiliProperties {
     private String engine = "mysql";
+    private boolean indexingEnabled;
     private String url = "http://meilisearch:7700";
     private String apiKey = "";
     private String index = "giftmarket_products";
@@ -17,6 +18,10 @@ public class MeiliProperties {
     private int maxMatches = 1000;
     private Map<String, List<String>> synonyms = new LinkedHashMap<>();
     public boolean enabled() { return "meilisearch".equals(engine); }
+    // Meilisearch searches must keep their existing indexing even when the opt-in flag is false.
+    public boolean indexingEnabled() { return enabled() || indexingEnabled; }
+    public boolean isIndexingEnabled() { return indexingEnabled; }
+    public void setIndexingEnabled(boolean value) { indexingEnabled = value; }
     public String getEngine() { return engine; }
     public void setEngine(String value) { engine = value; }
     public String getUrl() { return url; }

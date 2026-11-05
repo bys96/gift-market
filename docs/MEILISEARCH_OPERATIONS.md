@@ -3,7 +3,22 @@
 ## 기본 동작과 정합성
 
 기본값은 `search.engine=mysql`이다. 검색어가 없으면 항상 기존 MySQL 상품 목록을 사용한다.
-`meilisearch`일 때만 검색 모듈이 인덱스를 준비한다. 기존 `/api/products`, `/api/products/suggest`와 요청/응답 DTO는 그대로다.
+검색 엔진 선택과 인덱싱 활성화는 분리된다. `SEARCH_INDEXING_ENABLED` (`search.indexing-enabled`)의 기본값은 `false`다.
+`SEARCH_ENGINE=meilisearch`이면 이 값이 `false`이거나 미설정이어도 기존 검색 및 인덱싱을 유지한다.
+기존 `/api/products`, `/api/products/suggest`와 요청/응답 DTO는 그대로다.
+
+| SEARCH_ENGINE | SEARCH_INDEXING_ENABLED | 검색·자동완성 | 관리자 재인덱싱·주기 동기화·커밋 감지 |
+| --- | --- | --- | --- |
+| mysql | false 또는 미설정 | 기존 MySQL | 비활성화 (`DISABLED`) |
+| mysql | true | 기존 MySQL | 활성화 |
+| meilisearch | false, true 또는 미설정 | 기존 Meilisearch 및 MySQL fallback | 활성화 |
+
+운영 검색을 MySQL로 유지하며 인덱스를 준비하려면 API 환경에 `SEARCH_ENGINE=mysql`,
+`SEARCH_INDEXING_ENABLED=true`와 기존 Meilisearch 연결 설정을 적용한 뒤 API를 재시작한다.
+기존 관리자 `POST /api/admin/product-search/reindex?restart=true` 및 후속 batch API를 사용할 수 있다.
+자동 동기화도 함께 활성화되며, `COMPLETE` 이후에도 검색은 MySQL을 사용한다.
+인덱싱만 중단하려면 `SEARCH_ENGINE=mysql`, `SEARCH_INDEXING_ENABLED=false`로 재시작한다.
+인덱싱 장애는 기존처럼 `RETRY`로 반환하며 MySQL 상품 검색에는 영향을 주지 않는다.
 인덱스 준비 중, 갱신 중, 장애, 응답 오류, 결과 상한 초과 시 기존 MySQL 키워드 검색을 사용한다.
 SQL fallback은 의미·동의어·오타 검색 결과와 다를 수 있다.
 
@@ -72,15 +87,21 @@ HTTP connect/read 기본 각 800ms, task polling 최대 약 3초+마지막 HTTP 
 4. API 컨테이너를 운영자가 `giftmarket-search` 내부 네트워크에도 연결한다.
    기존 MySQL/API 네트워크를 제거하지 않는다. API의 `MEILI_URL=http://meilisearch:7700` 연결을 확인한다.
    이 연결은 운영 Compose에 별도로 반영해야 컨테이너 재생성 후에도 유지된다. 기존 서비스 이름을 추측해 수정하지 않았다.
-5. `search.engine=meilisearch` (`SEARCH_ENGINE=meilisearch` 또는 Spring 표준 `SEARCH_ENGINE`)와 URL/key를 설정한다.
+5. 먼저 `SEARCH_ENGINE=mysql`, `SEARCH_INDEXING_ENABLED=true`와 URL/key를 설정해 검색 전환 없이 인덱싱할 수 있다.
+   Meilisearch 검색까지 활성화하려면 `SEARCH_ENGINE=meilisearch`로 설정한다. 이 경우 인덱싱 플래그와 무관하게 기존 동작을 유지한다.
    샘플 import 없이 환경변수만 설정할 때에는 Spring 표준 `SEARCH_URL`, `SEARCH_API_KEY`, `SEARCH_INDEX`를 사용한다.
    `MEILI_URL`/`MEILI_API_KEY` 별칭은 샘플 YAML의 placeholder가 적용되어 있을 때 사용한다.
    설정 샘플은 `application-example.yaml`; 운영 설정에 적용하려면 명시적으로 import하거나 같은 properties를 제공한다.
    샘플 동의어 설정도 운영 taxonomy를 검토해 복사한다. 설정 파일 변경 후 API 재시작/재색인한다.
 6. COMPLETE 확인 후 정상/오타/동의어/필터/정렬/품절/페이지 경계, 장애 시 fallback, 로그·메모리·disk를 점검한다.
-   문제 발생 시 `search.engine=mysql`로 재시작한다. 인덱스 중단/삭제는 상품 원본에 영향이 없다.
+   문제 발생 시 `SEARCH_ENGINE=mysql`로 재시작한다. 인덱싱도 중단하려면 `SEARCH_INDEXING_ENABLED=false`를 함께 설정한다. 인덱스 중단/삭제는 상품 원본에 영향이 없다.
 
 ## 검증
+
+2026-11-05: 인덱싱 분리 후 `./gradlew test --no-daemon` 전체 회귀 통과.
+MySQL + 인덱싱 false/true, Meilisearch + 인덱싱 false의 기존 동작, 장애 시 MySQL fallback,
+환경변수 바인딩 및 MySQL 모드의 커밋 후 감지/롤백 미반영을 검증했다.
+이번 변경에서 운영 서버 검증과 별도 `meiliIntegrationTest`는 실행하지 않았다.
 
 ```text
 cd giftmarket-api

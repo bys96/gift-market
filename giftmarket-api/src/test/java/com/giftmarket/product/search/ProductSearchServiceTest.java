@@ -6,6 +6,8 @@ import com.giftmarket.product.entity.ProductSort;
 import com.giftmarket.product.service.ProductService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
@@ -35,11 +37,15 @@ class ProductSearchServiceTest {
         verify(products, times(2)).getProducts(condition);
     }
 
-    @Test
-    void delegatesAllKeywordsFiltersSortsAndPagesWithoutExternalProvider() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void delegatesAllKeywordsFiltersSortsAndPagesWithoutExternalProvider(boolean indexingEnabled) {
         var products = mock(ProductService.class);
-        var search = new ProductSearchService(products, new MeiliProperties(), mock(MeiliClient.class),
-                mock(SearchProductReader.class), mock(MeiliIndexService.class));
+        var config = new MeiliProperties(); config.setIndexingEnabled(indexingEnabled);
+        var client = mock(MeiliClient.class);
+        var reader = mock(SearchProductReader.class);
+        var index = mock(MeiliIndexService.class);
+        var search = new ProductSearchService(products, config, client, reader, index);
         for (String keyword : new String[]{null, "gift", "gift set", "missing"}) {
             for (ProductSort sort : ProductSort.values()) {
                 var condition = new ProductSearchCondition(List.of(3L), 4L, keyword, 100L, 500L,
@@ -51,5 +57,7 @@ class ProductSearchServiceTest {
                 clearInvocations(products);
             }
         }
+        assertThat(search.suggestions("gift")).isEmpty();
+        verifyNoInteractions(client, reader, index);
     }
 }
