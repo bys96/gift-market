@@ -12,6 +12,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class ProductSearchServiceTest {
+    @Test void fallbackSearchesRemainIndependentOfKeywordHistory() {
+        var config = new MeiliProperties(); config.setEngine("meilisearch");
+        var products = mock(ProductService.class);
+        var client = mock(MeiliClient.class);
+        var reader = mock(SearchProductReader.class);
+        var index = mock(MeiliIndexService.class);
+        var search = new ProductSearchService(products, config, client, reader, index);
+        for (String keyword : List.of("침구", "침구류", "침구", "침구류", "침구")) {
+            var condition = new ProductSearchCondition(List.of(), null, keyword, null, null, null, false, 0, 20);
+            var result = new ProductPageResponse(List.of(), 0, 20, 0, 0, true, true);
+            when(products.getProducts(condition)).thenReturn(result);
+            assertThat(search.search(condition)).isSameAs(result);
+            assertThat(search.suggestions(keyword)).isEmpty();
+        }
+        verifyNoInteractions(client, reader);
+    }
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void zeroHitsDistinguishProviderNoMatchFromDatabaseFilteringWithoutFallback(boolean hasCandidates) {

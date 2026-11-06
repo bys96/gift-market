@@ -13,6 +13,69 @@ class MeiliIndexServiceTest {
     MeiliClient client;
     MeiliIndexService index;
     MeiliProperties config;
+    @Test void unchangedScanKeepsSequentialAndRepeatedSearchesOnTheSameEngine() {
+        jdbc.update("insert into products values (2,1,1,'Draft',null,null,null,'DRAFT',null,false)");
+        index.reindex(false);
+        var products = mock(com.giftmarket.product.service.ProductService.class);
+        var reader = mock(SearchProductReader.class);
+        var search = new ProductSearchService(products, config, client, reader, index);
+        var bedding = List.of(mock(com.giftmarket.product.dto.response.ProductSummaryResponse.class),
+                mock(com.giftmarket.product.dto.response.ProductSummaryResponse.class),
+                mock(com.giftmarket.product.dto.response.ProductSummaryResponse.class));
+        when(client.search(anyString())).thenReturn(List.of(1L));
+        when(reader.read(anyList(), any(), anyBoolean())).thenAnswer(invocation -> {
+            var condition = invocation.getArgument(1, com.giftmarket.product.dto.request.ProductSearchCondition.class);
+            var rows = condition.normalizedKeyword().equals("침구") ? bedding : bedding.subList(0, 2);
+            return new com.giftmarket.product.dto.response.ProductPageResponse(rows, 0, 20, rows.size(), 1, true, true);
+        });
+        // Run searches while the periodic scan is in progress, before it completes.
+        doAnswer(invocation -> {
+            assertThat(index.ready()).isTrue();
+            for (String keyword : List.of("침구", "침구류", "침구", "침구")) {
+                var condition = new com.giftmarket.product.dto.request.ProductSearchCondition(
+                        List.of(), null, keyword, null, null, null, false, 0, 20);
+                var result = search.search(condition);
+                assertThat(result.totalElements()).isEqualTo(keyword.equals("침구") ? 3 : 2);
+                assertThat(search.suggestions(keyword)).contains(result.products());
+            }
+            verifyNoInteractions(products);
+            return null;
+        }).when(client).upsert(List.of());
+        assertThat(index.reindex(false).status()).isEqualTo("COMPLETE");
+        verify(client, times(1)).delete(List.of(2L));
+    }
+
+    @Test void excludedProductIsDeletedOnceAndCanBecomeSearchableAgain() {
+        index.reindex(false);
+        jdbc.update("update products set admin_hidden=true where id=1");
+        index.reindex(false);
+        verify(client).delete(List.of(1L));
+        clearInvocations(client);
+        index.reindex(false);
+        verify(client, never()).delete(argThat(ids -> !ids.isEmpty()));
+        assertThat(index.ready()).isTrue();
+        jdbc.update("update products set admin_hidden=false where id=1");
+        index.reindex(false);
+        verify(client).upsert(argThat(d -> d.size() == 1));
+    }
+
+    @Test void discoveredChangesAndFailedScansStillInvalidateTheIndex() {
+        index.reindex(false);
+        jdbc.update("update products set name='Changed without event' where id=1");
+        doAnswer(invocation -> {
+            assertThat(index.ready()).isFalse();
+            throw new IllegalStateException("unavailable");
+        }).when(client).upsert(argThat(d -> !d.isEmpty()));
+        assertThat(index.reindex(false).status()).isEqualTo("RETRY");
+        assertThat(index.ready()).isFalse();
+    }
+
+    @Test void verificationFailureDoesNotLeaveThePreviousIndexMarkedReady() {
+        index.reindex(false);
+        jdbc.execute("drop table products");
+        assertThat(index.reindex(false).status()).isEqualTo("RETRY");
+        assertThat(index.ready()).isFalse();
+    }
     @Test void settingsOnlyUpdateKeepsReadyIndexAndDoesNotReuploadDocuments() {
         index.reindex(false);
         assertThat(index.ready()).isTrue();

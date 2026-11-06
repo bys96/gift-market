@@ -67,12 +67,12 @@ public class MeiliIndexService {
         if (!config.indexingEnabled()) return new Result(0, "DISABLED", 0);
         if (!lock.tryLock()) return new Result(cursor, "BUSY", 0);
         try {
-            ready = false;
-            if (restart || rebuild.getAndSet(false)) { cursor = 0; configured = false; needsClear = true; previous.clear(); }
+            if (restart || rebuild.getAndSet(false)) { ready = false; cursor = 0; configured = false; needsClear = true; previous.clear(); }
             if (cursor == 0) scanRevision = revision.get();
-            if (!configured) { client.configure(); configured = true; }
-            if (needsClear) { client.clear(); needsClear = false; }
+            if (!configured) { ready = false; client.configure(); configured = true; }
+            if (needsClear) { ready = false; client.clear(); needsClear = false; }
             var deletions = new ArrayList<>(deleted);
+            if (!deletions.isEmpty()) ready = false;
             client.delete(deletions);
             deletions.forEach(deleted::remove);
             List<Long> ids = jdbc.queryForList("select id from products where id > ? order by id limit 50", Long.class, cursor);
@@ -81,15 +81,21 @@ public class MeiliIndexService {
             Map<Long, String> updates = new HashMap<>();
             for (Long id : ids) {
                 Map<String, Object> document = document(id);
-                if (document == null) removed.add(id);
+                if (document == null) {
+                    if (!"".equals(previous.get(id))) removed.add(id);
+                }
                 else if (!fingerprint(document).equals(previous.get(id))) { documents.add(document); updates.put(id, fingerprint(document)); }
             }
+            // A read-only verification scan must not switch keyword searches to MySQL.
+            // Invalidate only before an actual write; changed() already covers commit events.
+            if (!documents.isEmpty() || !removed.isEmpty()) ready = false;
             client.upsert(documents);
             client.delete(removed);
             // Cache is only an optimization; cap memory and retry unchanged IDs after process restart.
             if (previous.size() > 10000) previous.clear();
             previous.putAll(updates);
-            removed.forEach(previous::remove);
+            // Remember exclusions too, so unchanged drafts/hidden products do not trigger writes every scan.
+            removed.forEach(id -> previous.put(id, ""));
             if (!ids.isEmpty()) cursor = ids.getLast();
             if (ids.size() < 50) {
                 cursor = 0;
@@ -100,6 +106,7 @@ public class MeiliIndexService {
             }
             return new Result(cursor, "MORE", ids.size());
         } catch (RuntimeException ex) {
+            ready = false;
             configured = false;
             log.warn("Search indexing failed cursor={} type={}", cursor, ex.getClass().getSimpleName());
             return new Result(cursor, "RETRY", 0);

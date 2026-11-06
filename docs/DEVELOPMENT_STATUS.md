@@ -2,6 +2,13 @@
 
 > 이 문서는 현재 Backend, Frontend, 설정과 수동 SQL을 기준으로 한 구현 상태다. 문서와 코드가 충돌하면 코드가 최종 기준이다. 향후 작업은 [`ROADMAP.md`](./ROADMAP.md)에서 관리한다.
 
+## 검색 결과 일관성 수정 (2026-11-06)
+
+- 운영 공개 검색 API에서 동일한 `침구` 요청의 3건 → 0건 → 3건 변동을 확인했다. 변경 없는 인덱스 정기 스캔이 `ready=false`로 전환해 상품명 검색인 MySQL fallback으로 바뀌는 경로를 수정했다. 상세 근거와 배포 범위는 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)의 해당 기록을 참고한다.
+- 최종 `gradlew test bootJar meiliIntegrationTest`가 통과했다. Backend 전체 기본 회귀, JAR 빌드 및 격리된 실제 Meilisearch 동의어·반복 검색 테스트를 검증했다. Frontend 검색 회귀 테스트, lint, TypeScript 검사, production build도 통과했다.
+- Frontend 전체 Node 테스트는 27건 중 26건 통과, 기존 `tests/login-redirect.test.mjs:87`의 `isLoggingOut is not defined`로 1건 실패했다. 검색 수정 범위 밖이므로 변경하지 않았다.
+- Backend API 재배포가 필요하며 운영 반영은 아직 하지 않았다. Frontend 실행 코드, 동의어 사전·설정 및 운영 DB는 변경하지 않았다.
+
 ## 소스 대조 요약 (2026-10-29)
 
 아래 완료는 관련 코드의 주요 흐름이 존재한다는 뜻이며 운영 검증 완료를 뜻하지 않는다. **검증 필요**는 구현 여부와 별개로 실제 실행·외부 서비스·배포 설정 확인이 남았다는 표시다. 이번 문서 작업에서는 테스트나 운영 시스템을 실행·조회하지 않았다.

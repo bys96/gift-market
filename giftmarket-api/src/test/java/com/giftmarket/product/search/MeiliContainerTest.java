@@ -47,6 +47,12 @@ class MeiliContainerTest {
             assertThat(client.search("블랭킷")).containsExactly(102L);
             assertThat(client.search("매트리스")).isEmpty(); // No content, not a synonym/settings failure.
             assertThat(client.search("텀블러")).doesNotContain(103L); // Distinct product types stay distinct.
+            var bedding = client.search("침구");
+            var beddingCategory = client.search("침구류");
+            for (String query : List.of("침구", "침구류", "침구", "침구", "침구류")) {
+                assertThat(client.search(query)).as("history-independent: %s", query)
+                        .isEqualTo(query.equals("침구") ? bedding : beddingCategory);
+            }
             client.updateSynonyms(Map.of());
             assertThat(index.settings(false).status()).isEqualTo("MISMATCH");
             assertThat(client.search("이불")).isEmpty();

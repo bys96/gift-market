@@ -846,6 +846,22 @@ EC2 Instance Profile `gift-market-ec2-ssm-role`에 `GiftMarketDatabaseBackupPoli
 
 따라서 현재 구성은 backup 파일 생성뿐 아니라 실제 restore 가능성까지 확인된 상태다. 향후 실패 감지·경보는 공통 observability 과제와 함께 관리한다.
 
+## 검색 결과가 시간에 따라 3건 → 0건 → 3건으로 변경됨 (2026-11-06)
+
+### 재현 및 원인
+
+- 운영 공개 `/api/products?keyword=침구`와 `/api/products/suggest?q=침구`를 순차·반복 호출했다. `침구류`는 2건, `침구`는 3건이었으나, 같은 `침구` 요청이 14:31:38 KST에는 두 API 모두 0건, 14:31:42에는 다시 3건을 반환했다. 응답의 `x-vercel-cache`는 `MISS`였다. 상품 ID와 건수만 비교하며 이미지 서명 URL은 기록하지 않는다.
+- `ProductSearchService`는 `MeiliIndexService.ready()`가 false이면 MySQL로 fallback한다. Meilisearch는 카테고리·본문·동의어를 검색하지만 MySQL 일반 검색과 자동완성은 상품명 부분 일치이므로 결과 집합이 다를 수 있다.
+- `MeiliIndexService.reindex(false)`가 변경 없는 정기 스캔 시작에도 무조건 `ready=false`로 전환했다. 50개 단위 스캔 사이에도 fallback이 유지되어, 이전 검색어가 아니라 검색 시점에 따라 결과가 달라지는 경로가 있었다. 이 상태에서 순차·반복 검색을 실행하는 회귀 테스트는 수정 전 실패했다. 운영 서버 내부 로그와 readiness 상태를 직접 조회한 것은 아니다.
+- Frontend 자동완성은 debounce cleanup의 AbortController 및 검색어 검사를, 결과 페이지는 요청 ID 검사를 이미 사용한다. 해당 경로에 React Query/SWR 캐시나 결과 누적은 없다.
+
+### 수정 범위
+
+- 변경 없는 검증 스캔은 기존 준비 상태를 유지한다. 실제 문서 쓰기·삭제, 설정 적용, 인덱스 초기화·재구축, 커밋 이벤트 및 실패 시에는 기존대로 검색 준비 상태를 해제한다.
+- 초안·숨김 등 이미 제외한 상품도 기존 fingerprint 비교 상태에 빈 문자열로 기록한다. 동일한 제외 상품을 매 스캔마다 다시 삭제해 불필요한 fallback이 발생하는 것을 막고, 재노출되면 문서를 다시 등록한다. 이 비교 상태는 검색 결과 캐시가 아니다.
+- 동의어, 검색 설정, MySQL fallback, API 계약, 추천 검색어 UI, 필터·정렬·페이지네이션은 변경하지 않는다. 실제 장애·초기 인덱싱·상품 변경 시 fallback의 상품명 검색 범위는 기존과 같다.
+- Backend 재배포가 필요하다. Frontend 실행 코드, 운영 DB 및 Meilisearch 설정 변경은 필요하지 않다. 배포 후 정기 스캔 주기를 포함해 동일 검색어와 두 검색 API를 다시 비교한다.
+
 # 과거 검증 메모 (현재 결과 아님)
 
 - 2026-09-07 당시 작업 보고: Backend **711 tests / 710 success / 1 environment-dependent failure** (contextLoads JDBC metadata/dialect 오류), Frontend lint/tsc/build 성공, 정적 페이지 34개. 이후 기능과 테스트가 변경되었으므로 현재 검증 결과로 사용하지 않는다.
