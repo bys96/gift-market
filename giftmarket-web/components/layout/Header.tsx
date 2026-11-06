@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuthStore } from "@/stores/auth-store";
@@ -11,12 +11,15 @@ import { roleLabel } from "@/types/user";
 import { resolveImageUrl } from "@/utils/image-url";
 import { isAdminRole } from "@/lib/role";
 import SearchBox from "@/components/common/SearchBox";
+import HeaderSearchSync from "@/components/layout/HeaderSearchSync";
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [keyword, setKeyword] = useState("");
+  const [search, setSearch] = useState({ location: "", keyword: "" });
+  const { keyword } = search;
+  const setKeyword = (keyword: string) => setSearch((current) => ({ ...current, keyword }));
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -111,6 +114,9 @@ export default function Header() {
 
   return (
     <>
+      <Suspense fallback={null}>
+        <HeaderSearchSync pathname={pathname} onNavigate={setSearch} />
+      </Suspense>
       <header className="layout-header">
         <div className="layout-header-inner">
           <Link
@@ -122,6 +128,7 @@ export default function Header() {
           </Link>
 
           <SearchBox
+            key={`desktop:${search.location}`}
             className="layout-header-search layout-header-desktop-search"
             id="layout-header-search-input"
             value={keyword}
@@ -226,7 +233,7 @@ export default function Header() {
             isMobileSearchOpen ? "layout-header-mobile-search-open" : ""
           }`}
         >
-          <SearchBox id="layout-header-mobile-search-input" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
+          <SearchBox key={`mobile:${search.location}`} id="layout-header-mobile-search-input" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
         </div>
       </header>
 
