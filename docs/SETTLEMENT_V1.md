@@ -1,5 +1,7 @@
 # Settlement v1 현재 구현 기준
 
+> 2026-11-09 소스 대조: 원장·수동 생성·금액 확정 API/UI는 완료, 자동 생성·지급까지의 전체 정산은 부분 구현이다. 운영 회차·환불 환입·권한 검증은 확인 필요다. [개발 현황](./DEVELOPMENT_STATUS.md)과 [로드맵](./ROADMAP.md)의 검증·신규 개발 구분을 따른다.
+
 이 문서는 현재 `com.giftmarket.settlement` Entity·Service·Controller와 `docs/sql/settlement-v1-foundation.sql`의 간단한 참조다. 금액·상태 처리의 최종 기준은 코드다. 정산은 판매자 지급/송금 도메인이 아니다.
 
 ## 관계와 원장

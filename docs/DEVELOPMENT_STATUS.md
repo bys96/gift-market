@@ -2,14 +2,27 @@
 
 > 이 문서는 현재 Backend, Frontend, 설정과 수동 SQL을 기준으로 한 구현 상태다. 문서와 코드가 충돌하면 코드가 최종 기준이다. 향후 작업은 [`ROADMAP.md`](./ROADMAP.md)에서 관리한다.
 
-## 검색 결과 일관성 수정 (2026-11-06)
+## 점검 기준 (2026-11-09)
+
+- **완료**: 해당 범위의 Backend·Frontend 주요 흐름과 관련 테스트가 구현됨. 운영 검증 완료를 뜻하지 않는다.
+- **부분 구현**: 일부 흐름은 구현되어 있으나 제품 범위 안에 빠진 기능이 있다.
+- **미구현**: 조사한 Entity·DTO·Service·Controller·화면에서 해당 흐름을 확인하지 못했다.
+- **확인 필요**: 저장소 밖 설정·운영 적용·외부 연동·실기기 실행 증거가 필요하다. 구현 상태와 별도로 표시한다.
+
+이번 작업은 문서와 소스 대조만 수행했다. 테스트·빌드·운영 접속·배포·SQL 실행은 하지 않았다. 아래 과거 실행 결과와 현재 소스 확인을 구분한다.
+
+## 최근 검색 변경 — 코드 반영 / 운영 배포 확인 필요
 
 - 운영 공개 검색 API에서 동일한 `침구` 요청의 3건 → 0건 → 3건 변동을 확인했다. 변경 없는 인덱스 정기 스캔이 `ready=false`로 전환해 상품명 검색인 MySQL fallback으로 바뀌는 경로를 수정했다. 상세 근거와 배포 범위는 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)의 해당 기록을 참고한다.
 - 최종 `gradlew test bootJar meiliIntegrationTest`가 통과했다. Backend 전체 기본 회귀, JAR 빌드 및 격리된 실제 Meilisearch 동의어·반복 검색 테스트를 검증했다. Frontend 검색 회귀 테스트, lint, TypeScript 검사, production build도 통과했다.
 - Frontend 전체 Node 테스트는 27건 중 26건 통과, 기존 `tests/login-redirect.test.mjs:87`의 `isLoggingOut is not defined`로 1건 실패했다. 검색 수정 범위 밖이므로 변경하지 않았다.
-- Backend API 재배포가 필요하며 운영 반영은 아직 하지 않았다. Frontend 실행 코드, 동의어 사전·설정 및 운영 DB는 변경하지 않았다.
+- 위 항목은 2026-11-06 작업 이력이다. 현재 배포된 API의 commit·image 반영 여부는 확인 필요다.
+- 현재 `product/search/`에는 Meilisearch 후보 검색·MySQL fallback과 UTF-8 한국어 동의어 자동 적용, 관리자 settings/reindex API가 있다. Gemini 임베딩 호출·의존성·상품 임베딩 모듈은 현재 실행 소스에서 확인되지 않는다. 운영의 과거 테이블·설정 정리 여부는 별도 확인 필요다.
+- 자동완성 `SearchBox`는 추천 검색어 목록만 렌더링한다. API의 `products` 응답 필드는 유지되며 상품 카드 중복 UI를 표시하지 않는다.
+- `HeaderSearchSync`는 `/products?keyword=…`를 기준으로 PC·모바일 헤더 입력값을 공유·동기화한다. 다른 경로는 빈 값이며 URL 변경 때 SearchBox key를 바꿔 목록·진행 중 요청을 초기화한다. 타이핑만 할 때는 key가 유지된다. 필터·정렬·페이지 변경 및 뒤로/앞으로 이동 테스트가 있다.
+- 검색 결과 페이지는 `/products`이며 전용 `/search` route는 없다. Backend 검색 수정은 API, 헤더/UI 변경은 Vercel Frontend 반영 대상이다. 실제 운영 반영은 확인 필요다.
 
-## 소스 대조 요약 (2026-10-29)
+## 소스 대조 요약 (2026-11-09)
 
 아래 완료는 관련 코드의 주요 흐름이 존재한다는 뜻이며 운영 검증 완료를 뜻하지 않는다. **검증 필요**는 구현 여부와 별개로 실제 실행·외부 서비스·배포 설정 확인이 남았다는 표시다. 이번 문서 작업에서는 테스트나 운영 시스템을 실행·조회하지 않았다.
 
@@ -18,6 +31,9 @@
 | 회원·인증 | 구현 완료: Google/Kakao OAuth 가입·로그인, JWT/refresh 및 회원 관리. 별도 이메일·비밀번호 회원가입은 확인되지 않음. `auth/controller/AuthController.java`, `auth/service/`, `user/service/UserService.java`, `giftmarket-web/app/login/page.tsx` | OAuth callback, 토큰 재발급·탈퇴 및 권한 경계 |
 | 상품 탐색 | 구현 완료: 목록·상세·카테고리·검색·필터. `product/controller/ProductController.java`, `product/service/ProductService.java`, `product/repository/ProductSpecifications.java`, `product/dto/request/ProductSearchCondition.java`, `giftmarket-web/lib/product-api.ts`, `giftmarket-web/app/products/` | 검색 품질·실제 데이터·모바일 |
 | 장바구니·찜 | 구현 완료: `cart/controller/CartController.java`, `cart/service/CartService.java`, `wishlist/controller/WishlistController.java`, `wishlist/service/WishlistService.java`, `giftmarket-web/lib/cart-api.ts`, `giftmarket-web/lib/wishlist-api.ts` | 로그인·재고 변경 시 동기화 |
+| Meilisearch·동의어·인덱스 | 완료: `product/search/`의 `ProductSearchService`, `MeiliClient`, `MeiliSynonyms`, `MeiliIndexService`, `AdminSearchIndexController` 및 `src/main/resources/search/korean-synonyms.properties` | 실제 엔진 선택·사전 해시·네트워크·인덱스 상태·장애 fallback은 확인 필요 |
+| 자동완성·헤더 URL 동기화 | 완료: `giftmarket-web/components/common/SearchBox.tsx`, `components/layout/HeaderSearchSync.tsx`, `lib/suggestion-request.ts`, `tests/header-search.test.mjs` | 배포 반영과 모바일·IME·브라우저 실제 history 동작은 확인 필요 |
+| 선물하기·수신자 | 부분 구현: 일반 주문 DTO/Entity의 수령인 이름·연락처·주소 snapshot 입력은 완료. 선물 전용 주문·수락/거절·수신자 주소 입력 링크·만료 API/UI는 미구현 | 선물 상황 분류와 별도 범위. 제품 정책·ERD·API 설계 및 수신자 E2E는 확인 필요 |
 | 주문·내역 | 구현 완료: `order/controller/OrderController.java`, `order/service/OrderService.java`, `order/repository/OrderRepository.java`, `order/dto/request/OrderCreateRequest.java`, `giftmarket-web/lib/order-api.ts`, `giftmarket-web/app/order/`, `giftmarket-web/app/my/orders/` | 다중 판매자·동시 주문·금액과 재고 |
 | 결제·실패 복구 | 구현 완료: Toss 승인·취소·webhook·reconciliation. `payment/controller/PaymentController.java`, `payment/service/PaymentService.java`, `payment/service/PaymentReconciliationService.java`, `payment/repository/PaymentRepository.java`, `payment/dto/request/PaymentConfirmRequest.java`, `giftmarket-web/lib/payment-api.ts`, `giftmarket-web/app/payment/` | PG 결과 불명·중복·webhook 및 운영 연동 |
 | 배송·확정·취소·반품·교환 | 구현 완료: 구매자·판매자 workflow와 환불·재고 처리. `order/controller/`, `order/service/PurchaseConfirmationService.java`, `order/service/ReturnRequestService.java`, `order/service/ExchangeRequestService.java`, `payment/service/PartialPaymentCancellationReconciliationService.java`, `giftmarket-web/components/order/`, `giftmarket-web/app/seller/(seller-center)/orders/` | 실제 배송, 부분 수량·동시 클레임·환불 및 교환배송비 결제 |
@@ -29,6 +45,7 @@
 | 쿠폰·포인트·프로모션 | 미구현: 관련 독립 도메인과 구매 적용 흐름을 소스에서 확인하지 못함 | 정책·거래 및 정산 영향 설계 |
 | 정산 | 부분 구현: 원장과 수동 생성·확정 및 판매자·관리자 조회는 존재, 자동 생성과 실제 송금은 없음. `settlement/controller/`, `settlement/service/SettlementGenerationService.java`, `settlement/repository/`, `settlement/dto/`, `giftmarket-web/lib/seller-settlement-api.ts`, `admin-settlement-api.ts` | 클레임·수수료 환입·회차 및 지급 운영 정책 |
 | 배포·저장 | 부분 구현/검증 필요: 설정상 Vercel rewrite, Docker, MySQL, S3/MinIO 추상화와 수동 DDL. `giftmarket-web/next.config.ts`, `giftmarket-api/src/main/java/com/giftmarket/global/storage/`, `docs/sql/` | 실제 AWS·DB·백업·복구·외부 연동 및 현재 배포 상태 |
+| 테스트·CI/CD | 부분 구현: Backend 기본/컨테이너 task와 Frontend Node 테스트·lint·tsc·build가 존재. API Actions는 배포 스크립트 호출만 포함 | 통합 테스트 게이트·실브라우저/외부 PG E2E·Vercel 설정·기존 로그인 테스트 실패는 확인/개선 필요 |
 
 Java 경로는 `giftmarket-api/src/main/java/com/giftmarket/` 기준이다. DTO·Repository와 API 연결은 대표 흐름을 기준으로 기록했으며 모든 분기나 운영 데이터의 완전성을 보증하지 않는다.
 
@@ -60,6 +77,8 @@ Gift Market은 다중 판매자 주문, Toss 결제, 배송, 취소·반품·교
 - Seller Dashboard, 상품, 주문, 배송, 취소, 반품, 교환, 문의, 알림, 정산 화면
 
 ### 상품·구매 기능
+
+아래 선물 상황은 탐색용 분류다. 주문 생성은 구매자가 수령인·주소를 입력하는 일반 구매 흐름이며, 선물 전용 수신자 전달·수락/거절·주소 입력 링크는 현재 구현 범위가 아니다.
 
 - Category, Product CRUD, 판매 상태, 대표·상세 이미지와 MP4 상세 미디어
 - 옵션 그룹·옵션 값·Variant 조합과 재고
@@ -96,7 +115,7 @@ Gift Market은 다중 판매자 주문, Toss 결제, 배송, 취소·반품·교
 - 최초 배송, 반품 회수, 교환 회수·재배송을 구분하는 `SellerOrder 1:N Shipment`
 - 구매확정 수량과 리뷰 작성 자격 연결
 - 결제창을 닫은 뒤 배송정보가 바뀌면 READY/PENDING_PAYMENT 주문 snapshot을 갱신하고 기존 Payment를 안전하게 재사용
-- 상품·옵션·수량·금액 snapshot이 달라지면 stale 준비 주문을 취소하고 예약 재고를 복원한 뒤 새로 준비
+- Frontend가 재사용 주문 상세와 현재 상품·옵션·수량·금액 snapshot을 비교하고 불일치 시 취소 API로 준비 주문을 취소·예약 복원한 뒤 재시도를 안내. 같은 요청 키 조회 자체는 OrderService에서 기존 준비 결과를 반환하며, 모든 비교가 Backend에 구현된 것은 아님
 - 결제 callback에서 `sessionStorage`가 없어도 `merchantPaymentId + 현재 사용자`로 Payment를 조회
 - confirm 통신 실패·5xx를 즉시 결제 실패로 단정하지 않고 상태 재조회와 제한된 polling/reconciliation으로 복구
 - polling timeout은 실패가 아니라 결과 확인 지연으로 안내
@@ -181,7 +200,19 @@ Settlement 1:N SettlementLedgerEntry (settlement_id nullable)
 
 ## 4. 운영·배포 현재 기준
 
-아래 운영 상태와 성공 기록은 기존 문서에 남은 설정·작업 이력이다. 2026-10-29 문서 대조에서는 실제 운영 자원, 현재 설정과 외부 연동을 재확인하지 않았다.
+아래 운영 상태와 성공 기록은 기존 문서에 남은 설정·작업 이력이다. 2026-11-09 문서 대조에서는 실제 운영 자원, 현재 설정과 외부 연동을 재확인하지 않았다. 백업·인증서·외부 결제 성공 이력을 현재 정상 상태로 해석하지 않는다.
+
+### 배포 책임과 저장소에서 확인되는 범위
+
+| 대상 | 담당과 근거 | 확인 필요 |
+| --- | --- | --- |
+| Backend API | [deploy-api.yml](../.github/workflows/deploy-api.yml): main의 `giftmarket-api/**` push 또는 수동 실행. OIDC로 AWS 권한을 받아 SSM으로 EC2의 외부 `deploy-api.sh` 호출, 최대 20분 상태 대기 | 외부 스크립트의 checkout commit·테스트·빌드·health·롤백. workflow 자체에 checkout/Gradle test 단계는 없다. Dockerfile은 bootJar에 `-x test`를 사용하므로 테스트 게이트를 추정하지 않는다. |
+| Frontend | Vercel에서 Next.js 배포. [next.config.ts](../giftmarket-web/next.config.ts)가 production rewrite와 storage origin을 구성 | Vercel Git 연동 branch·root directory·build command·배포 commit·환경변수는 저장소에서 확인 불가. API Actions가 Frontend를 배포하지 않는다. |
+| Meilisearch | [compose.search.yaml](../compose.search.yaml): opt-in profile, v1.16.0, 내부 네트워크·영속 볼륨·리소스 제한·healthcheck | root에 API/MySQL용 Compose는 없다. 외부 운영 Compose의 검색 네트워크 연결·환경변수·볼륨·재기동 상태는 확인 필요. 검색 Compose 변경만으로 API Actions는 자동 실행되지 않는다. |
+
+환경변수 이름·용도와 안전한 실행 안내는 [README](../README.md), 검색 전용 설정은 [Meilisearch 운영 문서](./MEILISEARCH_OPERATIONS.md)를 따른다. 원격 배포·백업 스크립트와 실제 secret 파일은 이번 점검 대상에 포함하지 않았다.
+
+### 기존 운영 기록 (현재 실측 아님)
 
 - Backend: Java 21, Spring Boot 4.1.0, Spring Security/JPA, MySQL, Toss Payments, Actuator
 - Frontend: Next.js 16.2.11 App Router, React 19, TypeScript, Zustand, 일반 CSS
@@ -206,9 +237,15 @@ Settlement 1:N SettlementLedgerEntry (settlement_id nullable)
 - 수동 백업, S3 upload/download, `gzip -t`가 성공했다. 운영 DB를 변경하지 않고 별도 임시 MySQL 8.4 컨테이너에 복원해 41개 table과 주요 데이터 row를 확인한 뒤 임시 자원을 삭제했다.
 - 과거 Render/Aiven 환경은 현재 운영 기준이 아니며 이전 이력과 당시 문제 해결 기록만 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)에 보존한다.
 
-## 5. 최신 회귀 검증
+## 5. 검증 기록과 현재 미검증 범위
 
-2026-10-08 현재 소스에서 다시 실행한 결과다.
+2026-11-09에는 테스트나 빌드를 실행하지 않았다. 아래는 기존 작업 기록이며 현재 HEAD 전체의 재실행 결과가 아니다.
+
+- 2026-11-06 검색 일관성 작업: Backend 기본 테스트 1,082개와 Meilisearch 컨테이너 테스트 2개, JAR 빌드 성공 기록.
+- 헤더 URL 동기화 작업: 검색 관련 Node 테스트 10개, lint·tsc·production build 성공 기록. 전체 Node 테스트 31개 중 30개 통과, `tests/login-redirect.test.mjs`의 `isLoggingOut is not defined` 1건 실패 기록. 현재 소스에서도 해당 테스트 실행 context에 변수가 없는 것을 확인했으나 이번에 재실행하거나 수정하지 않았다.
+- 위 테스트는 수신자 선물 수락 등 미구현 흐름이나 전체 운영 E2E의 완료 근거가 아니다. Node 헤더 테스트는 URL 이동·history를 모의 실행하며 실제 브라우저 history 검증과 구분한다.
+
+### 2026-10-08 과거 회귀
 
 - Backend: 959 tests / 959 success
 - Frontend: `npm run lint` 성공

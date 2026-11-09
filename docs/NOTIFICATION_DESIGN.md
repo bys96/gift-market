@@ -1,5 +1,7 @@
 # Gift Market Notification 설계 및 현재 연결
 
+> 2026-11-09 Controller·Entity·이벤트 리스너·Frontend 대조: 아래 범위는 구현 완료이며 실시간 전달은 미구현이다. 운영 전달·권한 E2E는 확인 필요다. 현재 검증 기록은 [개발 현황](./DEVELOPMENT_STATUS.md)을 따른다.
+
 ## 범위
 
 - BUYER, SELLER, ADMIN context별 알림 목록과 읽음 상태를 관리한다.
@@ -116,7 +118,7 @@ production은 `ddl-auto=validate`이므로 Notification 코드 배포 전 `docs/
 
 - 구매자의 상품문의 생성이 커밋되면 상품 판매자에게 `SELLER / PRODUCT_INQUIRY_CREATED` 알림을 생성한다. 이동 경로는 `/seller/inquiries/{inquiryId}`이다.
 - 판매자가 최초 답변을 등록하고 커밋되면 문의 작성자에게 `BUYER / PRODUCT_INQUIRY_ANSWERED` 알림을 생성한다. 기존 답변을 수정하고 커밋되면 `BUYER / PRODUCT_INQUIRY_ANSWER_UPDATED` 알림을 별도로 생성한다. 두 알림의 이동 경로는 `/my/inquiries?inquiryId={inquiryId}`이다.
-- 일반 회원의 판매자 신청이 커밋되면 `ACTIVE` 상태인 모든 ADMIN 사용자에게 `ADMIN / SELLER_APPLICATION_CREATED` 알림을 생성한다. 이동 경로는 관리자 dashboard인 `/admin`이다. ADMIN 자기 신청의 즉시 승인 흐름에는 검토 알림을 생성하지 않는다.
+- 일반 회원의 판매자 신청이 커밋되면 `ACTIVE` 상태인 모든 ADMIN/SUPER_ADMIN 사용자에게 `ADMIN / SELLER_APPLICATION_CREATED` 알림을 생성한다. 이동 경로는 관리자 dashboard인 `/admin`이다. 관리자 자기 신청의 즉시 승인 흐름에는 검토 알림을 생성하지 않는다.
 - 비즈니스 트랜잭션에서는 최소 값만 담은 이벤트를 발행하고, 알림 리스너는 `AFTER_COMMIT`에 실행한다. 알림 저장은 `REQUIRES_NEW` 트랜잭션으로 분리하며, 실패 시 원 비즈니스 결과에 영향을 주지 않고 오류 로그를 남긴다.
 - 2A에서는 상품문의와 판매자 신청, 2B에서는 주문·배송·취소, 2C에서는 반품·교환 알림 연결을 추가했다. 실시간 전송은 아직 포함하지 않는다.
 
@@ -144,5 +146,5 @@ production은 `ddl-auto=validate`이므로 Notification 코드 배포 전 `docs/
 - 알림 벨은 최초 mount와 App Router pathname 변경 시 해당 BUYER/SELLER/ADMIN context의 unread count를 다시 조회한다. 별도 polling은 사용하지 않는다.
 - 벨을 열 때는 최신 알림 목록과 unread count를 함께 조회하고, 개별/전체 읽음 성공은 local state에 즉시 반영한다.
 - 전체 알림 화면은 `/notifications`, `/seller/notifications`, `/admin/notifications`에서 Backend pagination을 사용한다.
-- 벨 최초 mount, 벨 열기, 전체 알림 화면 진입 시에만 조회하며 polling, SSE, WebSocket은 사용하지 않는다.
+- 전체 알림 화면 진입 시에도 조회하며 polling, SSE, WebSocket은 사용하지 않는다. 위의 pathname 변경 시 unread count 조회를 포함한다.
 - 개별 읽음과 전체 읽음 성공 후 목록 및 unread count를 즉시 로컬 반영하고, 알림의 `targetUrl`로 이동한다.

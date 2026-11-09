@@ -1,6 +1,6 @@
 # Gift Market 주문 부분취소 / 부분환불 설계
 
-> 최종 갱신: 2026-08-28
+> 소스 대조: 2026-11-09. 아래 취소/부분환불 workflow와 API는 구현 완료 범위다. 2026-08-28 등의 테스트·운영 성공은 당시 이력이며 현재 배포본 E2E 완료를 뜻하지 않는다. [현재 상태](./DEVELOPMENT_STATUS.md)와 [운영 검증 우선순위](./ROADMAP.md)를 함께 확인한다.
 >
 > 최초 설계 문서를 현재 실제 구현에 맞게 갱신한 문서다. 아래의 "현재 구현"은 저장소 코드를 기준으로 한다.
 
@@ -562,7 +562,7 @@ SellerOrder 1 : N Shipment
 
 ## 29. 운영 회귀 체크리스트
 
-Production의 AWS 이전 후 Toss 연결과 HTTPS webhook endpoint는 확인했다. 배포 또는 결제 변경 시 다음을 다시 확인한다.
+기존 기록에는 AWS 이전 후 Toss 연결과 HTTPS webhook 확인이 남아 있다. 이번 문서 점검에서 운영 PG·webhook·DB를 조회하지 않았으므로 현재 상태는 확인 필요다. 배포 또는 결제 변경 시 다음을 다시 확인한다.
 
 - 상점용 Toss test client/secret key
 - HTTPS webhook
@@ -589,7 +589,7 @@ Cancellation 자체의 핵심 기능은 구현 완료 상태다.
 1. 배포 후 결제·부분취소 회귀와 timeout/5xx 장애 주입 E2E
 2. FAILED/장기 PROCESSING 관리자 관측/수동 대응
 3. Return/Exchange를 포함한 공개 환경 회귀 검증
-4. 관리자 주문/결제 운영 기능
+4. 기존 관리자 주문·취소 조회 기능의 운영 점검과 미구현 강제 취소/환불 command 정책 구분
 
 기존 부분취소 코드를 “미구현” 전제로 다시 만들지 않는다.
 # 구매확정과 취소 수량

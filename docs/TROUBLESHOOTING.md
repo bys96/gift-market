@@ -1,8 +1,14 @@
 # Gift Market 개발 트러블슈팅 기록
 
-> 최종 갱신: 2026-09-16
+> 문서 점검: 2026-11-09 (각 사건의 날짜와 검증 시점은 별도 보존)
 >
 > 실제 코드, 기존 설계 문서와 git 이력에서 확인되는 문제와 해결 구조를 보존한다. 최종 운영 runbook이 아니며 운영 staging 검증 전 항목을 완료로 간주하지 않는다.
+
+## 문서 점검 기준
+
+이 파일은 문제 해결 이력이다. 날짜별 테스트 성공·운영 자원 수치·백업/복구 완료는 당시 기록이며 현재 정상 상태나 최신 배포 반영을 보증하지 않는다. 현재 기능 상태는 [개발 현황](./DEVELOPMENT_STATUS.md), 우선순위는 [로드맵](./ROADMAP.md)을 따른다. 이번 문서 작업에서는 테스트·빌드·운영 조회·배포를 하지 않았다.
+
+현재 API 배포 근거는 [GitHub Actions](../.github/workflows/deploy-api.yml)의 OIDC→SSM→EC2 외부 스크립트 호출이다. Vercel Frontend 배포는 별도 책임이며 Render/Aiven 관련 절차는 과거 환경의 기록이다. API/MySQL 운영 Compose·Nginx·백업 스크립트와 Vercel 연결 설정은 저장소 밖이므로 현재 상태는 확인 필요다.
 
 # Payment / PG
 
@@ -861,6 +867,15 @@ EC2 Instance Profile `gift-market-ec2-ssm-role`에 `GiftMarketDatabaseBackupPoli
 - 초안·숨김 등 이미 제외한 상품도 기존 fingerprint 비교 상태에 빈 문자열로 기록한다. 동일한 제외 상품을 매 스캔마다 다시 삭제해 불필요한 fallback이 발생하는 것을 막고, 재노출되면 문서를 다시 등록한다. 이 비교 상태는 검색 결과 캐시가 아니다.
 - 동의어, 검색 설정, MySQL fallback, API 계약, 추천 검색어 UI, 필터·정렬·페이지네이션은 변경하지 않는다. 실제 장애·초기 인덱싱·상품 변경 시 fallback의 상품명 검색 범위는 기존과 같다.
 - Backend 재배포가 필요하다. Frontend 실행 코드, 운영 DB 및 Meilisearch 설정 변경은 필요하지 않다. 배포 후 정기 스캔 주기를 포함해 동일 검색어와 두 검색 API를 다시 비교한다.
+
+## 헤더 검색어가 페이지 이동 후 남는 문제 — 코드 반영 확인
+
+- 원인: App Router의 공통 Header는 경로 변경 뒤에도 유지되는데 검색어를 로컬 state에만 저장하고 URL과 동기화하지 않았다. 새로고침하면 초기 state로 돌아가므로 증상이 사라졌다.
+- 현재 `HeaderSearchSync.tsx`가 `useSearchParams`와 Header의 pathname을 기준으로 `/products`의 `keyword`만 유지하고 다른 경로는 빈 문자열로 동기화한다. PC·모바일은 같은 입력 state를 사용한다.
+- URL 변경은 SearchBox key를 바꿔 이전 추천 목록·선택과 요청을 정리한다. 기존 debounce cleanup이 AbortController를 취소하며 타이핑만 할 때는 key가 유지된다. 추천 검색어 UI·검색 API·엔진은 변경하지 않았다.
+- query 관찰 컴포넌트만 Suspense로 감싸 헤더의 사전 렌더링을 유지한다. 필터·정렬·페이지·뒤로/앞으로 변경도 URL 검색어를 기준으로 한다. 별도 `/search` route를 도입한 것이 아니다.
+- 기존 작업 기록: 검색 회귀 10개, lint·tsc·production build 통과. 전체 Node 테스트 31개 중 기존 로그인 테스트 `isLoggingOut is not defined` 1건 실패. `tests/header-search.test.mjs`는 컴포넌트의 hook/navigation을 모의 실행하므로 실브라우저 history·IME·터치 검증 완료로 해석하지 않는다.
+- 2026-11-09에는 관련 코드와 테스트 존재만 다시 확인했다. 현재 Vercel 배포 commit과 실기기 반영은 확인 필요다. Next.js Frontend 변경이며 API/Meilisearch 재배포 사유가 아니다.
 
 # 과거 검증 메모 (현재 결과 아님)
 

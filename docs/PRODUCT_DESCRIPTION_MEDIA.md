@@ -1,5 +1,7 @@
 # 상품 상세 콘텐츠 미디어
 
+> 2026-11-09 소스 대조: key 기반 저장·sanitize·표시·타입별 업로드 제한은 구현 완료다. 기존 데이터/파일 이전·실제 S3 정책·모바일 재생 E2E는 확인 필요다. [개발 현황](./DEVELOPMENT_STATUS.md)의 운영 검증과 구분하며 이 문서의 절차는 자동 migration이 아니다.
+
 > 기준: 현재 StorageProvider, Production AWS S3, 로컬 MinIO, Product description LONGTEXT 및 Tiptap 3 구조.
 > 운영 DB migration과 S3 object 복사/삭제는 이 작업에서 실행하지 않는다.
 

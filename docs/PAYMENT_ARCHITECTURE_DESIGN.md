@@ -6,7 +6,7 @@
 
 PG 호출은 transaction 밖에서 수행한다. 명시 거절만 FAILED로 기록하고 Exchange는 PAYMENT_PENDING을 유지한다. 네트워크/5xx/빈 응답은 REQUESTED와 reservation을 유지하며 paymentKey 조회 reconciliation 대상으로 둔다. 예외적으로 REQUESTED에 paymentKey가 없으면 Toss orderId 조회로 복구하며 404/불명은 REQUESTED를 유지한다. 만료 처리도 reconciliation이 성공/불명확을 배제하기 전에는 release하지 않는다. 만료 뒤 늦은 성공은 `COMPENSATION_REQUIRED`로 기록하고 Exchange를 되살리지 않는다.
 
-> 최종 갱신: 2026-08-28
+> 소스 대조: 2026-11-09. 아래 결제 승인·전체/부분 취소·환불·교환배송비 workflow는 구현 완료 범위다. 실제 Toss 계약/결제수단·webhook·장애 복구 E2E는 확인 필요이며 과거 실행 기록과 구분한다. [개발 현황](./DEVELOPMENT_STATUS.md)을 기준으로 한다.
 >
 > 이 문서는 현재 실제 Payment 구현을 기준으로 정리한 아키텍처 문서다. 과거 단계별 TODO보다 현재 코드가 우선한다.
 
@@ -105,6 +105,8 @@ SellerOrder = 기존 배송 상태 유지
 - 재고 추가 차감 없음
 
 Frontend sessionStorage는 비민감 복구 정보만 저장한다.
+
+`OrderService.findExistingPreparation`은 같은 요청 키·사용자의 PENDING_PAYMENT/READY 결과를 반환한다. Frontend 주문 페이지는 반환된 주문 상세 snapshot을 현재 상품·수량·금액과 비교하고 불일치 시 기존 취소 API로 준비 주문을 취소한 뒤 재시도를 안내한다. 배송정보는 `PATCH /api/payments/{paymentId}/preparation` → `PaymentTransactionService.updateReadyPreparation`에서 사용자·상태·만료를 검증하고 갱신한다. 이 비교/재시도 흐름 전체가 OrderService 하나에 구현된 것은 아니다. 최초 주문의 금액·재고·소유권은 서버 계산을 최종값으로 한다. 일반 주문의 수령인 snapshot은 선물 수락/거절 또는 수신자 주소 입력 링크 기능이 아니다.
 
 ## 6. 결제 승인 transaction
 
@@ -602,7 +604,7 @@ giftmarket-web/app/payment/fail/page.tsx
 
 ## 30. 운영 통합 회귀 체크리스트
 
-AWS 이전 후 Production HTTPS, Toss 결제 연결과 기존 webhook endpoint는 정상 확인했다. 아래는 배포·결제 설정 변경 시 다시 확인할 회귀 체크리스트이며 timeout/5xx 등 장애 주입 항목은 계속 운영 검증 대상으로 둔다.
+기존 AWS 이전 기록에는 Production HTTPS, Toss 결제 연결과 webhook 확인이 남아 있다. 이번 문서 작업에서 재확인하지 않았으므로 현재 상태는 확인 필요다. 아래는 배포·결제 설정 변경 시 다시 확인할 회귀 체크리스트이며 timeout/5xx 등 장애 주입 항목은 계속 운영 검증 대상으로 둔다.
 
 - 공개 HTTPS 환경
 - 상점용 Toss test key

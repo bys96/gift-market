@@ -16,7 +16,7 @@
 - 안전하게 미결제가 확정된 만료만 CANCELED로 전이하며 target stock 복원과 `releasedQuantity` 증가를 같은 transaction에서 수행한다.
 - release lock은 OrderItem id -> Product id -> Variant id 순서다. CANCELED 뒤 늦은 성공은 COLLECTING으로 되돌리지 않고 compensation 대상으로 기록한다.
 
-> 최종 갱신: 2026-08-28
+> 소스 대조: 2026-11-09. Buyer/Seller 반품·교환과 교환배송비 결제는 구현 완료 범위다. 과거 정상 E2E·개발 DB backfill 이력을 현재 운영 적용으로 해석하지 않는다. [개발 현황](./DEVELOPMENT_STATUS.md)과 [로드맵](./ROADMAP.md)을 함께 확인한다.
 >
 > 기준 우선순위: 현재 실제 코드 > 최신 문서 > 인수인계 내용.
 > 이 문서는 현재 `gift-market` 코드의 주문/결제/취소/재고/배송 구조를 유지하면서 실제 운영 가능한 반품·교환 기능을 추가하기 위한 확정 설계다.
@@ -583,12 +583,13 @@ availableReturnQuantity
 = quantity
 - canceledQuantity
 - returnedQuantity
+- exchangedQuantity
 - confirmedQuantity
 - activeReturnRequestQuantity
 - activeExchangeRequestQuantity
 ```
 
-교환 가능 수량은 완료된 교환 수량을 별도로 반영한다.
+현재 `ReturnRequestService.validateAvailableQuantities`도 완료 교환 누계인 `exchangedQuantity`를 차감한다. 아래 교환 요청 수량 계산에도 이를 반영한다. 완료 교환품의 구매확정 가능 수량 정책과 새 반품/교환 신청 가능 수량 정책은 구분한다.
 
 ```text
 availableExchangeQuantity
@@ -1307,7 +1308,7 @@ Frontend에서 숨겨진 버튼은 보안수단으로 취급하지 않는다.
 
 다른 SellerOrder의 OrderItem을 ReturnRequestItem/ExchangeRequestItem에 넣을 수 없게 Backend에서 검증한다.
 
-## 28. API 방향
+## 28. 현재 API
 
 현재 API:
 
@@ -1341,9 +1342,14 @@ PATCH  /api/seller/orders/exchanges/{exchangeRequestId}/receive
 PATCH  /api/seller/orders/exchanges/{exchangeRequestId}/inspect
 PATCH  /api/seller/orders/exchanges/{exchangeRequestId}/reship
 PATCH  /api/seller/orders/exchanges/{exchangeRequestId}/deliver
+
+구매자 교환배송비 추가결제
+POST   /api/exchanges/{exchangeRequestId}/shipping-payment/prepare
+POST   /api/exchanges/{exchangeRequestId}/shipping-payment/confirm
+GET    /api/exchanges/{exchangeRequestId}/shipping-payment
 ```
 
-## 29. Frontend 방향
+## 29. 현재 Frontend
 
 ### 구매자 주문 상세
 
@@ -1597,7 +1603,7 @@ Shipment 핵심 테스트:
 
 ## 33. 운영 회귀 체크리스트
 
-Production 결제·OAuth·기본 주문 연결은 AWS 이전 후 확인했다. 아래 항목은 배포 또는 관련 코드 변경 시 다시 확인할 회귀 체크리스트이며, 장애 주입이 필요한 항목은 별도 운영 TODO다.
+기존 기록에는 AWS 이전 후 결제·OAuth·기본 주문 연결 확인이 남아 있다. 이번 문서 점검에서는 재확인하지 않았다. 아래 항목은 배포 또는 관련 코드 변경 시 다시 확인할 회귀 체크리스트이며, 장애 주입이 필요한 항목은 별도 운영 TODO다.
 
 - 실제 Toss 상점용 test key
 - 공개 HTTPS 환경
@@ -1670,7 +1676,7 @@ Production 결제·OAuth·기본 주문 연결은 AWS 이전 후 확인했다. �
 32. PAYMENT_PENDING은 24시간 후 미결제 시 CANCELED와 reservation release를 함께 완료하며 FAILED는 자동 복구 불가능한 시스템·정합성 오류로 제한한다.
 ```
 
-Shipment Domain / Repository, 기존 최초 배송 전환, 개발 DB backfill/검증, Return Backend 1~7, Buyer/Seller Return Frontend, Return 증빙 이미지와 실제 Return 정상 E2E까지 완료됐다.
+Shipment Domain / Repository, 기존 최초 배송 전환, Return Backend 1~7, Buyer/Seller Return Frontend와 Return 증빙 이미지가 구현되어 있다. 개발 DB backfill/검증 및 Return 정상 E2E는 과거 완료 기록이며 현재 운영 DB 적용·E2E는 확인 필요다.
 Exchange Buyer/Seller Backend·Frontend, target reservation/release/consume, PAYMENT_PENDING 만료 처리, ExchangeShippingPayment, 회수·검수·재배송 Shipment workflow가 완료됐다. BUYER 귀책 동일가격 Variant 교환의 과거 정상 E2E 기록이 있으며, SELLER 귀책 및 실제 timeout/5xx 장애 주입 E2E는 별도 회귀 범위다.
 # 구매확정과 반품·교환 수량
 
