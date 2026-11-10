@@ -1,4 +1,5 @@
 package com.giftmarket.product.dto.response;
+import com.giftmarket.global.util.MoneyMath;
 
 import com.giftmarket.product.entity.ProductOptionValue;
 import com.giftmarket.product.entity.ProductVariant;
@@ -51,8 +52,7 @@ public class ProductDetailVariantResponse {
                         variant.getAdditionalPrice()
                 )
                 .price(
-                        productPrice
-                                + variant.getAdditionalPrice()
+                        MoneyMath.unitPrice(productPrice, variant.getAdditionalPrice())
                 )
                 .stockQuantity(
                         variant.getStockQuantity()

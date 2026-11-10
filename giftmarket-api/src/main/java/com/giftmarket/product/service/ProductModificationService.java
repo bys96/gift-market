@@ -46,7 +46,7 @@ public class ProductModificationService {
          * 상품 기본정보 수정.
          * 현재 상품의 판매 상태는 그대로 유지합니다.
          */
-        productService.updateProduct(
+        productService.updateProductForModification(
                 userId,
                 productId,
                 request.product()

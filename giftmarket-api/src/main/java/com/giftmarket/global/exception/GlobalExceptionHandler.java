@@ -40,6 +40,15 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<?>> handleInvalidRequestBody(org.springframework.http.converter.HttpMessageNotReadableException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail("요청 형식이 올바르지 않습니다. 금액과 수량은 정수로 입력해주세요."));
+    }
+    @ExceptionHandler(MoneyCalculationException.class)
+    public ResponseEntity<ApiResponse<?>> handleMoneyCalculationException(MoneyCalculationException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.fail(exception.getMessage()));
+    }
     @ExceptionHandler(AdminSettlementException.class)
     public ResponseEntity<ApiResponse<?>> handleAdminSettlementException(AdminSettlementException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(exception.getMessage()));

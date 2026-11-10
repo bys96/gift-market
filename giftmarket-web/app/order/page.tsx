@@ -32,6 +32,7 @@ import type {
 } from "@/types/order";
 import type { ProductDetail } from "@/types/product";
 import type { PaymentSession } from "@/types/payment";
+import { calculateCheckoutAmounts } from "@/lib/money";
 
 interface RecipientForm {
   name: string;
@@ -449,26 +450,15 @@ function OrderContent() {
           ? (directVariant?.stockQuantity ?? 0)
           : directProduct.stockQuantity));
 
-  const productAmount = useMemo(
-    () =>
-      orderItems.reduce((total, item) => total + item.price * item.quantity, 0),
-    [orderItems],
-  );
-
-  /*
-   * Backend OrderService와 동일한 정책.
-   * CartItem별 현재 배송비 합계를 사용합니다.
-   */
-  const shippingFee = useMemo(
-    () =>
-      orderItems.reduce(
-        (total, item) => total + (item.freeShipping ? 0 : item.shippingFee),
-        0,
-      ),
-    [orderItems],
-  );
-
-  const totalAmount = productAmount + shippingFee;
+  const { productAmount, shippingFee, totalAmount, moneyError } = useMemo(() => {
+    try {
+      return { ...calculateCheckoutAmounts(orderItems), moneyError: null };
+    } catch (error) {
+      // These placeholders are never rendered or sent: the error state below blocks checkout.
+      return { productAmount: 0, shippingFee: 0, totalAmount: 0,
+        moneyError: error instanceof Error ? error.message : "주문 금액을 확인해주세요." };
+    }
+  }, [orderItems]);
 
   const handleRecipientChange = (field: keyof RecipientForm, value: string) => {
     setRecipient((current) => ({
@@ -606,6 +596,8 @@ function OrderContent() {
       setIsSubmitting(true);
       setSubmitStage(preparedOrder ? "opening" : "preparing");
       setErrorMessage("");
+
+      if (moneyError) throw new Error(moneyError);
 
       let defaultAddressId = addressMode === "saved" && makeSelectedDefault ? selectedAddressId : null;
       if (addressMode === "new" && saveAddress) {
@@ -825,13 +817,13 @@ function OrderContent() {
     return null;
   }
 
-  if ((!isDirectOrder && hasInvalidOrderItems) || hasInvalidDirectOrder) {
+  if (moneyError || (!isDirectOrder && hasInvalidOrderItems) || hasInvalidDirectOrder) {
     return (
       <div className="order-empty">
         <h1 className="order-empty-title">주문 상품을 다시 확인해주세요.</h1>
 
         <p className="order-empty-description">
-          상품의 판매 상태, 옵션 또는 재고가 변경되었을 수 있습니다.
+          {moneyError ?? "상품의 판매 상태, 옵션 또는 재고가 변경되었을 수 있습니다."}
         </p>
 
         <button

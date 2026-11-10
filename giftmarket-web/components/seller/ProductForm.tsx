@@ -42,6 +42,7 @@ import type {
 import type { ProductDraft, ProductDraftData } from "@/types/product-draft";
 import { resolveImageUrl } from "@/utils/image-url";
 import { validateProductImage as validateImageFile } from "@/lib/product-media";
+import { MAX_MONEY_AMOUNT, parseIntegerInput, validateMoneyInput, validateVariantPrice } from "@/lib/money";
 
 const MAX_GALLERY_IMAGE_COUNT = 10;
 
@@ -146,17 +147,7 @@ function createImageId(): string {
 }
 
 function parseRequiredNumber(value: string, fieldName: string): number {
-  if (!value.trim()) {
-    throw new Error(`${fieldName}을(를) 입력해주세요.`);
-  }
-
-  const parsedValue = Number(value);
-
-  if (!Number.isSafeInteger(parsedValue)) {
-    throw new Error(`${fieldName}을(를) 올바르게 입력해주세요.`);
-  }
-
-  return parsedValue;
+  return parseIntegerInput(value, fieldName);
 }
 
 function findRootCategoryId(
@@ -600,7 +591,11 @@ export default function ProductForm({
     target: RequiredFieldTarget,
   ): number => {
     try {
-      return parseRequiredNumber(value, fieldName);
+      const parsed = parseRequiredNumber(value, fieldName);
+      if (["price", "shippingFee", "returnShippingFee", "exchangeShippingFee"].includes(target)) {
+        return validateMoneyInput(parsed, fieldName, target === "price" ? 1 : 0);
+      }
+      return parsed;
     } catch (error) {
       return throwRequiredFieldError(
         target,
@@ -886,7 +881,7 @@ export default function ProductForm({
         `${skuCode} 재고`,
       );
 
-      const finalVariantPrice = productPrice + additionalPrice;
+      const finalVariantPrice = validateVariantPrice(productPrice, additionalPrice, skuCode);
 
       if (!Number.isSafeInteger(finalVariantPrice)) {
         throw new Error(`${skuCode} 옵션 적용 후 최종 판매가격을 확인해주세요.`);
@@ -1946,6 +1941,8 @@ export default function ProductForm({
                       type="number"
                       autoComplete="off"
                       min="1"
+                      max={MAX_MONEY_AMOUNT}
+                      step="1"
                       value={form.price}
                       onChange={handleTextChange}
                       disabled={isSubmitting}
@@ -2085,6 +2082,7 @@ export default function ProductForm({
                       name="shippingFee"
                       type="text"
                       inputMode="numeric"
+                      title="배송비는 0원 이상 1,000만원 이하로 입력해주세요."
                       autoComplete="off"
                       value={form.shippingFee}
                       disabled={isSubmitting || form.freeShipping}
@@ -2097,7 +2095,8 @@ export default function ProductForm({
                         }
                       }}
                       onChange={(event) => {
-                        const value = event.target.value.replace(/\D/g, "");
+                        const value = event.target.value;
+                        if (!/^\d*$/.test(value)) return;
 
                         setForm((currentForm) => ({
                           ...currentForm,
@@ -2152,6 +2151,8 @@ export default function ProductForm({
                       type="number"
                       autoComplete="off"
                       min="0"
+                      max={MAX_MONEY_AMOUNT}
+                      step="1"
                       value={form.returnShippingFee}
                       onChange={handleTextChange}
                       disabled={isSubmitting}
@@ -2174,6 +2175,8 @@ export default function ProductForm({
                       type="number"
                       autoComplete="off"
                       min="0"
+                      max={MAX_MONEY_AMOUNT}
+                      step="1"
                       value={form.exchangeShippingFee}
                       onChange={handleTextChange}
                       disabled={isSubmitting}

@@ -1,4 +1,5 @@
 package com.giftmarket.order.entity;
+import com.giftmarket.global.util.MoneyMath;
 
 import com.giftmarket.global.entity.BaseEntity;
 import com.giftmarket.product.entity.Product;
@@ -251,13 +252,13 @@ public class OrderItem extends BaseEntity {
         this.optionSnapshot = optionSnapshot;
         this.productPrice = productPrice;
         this.additionalPrice = additionalPrice;
-        this.unitPrice = productPrice + additionalPrice;
+        this.unitPrice = MoneyMath.unitPrice(productPrice, additionalPrice);
         this.quantity = quantity;
         this.canceledQuantity = 0;
         this.returnedQuantity = 0;
         this.exchangedQuantity = 0;
         this.confirmedQuantity = 0;
-        this.totalPrice = this.unitPrice * quantity;
+        this.totalPrice = MoneyMath.lineTotal(this.unitPrice, quantity);
         this.freeShipping = freeShipping;
         this.shippingFee = freeShipping
                 ? 0L

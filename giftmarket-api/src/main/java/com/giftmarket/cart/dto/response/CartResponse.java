@@ -1,4 +1,5 @@
 package com.giftmarket.cart.dto.response;
+import com.giftmarket.global.util.MoneyMath;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -42,19 +43,18 @@ public class CartResponse {
         long totalProductPrice =
                 purchasableItems.stream()
                         .mapToLong(item ->
-                                item.getPrice()
-                                        * item.getQuantity()
+                                MoneyMath.lineTotal(item.getPrice(), item.getQuantity())
                         )
-                        .sum();
+                        .reduce(0L, MoneyMath::add);
 
         long totalShippingFee =
                 purchasableItems.stream()
                         .mapToLong(item ->
                                 item.isFreeShipping()
                                         ? 0L
-                                        : item.getShippingFee()
+                                        : MoneyMath.nonNegative(item.getShippingFee())
                         )
-                        .sum();
+                        .reduce(0L, MoneyMath::add);
 
         return CartResponse.builder()
                 .items(items)
@@ -62,8 +62,7 @@ public class CartResponse {
                 .totalProductPrice(totalProductPrice)
                 .totalShippingFee(totalShippingFee)
                 .totalPrice(
-                        totalProductPrice
-                                + totalShippingFee
+                        MoneyMath.add(totalProductPrice, totalShippingFee)
                 )
                 .build();
     }

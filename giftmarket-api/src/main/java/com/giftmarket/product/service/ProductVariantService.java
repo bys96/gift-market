@@ -1,4 +1,5 @@
 package com.giftmarket.product.service;
+import com.giftmarket.global.util.MoneyLimits;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.product.dto.request.ProductVariantRequest;
@@ -420,10 +421,13 @@ public class ProductVariantService {
                         "옵션 적용 후 최종 판매가격은 1원 이상이어야 합니다."
                 );
             }
+            MoneyLimits.unitPrice(productPrice, additionalPrice);
         } catch (ArithmeticException exception) {
             throw new ProductException(
                     "옵션 적용 후 최종 판매가격을 확인해주세요."
             );
+        } catch (com.giftmarket.global.exception.MoneyCalculationException exception) {
+            throw new ProductException(exception.getMessage());
         }
     }
 

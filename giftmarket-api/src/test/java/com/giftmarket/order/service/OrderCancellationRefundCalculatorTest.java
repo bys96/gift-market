@@ -223,7 +223,8 @@ class OrderCancellationRefundCalculatorTest {
 
     @Test
     void rejectsMultiplicationOverflow() {
-        OrderItem item = item(sellerOrder, 101L, Long.MAX_VALUE, 0L, 2, 0L);
+        OrderItem item = item(sellerOrder, 101L, Long.MAX_VALUE, 0L, 1, 0L);
+        ReflectionTestUtils.setField(item, "quantity", 2);
         OrderCancellation cancellation = requested(item, 2);
         stub(cancellation, List.of(item), 2);
         given(payment.getAmount()).willReturn(Long.MAX_VALUE);

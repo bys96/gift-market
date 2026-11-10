@@ -890,6 +890,7 @@ export default function ProductOptionManager({
                               autoComplete="off"
                               inputMode="text"
                               value={variant.additionalPrice}
+                              title="추가금은 -1,000만원부터 1,000만원까지 입력할 수 있으며 최종 판매가격은 1원 이상이어야 합니다."
                               disabled={disabled}
                               data-variant-field="true"
                               onFocus={() => {
@@ -903,10 +904,8 @@ export default function ProductOptionManager({
                               }}
                               onChange={(event) => {
                                 const inputValue = event.target.value;
-                                const digits = inputValue.replace(/\D/g, "");
-                                const value = inputValue.startsWith("-")
-                                  ? `-${digits}`
-                                  : digits;
+                                if (!/^-?\d*$/.test(inputValue)) return;
+                                const value = inputValue;
 
                                 handleVariantChange(
                                   variant.clientId,

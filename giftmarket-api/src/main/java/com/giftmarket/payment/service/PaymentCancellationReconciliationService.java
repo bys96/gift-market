@@ -8,13 +8,11 @@ import com.giftmarket.payment.gateway.*;
 import com.giftmarket.payment.repository.PaymentCancellationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Objects;
 
 @Slf4j
@@ -28,6 +26,7 @@ public class PaymentCancellationReconciliationService {
     private final PaymentCancellationTransactionService transactionService;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentProperties paymentProperties;
+    private final ReconciliationBatchExecutor batches;
 
     @Scheduled(
             fixedDelayString = "#{@paymentProperties.cancelReconciliationCheckIntervalMillis}"
@@ -37,19 +36,15 @@ public class PaymentCancellationReconciliationService {
         LocalDateTime requestedBefore = now.minusSeconds(
                 paymentProperties.getCancelReconciliationDelaySeconds()
         );
-        List<Long> candidatePaymentIds = cancellationRepository
-                .findCancelReconciliationCandidatePaymentIds(
+        batches.run(ReconciliationBatchExecutor.Kind.FULL_CANCELLATION,
+                paymentProperties.getCancelReconciliationBatchSize(), cancellationRepository::findMaxReconciliationId,
+                (after, through, limit) -> cancellationRepository.findCancelReconciliationCandidates(
                         PaymentCancellationStatus.REQUESTED,
                         PaymentStatus.CANCELING,
                         OrderStatus.PAID,
                         requestedBefore,
-                        PageRequest.of(
-                                0,
-                                paymentProperties.getCancelReconciliationBatchSize()
-                        )
-                );
-
-        for (Long paymentId : candidatePaymentIds) {
+                        after, through, limit), com.giftmarket.payment.repository.ReconciliationCandidate::id, candidate -> {
+            Long paymentId = candidate.paymentId();
             try {
                 reconcileOne(paymentId, requestedBefore, now);
             } catch (RuntimeException exception) {
@@ -59,7 +54,7 @@ public class PaymentCancellationReconciliationService {
                         exception.getClass().getSimpleName()
                 );
             }
-        }
+        });
     }
 
     void reconcileOne(

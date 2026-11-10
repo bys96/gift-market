@@ -10,13 +10,11 @@ import com.giftmarket.payment.gateway.PaymentGatewayUncertainException;
 import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -27,6 +25,7 @@ public class PaymentReconciliationService {
     private final PaymentTransactionService transactionService;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentProperties paymentProperties;
+    private final ReconciliationBatchExecutor batches;
 
     @Scheduled(
             fixedDelayString = "#{@paymentProperties.reconciliationCheckIntervalMillis}"
@@ -36,18 +35,13 @@ public class PaymentReconciliationService {
         LocalDateTime confirmingBefore = now.minusSeconds(
                 paymentProperties.getReconciliationDelaySeconds()
         );
-        List<Long> candidateIds = paymentRepository
-                .findReconciliationCandidateIds(
+        batches.run(ReconciliationBatchExecutor.Kind.APPROVAL,
+                paymentProperties.getReconciliationBatchSize(), paymentRepository::findMaxReconciliationId,
+                (after, through, limit) -> paymentRepository.findReconciliationCandidateIds(
                         PaymentStatus.CONFIRMING,
                         OrderStatus.PENDING_PAYMENT,
                         confirmingBefore,
-                        PageRequest.of(
-                                0,
-                                paymentProperties.getReconciliationBatchSize()
-                        )
-                );
-
-        for (Long paymentId : candidateIds) {
+                        after, through, limit), Long::longValue, paymentId -> {
             try {
                 reconcileOne(paymentId, confirmingBefore, now);
             } catch (RuntimeException exception) {
@@ -57,7 +51,7 @@ public class PaymentReconciliationService {
                         exception.getClass().getSimpleName()
                 );
             }
-        }
+        });
     }
 
     void reconcileOne(
@@ -89,7 +83,9 @@ public class PaymentReconciliationService {
             GatewayPaymentQueryResult result = gateway.getPayment(
                     start.providerPaymentKey()
             );
-            transactionService.reconcile(paymentId, result);
+            var applied = transactionService.reconcile(paymentId, result);
+            log.info("Payment reconciliation checked. paymentId={}, resultType={}", paymentId,
+                    applied.status() == PaymentStatus.CONFIRMING ? "UNRESOLVED" : "COMPLETED");
         } catch (PaymentGatewayUncertainException exception) {
             log.warn(
                     "Payment reconciliation remains uncertain. paymentId={}, provider={}, exceptionType={}",

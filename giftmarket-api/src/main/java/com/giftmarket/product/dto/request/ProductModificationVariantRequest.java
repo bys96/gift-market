@@ -1,4 +1,7 @@
 package com.giftmarket.product.dto.request;
+import com.giftmarket.global.util.MoneyLimits;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -32,6 +35,8 @@ public record ProductModificationVariantRequest(
         List<@Valid ProductOptionReferenceRequest> options,
 
         @NotNull(message = "옵션 추가 금액을 입력해주세요.")
+        @Min(value = -MoneyLimits.MAX_AMOUNT, message = "옵션 추가금은 -1,000만원 이상이어야 합니다.")
+        @Max(value = MoneyLimits.MAX_AMOUNT, message = "옵션 추가금은 1,000만원 이하여야 합니다.")
         Long additionalPrice,
 
         @NotNull(message = "옵션 재고 수량을 입력해주세요.")

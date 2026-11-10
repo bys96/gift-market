@@ -1,4 +1,5 @@
 package com.giftmarket.cart.dto.response;
+import com.giftmarket.global.util.MoneyMath;
 
 import com.giftmarket.cart.entity.CartItem;
 import com.giftmarket.product.entity.Product;
@@ -82,8 +83,7 @@ public class CartItemResponse {
                         : variant.getAdditionalPrice();
 
         long price =
-                product.getPrice()
-                        + additionalPrice;
+                MoneyMath.unitPrice(product.getPrice(), additionalPrice);
 
         int stockQuantity =
                 variant == null

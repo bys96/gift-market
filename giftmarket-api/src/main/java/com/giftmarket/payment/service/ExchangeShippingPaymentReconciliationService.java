@@ -6,7 +6,6 @@ import com.giftmarket.payment.gateway.*;
 import com.giftmarket.payment.repository.ExchangeShippingPaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
@@ -19,15 +18,18 @@ public class ExchangeShippingPaymentReconciliationService {
     private final ExchangeShippingPaymentTransactionService transactionService;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentProperties properties;
+    private final ReconciliationBatchExecutor batches;
 
     @Scheduled(fixedDelayString = "#{@paymentProperties.reconciliationCheckIntervalMillis}")
     public void reconcilePayments() {
         LocalDateTime before = LocalDateTime.now().minusSeconds(properties.getReconciliationDelaySeconds());
-        for (Long id : repository.findReconciliationCandidateIds(ExchangeShippingPaymentStatus.REQUESTED, before,
-                PageRequest.of(0, properties.getReconciliationBatchSize()))) {
+        batches.run(ReconciliationBatchExecutor.Kind.EXCHANGE_SHIPPING,
+                properties.getReconciliationBatchSize(), repository::findMaxReconciliationId,
+                (after, through, limit) -> repository.findReconciliationCandidateIds(
+                        ExchangeShippingPaymentStatus.REQUESTED, before, after, through, limit), Long::longValue, id -> {
             try { reconcileOne(id, before); }
             catch (RuntimeException exception) { log.error("Exchange shipping payment reconciliation failed. paymentId={}, exceptionType={}", id, exception.getClass().getSimpleName()); }
-        }
+        });
     }
 
     public void reconcileOne(Long paymentId, LocalDateTime before) {

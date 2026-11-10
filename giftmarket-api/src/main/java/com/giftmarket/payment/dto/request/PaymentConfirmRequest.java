@@ -1,4 +1,6 @@
 package com.giftmarket.payment.dto.request;
+import com.giftmarket.global.util.MoneyLimits;
+import jakarta.validation.constraints.Max;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,6 +19,7 @@ public record PaymentConfirmRequest(
 
         @NotNull(message = "결제 금액을 확인해주세요.")
         @Positive(message = "결제 금액을 확인해주세요.")
+        @Max(value = MoneyLimits.MAX_SAFE_INTEGER, message = "결제 금액이 안전한 정수 범위를 초과했습니다.")
         Long amount
 ) {
 }

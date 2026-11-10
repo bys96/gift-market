@@ -10,11 +10,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
-
 import java.util.List;
+
 import java.util.Objects;
 
 @Slf4j
@@ -26,20 +25,23 @@ public class ReturnPaymentCancellationReconciliationService {
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentProperties properties;
     private final ReturnCompletionService completionService;
+    private final ReconciliationBatchExecutor batches;
 
     @Scheduled(fixedDelayString = "#{@paymentProperties.partialCancellationReconciliationCheckIntervalMillis}")
     public void reconcileReturns() {
         LocalDateTime before = LocalDateTime.now().minusSeconds(
                 properties.getPartialCancellationReconciliationDelaySeconds());
-        for (Long id : cancellationRepository.findReturnReconciliationCandidateIds(before,
-                PageRequest.of(0, properties.getPartialCancellationReconciliationBatchSize()))) {
+        batches.run(ReconciliationBatchExecutor.Kind.RETURN_REFUND,
+                properties.getPartialCancellationReconciliationBatchSize(), cancellationRepository::findMaxReconciliationId,
+                (after, through, limit) -> cancellationRepository.findReturnReconciliationCandidateIds(before, after, through, limit),
+                Long::longValue, id -> {
             try {
                 reconcile(id);
             } catch (RuntimeException exception) {
                 log.error("Return refund reconciliation failed. paymentCancellationId={}, exceptionType={}",
                         id, exception.getClass().getSimpleName());
             }
-        }
+        });
     }
 
     public void reconcile(Long paymentCancellationId) {
@@ -50,6 +52,7 @@ public class ReturnPaymentCancellationReconciliationService {
         try {
             GatewayPaymentQueryResult query = gateway.getPayment(start.providerPaymentKey());
             ReconcileResult result = reconcileQuery(start, value, query);
+            log.info("Return refund reconciliation checked. paymentCancellationId={}, resultType={}", paymentCancellationId, result);
             if (result == ReconcileResult.RETRY_SAFE) {
                 if (value.getRequestedAt() == null || !value.getRequestedAt().plusDays(15).isAfter(LocalDateTime.now())) {
                     log.warn("Return refund retry skipped because idempotency validity elapsed. paymentCancellationId={}", paymentCancellationId);

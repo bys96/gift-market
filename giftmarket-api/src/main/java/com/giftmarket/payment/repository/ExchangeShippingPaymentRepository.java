@@ -25,7 +25,11 @@ public interface ExchangeShippingPaymentRepository extends JpaRepository<Exchang
     @Query("select p from ExchangeShippingPayment p where p.exchangeRequest.id = :requestId")
     Optional<ExchangeShippingPayment> findByExchangeRequestIdForUpdate(@Param("requestId") Long requestId);
 
-    @Query("select p.id from ExchangeShippingPayment p where p.status = :status and p.requestedAt <= :before order by p.id")
+    @Query("select p.id from ExchangeShippingPayment p where p.status = :status and p.requestedAt <= :before and p.id > :afterId and p.id <= :throughId order by p.id")
     List<Long> findReconciliationCandidateIds(@Param("status") ExchangeShippingPaymentStatus status,
-                                               @Param("before") LocalDateTime before, Pageable pageable);
+                                               @Param("before") LocalDateTime before,
+                                               @Param("afterId") long afterId, @Param("throughId") long throughId, Pageable pageable);
+
+    @Query("select coalesce(max(p.id), 0) from ExchangeShippingPayment p")
+    long findMaxReconciliationId();
 }

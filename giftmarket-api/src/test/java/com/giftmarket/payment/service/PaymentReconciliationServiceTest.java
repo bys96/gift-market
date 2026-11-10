@@ -48,7 +48,8 @@ class PaymentReconciliationServiceTest {
                 paymentRepository,
                 transactionService,
                 gatewayRegistry,
-                properties
+                properties,
+                ReconciliationBatchTestSupport.executor()
         );
         now = LocalDateTime.of(2026, 8, 16, 12, 0);
     }
@@ -63,6 +64,9 @@ class PaymentReconciliationServiceTest {
         given(gatewayRegistry.get(PaymentProvider.TOSS)).willReturn(gateway);
         GatewayPaymentQueryResult result = result(GatewayPaymentStatus.PAID);
         given(gateway.getPayment("provider-key")).willReturn(result);
+        var applied = org.mockito.Mockito.mock(PaymentResponse.class);
+        given(applied.status()).willReturn(PaymentStatus.PAID);
+        given(transactionService.reconcile(1L, result)).willReturn(applied);
 
         service.reconcileOne(1L, now.minusSeconds(30), now);
 
@@ -85,10 +89,12 @@ class PaymentReconciliationServiceTest {
 
     @Test
     void schedulerUsesBatchCandidatesAndContinuesAfterOneFailure() {
+        given(paymentRepository.findMaxReconciliationId()).willReturn(2L);
         given(paymentRepository.findReconciliationCandidateIds(
                 eq(PaymentStatus.CONFIRMING),
                 eq(OrderStatus.PENDING_PAYMENT),
                 any(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
                 any(Pageable.class)
         )).willReturn(List.of(1L, 2L));
         given(transactionService.startReconciliation(eq(1L), any()))
@@ -104,10 +110,12 @@ class PaymentReconciliationServiceTest {
 
     @Test
     void noDelayedCandidateMeansNoGatewayQuery() {
+        given(paymentRepository.findMaxReconciliationId()).willReturn(2L);
         given(paymentRepository.findReconciliationCandidateIds(
                 eq(PaymentStatus.CONFIRMING),
                 eq(OrderStatus.PENDING_PAYMENT),
                 any(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
                 any(Pageable.class)
         )).willReturn(List.of());
 

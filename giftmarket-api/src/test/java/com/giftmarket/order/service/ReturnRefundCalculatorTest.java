@@ -151,10 +151,19 @@ class ReturnRefundCalculatorTest {
                 List.of(low), List.of(returnItem(low, 1)), Map.of(), false))
                 .isInstanceOf(OrderException.class);
 
-        OrderItem huge = item(11L, Long.MAX_VALUE, 2, 0L, 0L, 0L, true);
+        OrderItem huge = item(11L, Long.MAX_VALUE, 1, 0L, 0L, 0L, true);
+        // Simulate corrupt persisted legacy data; new snapshots cannot be constructed with overflow.
+        ReflectionTestUtils.setField(huge, "quantity", 2);
         assertThatThrownBy(() -> calculate(ReturnResponsibility.SELLER,
                 List.of(huge), List.of(returnItem(huge, 2)), Map.of(), false))
                 .isInstanceOf(OrderException.class).hasMessageContaining("안전하게");
+    }
+
+    @Test
+    void historicalRefundAboveNewSaleCapKeepsOriginalSnapshotAmount() {
+        OrderItem historical = item(12L, Long.MAX_VALUE, 1, 0L, 0L, 0L, true);
+        assertThat(calculate(ReturnResponsibility.SELLER, List.of(historical),
+                List.of(returnItem(historical, 1)), Map.of(), false).refundAmount()).isEqualTo(Long.MAX_VALUE);
     }
 
     private ReturnRefundCalculation calculate(

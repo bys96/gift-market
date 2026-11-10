@@ -1,4 +1,6 @@
 package com.giftmarket.order.service;
+import com.giftmarket.global.util.MoneyMath;
+import com.giftmarket.global.util.MoneyLimits;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.cart.entity.CartItem;
@@ -204,7 +206,7 @@ public class OrderService {
                         .mapToLong(
                                 PreparedOrderItem::totalPrice
                         )
-                        .sum();
+                        .reduce(0L, MoneyMath::add);
 
         /*
          * 현재 Cart 정책과 동일하게 CartItem별 배송비를 계산합니다.
@@ -217,8 +219,9 @@ public class OrderService {
                         .mapToLong(
                                 PreparedOrderItem::shippingFee
                         )
-                        .sum();
+                        .reduce(0L, MoneyMath::add);
 
+        MoneyLimits.price(MoneyMath.add(totalProductAmount, totalShippingFee));
         Order order =
                 Order.createPendingPayment(
                         generateOrderNumber(),
@@ -234,6 +237,7 @@ public class OrderService {
                         )
                 );
 
+        reservePreparedStock(preparedItems);
         orderRepository.save(order);
 
         Map<Long, SellerOrder> sellerOrders =
@@ -336,7 +340,6 @@ public class OrderService {
                     true
             );
 
-            variant.decreaseStock(request.quantity());
         } else {
             validateProductStock(
                     product,
@@ -344,7 +347,6 @@ public class OrderService {
                     true
             );
 
-            product.decreaseStock(request.quantity());
         }
 
         long additionalPrice =
@@ -358,6 +360,9 @@ public class OrderService {
                         : createOptionSnapshot(variant.getId());
 
         Seller seller = product.getSeller();
+        validateMoneySnapshot(product);
+        long unitPrice = MoneyLimits.unitPrice(product.getPrice(), additionalPrice);
+        long totalPrice = MoneyMath.lineTotal(unitPrice, request.quantity());
 
         PreparedOrderItem preparedItem =
                 new PreparedOrderItem(
@@ -372,10 +377,9 @@ public class OrderService {
                         optionSnapshot,
                         product.getPrice(),
                         additionalPrice,
-                        product.getPrice() + additionalPrice,
+                        unitPrice,
                         request.quantity(),
-                        (product.getPrice() + additionalPrice)
-                                * request.quantity(),
+                        totalPrice,
                         product.isFreeShipping(),
                         product.isFreeShipping()
                                 ? 0L
@@ -384,6 +388,7 @@ public class OrderService {
                         product.getExchangeShippingFee()
                 );
 
+        MoneyLimits.price(MoneyMath.add(preparedItem.totalPrice(), preparedItem.shippingFee()));
         Order order =
                 Order.createPendingPayment(
                         generateOrderNumber(),
@@ -397,6 +402,7 @@ public class OrderService {
                         normalizeNullableText(request.addressDetail())
                 );
 
+        reservePreparedStock(List.of(preparedItem));
         orderRepository.save(order);
         Map<Long, SellerOrder> sellerOrders =
                 sellerOrderLifecycleService.createPendingPayment(
@@ -695,9 +701,6 @@ public class OrderService {
                     false
             );
 
-            variant.decreaseStock(
-                    cartItem.getQuantity()
-            );
 
             variantProductIds.add(productId);
         } else {
@@ -707,9 +710,6 @@ public class OrderService {
                     false
             );
 
-            product.decreaseStock(
-                    cartItem.getQuantity()
-            );
         }
 
         long additionalPrice =
@@ -726,14 +726,13 @@ public class OrderService {
 
         Seller seller =
                 product.getSeller();
+        validateMoneySnapshot(product);
 
         long unitPrice =
-                product.getPrice()
-                        + additionalPrice;
+                MoneyLimits.unitPrice(product.getPrice(), additionalPrice);
 
         long totalPrice =
-                unitPrice
-                        * cartItem.getQuantity();
+                MoneyMath.lineTotal(unitPrice, cartItem.getQuantity());
 
         long shippingFee =
                 product.isFreeShipping()
@@ -760,6 +759,30 @@ public class OrderService {
                 product.getReturnShippingFee(),
                 product.getExchangeShippingFee()
         );
+    }
+
+    private void validateMoneySnapshot(Product product) {
+        MoneyLimits.amount(product.getShippingFee());
+        MoneyLimits.amount(product.getReturnShippingFee());
+        MoneyLimits.amount(product.getExchangeShippingFee());
+    }
+
+    /** Validate all amounts and aggregate quantities before changing any reservation. */
+    private void reservePreparedStock(List<PreparedOrderItem> items) {
+        Map<Product, Integer> products = new java.util.LinkedHashMap<>();
+        Map<ProductVariant, Integer> variants = new java.util.LinkedHashMap<>();
+        try {
+            for (PreparedOrderItem item : items) {
+                if (item.variant() == null) products.merge(item.product(), item.quantity(), Math::addExact);
+                else variants.merge(item.variant(), item.quantity(), Math::addExact);
+            }
+        } catch (ArithmeticException exception) {
+            throw new OrderException("주문 수량을 안전하게 계산할 수 없습니다.");
+        }
+        products.forEach((product, quantity) -> validateProductStock(product, quantity, false));
+        variants.forEach((variant, quantity) -> validateVariantPurchasable(variant, quantity, false));
+        products.forEach(Product::decreaseStock);
+        variants.forEach(ProductVariant::decreaseStock);
     }
 
     private OrderItem createOrderItem(

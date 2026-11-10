@@ -1,4 +1,5 @@
 package com.giftmarket.order.entity;
+import com.giftmarket.global.util.MoneyMath;
 
 import com.giftmarket.global.entity.BaseEntity;
 import com.giftmarket.user.entity.User;
@@ -177,7 +178,7 @@ public class Order extends BaseEntity {
                 .totalProductAmount(totalProductAmount)
                 .totalShippingFee(totalShippingFee)
                 .totalAmount(
-                        totalProductAmount + totalShippingFee
+                        MoneyMath.add(MoneyMath.nonNegative(totalProductAmount), MoneyMath.nonNegative(totalShippingFee))
                 )
                 .recipientName(recipientName)
                 .recipientPhone(recipientPhone)
@@ -206,7 +207,7 @@ public class Order extends BaseEntity {
                 .totalProductAmount(totalProductAmount)
                 .totalShippingFee(totalShippingFee)
                 .totalAmount(
-                        totalProductAmount + totalShippingFee
+                        MoneyMath.add(MoneyMath.nonNegative(totalProductAmount), MoneyMath.nonNegative(totalShippingFee))
                 )
                 .recipientName(recipientName)
                 .recipientPhone(recipientPhone)

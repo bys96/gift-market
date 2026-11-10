@@ -16,8 +16,24 @@ class ExchangeShippingPaymentReconciliationServiceTest {
     private final PaymentGateway gateway = mock(PaymentGateway.class);
     private final PaymentProperties properties = new PaymentProperties();
     private final ExchangeShippingPaymentReconciliationService service =
-            new ExchangeShippingPaymentReconciliationService(repository, transactions, registry, properties);
+            new ExchangeShippingPaymentReconciliationService(repository, transactions, registry, properties,
+                    ReconciliationBatchTestSupport.executor());
     private final LocalDateTime before = LocalDateTime.of(2026, 8, 24, 13, 0);
+
+    @Test
+    void schedulerRotatesPastUnresolvedShippingPayments() {
+        properties.setReconciliationBatchSize(2);
+        when(repository.findMaxReconciliationId()).thenReturn(3L);
+        when(repository.findReconciliationCandidateIds(any(), any(), anyLong(), anyLong(), any())).thenAnswer(invocation -> {
+            long after = invocation.getArgument(2);
+            return List.of(1L, 2L, 3L).stream().filter(id -> id > after).limit(2).toList();
+        });
+        when(transactions.startReconciliation(anyLong(), any())).thenReturn(new ExchangeShippingPaymentStart(
+                ExchangeShippingPaymentStart.Action.COMPLETED, null, null, null, null, 0L, null, null));
+        service.reconcilePayments(); service.reconcilePayments();
+        verify(transactions).startReconciliation(eq(3L), any());
+        verifyNoInteractions(registry, gateway);
+    }
 
     @Test
     void requestedWithoutPaymentKeyFallsBackToOrderId() {

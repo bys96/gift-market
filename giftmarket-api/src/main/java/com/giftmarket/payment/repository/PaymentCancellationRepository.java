@@ -82,19 +82,23 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
     );
 
     @Query("""
-            select c.payment.id
+            select new com.giftmarket.payment.repository.ReconciliationCandidate(c.id, c.payment.id)
             from PaymentCancellation c
             where c.status = :cancellationStatus
               and c.requestedAt <= :requestedBefore
               and c.payment.status = :paymentStatus
               and c.payment.order.status = :orderStatus
-            order by c.requestedAt asc, c.id asc
+              and c.type = com.giftmarket.payment.entity.PaymentCancellationType.FULL
+              and c.id > :afterId and c.id <= :throughId
+            order by c.id asc
             """)
-    List<Long> findCancelReconciliationCandidatePaymentIds(
+    List<ReconciliationCandidate> findCancelReconciliationCandidates(
             @Param("cancellationStatus") PaymentCancellationStatus cancellationStatus,
             @Param("paymentStatus") PaymentStatus paymentStatus,
             @Param("orderStatus") OrderStatus orderStatus,
             @Param("requestedBefore") LocalDateTime requestedBefore,
+            @Param("afterId") long afterId,
+            @Param("throughId") long throughId,
             Pageable pageable
     );
 
@@ -108,7 +112,8 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
               and c.payment.status in :paymentStatuses
               and c.payment.order.status = :orderStatus
               and c.orderCancellation.sellerOrder.status in :sellerOrderStatuses
-            order by c.requestedAt asc, c.id asc
+              and c.id > :afterId and c.id <= :throughId
+            order by c.id asc
             """)
     List<Long> findPartialReconciliationCandidateIds(
             @Param("type") PaymentCancellationType type,
@@ -117,6 +122,8 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
             @Param("orderStatus") OrderStatus orderStatus,
             @Param("sellerOrderStatuses") List<com.giftmarket.order.entity.SellerOrderStatus> sellerOrderStatuses,
             @Param("requestedBefore") LocalDateTime requestedBefore,
+            @Param("afterId") long afterId,
+            @Param("throughId") long throughId,
             Pageable pageable
     );
 
@@ -148,10 +155,16 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
               and c.returnRequest.status = com.giftmarket.order.entity.ReturnRequestStatus.REFUNDING
               and c.returnRequest.sellerOrder.status = com.giftmarket.order.entity.SellerOrderStatus.DELIVERED
               and c.requestedAt <= :requestedBefore
-            order by c.requestedAt asc, c.id asc
+              and c.id > :afterId and c.id <= :throughId
+            order by c.id asc
             """)
     List<Long> findReturnReconciliationCandidateIds(
             @Param("requestedBefore") LocalDateTime requestedBefore,
+            @Param("afterId") long afterId,
+            @Param("throughId") long throughId,
             Pageable pageable
     );
+
+    @Query("select coalesce(max(c.id), 0) from PaymentCancellation c")
+    long findMaxReconciliationId();
 }

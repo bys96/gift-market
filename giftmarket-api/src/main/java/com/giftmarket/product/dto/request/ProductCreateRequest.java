@@ -1,4 +1,5 @@
 package com.giftmarket.product.dto.request;
+import com.giftmarket.global.util.MoneyLimits;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -32,6 +33,7 @@ public record ProductCreateRequest(
 
         @NotNull(message = "상품 가격을 입력해주세요.")
         @Positive(message = "상품 가격은 0원보다 커야 합니다.")
+        @Max(value = MoneyLimits.MAX_AMOUNT, message = "금액은 최대 1,000만원까지 입력할 수 있습니다.")
         Long price,
 
         @NotNull(message = "재고 수량을 입력해주세요.")
@@ -62,6 +64,7 @@ public record ProductCreateRequest(
 
         @NotNull(message = "배송비를 입력해주세요.")
         @PositiveOrZero(message = "배송비는 0원 이상이어야 합니다.")
+        @Max(value = MoneyLimits.MAX_AMOUNT, message = "금액은 최대 1,000만원까지 입력할 수 있습니다.")
         Long shippingFee,
 
         @NotNull(message = "출고 소요일을 입력해주세요.")
@@ -71,10 +74,12 @@ public record ProductCreateRequest(
 
         @NotNull(message = "반품 배송비를 입력해주세요.")
         @PositiveOrZero(message = "반품 배송비는 0원 이상이어야 합니다.")
+        @Max(value = MoneyLimits.MAX_AMOUNT, message = "금액은 최대 1,000만원까지 입력할 수 있습니다.")
         Long returnShippingFee,
 
         @NotNull(message = "교환 배송비를 입력해주세요.")
         @PositiveOrZero(message = "교환 배송비는 0원 이상이어야 합니다.")
+        @Max(value = MoneyLimits.MAX_AMOUNT, message = "금액은 최대 1,000만원까지 입력할 수 있습니다.")
         Long exchangeShippingFee,
 
         @NotNull(message = "판매 시작 여부를 선택해주세요.")

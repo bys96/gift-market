@@ -14,6 +14,26 @@ import static org.mockito.Mockito.*;
 
 class ReturnPaymentCancellationReconciliationServiceTest {
     @Test
+    void schedulerRotatesPastUnresolvedReturnRefunds() {
+        var repository = mock(PaymentCancellationRepository.class);
+        var transactions = mock(ReturnPaymentCancellationTransactionService.class);
+        var registry = mock(PaymentGatewayRegistry.class);
+        var completion = mock(ReturnCompletionService.class);
+        var properties = new PaymentProperties();
+        properties.setPartialCancellationReconciliationBatchSize(2);
+        when(repository.findMaxReconciliationId()).thenReturn(3L);
+        when(repository.findReturnReconciliationCandidateIds(any(), anyLong(), anyLong(), any())).thenAnswer(invocation -> {
+            long after = invocation.getArgument(1);
+            return List.of(1L, 2L, 3L).stream().filter(id -> id > after).limit(2).toList();
+        });
+        var service = new ReturnPaymentCancellationReconciliationService(repository, transactions, registry,
+                properties, completion, ReconciliationBatchTestSupport.executor());
+        service.reconcileReturns(); service.reconcileReturns();
+        verify(repository).findReturnCancellationForReconciliation(3L);
+        verifyNoInteractions(transactions, registry, completion);
+    }
+
+    @Test
     void expiredRequestIsQueriedButNeverRetried() {
         var repository = mock(PaymentCancellationRepository.class);
         var transactions = mock(ReturnPaymentCancellationTransactionService.class);
@@ -39,7 +59,7 @@ class ReturnPaymentCancellationReconciliationServiceTest {
                 GatewayPaymentStatus.PAID, "key", null, "order", 1000L, "KRW", null, null,
                 "DONE", LocalDateTime.now(), 1000L, null, true, List.of()));
         new ReturnPaymentCancellationReconciliationService(repository, transactions, registry,
-                new PaymentProperties(), completion).reconcile(3L);
+                new PaymentProperties(), completion, ReconciliationBatchTestSupport.executor()).reconcile(3L);
         verify(gateway).getPayment("key");
         verify(gateway, never()).cancel(any());
         verifyNoInteractions(transactions, completion);

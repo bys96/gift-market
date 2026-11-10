@@ -32,7 +32,7 @@ class PartialPaymentCancellationReconciliationServiceTest {
     @BeforeEach
     void setUp() {
         service = new PartialPaymentCancellationReconciliationService(repository, reconciliationTransactions,
-                cancellationTransactions, gatewayRegistry, new PaymentProperties());
+                cancellationTransactions, gatewayRegistry, new PaymentProperties(), ReconciliationBatchTestSupport.executor());
         requestedAt = LocalDateTime.of(2026, 8, 17, 10, 0);
     }
 

@@ -157,6 +157,15 @@ class MySqlOrderConcurrencyIntegrationTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class ContainerDataSource {
+        @Bean
+        static org.springframework.beans.factory.config.BeanFactoryPostProcessor disableAutomaticScheduling() {
+            return factory -> {
+                var registry = (org.springframework.beans.factory.support.BeanDefinitionRegistry) factory;
+                String name = "org.springframework.context.annotation.internalScheduledAnnotationProcessor";
+                if (registry.containsBeanDefinition(name)) registry.removeBeanDefinition(name);
+            };
+        }
+
         @Bean(destroyMethod = "close")
         @Primary
         HikariDataSource dataSource() {
@@ -196,9 +205,92 @@ class MySqlOrderConcurrencyIntegrationTest {
     @MockitoBean StorageService storageService;
     @MockitoSpyBean InitialSettlementLedgerService ledger;
     @MockitoSpyBean CancellationSettlementLedgerService cancellationLedger;
+    @Autowired tools.jackson.databind.json.JsonMapper requestJson;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "-1,0,1", "0,0,1", "10000001,0,1", "9223372036854775807,1,1",
+            "10000000,1,1", "10000000,0,2147483647", "4611686018427387904,0,2"
+    })
+    void invalidOrderMoneyIsRejectedBeforeOrderPaymentOrInventoryChanges(long price, long shipping, int quantity) {
+        Fixture f = fixture();
+        int stock = Math.max(quantity, 2);
+        transactions.executeWithoutResult(status -> {
+            var product = products.findById(f.productId()).orElseThrow();
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "price", price);
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "freeShipping", false);
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "shippingFee", shipping);
+            product.changeStockQuantity(stock);
+        });
+        long ordersBefore = orders.count(); long paymentsBefore = payments.count();
+        var request = new DirectOrderCreateRequest(UUID.randomUUID().toString(), f.productId(), null, quantity,
+                "구매자", "01012345678", "12345", "주소", null);
+        assertThatThrownBy(() -> orderService.createDirectOrder(f.buyer1(), request))
+                .isInstanceOf(com.giftmarket.global.exception.MoneyCalculationException.class);
+        assertThat(orders.count()).isEqualTo(ordersBefore);
+        assertThat(payments.count()).isEqualTo(paymentsBefore);
+        assertThat(products.findById(f.productId()).orElseThrow().getStockQuantity()).isEqualTo(stock);
+        verifyNoInteractions(tossPaymentClient);
+    }
+
+    @Test
+    void orderAcceptsExactPricePlusShippingCeiling() {
+        Fixture f = fixture();
+        transactions.executeWithoutResult(status -> {
+            var product = products.findById(f.productId()).orElseThrow();
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "price", 9_999_999L);
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "freeShipping", false);
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "shippingFee", 1L);
+        });
+        var order = orderService.createDirectOrder(f.buyer1(), request(f.productId()));
+        assertThat(order.totalAmount()).isEqualTo(com.giftmarket.global.util.MoneyLimits.MAX_AMOUNT);
+        assertThat(payments.findById(order.paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(products.findById(f.productId()).orElseThrow().getStockQuantity()).isZero();
+        verifyNoInteractions(tossPaymentClient);
+    }
+
+    @Test
+    void laterInvalidSellerItemDoesNotEvenTemporarilyChangeEarlierProductsStock() {
+        Fixture first = fixture(); Fixture second = fixture();
+        List<Long> cartIds = transactions.execute(status -> {
+            var buyer = entityManager.find(User.class, first.buyer1());
+            var a = products.findById(first.productId()).orElseThrow();
+            var b = products.findById(second.productId()).orElseThrow();
+            org.springframework.test.util.ReflectionTestUtils.setField(b, "price", Long.MAX_VALUE);
+            var cartA = CartItem.create(buyer, a, null, 1);
+            var cartB = CartItem.create(buyer, b, null, 1);
+            entityManager.persist(cartA); entityManager.persist(cartB); entityManager.flush();
+            return List.of(cartA.getId(), cartB.getId());
+        });
+        long before = orders.count(); long paymentsBefore = payments.count();
+        transactions.executeWithoutResult(status -> {
+            var managedFirst = products.findById(first.productId()).orElseThrow();
+            try {
+                assertThatThrownBy(() -> orderService.createOrder(first.buyer1(), new OrderCreateRequest(
+                        UUID.randomUUID().toString(), cartIds, "구매자", "01012345678", "12345", "주소", null)))
+                        .isInstanceOf(com.giftmarket.global.exception.MoneyCalculationException.class);
+                assertThat(managedFirst.getStockQuantity()).isEqualTo(1);
+            } finally { status.setRollbackOnly(); }
+        });
+        assertThat(products.findById(first.productId()).orElseThrow().getStockQuantity()).isEqualTo(1);
+        assertThat(products.findById(second.productId()).orElseThrow().getStockQuantity()).isEqualTo(1);
+        assertThat(orders.count()).isEqualTo(before);
+        assertThat(payments.count()).isEqualTo(paymentsBefore);
+    }
+
+    @Test
+    void strictJsonConfigurationRejectsFractionalKrwBeforeServiceInvocation() {
+        assertThatThrownBy(() -> requestJson.readValue(
+                "{\"providerPaymentKey\":\"test-key\",\"merchantPaymentId\":\"test-order\",\"amount\":1000.5}",
+                PaymentConfirmRequest.class)).isInstanceOf(RuntimeException.class);
+    }
     @Autowired com.giftmarket.settlement.repository.SettlementLedgerEntryRepository settlementEntries;
     @Autowired com.giftmarket.order.repository.OrderCancellationItemRepository cancellationItems;
     @Autowired com.giftmarket.payment.service.PaymentCancellationTransactionService fullTransactions;
+    @Autowired com.giftmarket.payment.service.PaymentTransactionService approvalTransactions;
+    @Autowired com.giftmarket.payment.service.PartialPaymentCancellationTransactionService partialTransactions;
+    @Autowired com.giftmarket.payment.service.PartialCancellationReconciliationTransactionService partialReconciliationTransactions;
+    @Autowired javax.sql.DataSource batchDataSource;
 
     @Test
     void twoBuyersCompeteForOneUnit() throws Exception {
@@ -561,6 +653,164 @@ class MySqlOrderConcurrencyIntegrationTest {
         return new GatewayPaymentQueryResult(query.status(), query.providerPaymentKey(), query.providerTransactionId(),
                 query.merchantPaymentId(), query.amount(), query.currency(), query.method(), query.easyPayProvider(),
                 query.providerStatus(), query.approvedAt(), query.remainingAmount(), query.canceledAt(), query.partialCancelable(), history);
+    }
+
+    @Test
+    void approvalBatchReachesPaidTailBeyondUnresolvedRowsIncludingAfterRestart() {
+        isolateBatchCandidates();
+        var created = new ArrayList<OrderCreateResponse>();
+        var buyers = new ArrayList<Long>();
+        for (int index = 0; index < 4; index++) {
+            Fixture f = fixture();
+            var order = orderService.createDirectOrder(f.buyer1(), request(f.productId()));
+            created.add(order); buyers.add(f.buyer1());
+            transactions.executeWithoutResult(status -> payments.findById(order.paymentId()).orElseThrow()
+                    .startConfirm("batch-approval-" + order.paymentId(), LocalDateTime.now().minusMinutes(2)));
+        }
+        var gateway = mock(PaymentGateway.class);
+        when(gatewayRegistry.get(PaymentProvider.TOSS)).thenReturn(gateway);
+        when(gateway.getPayment(any())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            var order = created.stream().filter(value -> key.equals("batch-approval-" + value.paymentId())).findFirst().orElseThrow();
+            boolean last = order == created.getLast();
+            return new GatewayPaymentQueryResult(last ? GatewayPaymentStatus.PAID : GatewayPaymentStatus.UNKNOWN,
+                    key, "batch-approval-tx-" + order.paymentId(), order.merchantPaymentId(), order.totalAmount(), "KRW",
+                    PaymentMethod.CARD, null, last ? "DONE" : "UNKNOWN", LocalDateTime.now());
+        });
+        var properties = smallBatchProperties();
+        var service = new com.giftmarket.payment.service.PaymentReconciliationService(payments, approvalTransactions,
+                gatewayRegistry, properties, newBatchExecutor());
+        service.reconcilePayments();
+        assertThat(payments.findById(created.getLast().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.CONFIRMING);
+        // A new executor models process restart: old rows are retried, then the tail is reached.
+        var restarted = new com.giftmarket.payment.service.PaymentReconciliationService(payments, approvalTransactions,
+                gatewayRegistry, properties, newBatchExecutor());
+        restarted.reconcilePayments(); restarted.reconcilePayments();
+        for (var order : created.subList(0, 3)) {
+            assertThat(payments.findById(order.paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.CONFIRMING);
+        }
+        assertThat(payments.findById(created.getLast().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(orders.findById(created.getLast().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PAID);
+        verify(gateway, never()).confirm(any());
+        verifyNoInteractions(tossPaymentClient);
+    }
+
+    @Test
+    void fullCancellationBatchSkipsUnresolvedHeadAndRestoresTailOnlyOnce() {
+        isolateBatchCandidates();
+        var fixtures = new ArrayList<PaidFixture>();
+        for (int index = 0; index < 4; index++) {
+            PaidFixture f = paidFixture(); fixtures.add(f);
+            var start = fullTransactions.start(f.buyerId(), f.order().orderId(), new OrderCancelRequest(UUID.randomUUID().toString(), "batch full"));
+            if (index == 3) f.pg().cancel(new GatewayCancelCommand(start.providerPaymentKey(), start.merchantPaymentId(),
+                    start.amount(), start.currency(), start.reason(), start.idempotencyKey()));
+            transactions.executeWithoutResult(status -> org.springframework.test.util.ReflectionTestUtils.setField(
+                    refunds.findById(start.cancellationId()).orElseThrow(), "requestedAt", LocalDateTime.now().minusMinutes(2)));
+        }
+        var gateway = batchGateway(fixtures);
+        var service = new com.giftmarket.payment.service.PaymentCancellationReconciliationService(refunds, fullTransactions,
+                gatewayRegistry, smallBatchProperties(), newBatchExecutor());
+        service.reconcileCancellations(); service.reconcileCancellations(); service.reconcileCancellations();
+        for (var f : fixtures.subList(0, 3)) {
+            assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.CANCELING);
+            assertThat(orderItems.findById(f.item1()).orElseThrow().getCanceledQuantity()).isZero();
+        }
+        assertFullCancellation(fixtures.getLast(), 1, true);
+        assertThat(products.findById(fixtures.getLast().product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        verify(gateway, never()).cancel(any());
+        assertThat(fixtures.getLast().pg().cancelCalls).isEqualTo(1);
+    }
+
+    @Test
+    void partialBatchReachesTailAfterTimeoutAndPermanentUnresolvedRequests() {
+        isolateBatchCandidates();
+        var fixtures = new ArrayList<PaidFixture>();
+        for (int index = 0; index < 4; index++) {
+            PaidFixture f = paidFixture(); fixtures.add(f);
+            var cancellation = buyerCancellation.create(f.buyerId(), f.order().orderId(),
+                    partialRequest(f.sellerOrderId(), f.item1(), UUID.randomUUID().toString()));
+            var start = partialTransactions.start(cancellation.cancellationId());
+            if (index == 3) f.pg().cancel(GatewayCancelCommand.partial(start.providerPaymentKey(), start.merchantPaymentId(),
+                    start.originalAmount(), start.currency(), start.reason(), start.idempotencyKey(), start.cancelAmount()));
+            transactions.executeWithoutResult(status -> org.springframework.test.util.ReflectionTestUtils.setField(
+                    refunds.findById(start.paymentCancellationId()).orElseThrow(), "requestedAt", LocalDateTime.now().minusMinutes(2)));
+        }
+        var gateway = batchGateway(fixtures);
+        doThrow(new PaymentGatewayUncertainException("isolated PG timeout", null))
+                .when(gateway).getPayment(fixtures.getFirst().pg().key);
+        var service = new com.giftmarket.payment.service.PartialPaymentCancellationReconciliationService(refunds,
+                partialReconciliationTransactions, partialTransactions, gatewayRegistry, smallBatchProperties(), newBatchExecutor());
+        service.reconcilePartialCancellations(); service.reconcilePartialCancellations(); service.reconcilePartialCancellations();
+        for (var f : fixtures.subList(0, 3)) {
+            assertThat(orderItems.findById(f.item1()).orElseThrow().getCanceledQuantity()).isZero();
+            assertThat(refunds.countByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.REQUESTED)).isEqualTo(1);
+        }
+        assertPartialState(fixtures.getLast(), 1, 0, 10_000L, 1);
+        assertThat(settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(fixtures.getLast().sellerOrderId())).hasSize(4);
+        verify(gateway, never()).cancel(any());
+        assertThat(fixtures.getLast().pg().cancelCalls).isEqualTo(1);
+    }
+
+    @Test
+    void separateBatchInstancesUseMysqlSessionLockAndReleaseItAfterFailure() throws Exception {
+        var first = new com.giftmarket.payment.service.ReconciliationBatchLock(batchDataSource);
+        var second = new com.giftmarket.payment.service.ReconciliationBatchLock(batchDataSource);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var count = new java.util.concurrent.atomic.AtomicInteger();
+        try (var workers = Executors.newSingleThreadExecutor()) {
+            var running = workers.submit(() -> first.run(com.giftmarket.payment.service.ReconciliationBatchExecutor.Kind.APPROVAL, () -> {
+                count.incrementAndGet(); entered.countDown();
+                try { if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("isolated lock timeout"); }
+                catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new IllegalStateException(exception); }
+            }));
+            try {
+                assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+                second.run(com.giftmarket.payment.service.ReconciliationBatchExecutor.Kind.APPROVAL, count::incrementAndGet);
+                assertThat(count.get()).isEqualTo(1);
+            } finally { release.countDown(); }
+            running.get(10, TimeUnit.SECONDS);
+        }
+        assertThatThrownBy(() -> first.run(com.giftmarket.payment.service.ReconciliationBatchExecutor.Kind.APPROVAL,
+                () -> { throw new IllegalStateException("isolated work failure"); })).isInstanceOf(IllegalStateException.class);
+        second.run(com.giftmarket.payment.service.ReconciliationBatchExecutor.Kind.APPROVAL, count::incrementAndGet);
+        assertThat(count.get()).isEqualTo(2);
+    }
+
+    private com.giftmarket.payment.service.ReconciliationBatchExecutor newBatchExecutor() {
+        return new com.giftmarket.payment.service.ReconciliationBatchExecutor(
+                new com.giftmarket.payment.service.ReconciliationBatchLock(batchDataSource));
+    }
+
+    private com.giftmarket.payment.config.PaymentProperties smallBatchProperties() {
+        var properties = new com.giftmarket.payment.config.PaymentProperties();
+        properties.setReconciliationBatchSize(2); properties.setCancelReconciliationBatchSize(2);
+        properties.setPartialCancellationReconciliationBatchSize(2);
+        properties.setReconciliationDelaySeconds(1); properties.setCancelReconciliationDelaySeconds(1);
+        properties.setPartialCancellationReconciliationDelaySeconds(1);
+        return properties;
+    }
+
+    private void isolateBatchCandidates() {
+        // Only this ephemeral test DB is changed. Keep unrelated fixtures outside the due window.
+        transactions.executeWithoutResult(status -> {
+            entityManager.createQuery("update Payment p set p.confirmingAt = :future where p.status = :status")
+                    .setParameter("future", LocalDateTime.now().plusDays(1)).setParameter("status", PaymentStatus.CONFIRMING).executeUpdate();
+            entityManager.createQuery("update PaymentCancellation c set c.requestedAt = :future where c.status = :status")
+                    .setParameter("future", LocalDateTime.now().plusDays(1)).setParameter("status", PaymentCancellationStatus.REQUESTED).executeUpdate();
+        });
+    }
+
+    private PaymentGateway batchGateway(List<PaidFixture> fixtures) {
+        var gateway = mock(PaymentGateway.class);
+        when(gatewayRegistry.get(PaymentProvider.TOSS)).thenReturn(gateway);
+        when(gateway.getPayment(any())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            var f = fixtures.stream().filter(value -> value.pg().key.equals(key)).findFirst().orElseThrow();
+            return f == fixtures.getLast() ? f.pg().query() : new GatewayPaymentQueryResult(GatewayPaymentStatus.UNKNOWN,
+                    key, null, f.order().merchantPaymentId(), f.order().totalAmount(), "KRW", null, null, "UNKNOWN", null);
+        });
+        return gateway;
     }
 
     private void assertPartialState(PaidFixture f, int canceled1, int canceled2, long refunded, int transactions) {

@@ -9,7 +9,6 @@ import com.giftmarket.payment.repository.PaymentCancellationRepository;
 import com.giftmarket.payment.exception.PartialCancellationValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -32,25 +31,27 @@ public class PartialPaymentCancellationReconciliationService {
     private final PartialPaymentCancellationTransactionService cancellationTransactions;
     private final PaymentGatewayRegistry gatewayRegistry;
     private final PaymentProperties properties;
+    private final ReconciliationBatchExecutor batches;
 
     @Scheduled(fixedDelayString = "#{@paymentProperties.partialCancellationReconciliationCheckIntervalMillis}")
     public void reconcilePartialCancellations() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime requestedBefore = now.minusSeconds(
                 properties.getPartialCancellationReconciliationDelaySeconds());
-        List<Long> ids = cancellationRepository.findPartialReconciliationCandidateIds(
+        batches.run(ReconciliationBatchExecutor.Kind.PARTIAL_CANCELLATION,
+                properties.getPartialCancellationReconciliationBatchSize(), cancellationRepository::findMaxReconciliationId,
+                (after, through, limit) -> cancellationRepository.findPartialReconciliationCandidateIds(
                 PaymentCancellationType.PARTIAL, PaymentCancellationStatus.REQUESTED,
                 List.of(PaymentStatus.PAID, PaymentStatus.PARTIALLY_CANCELED), OrderStatus.PAID,
                 List.of(SellerOrderStatus.PAID, SellerOrderStatus.PREPARING), requestedBefore,
-                PageRequest.of(0, properties.getPartialCancellationReconciliationBatchSize()));
-        for (Long id : ids) {
+                after, through, limit), Long::longValue, id -> {
             try {
                 reconcileOne(id, requestedBefore, now);
             } catch (RuntimeException exception) {
                 log.error("Partial cancellation reconciliation failed. paymentCancellationId={}, exceptionType={}, validationType={}",
                         id, exception.getClass().getSimpleName(), validationType(exception));
             }
-        }
+        });
     }
 
     void reconcileOne(Long paymentCancellationId, LocalDateTime requestedBefore, LocalDateTime now) {

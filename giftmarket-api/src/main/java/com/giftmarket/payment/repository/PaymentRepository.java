@@ -114,12 +114,18 @@ public interface PaymentRepository
             where p.status = :paymentStatus
               and p.confirmingAt <= :confirmingBefore
               and p.order.status = :orderStatus
-            order by p.confirmingAt asc, p.id asc
+              and p.id > :afterId and p.id <= :throughId
+            order by p.id asc
             """)
     List<Long> findReconciliationCandidateIds(
             @Param("paymentStatus") PaymentStatus paymentStatus,
             @Param("orderStatus") OrderStatus orderStatus,
             @Param("confirmingBefore") LocalDateTime confirmingBefore,
+            @Param("afterId") long afterId,
+            @Param("throughId") long throughId,
             Pageable pageable
     );
+
+    @Query("select coalesce(max(p.id), 0) from Payment p")
+    long findMaxReconciliationId();
 }

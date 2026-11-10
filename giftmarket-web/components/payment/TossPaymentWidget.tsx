@@ -1,4 +1,5 @@
 "use client";
+import { validatePaymentAmount } from "@/lib/money";
 
 import { useEffect } from "react";
 
@@ -44,7 +45,7 @@ export default function TossPaymentWidget({
         if (disposed) return;
         await widgets.setAmount({
           currency: "KRW",
-          value: amount,
+          value: validatePaymentAmount(amount),
         });
         if (disposed) return;
 
@@ -70,7 +71,7 @@ export default function TossPaymentWidget({
         onReady(async (paymentSession) => {
           await widgets.setAmount({
             currency: "KRW",
-            value: paymentSession.amount,
+            value: validatePaymentAmount(paymentSession.amount),
           });
           await widgets.requestPayment({
             orderId: paymentSession.merchantPaymentId,

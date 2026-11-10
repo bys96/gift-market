@@ -1,4 +1,5 @@
 package com.giftmarket.product.service;
+import com.giftmarket.global.util.MoneyLimits;
 
 import com.giftmarket.auth.exception.AuthenticationException;
 import com.giftmarket.product.dto.request.ProductCreateRequest;
@@ -89,6 +90,7 @@ public class ProductService {
             ProductCreateRequest request
     ) {
         Seller seller = getActiveSeller(userId);
+        validateNewMoney(request.price(), request.shippingFee(), request.returnShippingFee(), request.exchangeShippingFee());
         Category category = getActiveCategory(request.categoryId());
 
         String representativeImageKey = normalizeImageKey(
@@ -483,7 +485,19 @@ public class ProductService {
             Long productId,
             ProductUpdateRequest request
     ) {
+        return updateProductDetails(userId, productId, request, true);
+    }
+
+    /** The enclosing modification transaction validates the replacement variants together. */
+    @Transactional
+    public ProductResponse updateProductForModification(Long userId, Long productId, ProductUpdateRequest request) {
+        return updateProductDetails(userId, productId, request, false);
+    }
+
+    private ProductResponse updateProductDetails(Long userId, Long productId, ProductUpdateRequest request,
+            boolean validateExistingVariants) {
         Seller seller = getActiveSeller(userId);
+        validateNewMoney(request.price(), request.shippingFee(), request.returnShippingFee(), request.exchangeShippingFee());
 
         Product product = getSellerProduct(
                 productId,
@@ -520,6 +534,10 @@ public class ProductService {
             );
         }
 
+        if (validateExistingVariants) {
+            productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
+                    .forEach(variant -> ProductVariantService.validateFinalVariantPrice(request.price(), variant.getAdditionalPrice()));
+        }
         product.update(
                 category,
                 request.name().trim(),
@@ -545,6 +563,13 @@ public class ProductService {
                 product,
                 productImages
         );
+    }
+
+    private void validateNewMoney(Long price, Long shipping, Long returns, Long exchanges) {
+        MoneyLimits.price(price);
+        MoneyLimits.amount(shipping);
+        MoneyLimits.amount(returns);
+        MoneyLimits.amount(exchanges);
     }
 
     @Transactional

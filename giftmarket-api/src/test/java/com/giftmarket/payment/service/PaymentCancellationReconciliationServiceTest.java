@@ -39,7 +39,8 @@ class PaymentCancellationReconciliationServiceTest {
                 cancellationRepository,
                 transactionService,
                 gatewayRegistry,
-                properties
+                properties,
+                ReconciliationBatchTestSupport.executor()
         );
         now = LocalDateTime.of(2026, 8, 17, 12, 0);
     }
@@ -148,13 +149,16 @@ class PaymentCancellationReconciliationServiceTest {
 
     @Test
     void schedulerUsesDelayedLimitedCandidatesAndContinuesAfterFailure() {
-        given(cancellationRepository.findCancelReconciliationCandidatePaymentIds(
+        given(cancellationRepository.findMaxReconciliationId()).willReturn(2L);
+        given(cancellationRepository.findCancelReconciliationCandidates(
                 eq(PaymentCancellationStatus.REQUESTED),
                 eq(PaymentStatus.CANCELING),
                 eq(OrderStatus.PAID),
                 any(),
+                anyLong(), anyLong(),
                 any(Pageable.class)
-        )).willReturn(List.of(1L, 2L));
+        )).willReturn(List.of(new com.giftmarket.payment.repository.ReconciliationCandidate(1L, 1L),
+                new com.giftmarket.payment.repository.ReconciliationCandidate(2L, 2L)));
         given(transactionService.startReconciliation(eq(1L), any()))
                 .willThrow(new IllegalStateException("first failed"));
         given(transactionService.startReconciliation(eq(2L), any()))
