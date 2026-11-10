@@ -34,6 +34,8 @@ import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
 import com.giftmarket.settlement.service.SettlementEligibilityService;
 import com.giftmarket.user.entity.User;
+import com.giftmarket.payment.entity.Payment;
+import com.giftmarket.payment.repository.PaymentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,6 +82,8 @@ class SellerOrderManagementServiceTest {
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock Seller seller;
     @Mock User user;
+    @Mock PaymentRepository paymentRepository;
+    @Mock Payment payment;
 
     private SellerOrderManagementService service;
     private Order order;
@@ -99,10 +103,14 @@ class SellerOrderManagementServiceTest {
                 exchangeRequestRepository,
                 shipmentRepository,
                 settlementEligibilityService,
-                eventPublisher
+                eventPublisher,
+                paymentRepository
         );
         lenient().when(sellerRepository.findByUserId(USER_ID))
                 .thenReturn(Optional.of(seller));
+        lenient().when(paymentRepository.findLatestIdByOrderId(ORDER_ID)).thenReturn(Optional.of(200L));
+        lenient().when(paymentRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(payment));
+        lenient().when(payment.isRefundableState()).thenReturn(true);
         lenient().when(seller.getId()).thenReturn(SELLER_ID);
         lenient().when(seller.getStatus()).thenReturn(SellerStatus.ACTIVE);
 
@@ -718,6 +726,16 @@ class SellerOrderManagementServiceTest {
         assertThat(response.status()).isEqualTo(SellerOrderStatus.DELIVERED);
         assertThat(response.shippingCompany()).isEqualTo("CJ대한통운");
         assertThat(response.deliveredAt()).isEqualTo(shipment.getDeliveredAt());
+    }
+
+    @Test
+    void fullRefundInProgressBlocksPreparationBeforeTakingOrderLock() {
+        given(sellerOrderRepository.findOrderIdByIdAndSellerId(SELLER_ORDER_ID, SELLER_ID))
+                .willReturn(Optional.of(ORDER_ID));
+        given(payment.isRefundableState()).willReturn(false);
+        assertThatThrownBy(() -> service.prepare(USER_ID, SELLER_ORDER_ID)).isInstanceOf(SellerException.class);
+        verify(orderRepository, never()).findByIdForUpdate(any());
+        assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.PAID);
     }
 
     private void givenLockedSellerOrder() {

@@ -48,6 +48,10 @@ public interface SellerOrderRepository
 
     List<SellerOrder> findAllByOrderIdOrderByIdAsc(Long orderId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select so from SellerOrder so where so.order.id = :orderId order by so.id asc")
+    List<SellerOrder> findAllByOrderIdForUpdate(@Param("orderId") Long orderId);
+
     @EntityGraph(attributePaths = {"seller", "order"})
     List<SellerOrder> findAllByOrderIdInOrderByOrderIdAscIdAsc(
             List<Long> orderIds

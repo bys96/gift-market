@@ -31,6 +31,7 @@ import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.service.OrderService;
+import com.giftmarket.order.service.PurchaseConfirmationService;
 import com.giftmarket.order.service.OrderCancellationWorkflowService;
 import com.giftmarket.order.service.SellerOrderManagementService;
 import com.giftmarket.order.service.OrderCancellationService;
@@ -174,6 +175,7 @@ class MySqlOrderConcurrencyIntegrationTest {
     @Autowired ReturnRequestRepository returnRepository;
     @Autowired ExchangeRequestRepository exchangeRepository;
     @Autowired OrderService orderService;
+    @Autowired PurchaseConfirmationService purchaseConfirmation;
     @Autowired PaymentService paymentService;
     @Autowired PaymentCancellationService cancellationService;
     @Autowired TransactionTemplate transactions;
@@ -467,7 +469,146 @@ class MySqlOrderConcurrencyIntegrationTest {
         return new OrderCancellationCreateRequest(key, sellerOrderId, "부분취소", List.of(new OrderCancellationItemRequest(itemId, 1)));
     }
 
-    private PaidFixture paidFixture() {
+    @Test
+    @org.junit.jupiter.api.DisplayName("전체취소 환불·재고 멱등성 (정산 원장·취소 수량은 별도 미해결)")
+    void paidFullCancellationAndRetryRefundAndRestoreOnlyOnce() {
+        PaidFixture f = paidFixture();
+        var request = new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소");
+        cancellationService.cancel(f.buyerId(), f.order().orderId(), request);
+        cancellationService.cancel(f.buyerId(), f.order().orderId(), request);
+        assertThat(f.pg().cancelCalls).isEqualTo(1);
+        assertThat(f.pg().refunded).isEqualTo(f.order().totalAmount());
+        assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(refunds.countByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.SUCCEEDED)).isEqualTo(1);
+        verifyNoInteractions(tossPaymentClient);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = com.giftmarket.order.entity.SellerOrderStatus.class,
+            names = {"PREPARING", "SHIPPED", "DELIVERED"})
+    void paidFullCancellationRejectsFulfillmentStates(com.giftmarket.order.entity.SellerOrderStatus state) {
+        PaidFixture f = paidFixture();
+        transactions.executeWithoutResult(status -> {
+            var seller = sellerOrders.findById(f.sellerOrderId()).orElseThrow();
+            seller.prepare(LocalDateTime.now());
+            if (state != com.giftmarket.order.entity.SellerOrderStatus.PREPARING) seller.markShipped(LocalDateTime.now());
+            if (state == com.giftmarket.order.entity.SellerOrderStatus.DELIVERED) seller.markDelivered(LocalDateTime.now());
+        });
+        assertThatThrownBy(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(),
+                new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThat(f.pg().cancelCalls).isZero();
+        assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(1);
+    }
+
+    @Test void fullCancellationRejectsAnActivePartialCancellation() {
+        PaidFixture f = paidFixture();
+        buyerCancellation.create(f.buyerId(), f.order().orderId(), partialRequest(f.sellerOrderId(), f.item1(), UUID.randomUUID().toString()));
+        assertThatThrownBy(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(),
+                new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThat(f.pg().cancelCalls).isZero();
+    }
+
+    @Test void duplicatePaidFullCancellationWhileProviderIsPendingRestoresOnlyOnce() throws Exception {
+        PaidFixture f = paidFixture();
+        f.pg().holdFirstCancellation = true;
+        var request = new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소");
+        var results = concurrentlyWhileFirstRefundIsPending(f.pg(),
+                () -> cancellationService.cancel(f.buyerId(), f.order().orderId(), request),
+                () -> cancellationService.cancel(f.buyerId(), f.order().orderId(), request));
+        assertThat(results).allMatch(com.giftmarket.order.dto.response.OrderCancelResponse.class::isInstance);
+        assertThat(f.pg().results).hasSize(1);
+        assertThat(f.pg().refunded).isEqualTo(f.order().totalAmount());
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(refunds.countByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.SUCCEEDED)).isEqualTo(1);
+    }
+
+    @Test void onePreparingSellerBlocksFullCancellationOfMultiSellerOrder() {
+        PaidFixture f = paidFixture(true);
+        var all = sellerOrders.findAllByOrderIdOrderByIdAsc(f.order().orderId());
+        assertThat(all).hasSize(2);
+        transactions.executeWithoutResult(status -> sellerOrders.findById(all.getLast().getId())
+                .orElseThrow().prepare(LocalDateTime.now()));
+        assertThatThrownBy(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(),
+                new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThat(f.pg().cancelCalls).isZero();
+    }
+
+    @Test void fullCancellationAndPreparationCannotBothStart() throws Exception {
+        PaidFixture f = paidFixture();
+        var results = concurrently(
+                () -> cancellationService.cancel(f.buyerId(), f.order().orderId(), new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")),
+                () -> sellerManagement.prepare(f.sellerUserId(), f.sellerOrderId()));
+        assertThat(results.stream().filter(Throwable.class::isInstance)).hasSize(1);
+        assertThat(results.stream().filter(Throwable.class::isInstance)).allMatch(value ->
+                value instanceof com.giftmarket.payment.exception.PaymentException
+                        || value instanceof com.giftmarket.seller.exception.SellerException);
+        if (f.pg().cancelCalls == 1) {
+            assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        } else {
+            assertThat(sellerOrders.findById(f.sellerOrderId()).orElseThrow().getStatus())
+                    .isEqualTo(com.giftmarket.order.entity.SellerOrderStatus.PREPARING);
+        }
+    }
+
+    @Test void pendingFullRefundBlocksSellerPreparationShipmentAndNewCancellation() throws Exception {
+        PaidFixture f = paidFixture();
+        f.pg().holdFirstCancellation = true;
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var future = executor.submit(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(),
+                    new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")));
+            try {
+                assertThat(f.pg().cancelEntered.await(20, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> sellerManagement.prepare(f.sellerUserId(), f.sellerOrderId()))
+                        .isInstanceOf(com.giftmarket.seller.exception.SellerException.class);
+                assertThatThrownBy(() -> sellerManagement.ship(f.sellerUserId(), f.sellerOrderId(), new SellerOrderShipRequest("택배", "TEST-123")))
+                        .isInstanceOf(com.giftmarket.seller.exception.SellerException.class);
+                assertThatThrownBy(() -> partialCancellation.createBySeller(f.sellerUserId(), f.sellerOrderId(),
+                        new SellerOrderCancelRequest(UUID.randomUUID().toString(), "판매자 취소", null)))
+                        .isInstanceOf(com.giftmarket.seller.exception.SellerException.class);
+                assertThat(sellerOrders.findById(f.sellerOrderId()).orElseThrow().getStatus())
+                        .isEqualTo(com.giftmarket.order.entity.SellerOrderStatus.PAID);
+            } finally {
+                f.pg().releaseCancel.countDown();
+            }
+            future.get(20, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test void fullCancellationCannotRacePastPreparingIntoShipment() throws Exception {
+        PaidFixture f = paidFixture();
+        sellerManagement.prepare(f.sellerUserId(), f.sellerOrderId());
+        var results = concurrently(
+                () -> cancellationService.cancel(f.buyerId(), f.order().orderId(), new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")),
+                () -> sellerManagement.ship(f.sellerUserId(), f.sellerOrderId(), new SellerOrderShipRequest("택배", "RACE-123")));
+        assertThat(results.stream().filter(Throwable.class::isInstance)).hasSize(1)
+                .allMatch(com.giftmarket.payment.exception.PaymentException.class::isInstance);
+        assertThat(sellerOrders.findById(f.sellerOrderId()).orElseThrow().getStatus())
+                .isEqualTo(com.giftmarket.order.entity.SellerOrderStatus.SHIPPED);
+        assertThat(f.pg().cancelCalls).isZero();
+    }
+
+    @Test void fullCancellationCannotRefundConfirmedDeliveredItems() {
+        PaidFixture f = paidFixture();
+        sellerManagement.prepare(f.sellerUserId(), f.sellerOrderId());
+        sellerManagement.ship(f.sellerUserId(), f.sellerOrderId(), new SellerOrderShipRequest("택배", "CONFIRMED-123"));
+        sellerManagement.deliver(f.sellerUserId(), f.sellerOrderId());
+        purchaseConfirmation.confirm(f.buyerId(), f.order().orderId(), f.item1());
+        assertThat(orderItems.findById(f.item1()).orElseThrow().getConfirmedQuantity()).isEqualTo(2);
+        assertThatThrownBy(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(),
+                new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소")))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThat(f.pg().cancelCalls).isZero();
+    }
+
+    private PaidFixture paidFixture() { return paidFixture(false); }
+
+    private PaidFixture paidFixture(boolean multiSeller) {
         String unique = UUID.randomUUID().toString();
         long[] ids = transactions.execute(status -> {
             User owner = User.createOAuthUser("owner-" + unique + "@example.test", "판매자", null, AuthProvider.GOOGLE, "owner-" + unique);
@@ -479,7 +620,14 @@ class MySqlOrderConcurrencyIntegrationTest {
             Category category = Category.create(null, "분류 " + unique, 1);
             entityManager.persist(category);
             Product first = Product.createDraft(seller, category, "상품1", "브랜드", "요약", "설명", 10_000L, 3, null, true, 0L, 1, 3_000L, 6_000L);
-            Product second = Product.createDraft(seller, category, "상품2", "브랜드", "요약", "설명", 10_000L, 3, null, true, 0L, 1, 3_000L, 6_000L);
+            Seller secondSeller = seller;
+            if (multiSeller) {
+                User secondOwner = User.createOAuthUser("other-" + unique + "@example.test", "다른 판매자", null, AuthProvider.GOOGLE, "other-" + unique);
+                entityManager.persist(secondOwner);
+                secondSeller = Seller.create(secondOwner, "다른 상점", null);
+                entityManager.persist(secondSeller);
+            }
+            Product second = Product.createDraft(secondSeller, category, "상품2", "브랜드", "요약", "설명", 10_000L, 3, null, true, 0L, 1, 3_000L, 6_000L);
             first.startSale(); second.startSale();
             entityManager.persist(first); entityManager.persist(second);
             CartItem cart1 = CartItem.create(buyer, first, null, 2);
@@ -536,13 +684,14 @@ class MySqlOrderConcurrencyIntegrationTest {
         synchronized GatewayCancelResult cancel(GatewayCancelCommand command) {
             cancelCalls++;
             if (results.containsKey(command.idempotencyKey())) return results.get(command.idempotencyKey());
-            refunded += command.cancelAmount();
+            long canceledAmount = command.cancelAmount() == null ? command.amount() : command.cancelAmount();
+            refunded += canceledAmount;
             long remaining = command.amount() - refunded;
             String tx = "refund-" + UUID.randomUUID();
             LocalDateTime now = LocalDateTime.now().plusSeconds(1);
-            var result = new GatewayCancelResult(GatewayPaymentStatus.PARTIALLY_CANCELED, key, tx, order.merchantPaymentId(),
-                    order.totalAmount(), remaining, "KRW", "PARTIAL_CANCELED", now, command.cancelAmount(), "DONE", remaining);
-            cancellationTransactions.add(new GatewayCancellationTransaction(tx, command.cancelAmount(), command.reason(), "DONE", now, remaining));
+            var result = new GatewayCancelResult(remaining == 0 ? GatewayPaymentStatus.CANCELED : GatewayPaymentStatus.PARTIALLY_CANCELED, key, tx, order.merchantPaymentId(),
+                    order.totalAmount(), remaining, "KRW", remaining == 0 ? "CANCELED" : "PARTIAL_CANCELED", now, canceledAmount, "DONE", remaining);
+            cancellationTransactions.add(new GatewayCancellationTransaction(tx, canceledAmount, command.reason(), "DONE", now, remaining));
             results.put(command.idempotencyKey(), result);
             return result;
         }

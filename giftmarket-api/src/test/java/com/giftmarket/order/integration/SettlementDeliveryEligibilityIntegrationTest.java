@@ -9,6 +9,9 @@ import com.giftmarket.order.entity.ShipmentType;
 import com.giftmarket.order.repository.SellerOrderRepository;
 import com.giftmarket.order.repository.ShipmentRepository;
 import com.giftmarket.order.service.SellerOrderManagementService;
+import com.giftmarket.payment.entity.Payment;
+import com.giftmarket.payment.entity.PaymentProvider;
+import com.giftmarket.payment.entity.PaymentMethod;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.settlement.exception.SettlementException;
 import com.giftmarket.settlement.service.SettlementEligibilityService;
@@ -89,6 +92,15 @@ class SettlementDeliveryEligibilityIntegrationTest {
             );
             entityManager.persist(order);
             order.markPaid(shippedAt.minusDays(1));
+
+            // Fulfillment now locks the paid Payment before Order/SellerOrder, as real checkout does.
+            Payment payment = Payment.createReady(order, PaymentProvider.TOSS,
+                    "delivery-eligibility-payment", "delivery-eligibility-request", "delivery-eligibility-idempotency",
+                    10_000L, "KRW", shippedAt.minusDays(1), shippedAt.plusDays(1));
+            payment.startConfirm("delivery-eligibility-key", shippedAt.minusDays(1));
+            payment.complete("delivery-eligibility-key", "delivery-eligibility-approval",
+                    PaymentMethod.CARD, null, "DONE", shippedAt.minusDays(1));
+            entityManager.persist(payment);
 
             SellerOrder sellerOrder = SellerOrder.createPendingPayment(order, seller);
             entityManager.persist(sellerOrder);

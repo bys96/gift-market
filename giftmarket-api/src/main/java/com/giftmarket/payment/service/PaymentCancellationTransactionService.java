@@ -28,6 +28,7 @@ public class PaymentCancellationTransactionService {
     private final OrderRepository orderRepository;
     private final OrderInventoryService inventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
+    private final FullOrderCancellationPolicy fullOrderCancellationPolicy;
 
     @Transactional(readOnly = true)
     public boolean isCanceling(Long paymentId) {
@@ -84,7 +85,7 @@ public class PaymentCancellationTransactionService {
         );
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public PaymentCancelStart start(Long userId, Long orderId, OrderCancelRequest request) {
         Payment payment = paymentRepository.findLatestIdByOrderIdAndUserId(orderId, userId)
                 .map(this::getPayment).orElse(null);
@@ -93,6 +94,10 @@ public class PaymentCancellationTransactionService {
 
         if (order.getStatus() == OrderStatus.CANCELLED) return completed(order, payment, "이미 취소된 주문입니다.");
         if (order.getStatus() == OrderStatus.ORDERED) {
+            if (payment != null) {
+                throw new PaymentException("현재 상태에서는 주문을 취소할 수 없습니다.");
+            }
+            fullOrderCancellationPolicy.validate(order, SellerOrderStatus.PENDING_PAYMENT);
             inventoryService.restore(orderId);
             order.cancel();
             sellerOrderLifecycleService.cancel(orderId);
@@ -103,6 +108,7 @@ public class PaymentCancellationTransactionService {
             return completed(order, payment, "이미 취소된 주문입니다.");
         }
         if (order.getStatus() == OrderStatus.PENDING_PAYMENT && payment.getStatus() == PaymentStatus.READY) {
+            fullOrderCancellationPolicy.validate(order, SellerOrderStatus.PENDING_PAYMENT);
             inventoryService.restore(orderId);
             payment.cancelBeforeApproval(LocalDateTime.now());
             order.cancel();
@@ -113,6 +119,7 @@ public class PaymentCancellationTransactionService {
             throw new PaymentException("결제 결과를 확인 중인 주문은 취소할 수 없습니다.");
         }
         if (payment.getStatus() == PaymentStatus.CANCELING && order.getStatus() == OrderStatus.PAID) {
+            fullOrderCancellationPolicy.validate(order, SellerOrderStatus.PAID);
             PaymentCancellation active = cancellationRepository
                     .findFirstByPaymentIdAndStatusOrderByIdDesc(payment.getId(), PaymentCancellationStatus.REQUESTED)
                     .orElseThrow(() -> new PaymentException("결제 취소 상태를 확인할 수 없습니다."));
@@ -122,6 +129,7 @@ public class PaymentCancellationTransactionService {
             throw new PaymentException("현재 상태에서는 주문을 취소할 수 없습니다.");
         }
 
+        fullOrderCancellationPolicy.validate(order, SellerOrderStatus.PAID);
         PaymentCancellation existing = cancellationRepository
                 .findByClientRequestKeyAndPaymentOrderUserId(request.clientCancelRequestKey(), userId).orElse(null);
         if (existing != null) {

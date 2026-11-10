@@ -33,6 +33,7 @@ class PaymentCancellationTransactionServiceTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderInventoryService inventoryService;
     @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
+    @Mock FullOrderCancellationPolicy fullOrderCancellationPolicy;
     @Mock User user;
 
     private PaymentCancellationTransactionService service;
@@ -48,7 +49,8 @@ class PaymentCancellationTransactionServiceTest {
                 cancellationRepository,
                 orderRepository,
                 inventoryService,
-                sellerOrderLifecycleService
+                sellerOrderLifecycleService,
+                fullOrderCancellationPolicy
         );
         now = LocalDateTime.of(2026, 8, 17, 12, 0);
         order = Order.createPendingPayment(
@@ -78,6 +80,68 @@ class PaymentCancellationTransactionServiceTest {
 
         lenient().when(paymentRepository.findByIdForUpdate(20L))
                 .thenReturn(Optional.of(payment));
+    }
+
+    @Test
+    void legacyUnpaidOrderRequiresNoPaymentAndPendingSellers() {
+        ReflectionTestUtils.setField(order, "status", OrderStatus.ORDERED);
+        given(orderRepository.findByIdAndUserIdForUpdate(10L, 1L)).willReturn(Optional.of(order));
+        assertThat(service.start(1L, 10L, new OrderCancelRequest("request", "취소")).action())
+                .isEqualTo(PaymentCancelStart.Action.COMPLETED);
+        verify(fullOrderCancellationPolicy).validate(order, SellerOrderStatus.PENDING_PAYMENT);
+        verify(inventoryService).restore(10L);
+    }
+
+    @Test
+    void legacyOrderedStateWithPaymentCannotRestoreStockWithoutRefund() {
+        ReflectionTestUtils.setField(order, "status", OrderStatus.ORDERED);
+        ReflectionTestUtils.setField(payment, "status", PaymentStatus.PAID);
+        given(paymentRepository.findLatestIdByOrderIdAndUserId(10L, 1L)).willReturn(Optional.of(20L));
+        given(orderRepository.findByIdAndUserIdForUpdate(10L, 1L)).willReturn(Optional.of(order));
+        assertThatThrownBy(() -> service.start(1L, 10L, new OrderCancelRequest("request", "취소")))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        verify(inventoryService, never()).restore(any());
+    }
+
+    @Test
+    void readyOrderCancelsBeforeApprovalWithoutCreatingRefund() {
+        ReflectionTestUtils.setField(order, "status", OrderStatus.PENDING_PAYMENT);
+        ReflectionTestUtils.setField(payment, "status", PaymentStatus.READY);
+        given(paymentRepository.findLatestIdByOrderIdAndUserId(10L, 1L)).willReturn(Optional.of(20L));
+        given(orderRepository.findByIdAndUserIdForUpdate(10L, 1L)).willReturn(Optional.of(order));
+        assertThat(service.start(1L, 10L, new OrderCancelRequest("request", "취소")).action())
+                .isEqualTo(PaymentCancelStart.Action.COMPLETED);
+        verify(fullOrderCancellationPolicy).validate(order, SellerOrderStatus.PENDING_PAYMENT);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+        verify(inventoryService).restore(10L);
+        verify(cancellationRepository, never()).save(any());
+    }
+
+    @Test
+    void paidOrderValidatesPolicyBeforeStartingRefund() {
+        ReflectionTestUtils.setField(payment, "status", PaymentStatus.PAID);
+        given(paymentRepository.findLatestIdByOrderIdAndUserId(10L, 1L)).willReturn(Optional.of(20L));
+        given(orderRepository.findByIdAndUserIdForUpdate(10L, 1L)).willReturn(Optional.of(order));
+        given(cancellationRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+        assertThat(service.start(1L, 10L, new OrderCancelRequest("request", "취소")).action())
+                .isEqualTo(PaymentCancelStart.Action.CANCEL);
+        verify(fullOrderCancellationPolicy).validate(order, SellerOrderStatus.PAID);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELING);
+        verify(inventoryService, never()).restore(any());
+    }
+
+    @Test
+    void deniedPolicyDoesNotCreateRefundOrChangePaymentOrInventory() {
+        ReflectionTestUtils.setField(payment, "status", PaymentStatus.PAID);
+        given(paymentRepository.findLatestIdByOrderIdAndUserId(10L, 1L)).willReturn(Optional.of(20L));
+        given(orderRepository.findByIdAndUserIdForUpdate(10L, 1L)).willReturn(Optional.of(order));
+        doThrow(new com.giftmarket.payment.exception.PaymentException("blocked"))
+                .when(fullOrderCancellationPolicy).validate(order, SellerOrderStatus.PAID);
+        assertThatThrownBy(() -> service.start(1L, 10L, new OrderCancelRequest("request", "취소")))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        verify(cancellationRepository, never()).save(any());
+        verify(inventoryService, never()).restore(any());
     }
 
     @Test

@@ -94,6 +94,25 @@ Return/Exchange는 별도 도메인으로 구현 완료됐으며 Cancellation의
 
 Frontend에서 버튼을 숨기는 것과 별개로 Backend가 상태를 최종 검증한다.
 
+### 일반 전체취소 API 진입 정책 (2026-11-10)
+
+`PATCH /api/orders/{orderId}/cancel`은 위의 판매자 승인·반품·교환 절차를 우회하는 수단이 아니다.
+
+| 주문·결제 상태 | 전체취소 허용 조건 |
+| --- | --- |
+| PENDING_PAYMENT / READY | 모든 SellerOrder가 PENDING_PAYMENT이고 아래 공통 차단 조건이 없을 때 PG 호출 없이 취소·예약 재고 복원 |
+| ORDERED / Payment 없음 (legacy) | 모든 SellerOrder가 PENDING_PAYMENT인 미결제 자료만 허용. Payment가 존재하면 상태 불일치로 차단 |
+| PAID / PAID | 모든 SellerOrder가 PAID이고 아래 공통 차단 조건이 없을 때 전체환불 시작 |
+| PAID / CANCELING | 같은 정책을 재확인하고 기존 취소 거래 조회·멱등 재시도 경로 사용 |
+| 이미 CANCELLED | 기존 완료 응답 반환, 추가 환불·재고 복원 없음 |
+| 그 외 | 차단. CONFIRMING 결과 불명, PARTIALLY_CANCELED 등은 일반 전체취소로 우회하지 않음 |
+
+공통 차단 조건은 SellerOrder/주문 상품 누락, 하나라도 허용 상태가 아닌 SellerOrder, 구매확정·기취소·완료 반품·완료 교환 수량, REQUESTED/PROCESSING 취소, REQUESTED~REFUNDING 반품, REQUESTED~RESHIPPING 교환(PAYMENT_PENDING 포함)이다. PREPARING은 승인형 취소, SHIPPED/DELIVERED는 반품·교환 정책을 따른다.
+
+전체취소 시작은 READ_COMMITTED transaction에서 Payment → Order → ID 순 SellerOrder → 상품 잠금을 잡고 검증한다. 판매자의 준비·출고·배송완료 및 직접취소 생성도 Payment → Order → SellerOrder 순서로 잠근다. CANCELING 중에는 판매자 상태 변경·새 직접취소를 차단해 PG 호출을 위해 transaction을 분리한 구간도 보호한다. 결제 실패·만료의 기존 복원 primitive와 SellerOrder.cancel()은 변경하지 않는다.
+
+**미해결 범위:** 이 변경은 진입 정책만 수정한다. 기존 FULL 취소의 OrderCancellation/OrderItem.canceledQuantity 연결과 정산 환불·수수료 환입은 별도 작업이며 완료로 간주하지 않는다. 전체취소 MySQL 회귀의 환불·재고 멱등성 성공도 정산·취소 수량 E2E 성공을 뜻하지 않는다. 기존에 생성된 잘못된 진행 중 취소 거래의 대사·복구 역시 별도 확인이 필요하다.
+
 ## 5. 부분취소 단위
 
 한 번의 `OrderCancellation`은 하나의 SellerOrder 안에서 여러 OrderItem과 각각의 수량을 포함할 수 있다.

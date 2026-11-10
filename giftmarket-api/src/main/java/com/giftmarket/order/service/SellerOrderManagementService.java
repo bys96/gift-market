@@ -36,6 +36,7 @@ import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.exception.SellerException;
 import com.giftmarket.seller.repository.SellerRepository;
 import com.giftmarket.settlement.service.SettlementEligibilityService;
+import com.giftmarket.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -71,6 +72,7 @@ public class SellerOrderManagementService {
     private final ShipmentRepository shipmentRepository;
     private final SettlementEligibilityService settlementEligibilityService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PaymentRepository paymentRepository;
 
     private static final Set<OrderCancellationStatus> SHIPPING_BLOCKING_CANCELLATION_STATUSES =
             Set.of(
@@ -178,7 +180,7 @@ public class SellerOrderManagementService {
         return detail(sellerOrder);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public SellerOrderDetailResponse prepare(
             Long userId,
             Long sellerOrderId
@@ -242,6 +244,7 @@ public class SellerOrderManagementService {
 
         Long orderId = sellerOrderRepository.findOrderIdByIdAndSellerId(sellerOrderId, seller.getId())
                 .orElseThrow(this::sellerOrderNotFound);
+        lockRefundablePayment(orderId);
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(this::sellerOrderNotFound);
         SellerOrder sellerOrder = sellerOrderRepository
@@ -315,7 +318,7 @@ public class SellerOrderManagementService {
         );
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public SellerOrderDetailResponse ship(
             Long userId,
             Long sellerOrderId,
@@ -373,7 +376,7 @@ public class SellerOrderManagementService {
         );
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public SellerOrderDetailResponse deliver(
             Long userId,
             Long sellerOrderId
@@ -439,6 +442,7 @@ public class SellerOrderManagementService {
                 .findOrderIdByIdAndSellerId(sellerOrderId, seller.getId())
                 .orElseThrow(this::sellerOrderNotFound);
 
+        lockRefundablePayment(orderId);
         orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(this::sellerOrderNotFound);
         SellerOrder sellerOrder = sellerOrderRepository
@@ -488,6 +492,16 @@ public class SellerOrderManagementService {
                         shipment -> shipment.getSellerOrder().getId(),
                         shipment -> shipment
                 ));
+    }
+
+    private void lockRefundablePayment(Long orderId) {
+        // Match the cancellation/confirmation lock order; keep this lock until the transition commits.
+        var payment = paymentRepository.findLatestIdByOrderId(orderId)
+                .flatMap(paymentRepository::findByIdForUpdate)
+                .orElseThrow(() -> new SellerException("결제 정보를 확인할 수 없습니다."));
+        if (!payment.isRefundableState()) {
+            throw new SellerException("결제 취소 또는 결제 처리가 진행 중인 주문은 변경할 수 없습니다.");
+        }
     }
 
     private Seller getActiveSeller(Long userId) {
