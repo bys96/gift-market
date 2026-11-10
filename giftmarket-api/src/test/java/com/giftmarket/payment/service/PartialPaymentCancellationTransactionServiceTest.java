@@ -260,6 +260,71 @@ class PartialPaymentCancellationTransactionServiceTest {
                 3_000L, "DONE", 1_000L))).isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
     }
 
+    @Test
+    void historicalCompletionAcceptsEarlierTransactionBalanceButNormalCompletionDoesNot() {
+        stubProcessingCancellation();
+        var result = historicalResult(5_000L, 7_000L);
+        assertThatThrownBy(() -> service.complete(start(), result))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        service.completeFromReconciliation(start(), result);
+        verify(completionService).complete(1L);
+        verify(payment).markPartiallyCanceled("PARTIAL_CANCELED");
+    }
+
+    @Test
+    void historicalTransactionAlreadyUsedByAnotherRequestIsRejectedBeforeStockOrLedger() {
+        stubProcessingCancellation();
+        given(paymentCancellationRepository.existsByPaymentIdAndProviderTransactionKeyAndIdNot(20L, "cancel-tx", 30L))
+                .willReturn(true);
+        assertThatThrownBy(() -> service.completeFromReconciliation(start(), historicalResult(5_000L, 7_000L)))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        org.mockito.Mockito.verifyNoInteractions(completionService, cancellationSettlementLedgerService);
+    }
+
+    @Test
+    void zeroCurrentBalanceDoesNotClosePaymentWhileAnotherRefundNeedsRecovery() {
+        stubProcessingCancellation();
+        given(paymentCancellationRepository.existsByPaymentIdAndStatusAndIdNot(20L, PaymentCancellationStatus.REQUESTED, 30L))
+                .willReturn(true);
+        service.completeFromReconciliation(start(), historicalResult(0L, 7_000L));
+        verify(payment).markPartiallyCanceled("PARTIAL_CANCELED");
+        verify(payment, org.mockito.Mockito.never()).markFullyCanceled(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void querySnapshotOlderThanAnotherLocallyCompletedRefundMustBeQueriedAgain() {
+        stubProcessingCancellation();
+        given(paymentCancellationRepository.sumAmountByPaymentIdAndStatus(20L, PaymentCancellationStatus.SUCCEEDED))
+                .willReturn(7_000L);
+        assertThatThrownBy(() -> service.completeFromReconciliation(start(), historicalResult(7_000L, 7_000L)))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        org.mockito.Mockito.verifyNoInteractions(completionService, cancellationSettlementLedgerService);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"5000,4000", "5000,8000", "-1,7000"})
+    void historicalCompletionRejectsImpossibleBalances(long current, long transaction) {
+        stubProcessingCancellation();
+        assertThatThrownBy(() -> service.completeFromReconciliation(start(), historicalResult(current, transaction)))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        org.mockito.Mockito.verifyNoInteractions(completionService, cancellationSettlementLedgerService);
+    }
+
+    private GatewayCancelResult historicalResult(long current, long transaction) {
+        return new GatewayCancelResult(GatewayPaymentStatus.PARTIALLY_CANCELED, "payment-key", "cancel-tx", "order-id",
+                10_000L, current, "KRW", "PARTIAL_CANCELED", LocalDateTime.now(), 3_000L, "DONE", transaction);
+    }
+
+    private void stubProcessingCancellation() {
+        stubLockedGraph();
+        given(paymentCancellationRepository.findByIdForUpdate(30L)).willReturn(Optional.of(pgCancellation));
+        given(pgCancellation.getStatus()).willReturn(PaymentCancellationStatus.REQUESTED);
+        given(pgCancellation.getType()).willReturn(PaymentCancellationType.PARTIAL);
+        given(pgCancellation.getOrderCancellation()).willReturn(cancellation);
+        given(pgCancellation.getAmount()).willReturn(3_000L);
+        given(cancellation.getStatus()).willReturn(OrderCancellationStatus.PROCESSING);
+    }
+
     private void stubLockedGraph() {
         given(cancellation.getOrder()).willReturn(order);
         given(cancellation.getSellerOrder()).willReturn(sellerOrder);

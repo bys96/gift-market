@@ -433,12 +433,22 @@ PARTIAL PaymentCancellation은 REQUESTED/PROCESSING 상태를 유지하고 recon
 ### transaction 식별 우선순위
 
 1. 저장된 provider transaction key 정확 매칭
-2. key가 없으면 amount + reason + requestedAt 이후 + DONE 조건이 유일할 때만 매칭
+2. key가 없으면 주문 취소 ID가 포함된 서버 생성 사유(`구매자 주문 부분취소 요청 #{orderCancellationId}`)가 일치하고 amount + requestedAt 이후 + DONE 조건이 유일할 때만 매칭
 3. 여러 후보/충돌이면 unresolved
 
-성공 transaction이 식별되면 기존 completion transaction을 재사용한다.
+PG 거래 키는 비어 있거나 중복되어서는 안 된다. 조회된 DONE 취소 이력을 거래별 잔액 내림차순으로 재구성하여 최초 결제액에서 현재 잔액까지 금액이 빠짐없이 이어지는지 확인한다. 배열 순서와 최신 거래 키만으로 과거 거래를 판단하지 않는다. 같은 결제에서 다른 로컬 환불이 이미 사용한 PG 거래 키도 완료 transaction의 Payment 잠금 안에서 거부한다.
 
-거래가 아직 없고 provider payment가 PAID/PARTIALLY_CANCELED이며 부분취소 가능 상태라면 저장된 동일 amount/reason/idempotency key로만 안전하게 재시도한다.
+성공 transaction이 식별되면 기존 completion transaction·잠금 순서를 재사용한다. reconciliation 전용 완료 진입점에서는 거래 직후 잔액과 현재 결제 잔액을 구분한다. 예를 들어 A 3,000원 취소 직후 7,000원, B 2,000원 취소 후 현재 5,000원이면 A의 고유 거래와 전체 잔액 흐름이 검증되는 한 A를 복구한다. 일반 부분취소 응답의 잔액 일치 검증은 유지한다.
+
+PG 잔액이 0이어도 다른 REQUESTED 환불이 남아 있으면 Payment는 PARTIALLY_CANCELED로 유지한다. 마지막 미확정 거래가 로컬 수량·재고·원장까지 완료된 뒤 CANCELED로 전환하여 이전 환불의 복구 후보가 사라지는 것을 막는다. 모든 완료 변경은 같은 transaction에서 rollback되며, 반복 복구는 기존 완료 상태와 원장 근거 키로 중복 반영을 막는다.
+
+같은 SellerOrder에서 과거 A가 마지막으로 복구되어 전량취소가 되는 경우 원장의 `occurredAt`은 A의 실제 PG 취소 시각을 유지한다. 정산 가능 시각은 A와 기존 취소 환불 원장 중 가장 늦은 취소 시각으로 활성화하여 이미 발생한 B 원장보다 앞서지 않게 한다. 금액·수수료율·환입 계산 및 확정 정산 보호 규칙은 유지한다.
+
+PG 조회와 로컬 완료 transaction 사이에 B가 완료될 수 있다. 완료 시 Payment 잠금 안에서 로컬 성공 환불 합계를 다시 계산하고, 조회 잔액이 로컬 기준 잔액보다 크면 `STALE_REFUND_BALANCE`로 중단한다. 수량·재고·원장은 변경하지 않고 다음 최신 조회에서 복구하여 과거 조회 응답이 최신 로컬 상태를 덮지 않게 한다.
+
+일반 사유만 있는 과거 요청(저장된 거래 키도 없음), 같은 요청 식별자가 여러 거래에 나타나는 경우, 조회 이력 누락·중복·금액 불일치·비완료 상태는 UNRESOLVED로 남긴다. 운영 PG/DB 대사가 필요하며 금액만으로 성공 처리하지 않는다. 이미 CANCELED 등 기존 복구 후보 밖 상태로 저장된 과거 자료도 자동 보정하지 않는다.
+
+거래가 아직 없고 provider payment가 PAID/PARTIALLY_CANCELED이며 부분취소 가능 상태이고 조회 잔액이 로컬 성공 환불 기준의 요청 전 잔액과 일치하면, 기존 15일 유효기간 안에서 저장된 동일 amount/reason/idempotency key로만 재시도한다. 식별 충돌·이력 검증 실패·조회 타임아웃에는 새 환불을 호출하지 않는다.
 
 ## 20. webhook
 

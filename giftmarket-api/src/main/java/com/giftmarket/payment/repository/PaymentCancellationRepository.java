@@ -18,6 +18,8 @@ import java.util.Collection;
 import java.util.Optional;
 
 public interface PaymentCancellationRepository extends JpaRepository<PaymentCancellation, Long> {
+    boolean existsByPaymentIdAndProviderTransactionKeyAndIdNot(Long paymentId, String providerTransactionKey, Long id);
+    boolean existsByPaymentIdAndStatusAndIdNot(Long paymentId, PaymentCancellationStatus status, Long id);
     Optional<PaymentCancellation> findByClientRequestKeyAndPaymentOrderUserId(String clientRequestKey, Long userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

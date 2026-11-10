@@ -17,6 +17,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Comparator;
+import java.util.HashSet;
 
 @Slf4j
 @Service
@@ -108,20 +110,16 @@ public class PartialPaymentCancellationReconciliationService {
 
     private ReconciliationResult reconcileQuery(PartialCancellationReconciliationStart start,
                                                  GatewayPaymentQueryResult query) {
-        if (!validIdentity(start, query)) return ReconciliationResult.UNRESOLVED;
+        if (!validIdentity(start, query) || !historyProvesBalance(query)) return ReconciliationResult.UNRESOLVED;
         Match match = match(start, query.cancellations());
         if (match.type == MatchType.CONFLICT || match.type == MatchType.AMBIGUOUS)
             return ReconciliationResult.UNRESOLVED;
         if (match.transaction != null) {
             if (!"DONE".equalsIgnoreCase(match.transaction.status())
-                    || !Objects.equals(query.remainingAmount(), start.expectedRemainingAmount())
                     || !consistentStatus(query.status(), query.remainingAmount()))
                 return ReconciliationResult.UNRESOLVED;
             GatewayCancellationTransaction tx = match.transaction;
-            if (!Objects.equals(tx.remainingAmount(), query.remainingAmount())) {
-                return ReconciliationResult.UNRESOLVED;
-            }
-            cancellationTransactions.complete(toCompletionStart(start), new GatewayCancelResult(
+            cancellationTransactions.completeFromReconciliation(toCompletionStart(start), new GatewayCancelResult(
                     query.status(), query.providerPaymentKey(), tx.providerTransactionId(),
                     query.merchantPaymentId(), query.amount(), query.remainingAmount(), query.currency(),
                     query.providerStatus(), tx.canceledAt(), tx.amount(), tx.status(), tx.remainingAmount()));
@@ -144,15 +142,47 @@ public class PartialPaymentCancellationReconciliationService {
             if (exact.size() != 1) return new Match(MatchType.CONFLICT, null);
             GatewayCancellationTransaction value = exact.getFirst();
             return Objects.equals(value.amount(), start.cancelAmount())
+                    && value.canceledAt() != null && !value.canceledAt().isBefore(start.requestedAt())
                     ? new Match(MatchType.EXACT, value) : new Match(MatchType.CONFLICT, null);
         }
+        // A generic user reason (or amount alone) does not identify a lost-response request.
+        if (!Objects.equals(start.reason(), PartialPaymentCancellationReason.create(start.orderCancellationId()))) {
+            return new Match(MatchType.CONFLICT, null);
+        }
         List<GatewayCancellationTransaction> candidates = values.stream()
-                .filter(value -> Objects.equals(value.amount(), start.cancelAmount()))
                 .filter(value -> Objects.equals(normalize(value.reason()), normalize(start.reason())))
-                .filter(value -> value.canceledAt() != null && !value.canceledAt().isBefore(start.requestedAt()))
                 .toList();
-        if (candidates.size() == 1) return new Match(MatchType.EXACT, candidates.getFirst());
+        if (candidates.size() == 1) {
+            var value = candidates.getFirst();
+            return Objects.equals(value.amount(), start.cancelAmount()) && value.canceledAt() != null
+                    && !value.canceledAt().isBefore(start.requestedAt())
+                    ? new Match(MatchType.EXACT, value) : new Match(MatchType.CONFLICT, null);
+        }
         return new Match(candidates.isEmpty() ? MatchType.NONE : MatchType.AMBIGUOUS, null);
+    }
+
+    /** Reconstruct balances by economic order, independently of the PG array order. */
+    private boolean historyProvesBalance(GatewayPaymentQueryResult query) {
+        if (query.amount() == null || query.amount() <= 0L || query.remainingAmount() == null
+                || query.remainingAmount() < 0L || query.remainingAmount() > query.amount()
+                || query.cancellations() == null) return false;
+        if (Objects.equals(query.remainingAmount(), query.amount())
+                ? query.status() != GatewayPaymentStatus.PAID
+                : !consistentStatus(query.status(), query.remainingAmount())) return false;
+        var keys = new HashSet<String>();
+        for (var tx : query.cancellations()) {
+            if (tx == null || tx.providerTransactionId() == null || tx.providerTransactionId().isBlank()
+                    || !keys.add(tx.providerTransactionId()) || !"DONE".equalsIgnoreCase(tx.status())
+                    || tx.amount() == null || tx.amount() <= 0L || tx.remainingAmount() == null
+                    || tx.remainingAmount() < 0L || tx.canceledAt() == null) return false;
+        }
+        long balance = query.amount();
+        for (var tx : query.cancellations().stream()
+                .sorted(Comparator.comparing(GatewayCancellationTransaction::remainingAmount).reversed()).toList()) {
+            if (tx.amount() > balance || tx.remainingAmount() != balance - tx.amount()) return false;
+            balance = tx.remainingAmount();
+        }
+        return balance == query.remainingAmount();
     }
 
     private boolean validIdentity(PartialCancellationReconciliationStart start, GatewayPaymentQueryResult query) {

@@ -451,6 +451,118 @@ class MySqlOrderConcurrencyIntegrationTest {
         assertThat(f.pg().cancelCalls).isEqualTo(1);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void lostPartialARecoversAfterBWithoutDuplicateStockQuantityOrLedger(boolean reverseHistory) throws Exception {
+        PaidFixture f = paidFixture();
+        doAnswer(invocation -> {
+            f.pg().cancel(invocation.getArgument(0));
+            throw new PaymentGatewayUncertainException("isolated lost A response", null);
+        }).when(f.pg().gateway).cancel(any());
+        var requestA = partialRequest(f.sellerOrderId(), f.item1(), UUID.randomUUID().toString());
+        partialCancellation.create(f.buyerId(), f.order().orderId(), requestA);
+        var a = cancellations.findByClientRequestKey(requestA.clientRequestKey()).orElseThrow();
+        assertThat(a.getStatus()).isEqualTo(OrderCancellationStatus.PROCESSING);
+        doAnswer(invocation -> f.pg().cancel(invocation.getArgument(0))).when(f.pg().gateway).cancel(any());
+        partialCancellation.create(f.buyerId(), f.order().orderId(),
+                partialRequest(f.sellerOrderId(), f.item2(), UUID.randomUUID().toString()));
+        assertThat(orderItems.findById(f.item1()).orElseThrow().getCanceledQuantity()).isZero();
+        assertThat(orderItems.findById(f.item2()).orElseThrow().getCanceledQuantity()).isEqualTo(1);
+        var query = f.pg().query();
+        if (reverseHistory) {
+            var reversed = new ArrayList<>(query.cancellations());
+            java.util.Collections.reverse(reversed);
+            query = withHistory(query, reversed);
+        }
+        var observed = query;
+        assertThat(concurrently(
+                () -> { partialReconciliation.reconcileFromWebhook(f.order().paymentId(), observed); return "done"; },
+                () -> { partialReconciliation.reconcileFromWebhook(f.order().paymentId(), observed); return "done"; }))
+                .containsExactlyInAnyOrder("done", "done");
+        partialReconciliation.reconcileFromWebhook(f.order().paymentId(), query);
+        assertPartialState(f, 1, 1, 20_000L, 2);
+        assertThat(f.pg().cancelCalls).isEqualTo(2);
+        assertThat(settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(f.sellerOrderId()))
+                .hasSize(6).filteredOn(e -> e.getType() == com.giftmarket.settlement.entity.SettlementLedgerType.CANCELLATION_REFUND)
+                .hasSize(2);
+        assertThat(refunds.findByOrderCancellationId(a.getId()).orElseThrow().getProviderTransactionKey())
+                .isEqualTo(f.pg().cancellationTransactions.getFirst().providerTransactionId());
+    }
+
+    @Test
+    void historicalPartialRecoveryRollsBackLedgerFailureAndRetriesOnlyLocalCompletion() {
+        PaidFixture f = paidFixture();
+        doAnswer(invocation -> {
+            f.pg().cancel(invocation.getArgument(0));
+            throw new PaymentGatewayUncertainException("isolated lost A response", null);
+        }).when(f.pg().gateway).cancel(any());
+        var requestA = partialRequest(f.sellerOrderId(), f.item1(), UUID.randomUUID().toString());
+        partialCancellation.create(f.buyerId(), f.order().orderId(), requestA);
+        doAnswer(invocation -> f.pg().cancel(invocation.getArgument(0))).when(f.pg().gateway).cancel(any());
+        partialCancellation.create(f.buyerId(), f.order().orderId(),
+                partialRequest(f.sellerOrderId(), f.item2(), UUID.randomUUID().toString()));
+        transactions.executeWithoutResult(status -> doAnswer(invocation -> {
+            invocation.callRealMethod();
+            entityManager.flush();
+            throw new DataIntegrityViolationException("isolated historical recovery DB failure");
+        }).when(cancellationLedger).recordCancellation(any(), any(), any()));
+        try { partialReconciliation.reconcileFromWebhook(f.order().paymentId(), f.pg().query()); }
+        finally { reset(cancellationLedger); }
+        assertThat(orderItems.findById(f.item1()).orElseThrow().getCanceledQuantity()).isZero();
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(1);
+        assertThat(refunds.sumAmountByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.SUCCEEDED)).isEqualTo(10_000L);
+        assertThat(settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(f.sellerOrderId())).hasSize(4);
+        partialReconciliation.reconcileFromWebhook(f.order().paymentId(), f.pg().query());
+        partialReconciliation.reconcileFromWebhook(f.order().paymentId(), f.pg().query());
+        assertPartialState(f, 1, 1, 20_000L, 2);
+        assertThat(settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(f.sellerOrderId())).hasSize(6);
+        assertThat(f.pg().cancelCalls).isEqualTo(2);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void finalBRefundKeepsLostAPendingRecoverableUntilAllLocalCancellationsComplete(boolean multiSeller) {
+        PaidFixture f = paidFixture(multiSeller);
+        doAnswer(invocation -> {
+            f.pg().cancel(invocation.getArgument(0));
+            throw new PaymentGatewayUncertainException("isolated lost A response", null);
+        }).when(f.pg().gateway).cancel(any());
+        var a = partialCancellation.create(f.buyerId(), f.order().orderId(), new OrderCancellationCreateRequest(
+                UUID.randomUUID().toString(), f.sellerOrderId(), "A", List.of(new OrderCancellationItemRequest(f.item1(), 2))));
+        var oldQuery = f.pg().query();
+        doAnswer(invocation -> f.pg().cancel(invocation.getArgument(0))).when(f.pg().gateway).cancel(any());
+        Long secondSellerOrder = transactions.execute(status -> orderItems.findById(f.item2()).orElseThrow().getSellerOrder().getId());
+        partialCancellation.create(f.buyerId(), f.order().orderId(), new OrderCancellationCreateRequest(
+                UUID.randomUUID().toString(), secondSellerOrder, "B", List.of(new OrderCancellationItemRequest(f.item2(), 2))));
+        assertThat(f.pg().refunded).isEqualTo(f.order().totalAmount());
+        partialReconciliation.reconcileFromWebhook(f.order().paymentId(), oldQuery);
+        assertThat(cancellations.findById(a.cancellationId()).orElseThrow().getStatus()).isEqualTo(OrderCancellationStatus.PROCESSING);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(1);
+        assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PARTIALLY_CANCELED);
+        assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PAID);
+        partialReconciliation.reconcileFromWebhook(f.order().paymentId(), f.pg().query());
+        partialReconciliation.reconcileFromWebhook(f.order().paymentId(), f.pg().query());
+        assertThat(cancellations.findById(a.cancellationId()).orElseThrow().getStatus()).isEqualTo(OrderCancellationStatus.COMPLETED);
+        assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.CANCELED);
+        assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(refunds.countByPaymentIdAndStatus(f.order().paymentId(), PaymentCancellationStatus.SUCCEEDED)).isEqualTo(2);
+        transactions.executeWithoutResult(status -> {
+            for (var sellerOrder : sellerOrders.findAllByOrderIdOrderByIdAsc(f.order().orderId())) {
+                assertThat(settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(sellerOrder.getId()).stream()
+                        .mapToLong(com.giftmarket.settlement.entity.SettlementLedgerEntry::getAmount).sum()).isZero();
+            }
+        });
+        assertThat(f.pg().cancelCalls).isEqualTo(2);
+    }
+
+    private GatewayPaymentQueryResult withHistory(GatewayPaymentQueryResult query, List<GatewayCancellationTransaction> history) {
+        return new GatewayPaymentQueryResult(query.status(), query.providerPaymentKey(), query.providerTransactionId(),
+                query.merchantPaymentId(), query.amount(), query.currency(), query.method(), query.easyPayProvider(),
+                query.providerStatus(), query.approvedAt(), query.remainingAmount(), query.canceledAt(), query.partialCancelable(), history);
+    }
+
     private void assertPartialState(PaidFixture f, int canceled1, int canceled2, long refunded, int transactions) {
         assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PARTIALLY_CANCELED);

@@ -117,7 +117,7 @@ public class CancellationSettlementLedgerService {
         }
 
         LocalDateTime eligibleAt = sellerOrder.getStatus() == SellerOrderStatus.CANCELLED
-                ? paymentCancellation.getCanceledAt()
+                ? latestCancellationTime(sellerOrder, paymentCancellation.getCanceledAt())
                 : null;
         ledgerService.recordCancellationRefund(SettlementLedgerCommand.standard(
                 sellerOrder.getSeller().getId(),
@@ -144,9 +144,20 @@ public class CancellationSettlementLedgerService {
         if (sellerOrder.getStatus() == SellerOrderStatus.CANCELLED) {
             eligibilityService.activateFullCancellationEligibility(
                     sellerOrder,
-                    paymentCancellation.getCanceledAt()
+                    eligibleAt
             );
         }
+    }
+
+    private LocalDateTime latestCancellationTime(SellerOrder sellerOrder, LocalDateTime canceledAt) {
+        // An earlier PG refund may be recovered after a later refund was recorded locally.
+        // Eligibility cannot precede any cancellation ledger's economic occurrence.
+        return ledgerRepository.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(sellerOrder.getId()).stream()
+                .filter(entry -> entry.getType() == SettlementLedgerType.CANCELLATION_REFUND)
+                .map(SettlementLedgerEntry::getOccurredAt)
+                .filter(time -> time.isAfter(canceledAt))
+                .max(LocalDateTime::compareTo)
+                .orElse(canceledAt);
     }
 
     private void validateCompletedCancellation(

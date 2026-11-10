@@ -188,6 +188,21 @@ class CancellationSettlementLedgerServiceTest {
     }
 
     @Test
+    void earlierRefundRecoveredLastUsesLatestRefundTimeForEligibilityButKeepsItsOwnOccurrence() {
+        given(sellerOrder.getStatus()).willReturn(SellerOrderStatus.CANCELLED);
+        given(paymentCancellation.getAmount()).willReturn(6_000L);
+        var laterRefund = org.mockito.Mockito.mock(SettlementLedgerEntry.class);
+        given(laterRefund.getType()).willReturn(SettlementLedgerType.CANCELLATION_REFUND);
+        given(laterRefund.getOccurredAt()).willReturn(CANCELED_AT.plusMinutes(1));
+        given(ledgerRepository.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(SELLER_ORDER_ID))
+                .willReturn(List.of(laterRefund));
+        service.recordCancellation(cancellation, paymentCancellation, sellerOrder);
+        assertThat(captureRefundCommand().occurredAt()).isEqualTo(CANCELED_AT);
+        assertThat(captureRefundCommand().eligibleAt()).isEqualTo(CANCELED_AT.plusMinutes(1));
+        verify(eligibilityService).activateFullCancellationEligibility(sellerOrder, CANCELED_AT.plusMinutes(1));
+    }
+
+    @Test
     void cumulativeRoundingUsesTargetTotalMinusAlreadyReversed() {
         given(productSale.getCommissionRateBps()).willReturn(333);
         given(commission.getAmount()).willReturn(-333L);

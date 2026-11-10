@@ -93,6 +93,15 @@ public class PartialPaymentCancellationTransactionService {
 
     @Transactional
     public void complete(PartialCancellationStart start, GatewayCancelResult result) {
+        completeLocked(start, result, false);
+    }
+
+    @Transactional
+    public void completeFromReconciliation(PartialCancellationStart start, GatewayCancelResult result) {
+        completeLocked(start, result, true);
+    }
+
+    private void completeLocked(PartialCancellationStart start, GatewayCancelResult result, boolean historical) {
         Payment payment = paymentRepository.findByIdForUpdate(start.paymentId()).orElseThrow(this::notAvailable);
         Order order = orderRepository.findByIdForUpdate(payment.getOrder().getId()).orElseThrow(this::notAvailable);
         OrderCancellation cancellation = orderCancellationRepository.findByIdForUpdate(start.cancellationId())
@@ -112,11 +121,27 @@ public class PartialPaymentCancellationTransactionService {
             );
             return;
         }
-        validateCompletion(payment, order, cancellation, pgCancellation, start, result);
+        validateCompletion(payment, order, cancellation, pgCancellation, start, result, historical);
+        if (paymentCancellationRepository.existsByPaymentIdAndProviderTransactionKeyAndIdNot(
+                start.paymentId(), result.providerTransactionId(), start.paymentCancellationId())) {
+            throw validationFailure("CANCELLATION_TRANSACTION_REUSED");
+        }
+        if (historical) {
+            long succeeded = Objects.requireNonNullElse(paymentCancellationRepository.sumAmountByPaymentIdAndStatus(
+                    start.paymentId(), PaymentCancellationStatus.SUCCEEDED), 0L);
+            long expectedRemaining = Math.subtractExact(
+                    Math.subtractExact(payment.getAmount(), succeeded), pgCancellation.getAmount());
+            // A different refund can commit while the PG query is in flight. Re-query rather than
+            // overwrite the newer local state using an older payment snapshot.
+            if (expectedRemaining < 0L || result.remainingAmount() > expectedRemaining) {
+                throw validationFailure("STALE_REFUND_BALANCE");
+            }
+        }
         completionService.complete(cancellation.getId());
         LocalDateTime canceledAt = result.canceledAt() == null ? LocalDateTime.now() : result.canceledAt();
         pgCancellation.succeed(result.providerTransactionId(), canceledAt);
-        if (result.remainingAmount() == 0L) {
+        if (result.remainingAmount() == 0L && !paymentCancellationRepository.existsByPaymentIdAndStatusAndIdNot(
+                start.paymentId(), PaymentCancellationStatus.REQUESTED, start.paymentCancellationId())) {
             payment.markFullyCanceled(result.providerStatus(), canceledAt);
         } else {
             payment.markPartiallyCanceled(result.providerStatus());
@@ -172,7 +197,7 @@ public class PartialPaymentCancellationTransactionService {
 
     private void validateCompletion(Payment payment, Order order, OrderCancellation cancellation,
                                     PaymentCancellation pgCancellation, PartialCancellationStart start,
-                                    GatewayCancelResult result) {
+                                    GatewayCancelResult result, boolean historical) {
         if (!payment.isRefundableState() || order.getStatus() != OrderStatus.PAID
                 || cancellation.getStatus() != OrderCancellationStatus.PROCESSING
                 || pgCancellation.getStatus() != PaymentCancellationStatus.REQUESTED
@@ -197,7 +222,9 @@ public class PartialPaymentCancellationTransactionService {
         if (result.remainingAmount() == null || result.transactionRemainingAmount() == null
                 || result.remainingAmount() < 0L
                 || result.remainingAmount() > payment.getAmount()
-                || !Objects.equals(result.remainingAmount(), result.transactionRemainingAmount())) {
+                || (historical ? result.transactionRemainingAmount() < result.remainingAmount()
+                    || result.transactionRemainingAmount() > payment.getAmount() - pgCancellation.getAmount()
+                    : !Objects.equals(result.remainingAmount(), result.transactionRemainingAmount()))) {
             throw validationFailure("REFUND_BALANCE");
         }
         boolean partial = result.remainingAmount() > 0L
