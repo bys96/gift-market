@@ -2,12 +2,14 @@
 
 > 이 문서는 현재 Backend, Frontend, 설정과 수동 SQL을 기준으로 한 구현 상태다. 문서와 코드가 충돌하면 코드가 최종 기준이다. 향후 작업은 [`ROADMAP.md`](./ROADMAP.md)에서 관리한다.
 
-## 전체취소 진입 정책 수정 (2026-11-10)
+## 전체취소 정책 및 완료 정합성 수정 (2026-11-10)
 
 - 일반 전체취소는 미결제의 모든 SellerOrder가 PENDING_PAYMENT이거나, 결제 완료의 모든 SellerOrder가 PAID인 경우로 제한한다. 구매확정·기처리 수량과 진행 중 취소/반품/교환이 있으면 차단한다. PREPARING의 승인 정책과 배송 후 반품·교환 정책을 우회하지 않는다.
 - 전체취소와 판매자 준비·출고/배송완료·직접취소 생성은 Payment → Order → SellerOrder 잠금 순서를 맞추고 CANCELING 중 판매자 변경을 차단한다. 요청/응답·ERD는 유지한다. 상세 기준은 [취소 설계](./ORDER_CANCELLATION_REFUND_DESIGN.md)를 따른다.
-- FULL 경로의 정산 원장·취소 수량 연결 문제는 별도 미해결이다. 이번 진입 검증 수정이나 환불·재고 테스트 통과로 해당 문제를 완료 처리하지 않는다. 실제 PG·운영 DB·운영 E2E는 사용하거나 검증하지 않았다.
-- 최종 `gradlew test mysqlIntegrationTest` 성공: Backend 기본 전체 테스트 1,116개 및 격리 MySQL 통합 테스트 34개 통과. 상태별 차단·구매확정·클레임·복수 판매자·중복 취소·PG 응답 대기 중 변경 차단·배송 준비/출고 경합을 검증했다. Toss는 테스트 대역이며 정산 원장·취소 수량의 전체취소 정합성 검증은 이 성공 범위에 포함되지 않는다.
+- FULL 완료 시 판매자별 COMPLETED OrderCancellation/상품 수량 이력을 만들고 canceledQuantity·재고·상태·정산 환불 및 수수료 환입을 같은 transaction에서 반영한다. 기존 요청 키와 원장 근거 키를 사용해 ERD·API 변경 없이 연결한다. 최초 매출 원장이 없는 과거 거래는 음수 원장을 만들지 않는 기존 정책을 유지한다.
+- MySQL 회귀는 정산 서비스를 실제 실행하며 단일·복수 판매자, 옵션별 수량, 주문 snapshot 금액·배송비·수수료, 중복 취소, PG 응답 유실·DB 오류 후 조회 및 reconciliation 복구를 검증한다. 실제 Toss·운영 DB·운영 E2E와는 구분한다.
+- 최종 `gradlew test mysqlIntegrationTest bootJar` 성공: Backend 기본 전체 테스트 1,121개, 격리 MySQL 통합 테스트 40개가 실패·스킵 없이 통과했고 실행 JAR도 빌드했다. 기존 부분취소·반품·교환 회귀를 포함한다.
+- 과거에 이미 CANCELLED/SUCCEEDED로 저장된 누락 자료의 대사·보정과 정책 위반 상태에서 시작된 취소 거래는 별도 운영 점검 대상이다. 이번 변경에 자동 backfill은 포함하지 않는다.
 
 ## 점검 기준 (2026-11-09)
 

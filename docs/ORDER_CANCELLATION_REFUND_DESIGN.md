@@ -111,7 +111,18 @@ Frontend에서 버튼을 숨기는 것과 별개로 Backend가 상태를 최종 
 
 전체취소 시작은 READ_COMMITTED transaction에서 Payment → Order → ID 순 SellerOrder → 상품 잠금을 잡고 검증한다. 판매자의 준비·출고·배송완료 및 직접취소 생성도 Payment → Order → SellerOrder 순서로 잠근다. CANCELING 중에는 판매자 상태 변경·새 직접취소를 차단해 PG 호출을 위해 transaction을 분리한 구간도 보호한다. 결제 실패·만료의 기존 복원 primitive와 SellerOrder.cancel()은 변경하지 않는다.
 
-**미해결 범위:** 이 변경은 진입 정책만 수정한다. 기존 FULL 취소의 OrderCancellation/OrderItem.canceledQuantity 연결과 정산 환불·수수료 환입은 별도 작업이며 완료로 간주하지 않는다. 전체취소 MySQL 회귀의 환불·재고 멱등성 성공도 정산·취소 수량 E2E 성공을 뜻하지 않는다. 기존에 생성된 잘못된 진행 중 취소 거래의 대사·복구 역시 별도 확인이 필요하다.
+### 결제 완료 주문의 전체취소 완료 처리 (2026-11-10)
+
+`FullOrderCancellationCompletionService`는 기존 진입 정책을 다시 검증하고 판매자별 주문 상품의 `unitPrice × quantity + shippingFee`를 합산한다. 판매자별 합계의 총합은 PG 전체취소 금액과 일치해야 한다. 현재 상품 가격·배송비 대신 주문 snapshot을 사용한다.
+
+- 성공한 FULL `PaymentCancellation`은 주문당 하나를 유지한다. 판매자별 `OrderCancellation`과 모든 `OrderCancellationItem`을 만들고 COMPLETED로 확정하며, 각 `OrderItem.canceledQuantity`에 원 주문 수량을 반영한다.
+- 기존 nullable 단일 `PaymentCancellation.orderCancellation` FK는 부분취소용으로 유지한다. FULL의 여러 판매자 이력은 기존 unique 요청 키 `FULL:{paymentCancellationId}:SO:{sellerOrderId}`로 식별한다. 스키마·API 변경은 없다.
+- Payment → Order → PaymentCancellation 잠금 뒤 기존 정책의 ID 순 SellerOrder·상품 잠금을 사용한다. 전체 상품의 재고는 기존 `restore(orderId)`로 한 번만 복원한다. 판매자별로 복원 primitive를 반복 호출하지 않는다.
+- 취소 이력·수량·재고·판매자 주문·PG 취소 상태·환불 원장은 모두 같은 transaction이다. 완료 처리 중 DB 오류가 나면 전부 rollback한다. PG 성공은 취소되지 않으므로 CANCELING/REQUESTED 상태에서 기존 거래 조회·reconciliation으로 복구한다.
+- 정산 환불 원장은 PG 전체 금액을 판매자마다 복제하지 않고 판매자별 상품·배송비 합계를 음수로 기록한다. 상품 금액에 대해서만 최초 수수료 snapshot과 기존 환입 누계를 기준으로 수수료를 양수 환입한다. 근거 키는 기존 `PAYMENT_CANCELLATION + PG 취소 ID + SO:{sellerOrderId}:종류`를 사용한다.
+- 최초 매출 원장이 전혀 없는 과거 거래에는 음수 원장을 생성하지 않는다. 일부 최초 원장만 누락된 자료는 기존처럼 오류로 중단한다. 확정 정산을 수정하거나 과거 자료를 자동 보정하지 않는다.
+
+미결제 취소·승인 실패·만료의 재고 복원 흐름은 변경하지 않는다. 배포 전 이미 CANCELLED/SUCCEEDED로 저장되었지만 취소 수량·원장이 누락된 과거 거래와 정책 위반 상태에서 시작된 취소는 별도 대사 대상이다. 완료 응답 재호출로 자동 backfill하지 않는다. 실제 PG·운영 DB E2E 검증과도 구분한다.
 
 ## 5. 부분취소 단위
 

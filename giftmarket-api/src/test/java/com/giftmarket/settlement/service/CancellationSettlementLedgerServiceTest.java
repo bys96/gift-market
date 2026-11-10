@@ -315,6 +315,65 @@ class CancellationSettlementLedgerServiceTest {
         verify(ledgerService, never()).recordCancellationRefund(any());
     }
 
+    @Test
+    void fullPaymentRefundAllocatesOnlyThisSellersSnapshotAndReversesOriginalCommission() {
+        givenFullPaymentCancellation();
+        service.recordFullCancellation(cancellation, paymentCancellation, sellerOrder, 13_000L);
+        assertThat(captureRefundCommand().amount()).isEqualTo(13_000L);
+        assertThat(captureReversalCommand().amount()).isEqualTo(1_000L);
+        assertThat(captureReversalCommand().commissionBaseAmount()).isEqualTo(10_000L);
+    }
+
+    @Test
+    void fullPaymentRefundDoesNotCreateLedgerWithoutInitialSales() {
+        givenFullPaymentCancellation();
+        given(productLedger()).willReturn(Optional.empty());
+        service.recordFullCancellation(cancellation, paymentCancellation, sellerOrder, 13_000L);
+        verify(ledgerService, never()).recordCancellationRefund(any());
+        verify(ledgerService, never()).recordCommissionReversal(any());
+    }
+
+    @Test
+    void fullPaymentRefundRejectsWrongSellerAllocation() {
+        givenFullPaymentCancellation();
+        assertThatThrownBy(() -> service.recordFullCancellation(cancellation, paymentCancellation, sellerOrder, 40_000L))
+                .isInstanceOf(SettlementException.class);
+        verify(ledgerService, never()).recordCancellationRefund(any());
+    }
+
+    @Test
+    void fullPaymentRefundRejectsUnrelatedHistory() {
+        givenFullPaymentCancellation();
+        given(cancellation.getClientRequestKey()).willReturn("unrelated");
+        assertThatThrownBy(() -> service.recordFullCancellation(cancellation, paymentCancellation, sellerOrder, 13_000L))
+                .isInstanceOf(SettlementException.class);
+    }
+
+    @Test
+    void fullPaymentRefundRetryValidatesAllocatedAmountWithoutNewEntries() {
+        givenFullPaymentCancellation();
+        SettlementLedgerEntry existing = org.mockito.Mockito.mock(SettlementLedgerEntry.class);
+        given(existing.getType()).willReturn(SettlementLedgerType.CANCELLATION_REFUND);
+        given(existing.getAmount()).willReturn(-13_000L);
+        given(existing.getSellerOrder()).willReturn(sellerOrder);
+        given(existing.getOccurredAt()).willReturn(CANCELED_AT);
+        given(ledgerRepository.findBySourceTypeAndSourceIdAndSourceDetailKey(
+                SettlementLedgerSourceType.PAYMENT_CANCELLATION, PAYMENT_CANCELLATION_ID,
+                "SO:2:CANCELLATION_REFUND")).willReturn(Optional.of(existing));
+        service.recordFullCancellation(cancellation, paymentCancellation, sellerOrder, 13_000L);
+        verify(ledgerService, never()).recordCancellationRefund(any());
+        verify(ledgerService, never()).recordCommissionReversal(any());
+    }
+
+    private void givenFullPaymentCancellation() {
+        given(paymentCancellation.getType()).willReturn(PaymentCancellationType.FULL);
+        given(paymentCancellation.getOrderCancellation()).willReturn(null);
+        given(paymentCancellation.getAmount()).willReturn(40_000L);
+        given(cancellation.getClientRequestKey()).willReturn("FULL:4:SO:2");
+        given(sellerOrder.getStatus()).willReturn(SellerOrderStatus.CANCELLED);
+        given(orderItem.getUnitPrice()).willReturn(10_000L);
+    }
+
     private void givenInitialLedgers(
             SettlementLedgerEntry product,
             SettlementLedgerEntry commissionEntry

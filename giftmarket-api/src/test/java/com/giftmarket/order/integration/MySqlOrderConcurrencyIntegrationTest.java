@@ -194,8 +194,11 @@ class MySqlOrderConcurrencyIntegrationTest {
     @MockitoBean PaymentGatewayRegistry gatewayRegistry;
     @MockitoBean TossPaymentClient tossPaymentClient;
     @MockitoBean StorageService storageService;
-    @MockitoBean InitialSettlementLedgerService ledger;
-    @MockitoBean CancellationSettlementLedgerService cancellationLedger;
+    @MockitoSpyBean InitialSettlementLedgerService ledger;
+    @MockitoSpyBean CancellationSettlementLedgerService cancellationLedger;
+    @Autowired com.giftmarket.settlement.repository.SettlementLedgerEntryRepository settlementEntries;
+    @Autowired com.giftmarket.order.repository.OrderCancellationItemRepository cancellationItems;
+    @Autowired com.giftmarket.payment.service.PaymentCancellationTransactionService fullTransactions;
 
     @Test
     void twoBuyersCompeteForOneUnit() throws Exception {
@@ -255,7 +258,8 @@ class MySqlOrderConcurrencyIntegrationTest {
         when(gateway.confirm(any())).thenReturn(new GatewayConfirmResult(GatewayPaymentStatus.PAID,
                 "isolated-payment-key", "isolated-transaction", order.merchantPaymentId(), order.totalAmount(),
                 "KRW", PaymentMethod.CARD, null, "DONE", now));
-        doThrow(new DataIntegrityViolationException("forced database write failure")).when(ledger).recordInitialSales(any(), any());
+        transactions.executeWithoutResult(status ->
+                doThrow(new DataIntegrityViolationException("forced database write failure")).when(ledger).recordInitialSales(any(), any()));
         assertThatThrownBy(() -> paymentService.confirm(f.buyer1(), order.paymentId(),
                 new PaymentConfirmRequest("isolated-payment-key", order.merchantPaymentId(), order.totalAmount())))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -430,8 +434,8 @@ class MySqlOrderConcurrencyIntegrationTest {
     @Test
     void pgRefundSuccessDatabaseFailureRemainsRecoverable() {
         PaidFixture f = paidFixture();
-        doThrow(new DataIntegrityViolationException("forced ledger write failure"))
-                .when(cancellationLedger).recordCancellation(any(), any(), any());
+        transactions.executeWithoutResult(status -> doThrow(new DataIntegrityViolationException("forced ledger write failure"))
+                .when(cancellationLedger).recordCancellation(any(), any(), any()));
         OrderCancellationCreateRequest request = partialRequest(f.sellerOrderId(), f.item1(), UUID.randomUUID().toString());
         assertThatThrownBy(() -> partialCancellation.create(f.buyerId(), f.order().orderId(), request))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -470,7 +474,7 @@ class MySqlOrderConcurrencyIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("전체취소 환불·재고 멱등성 (정산 원장·취소 수량은 별도 미해결)")
+    @org.junit.jupiter.api.DisplayName("전체취소 환불·재고·수량·원장 멱등성")
     void paidFullCancellationAndRetryRefundAndRestoreOnlyOnce() {
         PaidFixture f = paidFixture();
         var request = new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소");
@@ -478,6 +482,7 @@ class MySqlOrderConcurrencyIntegrationTest {
         cancellationService.cancel(f.buyerId(), f.order().orderId(), request);
         assertThat(f.pg().cancelCalls).isEqualTo(1);
         assertThat(f.pg().refunded).isEqualTo(f.order().totalAmount());
+        assertFullCancellation(f, 1, true);
         assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
         assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(3);
@@ -606,9 +611,151 @@ class MySqlOrderConcurrencyIntegrationTest {
         assertThat(f.pg().cancelCalls).isZero();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void fullCancellationAllocatesSnapshotsAndCommissionPerSeller(boolean multiSeller) {
+        PaidFixture f = paidFixture(multiSeller, true);
+        // Catalog changes must not affect the paid order snapshots or commission snapshot.
+        transactions.executeWithoutResult(status -> {
+            var product = products.findById(f.product1()).orElseThrow();
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "price", 999_999L);
+            org.springframework.test.util.ReflectionTestUtils.setField(product, "shippingFee", 99_999L);
+        });
+        cancellationService.cancel(f.buyerId(), f.order().orderId(), new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소"));
+        assertFullCancellation(f, multiSeller ? 2 : 1, true);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(6);
+        assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        transactions.executeWithoutResult(status -> {
+            var items = orderItems.findAllByOrderIdOrderByIdAsc(f.order().orderId());
+            assertThat(items).hasSize(3);
+            assertThat(items.stream().filter(item -> item.getVariant() != null)).hasSize(2);
+            for (var item : items) {
+                if (item.getVariant() != null) assertThat(item.getVariant().getStockQuantity()).isEqualTo(3);
+            }
+        });
+        assertThat(f.pg().refunded).isEqualTo(65_000L); // 22,000 + 12,000 + 20,000 + 3,000 + 3,000 + 5,000
+    }
+
+    @Test
+    void fullCancellationBeforeInitialLedgerDoesNotCreateNegativeOrphanEntries() {
+        transactions.executeWithoutResult(status -> doNothing().when(ledger).recordInitialSales(any(), any()));
+        PaidFixture f;
+        try { f = paidFixture(true); } finally { reset(ledger); }
+        cancellationService.cancel(f.buyerId(), f.order().orderId(), new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소"));
+        assertFullCancellation(f, 2, false);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(3);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void lostFullRefundResponseRecoversByQueryWithoutSecondRefund(boolean reconciliation) {
+        PaidFixture f = paidFixture(true);
+        doAnswer(invocation -> {
+            f.pg().cancel(invocation.getArgument(0));
+            throw new PaymentGatewayUncertainException("isolated lost response", null);
+        }).when(f.pg().gateway).cancel(any());
+        var request = new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소");
+        assertThatThrownBy(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(), request))
+                .isInstanceOf(com.giftmarket.payment.exception.PaymentException.class);
+        assertFullCancellationPending(f);
+        if (reconciliation) {
+            var start = fullTransactions.startReconciliation(f.order().paymentId(), LocalDateTime.now().plusMinutes(1));
+            assertThat(start.action()).isEqualTo(com.giftmarket.payment.service.PaymentCancellationReconciliationStart.Action.QUERY);
+            fullTransactions.completeFromReconciliationQuery(start.paymentId(), start.cancellationId(), f.pg().query());
+            fullTransactions.completeFromReconciliationQuery(start.paymentId(), start.cancellationId(), f.pg().query());
+        } else {
+            cancellationService.cancel(f.buyerId(), f.order().orderId(), request);
+        }
+        assertFullCancellation(f, 2, true);
+        assertThat(f.pg().cancelCalls).isEqualTo(1);
+    }
+
+    @Test
+    void fullRefundDatabaseFailureRollsBackAllSellersAndRecoversExactlyOnce() {
+        PaidFixture f = paidFixture(true, true);
+        var count = new java.util.concurrent.atomic.AtomicInteger();
+        transactions.executeWithoutResult(status -> doAnswer(invocation -> {
+            invocation.callRealMethod();
+            entityManager.flush();
+            if (count.incrementAndGet() == 2) throw new DataIntegrityViolationException("isolated failure after second seller ledger");
+            return null;
+        }).when(cancellationLedger).recordFullCancellation(any(), any(), any(), anyLong()));
+        var request = new OrderCancelRequest(UUID.randomUUID().toString(), "전체취소");
+        try {
+            assertThatThrownBy(() -> cancellationService.cancel(f.buyerId(), f.order().orderId(), request))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        } finally { reset(cancellationLedger); }
+        assertThat(count.get()).isEqualTo(2);
+        assertFullCancellationPending(f);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(3);
+        assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(1);
+        var refund = refunds.findFirstByPaymentIdAndStatusOrderByIdDesc(f.order().paymentId(), PaymentCancellationStatus.REQUESTED).orElseThrow();
+        fullTransactions.completeFromReconciliationQuery(f.order().paymentId(), refund.getId(), f.pg().query());
+        cancellationService.cancel(f.buyerId(), f.order().orderId(), request);
+        assertFullCancellation(f, 2, true);
+        assertThat(f.pg().cancelCalls).isEqualTo(1);
+        assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(6);
+        assertThat(products.findById(f.product2()).orElseThrow().getStockQuantity()).isEqualTo(3);
+    }
+
+    private void assertFullCancellationPending(PaidFixture f) {
+        assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.CANCELING);
+        assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(cancellations.countByOrderId(f.order().orderId())).isZero();
+        for (var item : orderItems.findAllByOrderIdOrderByIdAsc(f.order().orderId())) assertThat(item.getCanceledQuantity()).isZero();
+        for (var sellerOrder : sellerOrders.findAllByOrderIdOrderByIdAsc(f.order().orderId())) {
+            assertThat(settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(sellerOrder.getId()))
+                    .noneMatch(entry -> entry.getSourceType() == com.giftmarket.settlement.entity.SettlementLedgerSourceType.PAYMENT_CANCELLATION);
+        }
+    }
+
+    private void assertFullCancellation(PaidFixture f, int sellerCount, boolean hasInitialLedger) {
+        transactions.executeWithoutResult(status -> {
+            assertThat(payments.findById(f.order().paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.CANCELED);
+            assertThat(orders.findById(f.order().orderId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+            var succeeded = refunds.findAll().stream().filter(value -> value.getPayment().getId().equals(f.order().paymentId())
+                    && value.getStatus() == PaymentCancellationStatus.SUCCEEDED).toList();
+            assertThat(succeeded).hasSize(1);
+            var histories = cancellations.findAllByOrderIdOrderByRequestedAtDescIdDesc(f.order().orderId());
+            assertThat(histories).hasSize(sellerCount).allMatch(c -> c.getStatus() == OrderCancellationStatus.COMPLETED);
+            long totalRefund = 0;
+            for (var history : histories) {
+                var items = orderItems.findAllBySellerOrderIdForUpdate(history.getSellerOrder().getId());
+                var snapshots = cancellationItems.findAllByOrderCancellationIdOrderByIdAsc(history.getId());
+                assertThat(snapshots).hasSize(items.size());
+                for (var item : items) {
+                    assertThat(item.getCanceledQuantity()).isEqualTo(item.getQuantity());
+                    assertThat(snapshots).anyMatch(snapshot -> snapshot.getOrderItem().getId().equals(item.getId())
+                            && snapshot.getQuantity() == item.getQuantity());
+                }
+                long product = items.stream().mapToLong(item -> item.getUnitPrice() * item.getQuantity()).sum();
+                long shipping = items.stream().mapToLong(OrderItem::getShippingFee).sum();
+                totalRefund += product + shipping;
+                var entries = settlementEntries.findAllBySellerOrderIdOrderByOccurredAtAscIdAsc(history.getSellerOrder().getId());
+                if (!hasInitialLedger) { assertThat(entries).isEmpty(); continue; }
+                assertThat(entries).hasSize(shipping > 0 ? 5 : 4);
+                var refundEntry = entries.stream().filter(e -> e.getType() == com.giftmarket.settlement.entity.SettlementLedgerType.CANCELLATION_REFUND).findFirst().orElseThrow();
+                var reversal = entries.stream().filter(e -> e.getType() == com.giftmarket.settlement.entity.SettlementLedgerType.COMMISSION_REVERSAL).findFirst().orElseThrow();
+                assertThat(refundEntry.getAmount()).isEqualTo(-(product + shipping));
+                assertThat(refundEntry.getSourceId()).isEqualTo(succeeded.getFirst().getId());
+                assertThat(reversal.getAmount()).isEqualTo(product / 10);
+                assertThat(reversal.getCommissionBaseAmount()).isEqualTo(product);
+                assertThat(entries).allMatch(e -> e.getEligibleAt().equals(history.getCompletedAt()));
+                assertThat(entries.stream().mapToLong(com.giftmarket.settlement.entity.SettlementLedgerEntry::getAmount).sum()).isZero();
+            }
+            assertThat(totalRefund).isEqualTo(f.order().totalAmount());
+        });
+        verifyNoInteractions(tossPaymentClient);
+    }
+
     private PaidFixture paidFixture() { return paidFixture(false); }
 
     private PaidFixture paidFixture(boolean multiSeller) {
+        return paidFixture(multiSeller, false);
+    }
+
+    private PaidFixture paidFixture(boolean multiSeller, boolean detailed) {
         String unique = UUID.randomUUID().toString();
         long[] ids = transactions.execute(status -> {
             User owner = User.createOAuthUser("owner-" + unique + "@example.test", "판매자", null, AuthProvider.GOOGLE, "owner-" + unique);
@@ -630,14 +777,36 @@ class MySqlOrderConcurrencyIntegrationTest {
             Product second = Product.createDraft(secondSeller, category, "상품2", "브랜드", "요약", "설명", 10_000L, 3, null, true, 0L, 1, 3_000L, 6_000L);
             first.startSale(); second.startSale();
             entityManager.persist(first); entityManager.persist(second);
-            CartItem cart1 = CartItem.create(buyer, first, null, 2);
+            com.giftmarket.product.entity.ProductVariant variant1 = null;
+            com.giftmarket.product.entity.ProductVariant variant2 = null;
+            if (detailed) {
+                variant1 = com.giftmarket.product.entity.ProductVariant.create(first, "sku1-" + unique, "색상:흰색", 1_000L, 3);
+                variant2 = com.giftmarket.product.entity.ProductVariant.create(first, "sku2-" + unique, "색상:회색", 2_000L, 3);
+                entityManager.persist(variant1); entityManager.persist(variant2);
+                var group = com.giftmarket.product.entity.ProductOptionGroup.create(first, "색상", 1);
+                entityManager.persist(group);
+                var white = com.giftmarket.product.entity.ProductOptionValue.create(group, "흰색", 1);
+                var gray = com.giftmarket.product.entity.ProductOptionValue.create(group, "회색", 2);
+                entityManager.persist(white); entityManager.persist(gray);
+                entityManager.persist(com.giftmarket.product.entity.ProductVariantOptionValue.create(variant1, white));
+                entityManager.persist(com.giftmarket.product.entity.ProductVariantOptionValue.create(variant2, gray));
+                first.changeStockQuantity(6);
+                org.springframework.test.util.ReflectionTestUtils.setField(first, "freeShipping", false);
+                org.springframework.test.util.ReflectionTestUtils.setField(first, "shippingFee", 3_000L);
+                org.springframework.test.util.ReflectionTestUtils.setField(second, "freeShipping", false);
+                org.springframework.test.util.ReflectionTestUtils.setField(second, "shippingFee", 5_000L);
+            }
+            CartItem cart1 = CartItem.create(buyer, first, variant1, 2);
             CartItem cart2 = CartItem.create(buyer, second, null, 2);
             entityManager.persist(cart1); entityManager.persist(cart2);
+            CartItem cart3 = detailed ? CartItem.create(buyer, first, variant2, 1) : null;
+            if (cart3 != null) entityManager.persist(cart3);
             entityManager.flush();
-            return new long[]{buyer.getId(), first.getId(), second.getId(), cart1.getId(), cart2.getId(), owner.getId()};
+            return new long[]{buyer.getId(), first.getId(), second.getId(), cart1.getId(), cart2.getId(), owner.getId(),
+                    cart3 == null ? 0L : cart3.getId()};
         });
         OrderCreateResponse order = orderService.createOrder(ids[0], new OrderCreateRequest(UUID.randomUUID().toString(),
-                List.of(ids[3], ids[4]), "구매자", "010-1234-5678", "12345", "서울", null));
+                detailed ? List.of(ids[3], ids[4], ids[6]) : List.of(ids[3], ids[4]), "구매자", "010-1234-5678", "12345", "서울", null));
         FakePg pg = new FakePg("pg-" + unique, order);
         when(gatewayRegistry.get(PaymentProvider.TOSS)).thenReturn(pg.gateway);
         paymentService.confirm(ids[0], order.paymentId(), new PaymentConfirmRequest(pg.key, order.merchantPaymentId(), order.totalAmount()));
@@ -677,9 +846,13 @@ class MySqlOrderConcurrencyIntegrationTest {
             });
         }
         synchronized GatewayPaymentQueryResult query() {
-            return new GatewayPaymentQueryResult(refunded == 0 ? GatewayPaymentStatus.PAID : GatewayPaymentStatus.PARTIALLY_CANCELED,
-                    key, "approval", order.merchantPaymentId(), order.totalAmount(), "KRW", PaymentMethod.CARD, null,
-                    "DONE", LocalDateTime.now(), order.totalAmount() - refunded, null, true, List.copyOf(cancellationTransactions));
+            boolean canceled = refunded == order.totalAmount();
+            var last = cancellationTransactions.isEmpty() ? null : cancellationTransactions.getLast();
+            return new GatewayPaymentQueryResult(canceled ? GatewayPaymentStatus.CANCELED
+                    : refunded == 0 ? GatewayPaymentStatus.PAID : GatewayPaymentStatus.PARTIALLY_CANCELED,
+                    key, last == null ? "approval" : last.providerTransactionId(), order.merchantPaymentId(), order.totalAmount(), "KRW", PaymentMethod.CARD, null,
+                    canceled ? "CANCELED" : "DONE", LocalDateTime.now(), order.totalAmount() - refunded,
+                    last == null ? null : last.canceledAt(), true, List.copyOf(cancellationTransactions));
         }
         synchronized GatewayCancelResult cancel(GatewayCancelCommand command) {
             cancelCalls++;

@@ -19,12 +19,14 @@ Settlement 1:N SettlementLedgerEntry (settlement_id nullable)
 | `SALE_PRODUCT` | + | 결제 성공 시 주문 상품 snapshot |
 | `SALE_SHIPPING` | + | 결제 성공 시 주문 배송비 snapshot; 0원 생략 |
 | `COMMISSION` | - | 당시 수수료율·상품 매출 기준; 0원 생략 |
-| `CANCELLATION_REFUND` | - | 성공한 `PaymentCancellation.amount` |
+| `CANCELLATION_REFUND` | - | 부분취소는 성공한 `PaymentCancellation.amount`, FULL은 판매자별 주문 상품·배송비 snapshot 배분액 |
 | `RETURN_REFUND` | - | 완료 반품의 성공한 PG 환불액; 0원 생략 |
 | `COMMISSION_REVERSAL` | + | 취소·반품 누적 상품환불액과 최초 수수료율 snapshot |
 | `MANUAL_ADJUSTMENT` | +/- | 원장 type은 존재하나 관리자 조정 API는 현재 없음 |
 
 `occurredAt`은 결제/PG 확정 시각을 사용한다. 최초 판매 원장의 `eligibleAt`은 처음에는 null이며 `ORIGINAL_OUTBOUND` 배송완료에서 `SellerOrder.deliveredAt + settlement.hold-days`로 확정한다. 취소·반품 원장은 기존 eligibility service가 배송·환불 완료 시각을 반영한다. `eligibleAt`은 시간 기준일 뿐 claim 부재를 보장하지 않는다.
+
+FULL 취소는 하나의 PG 취소 ID 아래 판매자별 `SO:{sellerOrderId}:CANCELLATION_REFUND` 및 `SO:{sellerOrderId}:COMMISSION_REVERSAL` 근거 키를 사용한다. 판매자별 환불 합계가 PG 전체취소액과 일치하는지 확인하고, 배송비에는 수수료를 환입하지 않는다. 최초 매출 원장이 전혀 없는 과거 거래에는 환불·환입 원장을 추가하지 않으며 별도 backfill 대상으로 남긴다. 취소 수량·이력·재고·원장 반영은 같은 transaction이고 재시도 시 완료 상태와 unique 근거 키로 중복을 방지한다. 상세 연결 방식은 [취소 설계](./ORDER_CANCELLATION_REFUND_DESIGN.md)를 따른다.
 
 ## 생성·확정
 

@@ -29,6 +29,7 @@ public class PaymentCancellationTransactionService {
     private final OrderInventoryService inventoryService;
     private final SellerOrderLifecycleService sellerOrderLifecycleService;
     private final FullOrderCancellationPolicy fullOrderCancellationPolicy;
+    private final FullOrderCancellationCompletionService fullOrderCancellationCompletionService;
 
     @Transactional(readOnly = true)
     public boolean isCanceling(Long paymentId) {
@@ -289,11 +290,10 @@ public class PaymentCancellationTransactionService {
                 || !Objects.equals(payment.getCurrency(), currency))
             throw new PaymentException("결제 취소 결과가 주문 정보와 일치하지 않습니다.");
         LocalDateTime now = canceledAt == null ? LocalDateTime.now() : canceledAt;
-        inventoryService.restore(order.getId());
         payment.cancelFromProvider(providerStatus, now);
         cancellation.succeed(transactionId, now);
+        fullOrderCancellationCompletionService.complete(order, cancellation);
         order.cancel();
-        sellerOrderLifecycleService.cancel(order.getId());
         return response(order, payment, "결제가 취소되었습니다.");
     }
 

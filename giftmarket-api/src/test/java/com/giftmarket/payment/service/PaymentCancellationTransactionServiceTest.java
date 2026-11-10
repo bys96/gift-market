@@ -34,6 +34,7 @@ class PaymentCancellationTransactionServiceTest {
     @Mock OrderInventoryService inventoryService;
     @Mock SellerOrderLifecycleService sellerOrderLifecycleService;
     @Mock FullOrderCancellationPolicy fullOrderCancellationPolicy;
+    @Mock FullOrderCancellationCompletionService fullOrderCancellationCompletionService;
     @Mock User user;
 
     private PaymentCancellationTransactionService service;
@@ -50,7 +51,8 @@ class PaymentCancellationTransactionServiceTest {
                 orderRepository,
                 inventoryService,
                 sellerOrderLifecycleService,
-                fullOrderCancellationPolicy
+                fullOrderCancellationPolicy,
+                fullOrderCancellationCompletionService
         );
         now = LocalDateTime.of(2026, 8, 17, 12, 0);
         order = Order.createPendingPayment(
@@ -191,8 +193,8 @@ class PaymentCancellationTransactionServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(cancellation.getStatus()).isEqualTo(PaymentCancellationStatus.SUCCEEDED);
-        verify(inventoryService, times(1)).restore(10L);
-        verify(sellerOrderLifecycleService, times(1)).cancel(10L);
+        verify(fullOrderCancellationCompletionService, times(1)).complete(order, cancellation);
+        verify(sellerOrderLifecycleService, never()).cancel(10L);
     }
 
     @Test
@@ -268,7 +270,7 @@ class PaymentCancellationTransactionServiceTest {
         service.completeFromWebhook(20L, result);
         service.completeFromReconciliationQuery(20L, 30L, result);
 
-        verify(inventoryService, times(1)).restore(10L);
+        verify(fullOrderCancellationCompletionService, times(1)).complete(order, cancellation);
     }
 
     private GatewayPaymentQueryResult canceledQuery() {

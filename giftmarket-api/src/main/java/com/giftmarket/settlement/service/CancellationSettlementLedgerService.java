@@ -47,6 +47,26 @@ public class CancellationSettlementLedgerService {
             SellerOrder sellerOrder
     ) {
         validateCompletedCancellation(cancellation, paymentCancellation, sellerOrder);
+        if (paymentCancellation.getType() != PaymentCancellationType.PARTIAL) {
+            throw new SettlementException("부분취소 환불 정보를 확인할 수 없습니다.");
+        }
+        record(cancellation, paymentCancellation, sellerOrder, paymentCancellation.getAmount(), false);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void recordFullCancellation(OrderCancellation cancellation, PaymentCancellation paymentCancellation,
+            SellerOrder sellerOrder, long sellerRefundAmount) {
+        validateCompletedCancellation(cancellation, paymentCancellation, sellerOrder);
+        if (paymentCancellation.getType() != PaymentCancellationType.FULL
+                || sellerOrder.getStatus() != SellerOrderStatus.CANCELLED
+                || sellerRefundAmount <= 0L || sellerRefundAmount > paymentCancellation.getAmount()) {
+            throw new SettlementException("전체취소 판매자별 환불 정보를 확인할 수 없습니다.");
+        }
+        record(cancellation, paymentCancellation, sellerOrder, sellerRefundAmount, true);
+    }
+
+    private void record(OrderCancellation cancellation, PaymentCancellation paymentCancellation,
+            SellerOrder sellerOrder, long refundAmount, boolean full) {
 
         String refundDetailKey = detailKey(sellerOrder.getId(), REFUND_DETAIL_SUFFIX);
         SettlementLedgerEntry existingRefund = ledgerRepository
@@ -57,7 +77,7 @@ public class CancellationSettlementLedgerService {
                 )
                 .orElse(null);
         if (existingRefund != null) {
-            validateExistingRefund(existingRefund, paymentCancellation, sellerOrder);
+            validateExistingRefund(existingRefund, paymentCancellation, sellerOrder, refundAmount);
             return;
         }
 
@@ -69,12 +89,12 @@ public class CancellationSettlementLedgerService {
                 sellerOrder,
                 productSale
         );
-        calculateAndValidateRefund(
-                cancellation,
-                paymentCancellation,
-                sellerOrder
-        );
-        long cumulativeProductRefund = refundedProductAmountAggregator.calculate(sellerOrder);
+        long productRefund = calculateAndValidateRefund(cancellation, sellerOrder, refundAmount);
+        if (full && productRefund != productSale.getAmount()) {
+            throw new SettlementException("전체취소 상품환불액이 최초 상품 매출과 일치하지 않습니다.");
+        }
+        // FULL is admitted only before any cancellation/return/exchange or purchase confirmation.
+        long cumulativeProductRefund = full ? productRefund : refundedProductAmountAggregator.calculate(sellerOrder);
         if (cumulativeProductRefund > productSale.getAmount()) {
             throw new SettlementException("누적 상품 취소 환불액이 최초 상품 매출을 초과합니다.");
         }
@@ -102,7 +122,7 @@ public class CancellationSettlementLedgerService {
         ledgerService.recordCancellationRefund(SettlementLedgerCommand.standard(
                 sellerOrder.getSeller().getId(),
                 sellerOrder.getId(),
-                paymentCancellation.getAmount(),
+                refundAmount,
                 paymentCancellation.getId(),
                 refundDetailKey,
                 paymentCancellation.getCanceledAt(),
@@ -140,8 +160,7 @@ public class CancellationSettlementLedgerService {
                 || sellerOrder.getSeller() == null || sellerOrder.getSeller().getId() == null
                 || cancellation.getStatus() != OrderCancellationStatus.COMPLETED
                 || paymentCancellation.getStatus() != PaymentCancellationStatus.SUCCEEDED
-                || paymentCancellation.getType() != PaymentCancellationType.PARTIAL
-                || paymentCancellation.getOrderCancellation() != cancellation
+                || !matchesCancellation(cancellation, paymentCancellation, sellerOrder)
                 || cancellation.getSellerOrder() != sellerOrder
                 || cancellation.getOrder() != sellerOrder.getOrder()
                 || paymentCancellation.getPayment() == null
@@ -151,6 +170,17 @@ public class CancellationSettlementLedgerService {
                 || paymentCancellation.getCanceledAt() == null) {
             throw new SettlementException("성공한 주문 취소 환불 정보를 확인할 수 없습니다.");
         }
+    }
+
+    private boolean matchesCancellation(OrderCancellation cancellation, PaymentCancellation paymentCancellation,
+            SellerOrder sellerOrder) {
+        if (paymentCancellation.getType() == PaymentCancellationType.PARTIAL) {
+            return paymentCancellation.getOrderCancellation() == cancellation;
+        }
+        return paymentCancellation.getType() == PaymentCancellationType.FULL
+                && paymentCancellation.getOrderCancellation() == null
+                && Objects.equals(cancellation.getClientRequestKey(),
+                        "FULL:" + paymentCancellation.getId() + ":SO:" + sellerOrder.getId());
     }
 
     private SettlementLedgerEntry findInitialProductSale(SellerOrder sellerOrder) {
@@ -221,10 +251,10 @@ public class CancellationSettlementLedgerService {
         return new InitialCommission(productSale.getCommissionRateBps(), expectedCommission);
     }
 
-    private void calculateAndValidateRefund(
+    private long calculateAndValidateRefund(
             OrderCancellation cancellation,
-            PaymentCancellation paymentCancellation,
-            SellerOrder sellerOrder
+            SellerOrder sellerOrder,
+            long refundAmount
     ) {
         List<OrderCancellationItem> cancellationItems = cancellationItemRepository
                 .findAllByOrderCancellationIdOrderByIdAsc(cancellation.getId());
@@ -243,9 +273,10 @@ public class CancellationSettlementLedgerService {
         } catch (ArithmeticException exception) {
             throw new SettlementException("취소 환불 합계를 안전하게 계산할 수 없습니다.");
         }
-        if (expectedTotal != paymentCancellation.getAmount()) {
+        if (expectedTotal != refundAmount) {
             throw new SettlementException("PG 취소 금액과 상품·배송비 환불 snapshot이 일치하지 않습니다.");
         }
+        return productRefund;
     }
 
     private long sumProductRefund(
@@ -302,10 +333,11 @@ public class CancellationSettlementLedgerService {
     private void validateExistingRefund(
             SettlementLedgerEntry entry,
             PaymentCancellation paymentCancellation,
-            SellerOrder sellerOrder
+            SellerOrder sellerOrder,
+            long refundAmount
     ) {
         if (entry.getType() != SettlementLedgerType.CANCELLATION_REFUND
-                || !Objects.equals(entry.getAmount(), -paymentCancellation.getAmount())
+                || !Objects.equals(entry.getAmount(), -refundAmount)
                 || entry.getSellerOrder() == null
                 || !Objects.equals(entry.getSellerOrder().getId(), sellerOrder.getId())
                 || !Objects.equals(entry.getOccurredAt(), paymentCancellation.getCanceledAt())) {
