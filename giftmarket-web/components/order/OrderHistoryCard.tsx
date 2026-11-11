@@ -50,7 +50,7 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
         </Link>
       </div>
 
-      {order.items.map((item, index) => {
+      {order.items.map((item) => {
         const imageUrl = resolveImageUrl(item.representativeImageKey);
         return <div className="order-history-body" key={item.id}>
         <Link href={`/products/${item.productId}`} className="order-history-image-wrapper" aria-label={`${item.productName} 상품 상세`}>
@@ -87,13 +87,16 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
               : ""}
             수량 {item.quantity}개
           </p>
-
-          {index === 0 && <strong className="order-history-price">
-            {formatPrice(order.totalAmount)}
-          </strong>}
         </div>
       </div>;
       })}
+
+      {order.orderedAt && (
+        <footer className="order-history-total">
+          <span>총 결제금액</span>
+          <strong>{formatPrice(order.totalAmount)}</strong>
+        </footer>
+      )}
     </article>
   );
 }

@@ -235,12 +235,21 @@
   white-space: nowrap;
 }
 
-.order-history-price {
-  display: block;
-  margin-top: 7px;
+.order-history-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--color-border);
   color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.order-history-total strong {
   font-size: 15px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .order-history-empty {
@@ -393,8 +402,12 @@
     line-height: 1.35;
   }
 
-  .order-history-price {
-    margin-top: 5px;
+  .order-history-total {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .order-history-total strong {
     font-size: 14px;
   }
 
