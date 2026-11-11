@@ -2,6 +2,7 @@
 
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 import Modal from "@/components/common/modal/Modal";
+import SellerOrderItemProcessing from "@/components/seller/SellerOrderItemProcessing";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -270,7 +271,7 @@ function SellerOrderDetailContent() {
                 <article key={item.orderItemId} className="seller-order-detail-item">
                   <div className="seller-order-detail-item-image">{imageUrl ? <Image src={imageUrl} alt="" fill sizes="72px" /> : <span>이미지 없음</span>}</div>
                   <div className="seller-order-detail-item-info">{item.brandName && <small>{item.brandName}</small>}<strong>{item.productName}</strong>{item.optionSnapshot && <span>{item.optionSnapshot}</span>}</div>
-                  <dl><div><dt>단가</dt><dd>{formatPrice(item.unitPrice)}</dd></div><div><dt>주문수량</dt><dd>{item.quantity}개</dd></div><div><dt>취소/처리</dt><dd>{item.remainingQuantity === 0 ? <span className="seller-order-item-cancelled">취소완료</span> : item.canceledQuantity > 0 ? <>취소 {item.canceledQuantity}개 · 처리 예정 {item.remainingQuantity}개</> : <>처리 예정 {item.remainingQuantity}개</>}</dd></div><div><dt>주문금액</dt><dd><strong>{formatPrice(item.totalPrice)}</strong></dd></div></dl>
+                  <dl><div><dt>단가</dt><dd>{formatPrice(item.unitPrice)}</dd></div><div><dt>주문수량</dt><dd>{item.quantity}개</dd></div><div><dt>취소/처리</dt><dd><SellerOrderItemProcessing item={item} /></dd></div><div><dt>주문금액</dt><dd><strong>{formatPrice(item.totalPrice)}</strong></dd></div></dl>
                 </article>
               );
             })}
