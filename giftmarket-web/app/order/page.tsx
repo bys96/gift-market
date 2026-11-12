@@ -21,6 +21,10 @@ import {
   createCustomerKey,
   getPaymentSession,
   savePaymentSession,
+  saveCheckoutPreparation,
+  getCheckoutPreparation,
+  checkoutReturnPath,
+  observeCheckoutRestoration,
 } from "@/lib/payment-session";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
@@ -194,6 +198,8 @@ function OrderContent() {
   const [errorMessage, setErrorMessage] = useState("");
   const [preparedOrder, setPreparedOrder] =
     useState<OrderCreateResponse | null>(null);
+  const [verifiedPaymentId, setVerifiedPaymentId] = useState<number | null>(null);
+  const [paymentCheckError, setPaymentCheckError] = useState("");
   const [paymentSession, setPaymentSession] =
     useState<PaymentSession | null>(null);
   const [preparedDeliveryFingerprint, setPreparedDeliveryFingerprint] =
@@ -237,6 +243,42 @@ function OrderContent() {
     [searchParams],
   );
   const isDirectOrder = directProductId !== null;
+  const checkoutPaymentId = parsePositiveInteger(searchParams.get("paymentId"));
+
+  useEffect(() => observeCheckoutRestoration(), []);
+
+  useEffect(() => {
+    if (!authInitialized || !isAuthenticated || !user || !checkoutPaymentId
+      || verifiedPaymentId === checkoutPaymentId) return;
+    let cancelled = false;
+    void getPayment(checkoutPaymentId).then((payment) => {
+      if (cancelled) return;
+      const preparation = getCheckoutPreparation(checkoutPaymentId);
+      if (payment.status === "FAILED" || payment.status === "EXPIRED") {
+        if (preparation) clearCompletedPaymentSession(preparation.merchantPaymentId);
+        setPreparedOrder(null);
+        setPaymentSession(null);
+        setPreparedDeliveryFingerprint(null);
+        setErrorMessage(payment.userMessage);
+        window.history.replaceState(window.history.state, "", checkoutReturnPath(null));
+        return;
+      }
+      if (payment.status !== "READY" || !preparation
+        || preparation.orderId !== payment.orderId || preparation.amount !== payment.amount) {
+        router.replace(`/my/orders/${payment.orderId}`);
+        return;
+      }
+      setPreparedOrder(preparation);
+      if (!getPaymentSession(preparation.merchantPaymentId)) {
+        savePaymentSession(preparation, widgetCustomerKey, checkoutReturnPath(checkoutPaymentId));
+      }
+      setPaymentSession(getPaymentSession(preparation.merchantPaymentId));
+      setVerifiedPaymentId(checkoutPaymentId);
+    }).catch(() => {
+      if (!cancelled) setPaymentCheckError("기존 결제 상태를 확인하지 못했습니다. 주문 내역에서 확인해주세요.");
+    });
+    return () => { cancelled = true; };
+  }, [authInitialized, isAuthenticated, user, checkoutPaymentId, verifiedPaymentId, router, widgetCustomerKey]);
 
   useEffect(() => {
     window.sessionStorage.removeItem(LEGACY_ORDER_PREPARATION_STORAGE_KEY);
@@ -580,7 +622,8 @@ function OrderContent() {
   };
 
   const handleSubmit = async () => {
-    if (submittingRef.current || !validateOrder()) {
+    if (submittingRef.current || (checkoutPaymentId !== null && verifiedPaymentId !== checkoutPaymentId)
+      || !validateOrder()) {
       return;
     }
 
@@ -598,6 +641,22 @@ function OrderContent() {
       setErrorMessage("");
 
       if (moneyError) throw new Error(moneyError);
+
+      const expectedItems = isDirectOrder
+        ? [
+            {
+              productId: directProductId,
+              variantId: directVariantId,
+              quantity: directQuantity!,
+              unitPrice: directVariant?.price ?? directProduct!.price,
+            },
+          ]
+        : cartOrderItems.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            unitPrice: item.price,
+          }));
 
       let defaultAddressId = addressMode === "saved" && makeSelectedDefault ? selectedAddressId : null;
       if (addressMode === "new" && saveAddress) {
@@ -640,7 +699,9 @@ function OrderContent() {
 
         if (
           currentPayment.status === "PAID" ||
-          currentPayment.status === "PARTIALLY_CANCELED"
+          currentPayment.status === "PARTIALLY_CANCELED" ||
+          currentPayment.status === "CANCELING" ||
+          currentPayment.status === "CANCELED"
         ) {
           clearCompletedPaymentSession(preparedOrder.merchantPaymentId);
           router.replace(`/my/orders/${preparedOrder.orderId}`);
@@ -657,6 +718,8 @@ function OrderContent() {
           setPreparedOrder(null);
           setPaymentSession(null);
           setPreparedDeliveryFingerprint(null);
+          setVerifiedPaymentId(null);
+          window.history.replaceState(window.history.state, "", checkoutReturnPath(null));
           setErrorMessage(currentPayment.userMessage);
           return;
         }
@@ -666,6 +729,11 @@ function OrderContent() {
         }
         if (!paymentSession) {
           setErrorMessage("결제 정보를 확인할 수 없습니다. 다시 시도해주세요.");
+          return;
+        }
+        const detail = await getMyOrder(preparedOrder.orderId);
+        if (!hasMatchingOrderSnapshot(preparedOrder, detail, expectedItems, productAmount, shippingFee, totalAmount)) {
+          router.replace(`/my/orders/${preparedOrder.orderId}`);
           return;
         }
       }
@@ -720,22 +788,6 @@ function OrderContent() {
           });
 
       const preparedDetail = await getMyOrder(createdOrder.orderId);
-      const expectedItems = isDirectOrder
-        ? [
-            {
-              productId: directProductId,
-              variantId: directVariantId,
-              quantity: directQuantity!,
-              unitPrice: directVariant?.price ?? directProduct!.price,
-            },
-          ]
-        : cartOrderItems.map((item) => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            quantity: item.quantity,
-            unitPrice: item.price,
-          }));
-
       if (
         !hasMatchingOrderSnapshot(
           createdOrder,
@@ -760,8 +812,9 @@ function OrderContent() {
       // 현재 화면의 배송 snapshot을 결제창을 열기 전에 다시 동기화합니다.
       await updatePaymentPreparation(createdOrder.paymentId, delivery);
 
-      const returnPath = `/order?${searchParams.toString()}`;
+      const returnPath = checkoutReturnPath(createdOrder.paymentId);
       savePaymentSession(createdOrder, widgetCustomerKey, returnPath);
+      saveCheckoutPreparation(createdOrder);
       const createdPaymentSession = getPaymentSession(
         createdOrder.merchantPaymentId,
       );
@@ -771,6 +824,8 @@ function OrderContent() {
       if (!createdPaymentSession) {
         throw new Error("결제 정보를 저장하지 못했습니다. 다시 시도해주세요.");
       }
+      setVerifiedPaymentId(createdOrder.paymentId);
+      window.history.replaceState(window.history.state, "", returnPath);
       if (!paymentLauncher) {
         throw new Error("결제수단을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
       }
@@ -815,6 +870,15 @@ function OrderContent() {
 
   if (!isAuthenticated || !user) {
     return null;
+  }
+
+  if (checkoutPaymentId !== null && verifiedPaymentId !== checkoutPaymentId) {
+    return (
+      <div className="order-empty">
+        <h1 className="order-empty-title">{paymentCheckError || "기존 결제 상태를 확인하고 있습니다."}</h1>
+        {paymentCheckError && <button className="order-empty-button" type="button" onClick={() => router.replace("/my/orders")}>주문 내역 확인</button>}
+      </div>
+    );
   }
 
   if (moneyError || (!isDirectOrder && hasInvalidOrderItems) || hasInvalidDirectOrder) {
@@ -877,7 +941,7 @@ function OrderContent() {
 
           <TossPaymentWidget
             amount={totalAmount}
-            customerKey={widgetCustomerKey}
+            customerKey={paymentSession?.customerKey ?? widgetCustomerKey}
             onReady={handlePaymentReady}
             onLoadingChange={handleWidgetLoadingChange}
             onError={handleWidgetError}

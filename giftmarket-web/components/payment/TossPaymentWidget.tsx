@@ -28,6 +28,14 @@ export default function TossPaymentWidget({
     let disposed = false;
     let paymentMethods: { destroy(): void } | null = null;
     let agreement: { destroy(): void } | null = null;
+    const destroyWidgets = () => {
+      const methods = paymentMethods;
+      const terms = agreement;
+      paymentMethods = null;
+      agreement = null;
+      methods?.destroy();
+      terms?.destroy();
+    };
 
     if (!clientKey) {
       onError("결제를 시작할 수 없습니다. 잠시 후 다시 시도해주세요.");
@@ -54,7 +62,7 @@ export default function TossPaymentWidget({
           variantKey: "DEFAULT",
         });
         if (disposed) {
-          paymentMethods.destroy();
+          destroyWidgets();
           return;
         }
         agreement = await widgets.renderAgreement({
@@ -63,16 +71,17 @@ export default function TossPaymentWidget({
         });
 
         if (disposed) {
-          paymentMethods.destroy();
-          agreement.destroy();
+          destroyWidgets();
           return;
         }
 
         onReady(async (paymentSession) => {
+          if (disposed) throw new Error("결제창을 다시 열어주세요.");
           await widgets.setAmount({
             currency: "KRW",
             value: validatePaymentAmount(paymentSession.amount),
           });
+          if (disposed) throw new Error("결제창을 다시 열어주세요.");
           await widgets.requestPayment({
             orderId: paymentSession.merchantPaymentId,
             orderName: paymentSession.orderName,
@@ -93,8 +102,7 @@ export default function TossPaymentWidget({
 
     return () => {
       disposed = true;
-      paymentMethods?.destroy();
-      agreement?.destroy();
+      destroyWidgets();
       onReady(null);
     };
   }, [amount, customerKey, onReady, onLoadingChange, onError]);

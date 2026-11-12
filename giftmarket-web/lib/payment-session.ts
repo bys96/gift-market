@@ -4,6 +4,51 @@ import type { PaymentSession } from "@/types/payment";
 const PAYMENT_SESSION_KEY = "gift-market-payment-session-v1";
 export const ORDER_PREPARATION_STORAGE_KEY =
   "gift-market-order-preparation-v2";
+const CHECKOUT_PREPARATION_PREFIX = "gift-market-checkout-preparation-v1-";
+
+export function saveCheckoutPreparation(preparation: OrderCreateResponse) {
+  window.sessionStorage.setItem(
+    `${CHECKOUT_PREPARATION_PREFIX}${preparation.paymentId}`,
+    JSON.stringify(preparation),
+  );
+}
+
+export function getCheckoutPreparation(paymentId: number): OrderCreateResponse | null {
+  try {
+    const value = window.sessionStorage.getItem(`${CHECKOUT_PREPARATION_PREFIX}${paymentId}`);
+    const preparation = value ? JSON.parse(value) as OrderCreateResponse : null;
+    return preparation?.paymentId === paymentId ? preparation : null;
+  } catch {
+    return null;
+  }
+}
+
+export function checkoutReturnPath(paymentId: number | null) {
+  const url = new URL(window.location.href);
+  if (paymentId === null) url.searchParams.delete("paymentId");
+  else url.searchParams.set("paymentId", String(paymentId));
+  return `${url.pathname}${url.search}`;
+}
+
+export function observeCheckoutRestoration(): () => void {
+  const reloadCheckout = () => {
+    const url = new URL(window.location.href);
+    if (url.pathname === "/order" && url.searchParams.has("paymentId")) {
+      window.location.reload();
+    }
+  };
+  const restore = (event: PageTransitionEvent) => {
+    // React cleanup does not run when the document is frozen in BFCache.
+    // Reload only a restored payment checkout, removing the SDK iframe state.
+    if (event.persisted) reloadCheckout();
+  };
+  window.addEventListener("pageshow", restore);
+  window.addEventListener("popstate", reloadCheckout);
+  return () => {
+    window.removeEventListener("pageshow", restore);
+    window.removeEventListener("popstate", reloadCheckout);
+  };
+}
 
 function readSessions(): Record<string, PaymentSession> {
   if (typeof window === "undefined") {
