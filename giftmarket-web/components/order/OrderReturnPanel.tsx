@@ -37,7 +37,6 @@ interface Props {
   onSubmittingChange: (busy: boolean) => void;
 }
 
-
 const HOLDING_STATUSES = new Set<ReturnRequestStatus>([
   "REQUESTED",
   "APPROVED",
@@ -47,8 +46,13 @@ const HOLDING_STATUSES = new Set<ReturnRequestStatus>([
   "REFUNDING",
 ]);
 const HOLDING_EXCHANGE_STATUSES = new Set<ExchangeRequestStatus>([
-  "REQUESTED", "APPROVED", "PAYMENT_PENDING", "COLLECTING",
-  "RECEIVED", "INSPECTED", "RESHIPPING",
+  "REQUESTED",
+  "APPROVED",
+  "PAYMENT_PENDING",
+  "COLLECTING",
+  "RECEIVED",
+  "INSPECTED",
+  "RESHIPPING",
 ]);
 const formatPrice = (value: number | null | undefined) =>
   value == null ? "-" : `${value.toLocaleString("ko-KR")}원`;
@@ -94,7 +98,9 @@ export default function OrderReturnPanel({
   const requestKeyRef = useRef<string | null>(null);
   const uploadedImageKeysRef = useRef<string[] | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const [selectedImages, setSelectedImages] = useState<SelectedReturnImage[]>([]);
+  const [selectedImages, setSelectedImages] = useState<SelectedReturnImage[]>(
+    [],
+  );
   const selectedImagesRef = useRef<SelectedReturnImage[]>([]);
   const [viewer, setViewer] = useState<{
     images: ReturnRequest["images"];
@@ -106,9 +112,10 @@ export default function OrderReturnPanel({
   }, [selectedImages]);
 
   useEffect(() => {
-    return () => selectedImagesRef.current.forEach(
-      (image) => URL.revokeObjectURL(image.previewUrl),
-    );
+    return () =>
+      selectedImagesRef.current.forEach((image) =>
+        URL.revokeObjectURL(image.previewUrl),
+      );
   }, []);
 
   const availableByItem = useMemo(() => {
@@ -134,12 +141,18 @@ export default function OrderReturnPanel({
         .filter((request) => HOLDING_EXCHANGE_STATUSES.has(request.status))
         .flatMap((request) => request.items)
         .filter((exchangeItem) => exchangeItem.orderItemId === item.id)
-        .reduce((sum, exchangeItem) => sum + normalizeCount(exchangeItem.quantity), 0);
+        .reduce(
+          (sum, exchangeItem) => sum + normalizeCount(exchangeItem.quantity),
+          0,
+        );
       const exchanged = exchanges
         .filter((request) => request.status === "COMPLETED")
         .flatMap((request) => request.items)
         .filter((exchangeItem) => exchangeItem.orderItemId === item.id)
-        .reduce((sum, exchangeItem) => sum + normalizeCount(exchangeItem.quantity), 0);
+        .reduce(
+          (sum, exchangeItem) => sum + normalizeCount(exchangeItem.quantity),
+          0,
+        );
       result.set(
         item.id,
         Math.max(
@@ -192,10 +205,14 @@ export default function OrderReturnPanel({
       return;
     }
     const invalid = files.find(
-      (file) => !RETURN_IMAGE_TYPES.includes(file.type) || file.size > MAX_RETURN_IMAGE_SIZE,
+      (file) =>
+        !RETURN_IMAGE_TYPES.includes(file.type) ||
+        file.size > MAX_RETURN_IMAGE_SIZE,
     );
     if (invalid) {
-      setFormError("JPG, PNG, WEBP 이미지만 파일당 5MB까지 첨부할 수 있습니다.");
+      setFormError(
+        "JPG, PNG, WEBP 이미지만 파일당 5MB까지 첨부할 수 있습니다.",
+      );
       return;
     }
     changed();
@@ -320,130 +337,142 @@ export default function OrderReturnPanel({
           ].every((value) => value != null && Number.isFinite(value));
 
           return (
-          <article
-            key={request.returnRequestId}
-            className="order-return-history"
-          >
-            <header>
-              <span
-                className={`order-return-status order-return-status-${request.status.toLowerCase()}`}
-              >
-                {RETURN_STATUS_LABELS[request.status]}
-              </span>
-              <span>{RETURN_REASON_LABELS[request.reasonType]}</span>
-            </header>
-            <p className="order-return-reason">{request.reason}</p>
-            {request.images.length > 0 && (
-              <div className="order-return-image-history">
-                {request.images.map((image, index) => (
-                  <button
-                    key={image.imageId}
-                    type="button"
-                    className="return-image-thumbnail-button"
-                    aria-label={`반품 증빙 이미지 ${index + 1} 크게 보기`}
-                    onClick={() => setViewer({ images: request.images, initialIndex: index })}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={image.url} alt={`반품 증빙 이미지 ${index + 1}`} />
-                  </button>
-                ))}
-              </div>
-            )}
-            <ul>
-              {request.items.map((item) => (
-                <li key={item.orderItemId}>
-                  <span>
-                    <strong>{item.productName}</strong>
-                    {item.optionSnapshot && (
-                      <small>{item.optionSnapshot}</small>
+            <article
+              key={request.returnRequestId}
+              className="order-return-history"
+            >
+              <header>
+                <span
+                  className={`order-return-status order-return-status-${request.status.toLowerCase()}`}
+                >
+                  {RETURN_STATUS_LABELS[request.status]}
+                </span>
+                <span>{RETURN_REASON_LABELS[request.reasonType]}</span>
+              </header>
+              <p className="order-return-reason">{request.reason}</p>
+              {request.images.length > 0 && (
+                <div className="order-return-image-history">
+                  {request.images.map((image, index) => (
+                    <button
+                      key={image.imageId}
+                      type="button"
+                      className="return-image-thumbnail-button"
+                      aria-label={`반품 증빙 이미지 ${index + 1} 크게 보기`}
+                      onClick={() =>
+                        setViewer({
+                          images: request.images,
+                          initialIndex: index,
+                        })
+                      }
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={image.url}
+                        alt={`반품 증빙 이미지 ${index + 1}`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <ul>
+                {request.items.map((item) => (
+                  <li key={item.orderItemId}>
+                    <span>
+                      <strong>{item.productName}</strong>
+                      {item.optionSnapshot && (
+                        <small>{item.optionSnapshot}</small>
+                      )}
+                    </span>
+                    <span>
+                      신청 {item.quantity}개
+                      {item.returnedQuantity > 0
+                        ? ` · 반품 완료 누적 ${item.returnedQuantity}개`
+                        : ""}
+                    </span>
+                    {item.inspectionResult && (
+                      <em>
+                        검수 완료 ·{" "}
+                        {RETURN_INSPECTION_LABELS[item.inspectionResult]}
+                      </em>
                     )}
-                  </span>
-                  <span>
-                    신청 {item.quantity}개
-                    {item.returnedQuantity > 0
-                      ? ` · 반품 완료 누적 ${item.returnedQuantity}개`
-                      : ""}
-                  </span>
-                  {item.inspectionResult && (
-                    <em>
-                      검수 완료 ·{" "}
-                      {RETURN_INSPECTION_LABELS[item.inspectionResult]}
-                    </em>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {request.status === "REJECTED" && request.rejectedReason && (
-              <p className="order-return-rejected">
-                거절 사유: {request.rejectedReason}
-              </p>
-            )}
-            {request.status === "FAILED" && (
-              <p className="order-return-rejected">
-                반품 처리 중 문제가 발생했습니다.{" "}
-                <Link href="/support">고객지원 안내를 확인해주세요.</Link>
-              </p>
-            )}
-            <div className="order-return-detail-grid">
-              <div>
-                <h4>회수지</h4>
-                <p>
-                  {request.collectionRecipientName} · {request.collectionPhone}
-                  <br />({request.collectionPostalCode}){" "}
-                  {request.collectionAddress} {request.collectionAddressDetail}
+                  </li>
+                ))}
+              </ul>
+              {request.status === "REJECTED" && request.rejectedReason && (
+                <p className="order-return-rejected">
+                  거절 사유: {request.rejectedReason}
                 </p>
-              </div>
-              <div>
-                <h4>반품 회수 배송</h4>
-                {request.collectionShipment ? (
+              )}
+              {request.status === "FAILED" && (
+                <p className="order-return-rejected">
+                  반품 처리 중 문제가 발생했습니다.{" "}
+                  <Link href="/support">고객지원 안내를 확인해주세요.</Link>
+                </p>
+              )}
+              <div className="order-return-detail-grid">
+                <div>
+                  <h4>회수지</h4>
                   <p>
-                    {request.collectionShipment.shippingCompany ??
-                      "택배사 확인 중"}{" "}
-                    ·{" "}
-                    {request.collectionShipment.trackingNumber ??
-                      "송장번호 미등록"}
-                    <br />
-                    {
-                      RETURN_SHIPMENT_STATUS_LABELS[
-                        request.collectionShipment.status
-                      ]
-                    }
+                    {request.collectionRecipientName} ·{" "}
+                    {request.collectionPhone}
+                    <br />({request.collectionPostalCode}){" "}
+                    {request.collectionAddress}{" "}
+                    {request.collectionAddressDetail}
                   </p>
+                </div>
+                <div>
+                  <h4>반품 회수 배송</h4>
+                  {request.collectionShipment ? (
+                    <p>
+                      {request.collectionShipment.shippingCompany ??
+                        "택배사 확인 중"}{" "}
+                      ·{" "}
+                      {request.collectionShipment.trackingNumber ??
+                        "송장번호 미등록"}
+                      <br />
+                      {
+                        RETURN_SHIPMENT_STATUS_LABELS[
+                          request.collectionShipment.status
+                        ]
+                      }
+                    </p>
+                  ) : (
+                    <p>아직 회수 송장이 등록되지 않았습니다.</p>
+                  )}
+                </div>
+              </div>
+              <div className="order-return-refund">
+                <h4>환불 정보</h4>
+                {!hasRefundSnapshot ? (
+                  <p>상품 검수 후 환불금액이 확정됩니다.</p>
                 ) : (
-                  <p>아직 회수 송장이 등록되지 않았습니다.</p>
+                  <dl>
+                    <div>
+                      <dt>상품 환불금액</dt>
+                      <dd>{formatPrice(request.productRefundAmount)}</dd>
+                    </div>
+                    <div>
+                      <dt>원 배송비 환불</dt>
+                      <dd>
+                        {formatPrice(request.originalShippingRefundAmount)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>반품 배송비</dt>
+                      <dd>
+                        {request.returnShippingCharge === 0
+                          ? formatPrice(0)
+                          : `-${formatPrice(request.returnShippingCharge)}`}
+                      </dd>
+                    </div>
+                    <div className="order-return-refund-total">
+                      <dt>최종 환불금액</dt>
+                      <dd>{formatPrice(request.refundAmount)}</dd>
+                    </div>
+                  </dl>
                 )}
               </div>
-            </div>
-            <div className="order-return-refund">
-              <h4>환불 정보</h4>
-              {!hasRefundSnapshot ? (
-                <p>상품 검수 후 환불금액이 확정됩니다.</p>
-              ) : (
-                <dl>
-                  <div>
-                    <dt>상품 환불금액</dt>
-                    <dd>{formatPrice(request.productRefundAmount)}</dd>
-                  </div>
-                  <div>
-                    <dt>원 배송비 환불</dt>
-                    <dd>{formatPrice(request.originalShippingRefundAmount)}</dd>
-                  </div>
-                  <div>
-                    <dt>반품 배송비</dt>
-                    <dd>
-                      {request.returnShippingCharge === 0
-                        ? formatPrice(0)
-                        : `-${formatPrice(request.returnShippingCharge)}`}
-                    </dd>
-                  </div>
-                  <div className="order-return-refund-total">
-                    <dt>최종 환불금액</dt>
-                    <dd>{formatPrice(request.refundAmount)}</dd>
-                  </div>
-                </dl>
-              )}
-            </div>
-          </article>
+            </article>
           );
         })}
       {message && (
@@ -463,105 +492,151 @@ export default function OrderReturnPanel({
             <p>반품할 상품과 수량을 선택하고 사유를 입력해주세요.</p>
           </header>
           <section className="order-claim-form-section">
-          <h4>반품할 상품 · 수량</h4>
-          <div className="order-return-select-list">
-            {returnableItems.map((item) => {
-              const quantity = selected[item.id];
-              const maximum = availableByItem.get(item.id) ?? 0;
-              return (
-                <div key={item.id} className="order-return-select-item">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(quantity)}
-                      onChange={() => toggle(item.id)}
-                    />
-                    <span>
-                      <strong>{item.productName}</strong>
-                      {item.optionSnapshot && (
-                        <small>{item.optionSnapshot}</small>
-                      )}
-                    </span>
-                  </label>
-                  <span>반품 가능 {maximum}개</span>
-                  {quantity && (
-                    <div className="order-return-stepper">
-                      <button
-                        type="button"
-                        onClick={() => changeQuantity(item.id, quantity - 1)}
-                        disabled={quantity <= 1}
-                      >
-                        −
-                      </button>
-                      <output>{quantity}</output>
-                      <button
-                        type="button"
-                        onClick={() => changeQuantity(item.id, quantity + 1)}
-                        disabled={quantity >= maximum}
-                      >
-                        +
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            <h4>반품할 상품 · 수량</h4>
+            <div className="order-return-select-list">
+              {returnableItems.map((item) => {
+                const quantity = selected[item.id];
+                const maximum = availableByItem.get(item.id) ?? 0;
+                return (
+                  <div key={item.id} className="order-return-select-item">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(quantity)}
+                        onChange={() => toggle(item.id)}
+                      />
+                      <span>
+                        <strong>{item.productName}</strong>
+                        <small>{item.optionSnapshot ?? "기본 상품"}</small>
+                      </span>
+                    </label>
+                    <span>반품 가능 {maximum}개</span>
+                    {quantity && (
+                      <div className="order-return-stepper">
+                        <button
+                          type="button"
+                          onClick={() => changeQuantity(item.id, quantity - 1)}
+                          disabled={quantity <= 1}
+                        >
+                          −
+                        </button>
+                        <output>{quantity}</output>
+                        <button
+                          type="button"
+                          onClick={() => changeQuantity(item.id, quantity + 1)}
+                          disabled={quantity >= maximum}
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
           <section className="order-claim-form-section">
-          <h4>반품 사유</h4>
-          <div className="order-return-fields order-claim-fields">
-            <label>
-              <span>반품 사유</span>
-              <select
-                value={reasonType}
-                onChange={(event) => {
-                  changed();
-                  setReasonType(event.target.value as ReturnReasonType);
-                }}
-                disabled={isSubmitting}
-              >
-                {Object.entries(RETURN_REASON_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="order-return-full">
-              <span>상세 사유 <span className="order-claim-required" aria-label="필수">*</span></span>
-              <textarea
-                value={reason}
-                onChange={(event) => {
-                  changed();
-                  setReason(event.target.value);
-                }}
-                maxLength={500}
-                rows={3}
-                placeholder="상품 상태와 반품 사유를 자세히 입력해주세요."
-                disabled={isSubmitting}
-              />
-              <small>{reason.length}/500</small>
-            </label>
-          </div>
+            <h4>반품 사유</h4>
+            <div className="order-return-fields order-claim-fields">
+              <label>
+                <span>반품 사유</span>
+                <select
+                  value={reasonType}
+                  onChange={(event) => {
+                    changed();
+                    setReasonType(event.target.value as ReturnReasonType);
+                  }}
+                  disabled={isSubmitting}
+                >
+                  {Object.entries(RETURN_REASON_LABELS).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label className="order-return-full">
+                <span>
+                  상세 사유{" "}
+                  <span className="order-claim-required" aria-label="필수">
+                    *
+                  </span>
+                </span>
+                <textarea
+                  value={reason}
+                  onChange={(event) => {
+                    changed();
+                    setReason(event.target.value);
+                  }}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="상품 상태와 반품 사유를 자세히 입력해주세요."
+                  disabled={isSubmitting}
+                />
+                <small>{reason.length}/500</small>
+              </label>
+            </div>
           </section>
           <section className="order-return-evidence order-claim-form-section">
-            <div><strong>증빙 사진 (선택)</strong><span>{selectedImages.length}/5</span></div>
-            <p>상품 상태나 문제 상황을 확인할 수 있는 사진을 첨부하면 판매자가 요청을 확인하는 데 도움이 됩니다.</p>
-            <input ref={imageInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={isSubmitting || selectedImages.length >= 5} onChange={selectImages} />
-            <button type="button" onClick={() => imageInputRef.current?.click()} disabled={isSubmitting || selectedImages.length >= 5}>사진 선택</button>
-            {selectedImages.length > 0 && <div className="order-return-image-previews">{selectedImages.map((image, index) => <div key={`${image.file.name}-${image.file.lastModified}-${index}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image.previewUrl} alt={`${image.file.name} 미리보기`} />
-              <button type="button" aria-label={`${image.file.name} 삭제`} disabled={isSubmitting} onClick={() => removeImage(index)}>×</button>
-            </div>)}</div>}
+            <div>
+              <strong>증빙 사진 (선택)</strong>
+              <span>{selectedImages.length}/5</span>
+            </div>
+            <p>
+              상품 상태나 문제 상황을 확인할 수 있는 사진을 첨부하면 판매자가
+              요청을 확인하는 데 도움이 됩니다.
+            </p>
+            <input
+              ref={imageInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              disabled={isSubmitting || selectedImages.length >= 5}
+              onChange={selectImages}
+            />
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isSubmitting || selectedImages.length >= 5}
+            >
+              사진 선택
+            </button>
+            {selectedImages.length > 0 && (
+              <div className="order-return-image-previews">
+                {selectedImages.map((image, index) => (
+                  <div
+                    key={`${image.file.name}-${image.file.lastModified}-${index}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image.previewUrl}
+                      alt={`${image.file.name} 미리보기`}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`${image.file.name} 삭제`}
+                      disabled={isSubmitting}
+                      onClick={() => removeImage(index)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
           <section className="order-claim-form-section">
-          <h4>회수 주소</h4>
-          <div className="order-return-collection-address">
-            <p>{recipientName} · {phone}</p>
-            <p>({postalCode}) {address} {addressDetail}</p>
-          </div>
+            <h4>회수 주소</h4>
+            <div className="order-return-collection-address">
+              <p>
+                {recipientName} · {phone}
+              </p>
+              <p>
+                ({postalCode}) {address} {addressDetail}
+              </p>
+            </div>
           </section>
           {formError && (
             <p className="order-return-error" role="alert">
