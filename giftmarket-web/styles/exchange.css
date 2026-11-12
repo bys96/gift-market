@@ -1,6 +1,6 @@
 .order-exchange-area {
-  margin-top: 22px;
-  padding-top: 22px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid #ececec;
   color: #282828;
 }
@@ -594,12 +594,13 @@
   color: #177245;
   font-weight: 700;
 }
-@media (max-width: 680px) {
+@media (max-width: 480px) {
   .order-exchange-heading,
   .order-exchange-history > header,
   .order-exchange-reason {
     align-items: flex-start;
     flex-direction: column;
+    gap: 4px;
   }
   .order-exchange-history > header div {
     align-items: flex-start;
