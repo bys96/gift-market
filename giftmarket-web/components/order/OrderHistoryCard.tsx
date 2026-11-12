@@ -102,16 +102,6 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
         </Link>
 
         <div className="order-history-product-info">
-          <BuyerOrderStatusBadge
-            className={`order-history-status order-history-status-${order.deliveryStatus.toLowerCase()}`}
-            status={order.deliveryStatus}
-            label={BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
-            items={[item]}
-            returns={currentReturns?.requests ?? []}
-            loading={needsReturns && !currentReturns}
-            error={needsReturns && currentReturns?.error}
-          />
-
           <h2 className="order-history-product-name">
             <Link href={`/products/${item.productId}`}>{item.productName}</Link>
           </h2>

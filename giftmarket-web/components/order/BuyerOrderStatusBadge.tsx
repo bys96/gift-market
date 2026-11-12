@@ -10,11 +10,13 @@ interface Props {
   loading?: boolean;
   error?: boolean;
   className: string;
+  appearance?: "badge" | "text";
 }
 
-export default function BuyerOrderStatusBadge({ className, ...props }: Props) {
+export default function BuyerOrderStatusBadge({ className, appearance = "badge", ...props }: Props) {
   const display = getBuyerOrderStatus(
     props.status, props.label, props.items, props.returns, props.loading, props.error,
   );
+  if (appearance === "text") return <strong className={className}>{display.label}</strong>;
   return <span className={`${className} ${display.tone ? `buyer-order-status-${display.tone}` : ""}`}>{display.label}</span>;
 }

@@ -256,6 +256,7 @@
   border-radius: 8px;
 }
 
+.order-detail-page .order-detail-delivery-badge,
 .order-detail-page :is(.order-return-area, .order-exchange-area) :is(.order-return-status, .order-exchange-status) {
   display: inline-flex;
   min-height: 28px;
