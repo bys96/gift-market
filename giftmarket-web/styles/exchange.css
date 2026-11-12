@@ -706,13 +706,13 @@
 /* Shared buyer claim application styles; history and payment cards keep their own styles. */
 .order-claim-form.order-claim-form {
   margin-top: 14px;
-  padding: 20px;
+  padding: 24px;
   border: 1px solid #e2e5e9;
   border-radius: 12px;
   background: #fff;
   color: #282828;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
 }
 .order-claim-form .order-claim-form-header {
   padding: 0 0 16px;
@@ -721,19 +721,19 @@
 .order-claim-form .order-claim-form-header h3 {
   margin: 0;
   color: #191919;
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.4;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 .order-claim-form .order-claim-form-header p {
-  margin: 5px 0 0;
+  margin: 8px 0 0;
   color: #777;
   font-size: 12px;
   line-height: 1.6;
 }
 .order-claim-form .order-claim-form-section {
   margin: 0;
-  padding: 18px 0;
+  padding: 16px 0;
   border-top: 0;
   border-bottom: 1px solid #ececec;
 }
@@ -759,12 +759,12 @@
 .order-claim-form .order-exchange-address label {
   display: grid;
   min-width: 0;
-  gap: 7px;
+  gap: 8px;
 }
 .order-claim-form .order-claim-fields label > span,
 .order-claim-form .order-exchange-address label > span {
   color: #282828;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.5;
 }
@@ -836,9 +836,11 @@
   :is(.order-return-select-item, .order-exchange-select)
   strong {
   color: #282828;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .order-claim-form
   :is(
@@ -890,20 +892,24 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 16px;
+  margin-bottom: 0;
+  align-items: stretch;
+  flex-wrap: wrap;
 }
 .order-claim-form .order-claim-actions button {
   box-sizing: border-box;
-  height: 40px;
+  min-width: 0;
+  height: auto;
   min-height: 40px;
-  padding: 0 16px;
+  padding: 9px 16px;
   border: 1px solid #333;
   border-radius: 8px;
   background: #333;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.5;
   cursor: pointer;
 }
 .order-claim-form .order-claim-actions button:first-child {
@@ -917,7 +923,7 @@
 }
 @media (max-width: 680px) {
   .order-claim-form.order-claim-form {
-    padding: 15px;
+    padding: 16px;
   }
   .order-claim-form .order-claim-form-section {
     padding: 16px 0;
@@ -928,5 +934,72 @@
   .order-claim-form .order-claim-actions button {
     flex: 1;
     width: 100%;
+  }
+}
+
+.order-claim-form :is(.order-return-select-item label, .order-exchange-product-check) {
+  min-width: 0;
+  gap: 8px;
+}
+.order-claim-form .order-return-select-item label > span {
+  min-width: 0;
+}
+.order-claim-form :is(.order-return-select-list, .order-exchange-addresses) {
+  gap: 12px;
+}
+.order-claim-form :is(.order-return-select-item, .order-exchange-select) {
+  margin-bottom: 0;
+}
+.order-claim-form .order-exchange-select + .order-exchange-select {
+  margin-top: 12px;
+}
+.order-claim-form .order-exchange-quantity {
+  gap: 8px;
+  font-size: 13px;
+}
+.order-claim-form .order-exchange-quantity input {
+  min-height: 40px;
+  border-radius: 8px;
+  font: inherit;
+}
+.order-claim-form :is(.order-return-collection-address, .order-exchange-address-compact) {
+  overflow-wrap: anywhere;
+}
+.order-detail-page .exchange-payment-box {
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.order-detail-page .exchange-payment-title h4 {
+  margin: 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.order-detail-page .exchange-payment-box dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.order-detail-page .exchange-payment-box dd {
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+@media (hover: hover) {
+  .order-claim-form .order-claim-actions button:not(:disabled):hover,
+  .order-detail-page .exchange-payment-box button:not(:disabled):hover {
+    filter: brightness(0.94);
+  }
+}
+@media (max-width: 680px) {
+  .order-claim-form .order-claim-actions {
+    display: flex;
+  }
+  .order-claim-form .order-claim-actions button {
+    flex: 1 1 120px;
+  }
+  .order-detail-page .exchange-payment-box dl {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

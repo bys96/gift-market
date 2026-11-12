@@ -36,3 +36,28 @@
 @media (max-width: 1000px) { .seller-exchange-item { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }.seller-exchange-item dl { grid-column: 1 / -1; } }
 @media (max-width: 768px) { .seller-exchanges-table { min-width: 0; }.seller-exchange-product { min-width: 0; }.seller-exchange-item { grid-template-columns: 1fr; }.seller-exchange-arrow { transform: rotate(90deg); }.seller-exchange-item dl { grid-column: auto; grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 520px) { .seller-exchange-item dl { grid-template-columns: 1fr 1fr; }.seller-exchange-item dd { white-space: normal; } }
+
+.seller-exchanges-page .seller-exchange-items {
+  gap: 0;
+}
+.seller-exchanges-page .seller-exchange-item {
+  gap: 16px;
+  padding: 16px 0;
+}
+.seller-exchanges-page .seller-exchange-item:first-child {
+  padding-top: 0;
+}
+.seller-exchanges-page .seller-exchange-item:last-child {
+  padding-bottom: 0;
+}
+.seller-exchanges-page .seller-exchange-timeline div.is-active {
+  border-color: var(--color-border);
+  background: #f1f2f4;
+}
+.seller-exchanges-page .seller-exchange-timeline div.is-active span {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+.seller-exchanges-page .seller-exchange-arrow {
+  color: var(--color-text-secondary);
+}

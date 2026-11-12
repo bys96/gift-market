@@ -81,6 +81,233 @@
   opacity: .25;
 }
 
+/* Buyer return and exchange history share the existing claim form spacing. */
+.order-detail-page :is(.order-return-area, .order-exchange-area) {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.order-detail-page :is(.order-return-heading, .order-exchange-heading) {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.order-detail-page :is(.order-return-heading, .order-exchange-heading) strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.order-detail-page :is(.order-return-notice, .order-exchange-notice) {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.order-detail-page :is(.order-return-history, .order-exchange-history) {
+  min-width: 0;
+  margin-top: 20px;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: none;
+  overflow-wrap: anywhere;
+}
+
+.order-detail-page :is(.order-return-history, .order-exchange-history) > header {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.order-detail-page .order-exchange-history > header div {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.order-detail-page .order-exchange-history > header div > strong {
+  font-weight: 400;
+}
+
+.order-detail-page :is(.order-return-reason, .order-exchange-reason) {
+  margin: 16px 0;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.order-detail-page .order-return-history ul,
+.order-detail-page .order-exchange-items {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.order-detail-page :is(.order-return-history, .order-exchange-history) li {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.order-detail-page :is(.order-return-history, .order-exchange-history) li strong {
+  overflow: visible;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.order-detail-page :is(.order-return-history li small, .order-exchange-items li > p) {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.order-detail-page .order-exchange-reason span {
+  white-space: normal;
+}
+
+.order-detail-page :is(.order-return-detail-grid, .order-exchange-address-summary, .order-exchange-shipments) {
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.order-detail-page :is(.order-return-detail-grid > div, .order-return-refund, .order-exchange-address-summary section, .order-exchange-shipments section) {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+.order-detail-page :is(.order-return-detail-grid h4, .order-return-refund h4, .order-exchange-address-summary h5, .order-exchange-shipments h5) {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.order-detail-page :is(.order-return-detail-grid p, .order-return-refund > p, .order-exchange-address-summary p, .order-exchange-shipments p) {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.order-detail-page :is(.order-return-refund dl, .order-exchange-shipments dl) {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.order-detail-page :is(.order-return-refund dl div, .order-exchange-shipments dl div) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.order-detail-page :is(.order-return-refund, .order-exchange-shipments) dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.order-detail-page .order-return-refund {
+  margin-top: 16px;
+}
+
+.order-detail-page .order-return-refund .order-return-refund-total {
+  margin-top: 4px;
+  padding-top: 16px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.order-detail-page :is(.order-return-image-history, .order-return-image-previews, .order-exchange-images, .order-exchange-evidence > div) {
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.order-detail-page :is(.order-return-image-history .return-image-thumbnail-button, .order-return-image-previews > div, .order-exchange-images button, .order-exchange-evidence figure) {
+  width: 76px;
+  height: 76px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.order-detail-page :is(.order-return-area, .order-exchange-area) :is(.order-return-status, .order-exchange-status) {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.order-detail-page .order-exchange-area .order-exchange-status:is(.is-requested, .is-approved, .is-payment_pending, .is-collecting, .is-received, .is-inspected, .is-reshipping) {
+  background: #fff0db;
+  color: #b85c00;
+}
+
+.order-detail-page .order-exchange-area .order-exchange-status.is-completed {
+  background: #fde8e8;
+  color: #c53030;
+}
+
+@media (max-width: 680px) {
+  .order-detail-page :is(.order-return-history, .order-exchange-history) {
+    padding: 16px;
+  }
+
+  .order-detail-page :is(.order-return-history, .order-exchange-history) > header,
+  .order-detail-page .order-exchange-history > header div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .order-detail-page :is(.order-return-detail-grid, .order-exchange-address-summary, .order-exchange-shipments, .order-exchange-addresses) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .order-detail-page .order-return-history li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .order-detail-page .order-exchange-timeline {
+    overflow-x: auto;
+  }
+
+  .order-detail-page .order-exchange-timeline ol {
+    min-width: 560px;
+  }
+}
+
 .return-image-viewer-counter {
   position: absolute;
   bottom: 0;
