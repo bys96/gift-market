@@ -101,7 +101,7 @@ test("protected page guards wait for initialization and retain destination only 
     for (const [initialized, authenticated, expected] of [[false, false, false], [false, true, false], [true, false, true], [true, true, false]]) {
       const calls = [];
       evaluate(`(() => { ${branches} })();`, {
-        initialized, authInitialized: initialized, authenticated, isAuthenticated: authenticated,
+        initialized, authInitialized: initialized, authenticated, isAuthenticated: authenticated, isLoggingOut: false,
         user: authenticated ? { role: "USER" } : null,
         router: { replace: (url) => calls.push(url) }, getLoginRedirectUrl: () => loginUrl("/cart"),
       });

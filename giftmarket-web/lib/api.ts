@@ -16,11 +16,18 @@ const API_BASE_URL =
 // 여러 API 요청이 동시에 401을 받아도 토큰 재발급은 한 번만 실행한다.
 let refreshPromise: Promise<string | null> | null = null;
 let refreshFailure: Error | null = null;
+let refreshFailedAt = 0;
 let authSessionVersion = 0;
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
+  }
+}
+
+export class ApiNetworkError extends TypeError {
+  constructor() {
+    super("네트워크 연결을 확인한 후 다시 시도해주세요.");
   }
 }
 
@@ -35,6 +42,7 @@ export function invalidateAuthSession(): void {
   authSessionVersion += 1;
   refreshPromise = null;
   refreshFailure = null;
+  refreshFailedAt = 0;
 }
 
 type ApiRequestOptions = RequestInit & { skipAuthRefresh?: boolean };
@@ -57,15 +65,50 @@ async function request(
   options: RequestInit,
   accessToken: string | null,
 ): Promise<Response> {
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: createRequestHeaders(options.headers, accessToken),
-    credentials: "include",
-  });
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: createRequestHeaders(options.headers, accessToken),
+      credentials: "include",
+    });
+  } catch (error) {
+    if (error instanceof TypeError) throw new ApiNetworkError();
+    throw error;
+  }
+}
+
+export function isAccessTokenExpired(accessToken: string): boolean {
+  try {
+    const payload = accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const { exp } = JSON.parse(atob(payload));
+    return typeof exp !== "number" || exp * 1000 <= Date.now() + 30_000;
+  } catch {
+    return true;
+  }
+}
+
+// Called only by the throttled page-resume observer, never as a request retry.
+export async function recoverAuthSession(): Promise<void> {
+  const auth = useAuthStore.getState();
+  if (!auth.initialized || !auth.isAuthenticated || !auth.accessToken
+    || !isAccessTokenExpired(auth.accessToken)) return;
+
+  const sessionVersion = authSessionVersion;
+  if (!refreshPromise) refreshFailure = null;
+  const token = await refreshAccessToken();
+  if (!token && sessionVersion === authSessionVersion) {
+    useAuthStore.getState().clearAuth();
+  }
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
-  const responseBody = await response.text();
+  let responseBody: string;
+  try {
+    responseBody = await response.text();
+  } catch (error) {
+    if (error instanceof TypeError) throw new ApiNetworkError();
+    throw error;
+  }
 
   let parsedBody: unknown = null;
 
@@ -101,7 +144,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
-  // rotation 이후 응답만 유실됐을 수 있어 같은 문서에서 자동 재시도하지 않는다.
+  // Request failures are retained until a throttled page-resume recovery.
   if (refreshFailure) throw refreshFailure;
   if (refreshPromise) {
     return refreshPromise;
@@ -113,6 +156,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
         method: "POST",
         credentials: "include",
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (response.status === 401) return null;
@@ -132,10 +176,14 @@ export async function refreshAccessToken(): Promise<string | null> {
       return accessToken;
     } catch (error) {
       if (sessionVersion !== authSessionVersion) return null;
-      refreshFailure = error instanceof Error ? error : new Error("인증 서버에 연결하지 못했습니다.");
+      refreshFailure = error instanceof TypeError
+        || (error instanceof Error && error.name === "TimeoutError")
+        ? new ApiNetworkError()
+        : error instanceof Error ? error : new Error("인증 서버에 연결하지 못했습니다.");
+      refreshFailedAt = Date.now();
       throw refreshFailure;
     } finally {
-      refreshPromise = null;
+      if (sessionVersion === authSessionVersion) refreshPromise = null;
     }
   })();
 
@@ -147,28 +195,51 @@ export async function apiFetch<T>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { skipAuthRefresh = false, ...requestOptions } = options;
-  const accessToken = useAuthStore.getState().accessToken;
+  let accessToken = useAuthStore.getState().accessToken;
+  const canRefresh = !skipAuthRefresh
+    && path !== "/api/auth/token" && path !== "/api/auth/logout";
+  const sessionVersion = authSessionVersion;
+  if (canRefresh && accessToken && isAccessTokenExpired(accessToken)) {
+    // Some browsers keep a sleeping tab visible and emit no resume event.
+    // A later user request can recover authentication after the cooldown.
+    if (refreshFailure && !refreshPromise && Date.now() - refreshFailedAt >= 30_000) {
+      refreshFailure = null;
+    }
+    accessToken = await refreshAccessToken();
+    if (!accessToken) {
+      if (sessionVersion === authSessionVersion) useAuthStore.getState().clearAuth();
+      throw new ApiError("로그인이 만료되었습니다. 다시 로그인해주세요.", 401);
+    }
+  }
 
   let response = await request(path, requestOptions, accessToken);
 
   const shouldRefreshToken =
     response.status === 401 &&
-    !skipAuthRefresh &&
-    path !== "/api/auth/token" &&
-    path !== "/api/auth/logout";
+    canRefresh;
 
   if (shouldRefreshToken) {
+    if (sessionVersion !== authSessionVersion) {
+      throw new ApiError("로그인 상태가 변경되었습니다. 다시 확인해주세요.", 401);
+    }
     const currentAccessToken = useAuthStore.getState().accessToken;
     const refreshedAccessToken = currentAccessToken && currentAccessToken !== accessToken
       ? currentAccessToken : await refreshAccessToken();
 
     if (!refreshedAccessToken) {
-      useAuthStore.getState().clearAuth();
+      if (sessionVersion === authSessionVersion) useAuthStore.getState().clearAuth();
 
-      throw new Error("로그인이 만료되었습니다.");
+      throw new ApiError("로그인이 만료되었습니다. 다시 로그인해주세요.", 401);
     }
 
+    const method = (requestOptions.method ?? "GET").toUpperCase();
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      throw new ApiError("로그인 상태를 갱신했습니다. 요청 결과를 확인한 후 다시 시도해주세요.", 401);
+    }
     response = await request(path, requestOptions, refreshedAccessToken);
+    if (response.status === 401 && sessionVersion === authSessionVersion) {
+      useAuthStore.getState().clearAuth();
+    }
   }
 
   return parseResponse<T>(response);
