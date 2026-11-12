@@ -1,16 +1,706 @@
-.order-exchange-area{margin-top:22px;padding-top:22px;border-top:1px solid #ececec;color:#282828}.order-exchange-heading,.order-exchange-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.order-exchange-heading strong{font-size:18px}.order-exchange-heading span,.order-exchange-notice{color:#777;font-size:13px}
-.order-exchange-history{margin-top:14px;padding:20px;border:1px solid #e7e7e7;border-radius:14px;background:#fff}.order-exchange-history>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:15px;border-bottom:1px solid #eee}.order-exchange-history>header div{display:flex;align-items:center;gap:10px}.order-exchange-history>header time{color:#888;font-size:12px}.order-exchange-status{display:inline-flex;padding:6px 10px;border-radius:999px;background:#f2f3f5;font-size:12px;font-weight:700;white-space:nowrap}.order-exchange-status.is-requested{background:#fff3d8;color:#8b5a00}.order-exchange-status.is-approved,.order-exchange-status.is-payment_pending{background:#eef4ff;color:#315fa7}.order-exchange-status.is-collecting{background:#eaf6ff;color:#24709d}.order-exchange-status.is-received,.order-exchange-status.is-inspected{background:#f0edff;color:#6550a4}.order-exchange-status.is-reshipping{background:#fff2df;color:#9c5a00}.order-exchange-status.is-completed{background:#e8f7ef;color:#1f7546}.order-exchange-status.is-rejected,.order-exchange-status.is-canceled{background:#f1f2f4;color:#676d76}.order-exchange-status.is-failed{background:#fff0f0;color:#a63d3d}.order-exchange-reason{display:flex;justify-content:space-between;gap:16px;margin-top:14px}.order-exchange-reason p{margin:0;line-height:1.6}.order-exchange-reason span{color:#666;font-size:12px;white-space:nowrap}
-.order-exchange-items{display:grid;gap:1px;margin:18px 0;padding:0;overflow:hidden;border-radius:10px;background:#ececef;list-style:none}.order-exchange-items li{padding:15px;background:#f8f8fa}.order-exchange-items li>strong{display:block;margin-bottom:10px}.order-exchange-items li>p{margin:9px 0 0;color:#666;font-size:12px}.order-exchange-route{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);align-items:center;gap:10px}.order-exchange-route>span,.order-exchange-route>label{min-width:0;font-size:13px;font-weight:700}.order-exchange-route small{display:block;margin-bottom:4px;color:#888;font-size:11px;font-weight:500}.order-exchange-route b{color:#8171c7;text-align:center}
-.order-exchange-images,.order-exchange-evidence>div{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}.order-exchange-images button,.order-exchange-evidence figure{position:relative;width:88px;height:88px;margin:0;padding:0;overflow:hidden;border:1px solid #ddd;border-radius:9px;background:#fff}.order-exchange-images img,.order-exchange-evidence img{width:100%;height:100%;object-fit:cover}.order-exchange-evidence figure button{position:absolute;top:4px;right:4px;width:23px;height:23px;min-height:0;padding:0;border:0;border-radius:50%;background:rgb(0 0 0/65%);color:#fff}
-.order-exchange-address-summary,.order-exchange-shipments{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.order-exchange-address-summary section,.order-exchange-shipments section{padding:14px;border-radius:9px;background:#fafafa}.order-exchange-address-summary h5,.order-exchange-shipments h5{margin:0 0 8px}.order-exchange-address-summary p,.order-exchange-shipments p{margin:0;color:#555;font-size:13px;line-height:1.6}.order-exchange-address-summary.is-same section:last-child{background:#f4f2fb}.order-exchange-shipments section:first-child{border-left:3px solid #8d7dcf}.order-exchange-shipments section:last-child{border-left:3px solid #e39a43}.order-exchange-shipments dl{display:grid;gap:7px;margin:0}.order-exchange-shipments dl div{display:flex;justify-content:space-between;gap:10px;font-size:12px}.order-exchange-shipments dt{color:#888}.order-exchange-shipments dd{margin:0;font-weight:700;text-align:right}
-.order-exchange-timeline{margin-top:20px;padding-top:18px;border-top:1px solid #eee}.order-exchange-timeline h5{margin:0 0 14px}.order-exchange-timeline ol{display:flex;margin:0;padding:0;list-style:none}.order-exchange-timeline li{position:relative;min-width:0;flex:1;color:#aaa}.order-exchange-timeline li:before{position:absolute;top:6px;right:50%;left:-50%;height:2px;background:#e3e3e3;content:""}.order-exchange-timeline li:first-child:before{display:none}.order-exchange-timeline li>span{position:relative;z-index:1;display:block;width:14px;height:14px;margin:0 auto 8px;border:3px solid #ddd;border-radius:50%;background:#fff}.order-exchange-timeline li.is-active:before{background:#7665bd}.order-exchange-timeline li.is-active>span{border-color:#7665bd;background:#7665bd}.order-exchange-timeline li div{text-align:center}.order-exchange-timeline strong,.order-exchange-timeline time,.order-exchange-timeline small{display:block}.order-exchange-timeline strong{font-size:11px}.order-exchange-timeline li.is-active strong{color:#433678}.order-exchange-timeline time,.order-exchange-timeline small{margin-top:4px;color:#999;font-size:9px}.order-exchange-timeline>p{margin:12px 0 0;color:#666;font-size:12px}
-.exchange-payment-box{margin-top:16px;padding:18px;border:1px solid #efd5a5;border-radius:12px;background:#fff8ec;box-shadow:0 6px 18px rgb(117 80 21/8%)}.exchange-payment-title>span{color:#a35c00;font-size:11px;font-weight:800}.exchange-payment-title h4{margin:5px 0;font-size:17px}.exchange-payment-title p{margin:0;color:#73501f;font-size:12px}.exchange-payment-box dl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.exchange-payment-box dl div{display:grid;gap:3px}.exchange-payment-box dt{color:#777;font-size:11px}.exchange-payment-box dd{margin:0;font-weight:800}
-.order-exchange-form{margin-top:14px;padding:22px;border:1px solid #e2e5e9;border-radius:14px;background:#fff}.order-exchange-form-header{padding-bottom:18px;border-bottom:1px solid #ececec}.order-exchange-form-header span{color:#555;font-size:11px;font-weight:800}.order-exchange-form-header h3{margin:5px 0}.order-exchange-form-header p{margin:0;color:#777;font-size:12px}.order-exchange-form-section{padding:20px 0;border-bottom:1px solid #eee}.order-exchange-form-section>h4{display:flex;align-items:center;gap:8px;margin:0 0 14px}.order-exchange-form-section>h4 b{display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:50%;background:#555;color:#fff;font-size:11px}.order-exchange-form-section>h4 small{color:#888;font-size:11px;font-weight:500}.order-exchange-select{padding:12px 0;border-top:1px solid #eee}.order-exchange-select:first-of-type{border-top:0}.order-exchange-product-check{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}.order-exchange-product-check small{display:block;margin-top:3px;color:#777}.order-exchange-product-check em{color:#777;font-size:11px;font-style:normal}.order-exchange-target{margin:13px 0 0 27px;padding:14px;border-radius:10px;background:#f7f8fa}.order-exchange-target select{width:100%}.order-exchange-option-empty{margin:10px 0 0;color:#b42318;font-size:12px}.order-exchange-quantity{display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-top:12px;font-size:12px}.order-exchange-quantity input{width:72px}
-.order-exchange-fields,.order-exchange-address{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;padding:0;border:0}.order-exchange-fields label,.order-exchange-address label{display:grid;gap:6px;font-size:13px}.order-exchange-fields .wide,.order-exchange-address .wide{grid-column:1/-1}.order-exchange-address legend{margin-bottom:12px;font-weight:800}.order-exchange-address legend small{display:block;margin-top:4px;color:#888;font-size:11px;font-weight:500}.order-exchange-form input,.order-exchange-form select,.order-exchange-form textarea{min-width:0;min-height:40px;padding:9px 10px;border:1px solid #d7d7d7;border-radius:7px;background:#fff}.order-exchange-form textarea{resize:vertical}.order-exchange-address .wide>div{display:grid;grid-template-columns:1fr auto;gap:8px}.order-exchange-form button,.exchange-payment-box button,.order-exchange-open{min-height:40px;padding:0 16px;border:1px solid #333;border-radius:8px;background:#333;color:#fff;font-weight:700;cursor:pointer}.order-exchange-form button:disabled,.exchange-payment-box button:disabled{cursor:not-allowed;opacity:.5}.order-exchange-evidence>p{margin:8px 0 0;color:#888;font-size:11px}.order-exchange-image-add{background:#fff!important;color:#333!important}.order-exchange-addresses{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.order-exchange-same-address{display:flex;align-items:center;gap:7px;margin-bottom:12px;font-size:12px;font-weight:700}.order-exchange-same-address input{min-height:0}.order-exchange-address-compact{padding:14px;border-radius:9px;background:#f7f8fa}.order-exchange-address-compact span{display:block;margin-top:3px;color:#888;font-size:11px}.order-exchange-address-compact p{margin:15px 0 0;font-size:13px}.order-exchange-fee-notice{margin-top:18px;padding:13px 15px;border-radius:9px;font-size:13px;font-weight:700}.order-exchange-fee-notice.is-buyer{background:#fff5e6;color:#8b5600}.order-exchange-fee-notice.is-other{background:#f4f4f6;color:#555}.order-exchange-fee-notice.is-seller{background:#edf8f2;color:#21714a}.order-exchange-actions{margin-top:20px;justify-content:flex-end}.order-exchange-actions button:first-child{border-color:#ccc;background:#fff;color:#555}.order-exchange-error{color:#b42318}.order-exchange-success,.order-exchange-complete{color:#177245;font-weight:700}
-@media(max-width:680px){.order-exchange-heading,.order-exchange-history>header,.order-exchange-reason{align-items:flex-start;flex-direction:column}.order-exchange-history>header div{align-items:flex-start;flex-direction:column}.order-exchange-history,.order-exchange-form{padding:15px}.order-exchange-address-summary,.order-exchange-shipments,.order-exchange-addresses,.order-exchange-fields,.order-exchange-address,.exchange-payment-box dl{grid-template-columns:1fr}.order-exchange-route{grid-template-columns:1fr}.order-exchange-route b{transform:rotate(90deg)}.order-exchange-target{margin-left:0}.order-exchange-product-check{grid-template-columns:auto minmax(0,1fr)}.order-exchange-product-check em{grid-column:2}.order-exchange-timeline{overflow-x:auto}.order-exchange-timeline ol{min-width:560px;padding-bottom:6px}.order-exchange-actions{display:grid;grid-template-columns:1fr 1fr}.order-exchange-actions button{width:100%}}
+.order-exchange-area {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #ececec;
+  color: #282828;
+}
 
-.order-claim-switch{display:flex;gap:8px;margin-top:14px}.order-claim-switch .order-claim-type-button{flex:1;height:40px;min-height:40px;padding:0 16px;border:1px solid #d7d9de;border-radius:9px;background:#fff;color:#333;font-size:13px;font-weight:700;line-height:1;cursor:pointer}.order-claim-switch .order-claim-type-button[aria-pressed="true"]{border-color:#333;background:#f1f2f4}.order-claim-switch .order-claim-type-button:disabled{opacity:.55;cursor:not-allowed}
-.order-exchange-area .order-exchange-route b{color:#666}.order-exchange-area .order-exchange-address-summary.is-same section:last-child{background:#f7f8fa}.order-exchange-area .order-exchange-shipments section:first-child{border-left-color:#888}.order-exchange-area .order-exchange-timeline li.is-active:before{background:#666}.order-exchange-area .order-exchange-timeline li.is-active>span{border-color:#666;background:#666}.order-exchange-area .order-exchange-timeline li.is-active strong{color:#333}.order-exchange-area .order-exchange-status.is-received,.order-exchange-area .order-exchange-status.is-inspected{background:#f1f2f4;color:#555}
+.order-exchange-heading,
+.order-exchange-actions {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.order-exchange-heading strong {
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+.order-exchange-heading span,
+.order-exchange-notice {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.order-exchange-history {
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid #e7e7e7;
+  border-radius: 14px;
+  background: #fff;
+}
+.order-exchange-history > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+.order-exchange-history > header div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.order-exchange-history > header time {
+  color: #888;
+  font-size: 12px;
+}
+.order-exchange-status {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f2f3f5;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.order-exchange-status.is-requested {
+  background: #fff3d8;
+  color: #8b5a00;
+}
+.order-exchange-status.is-approved,
+.order-exchange-status.is-payment_pending {
+  background: #eef4ff;
+  color: #315fa7;
+}
+.order-exchange-status.is-collecting {
+  background: #eaf6ff;
+  color: #24709d;
+}
+.order-exchange-status.is-received,
+.order-exchange-status.is-inspected {
+  background: #f0edff;
+  color: #6550a4;
+}
+.order-exchange-status.is-reshipping {
+  background: #fff2df;
+  color: #9c5a00;
+}
+.order-exchange-status.is-completed {
+  background: #e8f7ef;
+  color: #1f7546;
+}
+.order-exchange-status.is-rejected,
+.order-exchange-status.is-canceled {
+  background: #f1f2f4;
+  color: #676d76;
+}
+.order-exchange-status.is-failed {
+  background: #fff0f0;
+  color: #a63d3d;
+}
+.order-exchange-reason {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+.order-exchange-reason p {
+  margin: 0;
+  line-height: 1.6;
+}
+.order-exchange-reason span {
+  color: #666;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.order-exchange-items {
+  display: grid;
+  gap: 1px;
+  margin: 18px 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #ececef;
+  list-style: none;
+}
+.order-exchange-items li {
+  padding: 15px;
+  background: #f8f8fa;
+}
+.order-exchange-items li > strong {
+  display: block;
+  margin-bottom: 10px;
+}
+.order-exchange-items li > p {
+  margin: 9px 0 0;
+  color: #666;
+  font-size: 12px;
+}
+.order-exchange-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.order-exchange-route > span,
+.order-exchange-route > label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.order-exchange-route small {
+  display: block;
+  margin-bottom: 4px;
+  color: #888;
+  font-size: 11px;
+  font-weight: 500;
+}
+.order-exchange-route b {
+  color: #8171c7;
+  text-align: center;
+}
+.order-exchange-images,
+.order-exchange-evidence > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 10px;
+}
+.order-exchange-images button,
+.order-exchange-evidence figure {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  background: #fff;
+}
+.order-exchange-images img,
+.order-exchange-evidence img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.order-exchange-evidence figure button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 23px;
+  height: 23px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0/65%);
+  color: #fff;
+}
+.order-exchange-address-summary,
+.order-exchange-shipments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.order-exchange-address-summary section,
+.order-exchange-shipments section {
+  padding: 14px;
+  border-radius: 9px;
+  background: #fafafa;
+}
+.order-exchange-address-summary h5,
+.order-exchange-shipments h5 {
+  margin: 0 0 8px;
+}
+.order-exchange-address-summary p,
+.order-exchange-shipments p {
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.order-exchange-address-summary.is-same section:last-child {
+  background: #f4f2fb;
+}
+.order-exchange-shipments section:first-child {
+  border-left: 3px solid #8d7dcf;
+}
+.order-exchange-shipments section:last-child {
+  border-left: 3px solid #e39a43;
+}
+.order-exchange-shipments dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+.order-exchange-shipments dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.order-exchange-shipments dt {
+  color: #888;
+}
+.order-exchange-shipments dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+.order-exchange-timeline {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #eee;
+}
+.order-exchange-timeline h5 {
+  margin: 0 0 14px;
+}
+.order-exchange-timeline ol {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.order-exchange-timeline li {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  color: #aaa;
+}
+.order-exchange-timeline li:before {
+  position: absolute;
+  top: 6px;
+  right: 50%;
+  left: -50%;
+  height: 2px;
+  background: #e3e3e3;
+  content: "";
+}
+.order-exchange-timeline li:first-child:before {
+  display: none;
+}
+.order-exchange-timeline li > span {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 0 auto 8px;
+  border: 3px solid #ddd;
+  border-radius: 50%;
+  background: #fff;
+}
+.order-exchange-timeline li.is-active:before {
+  background: #7665bd;
+}
+.order-exchange-timeline li.is-active > span {
+  border-color: #7665bd;
+  background: #7665bd;
+}
+.order-exchange-timeline li div {
+  text-align: center;
+}
+.order-exchange-timeline strong,
+.order-exchange-timeline time,
+.order-exchange-timeline small {
+  display: block;
+}
+.order-exchange-timeline strong {
+  font-size: 11px;
+}
+.order-exchange-timeline li.is-active strong {
+  color: #433678;
+}
+.order-exchange-timeline time,
+.order-exchange-timeline small {
+  margin-top: 4px;
+  color: #999;
+  font-size: 9px;
+}
+.order-exchange-timeline > p {
+  margin: 12px 0 0;
+  color: #666;
+  font-size: 12px;
+}
+.exchange-payment-box {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #efd5a5;
+  border-radius: 12px;
+  background: #fff8ec;
+  box-shadow: 0 6px 18px rgb(117 80 21/8%);
+}
+.exchange-payment-title > span {
+  color: #a35c00;
+  font-size: 11px;
+  font-weight: 800;
+}
+.exchange-payment-title h4 {
+  margin: 5px 0;
+  font-size: 17px;
+}
+.exchange-payment-title p {
+  margin: 0;
+  color: #73501f;
+  font-size: 12px;
+}
+.exchange-payment-box dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+.exchange-payment-box dl div {
+  display: grid;
+  gap: 3px;
+}
+.exchange-payment-box dt {
+  color: #777;
+  font-size: 11px;
+}
+.exchange-payment-box dd {
+  margin: 0;
+  font-weight: 800;
+}
+.order-exchange-form {
+  margin-top: 14px;
+  padding: 22px;
+  border: 1px solid #e2e5e9;
+  border-radius: 14px;
+  background: #fff;
+}
+.order-exchange-form-header {
+  padding-bottom: 18px;
+  border-bottom: 1px solid #ececec;
+}
+.order-exchange-form-header span {
+  color: #555;
+  font-size: 11px;
+  font-weight: 800;
+}
+.order-exchange-form-header h3 {
+  margin: 5px 0;
+}
+.order-exchange-form-header p {
+  margin: 0;
+  color: #777;
+  font-size: 12px;
+}
+.order-exchange-form-section {
+  padding: 20px 0;
+  border-bottom: 1px solid #eee;
+}
+.order-exchange-form-section > h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.order-exchange-form-section > h4 b {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #555;
+  color: #fff;
+  font-size: 11px;
+}
+.order-exchange-form-section > h4 small {
+  color: #888;
+  font-size: 11px;
+  font-weight: 500;
+}
+.order-exchange-select {
+  padding: 12px 0;
+  border-top: 1px solid #eee;
+}
+.order-exchange-select:first-of-type {
+  border-top: 0;
+}
+.order-exchange-product-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.order-exchange-product-check small {
+  display: block;
+  margin-top: 3px;
+  color: #777;
+}
+.order-exchange-product-check em {
+  color: #777;
+  font-size: 11px;
+  font-style: normal;
+}
+.order-exchange-target {
+  margin: 13px 0 0 27px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f7f8fa;
+}
+.order-exchange-target select {
+  width: 100%;
+}
+.order-exchange-option-empty {
+  margin: 10px 0 0;
+  color: #b42318;
+  font-size: 12px;
+}
+.order-exchange-quantity {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.order-exchange-quantity input {
+  width: 72px;
+}
+.order-exchange-fields,
+.order-exchange-address {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.order-exchange-fields label,
+.order-exchange-address label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.order-exchange-fields .wide,
+.order-exchange-address .wide {
+  grid-column: 1/-1;
+}
+.order-exchange-address legend {
+  margin-bottom: 12px;
+  font-weight: 800;
+}
+.order-exchange-address legend small {
+  display: block;
+  margin-top: 4px;
+  color: #888;
+  font-size: 11px;
+  font-weight: 500;
+}
+.order-exchange-form input,
+.order-exchange-form select,
+.order-exchange-form textarea {
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid #d7d7d7;
+  border-radius: 7px;
+  background: #fff;
+}
+.order-exchange-form textarea {
+  resize: vertical;
+}
+.order-exchange-address .wide > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.order-exchange-form button,
+.exchange-payment-box button,
+.order-exchange-open {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #333;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.order-exchange-form button:disabled,
+.exchange-payment-box button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.order-exchange-evidence > p {
+  margin: 8px 0 0;
+  color: #888;
+  font-size: 11px;
+}
+.order-exchange-image-add {
+  background: #fff !important;
+  color: #333 !important;
+}
+.order-exchange-addresses {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.order-exchange-same-address {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.order-exchange-same-address input {
+  min-height: 0;
+}
+.order-exchange-address-compact {
+  padding: 14px;
+  border-radius: 9px;
+  background: #f7f8fa;
+}
+.order-exchange-address-compact span {
+  display: block;
+  margin-top: 3px;
+  color: #888;
+  font-size: 11px;
+}
+.order-exchange-address-compact p {
+  margin: 15px 0 0;
+  font-size: 13px;
+}
+.order-exchange-fee-notice {
+  margin-top: 18px;
+  padding: 13px 15px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.order-exchange-fee-notice.is-buyer {
+  background: #fff5e6;
+  color: #8b5600;
+}
+.order-exchange-fee-notice.is-other {
+  background: #f4f4f6;
+  color: #555;
+}
+.order-exchange-fee-notice.is-seller {
+  background: #edf8f2;
+  color: #21714a;
+}
+.order-exchange-actions {
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+.order-exchange-actions button:first-child {
+  border-color: #ccc;
+  background: #fff;
+  color: #555;
+}
+.order-exchange-error {
+  color: #b42318;
+}
+.order-exchange-success,
+.order-exchange-complete {
+  color: #177245;
+  font-weight: 700;
+}
+@media (max-width: 680px) {
+  .order-exchange-heading,
+  .order-exchange-history > header,
+  .order-exchange-reason {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .order-exchange-history > header div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .order-exchange-history,
+  .order-exchange-form {
+    padding: 15px;
+  }
+  .order-exchange-address-summary,
+  .order-exchange-shipments,
+  .order-exchange-addresses,
+  .order-exchange-fields,
+  .order-exchange-address,
+  .exchange-payment-box dl {
+    grid-template-columns: 1fr;
+  }
+  .order-exchange-route {
+    grid-template-columns: 1fr;
+  }
+  .order-exchange-route b {
+    transform: rotate(90deg);
+  }
+  .order-exchange-target {
+    margin-left: 0;
+  }
+  .order-exchange-product-check {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .order-exchange-product-check em {
+    grid-column: 2;
+  }
+  .order-exchange-timeline {
+    overflow-x: auto;
+  }
+  .order-exchange-timeline ol {
+    min-width: 560px;
+    padding-bottom: 6px;
+  }
+  .order-exchange-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .order-exchange-actions button {
+    width: 100%;
+  }
+}
+
+.order-claim-switch {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.order-claim-switch .order-claim-type-button {
+  flex: 1;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #d7d9de;
+  border-radius: 9px;
+  background: #fff;
+  color: #333;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.order-claim-switch .order-claim-type-button[aria-pressed="true"] {
+  border-color: #333;
+  background: #f1f2f4;
+}
+.order-claim-switch .order-claim-type-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.order-exchange-area .order-exchange-route b {
+  color: #666;
+}
+.order-exchange-area
+  .order-exchange-address-summary.is-same
+  section:last-child {
+  background: #f7f8fa;
+}
+.order-exchange-area .order-exchange-shipments section:first-child {
+  border-left-color: #888;
+}
+.order-exchange-area .order-exchange-timeline li.is-active:before {
+  background: #666;
+}
+.order-exchange-area .order-exchange-timeline li.is-active > span {
+  border-color: #666;
+  background: #666;
+}
+.order-exchange-area .order-exchange-timeline li.is-active strong {
+  color: #333;
+}
+.order-exchange-area .order-exchange-status.is-received,
+.order-exchange-area .order-exchange-status.is-inspected {
+  background: #f1f2f4;
+  color: #555;
+}
 
 /* Shared buyer claim application styles; history and payment cards keep their own styles. */
 .order-claim-form.order-claim-form {
@@ -23,19 +713,63 @@
   font-size: 13px;
   line-height: 1.5;
 }
-.order-claim-form .order-claim-form-header { padding: 0 0 16px; border-bottom: 1px solid #ececec; }
-.order-claim-form .order-claim-form-header h3 { margin: 0; color: #191919; font-size: 17px; font-weight: 700; line-height: 1.4; }
-.order-claim-form .order-claim-form-header p { margin: 5px 0 0; color: #777; font-size: 12px; line-height: 1.6; }
-.order-claim-form .order-claim-form-section { margin: 0; padding: 18px 0; border-top: 0; border-bottom: 1px solid #ececec; }
+.order-claim-form .order-claim-form-header {
+  padding: 0 0 16px;
+  border-bottom: 1px solid #ececec;
+}
+.order-claim-form .order-claim-form-header h3 {
+  margin: 0;
+  color: #191919;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.order-claim-form .order-claim-form-header p {
+  margin: 5px 0 0;
+  color: #777;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.order-claim-form .order-claim-form-section {
+  margin: 0;
+  padding: 18px 0;
+  border-top: 0;
+  border-bottom: 1px solid #ececec;
+}
 .order-claim-form .order-claim-form-section > h4,
-.order-claim-form .order-return-evidence > div:first-child { margin: 0 0 12px; color: #282828; font-size: 13px; font-weight: 700; line-height: 1.5; }
-.order-claim-form .order-claim-form-section > h4 small { color: #888; font-size: 11px; font-weight: 500; }
-.order-claim-form .order-claim-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.order-claim-form .order-return-evidence > div:first-child {
+  margin: 0 0 12px;
+  color: #282828;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.order-claim-form .order-claim-form-section > h4 small {
+  color: #888;
+  font-size: 11px;
+  font-weight: 500;
+}
+.order-claim-form .order-claim-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
 .order-claim-form .order-claim-fields label,
-.order-claim-form .order-exchange-address label { display: grid; min-width: 0; gap: 7px; }
+.order-claim-form .order-exchange-address label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
 .order-claim-form .order-claim-fields label > span,
-.order-claim-form .order-exchange-address label > span { color: #282828; font-size: 12px; font-weight: 700; line-height: 1.5; }
-.order-claim-form :is(.order-claim-fields, .order-exchange-address, .order-exchange-target) :is(input:not([type="checkbox"]):not([type="file"]), select, textarea) {
+.order-claim-form .order-exchange-address label > span {
+  color: #282828;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.order-claim-form
+  :is(.order-claim-fields, .order-exchange-address, .order-exchange-target)
+  :is(input:not([type="checkbox"]):not([type="file"]), select, textarea) {
   box-sizing: border-box;
   min-width: 0;
   min-height: 40px;
@@ -48,29 +782,150 @@
   font-size: 13px;
   line-height: 1.5;
 }
-.order-claim-form :is(.order-claim-fields, .order-exchange-address) :is(input, select, textarea) { width: 100%; }
-.order-claim-form textarea { resize: vertical; }
-.order-claim-form input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; padding: 0; flex: none; }
-.order-claim-form .order-claim-fields small { color: #888; font-size: 11px; text-align: right; }
-.order-claim-form .order-claim-required { color: #b42318; font-weight: 700; }
-.order-claim-form :is(.order-return-evidence > p, .order-exchange-evidence > p) { margin: 7px 0 12px; color: #777; font-size: 12px; line-height: 1.6; }
-.order-claim-form :is(.order-return-error, .order-exchange-error, .order-exchange-option-empty) { margin: 12px 0 0; color: #b42318; font-size: 12px; line-height: 1.5; }
-.order-claim-form :is(.order-return-select-item, .order-exchange-select) { margin: 0 0 8px; padding: 12px; border: 1px solid #e2e5e9; border-radius: 9px; background: #f7f8fa; }
-.order-claim-form :is(.order-return-select-item, .order-exchange-select) strong { color: #282828; font-size: 13px; font-weight: 700; line-height: 1.5; }
-.order-claim-form :is(.order-return-select-item small, .order-exchange-product-check small, .order-exchange-product-check em) { color: #777; font-size: 11px; font-weight: 400; line-height: 1.5; }
-.order-claim-form .order-exchange-target { background: #fff; }
-.order-claim-form .order-return-stepper { height: 40px; box-sizing: border-box; background: #fff; }
-.order-claim-form .order-return-stepper button { height: 38px; }
-.order-claim-form :is(.order-return-evidence > button, .order-exchange-image-add) { min-height: 40px; padding: 0 16px; border: 1px solid #d7d9de; border-radius: 8px; background: #fff; color: #333; font-size: 13px; font-weight: 700; line-height: 1; }
-.order-claim-form :is(.order-return-collection-address, .order-exchange-address-compact) { padding: 12px; border: 1px solid #e2e5e9; border-radius: 9px; background: #f7f8fa; font-size: 13px; line-height: 1.6; }
-.order-claim-form .order-exchange-address-compact p { margin: 8px 0 0; }
-.order-claim-form .order-claim-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.order-claim-form .order-claim-actions button { box-sizing: border-box; height: 40px; min-height: 40px; padding: 0 16px; border: 1px solid #333; border-radius: 8px; background: #333; color: #fff; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; }
-.order-claim-form .order-claim-actions button:first-child { border-color: #d7d9de; background: #fff; color: #333; }
-.order-claim-form button:disabled { cursor: not-allowed; opacity: .5; }
+.order-claim-form
+  :is(.order-claim-fields, .order-exchange-address)
+  :is(input, select, textarea) {
+  width: 100%;
+}
+.order-claim-form textarea {
+  resize: vertical;
+}
+.order-claim-form input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  flex: none;
+}
+.order-claim-form .order-claim-fields small {
+  color: #888;
+  font-size: 11px;
+  text-align: right;
+}
+.order-claim-form .order-claim-required {
+  color: #b42318;
+  font-weight: 700;
+}
+.order-claim-form
+  :is(.order-return-evidence > p, .order-exchange-evidence > p) {
+  margin: 7px 0 12px;
+  color: #777;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.order-claim-form
+  :is(
+    .order-return-error,
+    .order-exchange-error,
+    .order-exchange-option-empty
+  ) {
+  margin: 12px 0 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.order-claim-form :is(.order-return-select-item, .order-exchange-select) {
+  margin: 0 0 8px;
+  padding: 12px;
+  border: 1px solid #e2e5e9;
+  border-radius: 9px;
+  background: #f7f8fa;
+}
+.order-claim-form
+  :is(.order-return-select-item, .order-exchange-select)
+  strong {
+  color: #282828;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.order-claim-form
+  :is(
+    .order-return-select-item small,
+    .order-exchange-product-check small,
+    .order-exchange-product-check em
+  ) {
+  color: #777;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.order-claim-form .order-exchange-target {
+  background: #fff;
+}
+.order-claim-form .order-return-stepper {
+  height: 40px;
+  box-sizing: border-box;
+  background: #fff;
+}
+.order-claim-form .order-return-stepper button {
+  height: 38px;
+}
+.order-claim-form
+  :is(.order-return-evidence > button, .order-exchange-image-add) {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #d7d9de;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+.order-claim-form
+  :is(.order-return-collection-address, .order-exchange-address-compact) {
+  padding: 12px;
+  border: 1px solid #e2e5e9;
+  border-radius: 9px;
+  background: #f7f8fa;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.order-claim-form .order-exchange-address-compact p {
+  margin: 8px 0 0;
+}
+.order-claim-form .order-claim-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.order-claim-form .order-claim-actions button {
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #333;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.order-claim-form .order-claim-actions button:first-child {
+  border-color: #d7d9de;
+  background: #fff;
+  color: #333;
+}
+.order-claim-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 @media (max-width: 680px) {
-  .order-claim-form.order-claim-form { padding: 15px; }
-  .order-claim-form .order-claim-form-section { padding: 16px 0; }
-  .order-claim-form .order-claim-fields { grid-template-columns: 1fr; }
-  .order-claim-form .order-claim-actions button { flex: 1; width: 100%; }
+  .order-claim-form.order-claim-form {
+    padding: 15px;
+  }
+  .order-claim-form .order-claim-form-section {
+    padding: 16px 0;
+  }
+  .order-claim-form .order-claim-fields {
+    grid-template-columns: 1fr;
+  }
+  .order-claim-form .order-claim-actions button {
+    flex: 1;
+    width: 100%;
+  }
 }

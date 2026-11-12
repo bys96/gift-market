@@ -1,0 +1,41 @@
+.buyer-order-status-delivered,
+.buyer-order-status-pending,
+.buyer-order-status-closed,
+.buyer-order-status-neutral {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.buyer-order-status-delivered {
+  background: #eaf7ef;
+  color: #18804a;
+}
+
+.buyer-order-status-pending {
+  background: #fff0db;
+  color: #b85c00;
+}
+
+.buyer-order-status-closed,
+.order-detail-page .order-detail-product-cancelled-badge,
+.order-detail-page .order-return-status-completed {
+  background: #fde8e8;
+  color: #c53030;
+}
+
+.buyer-order-status-neutral {
+  background: #f1f2f4;
+  color: var(--color-text-secondary);
+}
+
+.order-detail-page .order-return-status-requested,
+.order-detail-page .order-return-status-approved,
+.order-detail-page .order-return-status-collecting,
+.order-detail-page .order-return-status-received,
+.order-detail-page .order-return-status-inspected,
+.order-detail-page .order-return-status-refunding {
+  background: #fff0db;
+  color: #b85c00;
+}

@@ -10,6 +10,7 @@ import OrderDetailInfo from "@/components/order/OrderDetailInfo";
 import OrderDetailProductList from "@/components/order/OrderDetailProductList";
 import OrderDetailSellerGroups from "@/components/order/OrderDetailSellerGroups";
 import OrderDetailSummary from "@/components/order/OrderDetailSummary";
+import BuyerOrderStatusBadge from "@/components/order/BuyerOrderStatusBadge";
 import { getMyOrder, getOrderCancellations } from "@/lib/order-api";
 import { getOrderReturnRequests } from "@/lib/return-api";
 import { getOrderExchangeRequests } from "@/lib/exchange-api";
@@ -222,9 +223,15 @@ export default function MyOrderDetailPage() {
           <p className="order-detail-status-label">현재 주문 상태</p>
 
           <div className="order-detail-status-row">
-            <strong className="order-detail-status">
-              {BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
-            </strong>
+            <BuyerOrderStatusBadge
+              className="order-detail-status"
+              status={order.deliveryStatus}
+              label={BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
+              items={order.items}
+              returns={returns}
+              loading={returnsLoading}
+              error={Boolean(returnsError)}
+            />
 
             {statusChangedAt && (
               <span className="order-detail-status-at">

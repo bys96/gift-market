@@ -3,6 +3,7 @@ import Link from "next/link";
 import OrderCancellationPanel from "@/components/order/OrderCancellationPanel";
 import OrderReturnPanel from "@/components/order/OrderReturnPanel";
 import OrderExchangePanel from "@/components/order/OrderExchangePanel";
+import BuyerOrderStatusBadge from "@/components/order/BuyerOrderStatusBadge";
 
 import { BUYER_SELLER_ORDER_STATUS_LABELS } from "@/lib/order-status";
 import type { BuyerSellerOrder, OrderCancellation } from "@/types/order";
@@ -188,11 +189,15 @@ export default function OrderDetailSellerGroups({
                 <span>판매자</span>
                 <h2>{sellerOrder.sellerName}</h2>
               </div>
-              <strong
+              <BuyerOrderStatusBadge
                 className={`order-detail-delivery-badge order-detail-delivery-${sellerOrder.status.toLowerCase()}`}
-              >
-                {BUYER_SELLER_ORDER_STATUS_LABELS[sellerOrder.status]}
-              </strong>
+                status={sellerOrder.status}
+                label={BUYER_SELLER_ORDER_STATUS_LABELS[sellerOrder.status]}
+                items={sellerOrder.items}
+                returns={returns.filter((request) => request.sellerOrderId === sellerOrder.sellerOrderId)}
+                loading={returnsLoading}
+                error={Boolean(returnsError)}
+              />
             </header>
 
             <div className="order-detail-product-list">

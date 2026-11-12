@@ -1,9 +1,15 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
 import { BUYER_DELIVERY_STATUS_LABELS } from "@/lib/order-status";
 import type { OrderSummary } from "@/types/order";
 import { resolveImageUrl } from "@/utils/image-url";
+import BuyerOrderStatusBadge from "@/components/order/BuyerOrderStatusBadge";
+import { getOrderReturnRequests } from "@/lib/return-api";
+import type { ReturnRequest } from "@/types/return";
 
 interface OrderHistoryCardProps {
   order: OrderSummary;
@@ -24,6 +30,25 @@ function formatDateTime(date: string) {
   }).format(new Date(date));
 }
 export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
+  const [returnState, setReturnState] = useState<{
+    orderId: number;
+    requests: ReturnRequest[];
+    error: boolean;
+  } | null>(null);
+  const needsReturns = ["PAID", "PREPARING", "SHIPPING", "DELIVERED"].includes(order.deliveryStatus);
+
+  useEffect(() => {
+    if (!needsReturns) return;
+    let cancelled = false;
+    void getOrderReturnRequests(order.id).then((requests) => {
+      if (!cancelled) setReturnState({ orderId: order.id, requests, error: false });
+    }).catch(() => {
+      if (!cancelled) setReturnState({ orderId: order.id, requests: [], error: true });
+    });
+    return () => { cancelled = true; };
+  }, [order.id, order.deliveryStatus, needsReturns]);
+
+  const currentReturns = returnState?.orderId === order.id ? returnState : null;
   if (order.items.length === 0) return null;
 
   return (
@@ -39,6 +64,15 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
           )}
 
           <p className="order-history-number">주문번호 {order.orderNumber}</p>
+          <BuyerOrderStatusBadge
+            className={`order-history-status order-history-status-${order.deliveryStatus.toLowerCase()}`}
+            status={order.deliveryStatus}
+            label={BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
+            items={order.items}
+            returns={currentReturns?.requests ?? []}
+            loading={needsReturns && !currentReturns}
+            error={needsReturns && currentReturns?.error}
+          />
         </div>
 
         <Link
@@ -68,14 +102,15 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
         </Link>
 
         <div className="order-history-product-info">
-          <span
-            className={[
-              "order-history-status",
-              `order-history-status-${order.deliveryStatus.toLowerCase()}`,
-            ].join(" ")}
-          >
-            {BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
-          </span>
+          <BuyerOrderStatusBadge
+            className={`order-history-status order-history-status-${order.deliveryStatus.toLowerCase()}`}
+            status={order.deliveryStatus}
+            label={BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
+            items={[item]}
+            returns={currentReturns?.requests ?? []}
+            loading={needsReturns && !currentReturns}
+            error={needsReturns && currentReturns?.error}
+          />
 
           <h2 className="order-history-product-name">
             <Link href={`/products/${item.productId}`}>{item.productName}</Link>
