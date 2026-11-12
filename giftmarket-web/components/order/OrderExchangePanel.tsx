@@ -405,7 +405,6 @@ export default function OrderExchangePanel({
   const loadItem = async (
     itemId: number,
     productId: number,
-    originalVariantId: number | null,
   ) => {
     invalidate();
     if (selection[itemId]) {
@@ -420,15 +419,12 @@ export default function OrderExchangePanel({
       const product = products[productId] ?? (await getProduct(productId));
       setProducts((v) => ({ ...v, [productId]: product }));
       const item = sellerOrder.items.find((value) => value.id === itemId);
-      const allowSame =
-        SELLER_REASON_TYPES.has(reasonType) || reasonType === "OTHER";
       const firstTarget = product.hasOptions
         ? (product.variants.find(
             (variant) =>
               variant.available &&
               variant.stockQuantity >= 1 &&
-              variant.price === item?.unitPrice &&
-              (allowSame || variant.id !== originalVariantId),
+              variant.price === item?.unitPrice,
           )?.id ?? null)
         : null;
       setSelection((v) => ({
@@ -625,33 +621,6 @@ export default function OrderExchangePanel({
   const changeReasonType = (next: ExchangeReasonType) => {
     invalidate();
     setReasonType(next);
-    const allowSame = SELLER_REASON_TYPES.has(next) || next === "OTHER";
-    setSelection(
-      (current) =>
-        Object.fromEntries(
-          Object.entries(current).map(([id, selected]) => {
-            const item = sellerOrder.items.find(
-              (value) => value.id === Number(id),
-            );
-            const product = item ? products[item.productId] : undefined;
-            if (
-              !item ||
-              !product?.hasOptions ||
-              allowSame ||
-              selected.targetVariantId !== item.variantId
-            )
-              return [id, selected];
-            const target = product.variants.find(
-              (variant) =>
-                variant.available &&
-                variant.stockQuantity >= selected.quantity &&
-                variant.price === item.unitPrice &&
-                variant.id !== item.variantId,
-            );
-            return [id, { ...selected, targetVariantId: target?.id ?? null }];
-          }),
-        ) as Record<number, Selection>,
-    );
   };
   return (
     <div className="order-exchange-area">
@@ -854,16 +823,13 @@ export default function OrderExchangePanel({
                 const selected = selection[item.id];
                 const product = products[item.productId];
                 const max = available.get(item.id) ?? 0;
-                const allowSame =
-                  SELLER_REASON_TYPES.has(reasonType) || reasonType === "OTHER";
                 const variants =
                   product?.variants.filter(
                     (variant) =>
                       variant.available &&
                       count(variant.stockQuantity) >=
                         (selected?.quantity ?? 1) &&
-                      count(variant.price) === count(item.unitPrice) &&
-                      (allowSame || variant.id !== item.variantId),
+                      count(variant.price) === count(item.unitPrice),
                   ) ?? [];
                 return (
                   <div
@@ -875,7 +841,7 @@ export default function OrderExchangePanel({
                         type="checkbox"
                         checked={Boolean(selected)}
                         onChange={() =>
-                          void loadItem(item.id, item.productId, item.variantId)
+                          void loadItem(item.id, item.productId)
                         }
                       />
                       <span>
@@ -915,7 +881,7 @@ export default function OrderExchangePanel({
                                 {variants.map((variant) => (
                                   <option key={variant.id} value={variant.id}>
                                     {variant.id === item.variantId
-                                      ? `동일 옵션 새 상품 · ${variantLabel(product, variant.optionValueIds)}`
+                                      ? `${variantLabel(product, variant.optionValueIds)} (현재 구매한 옵션)`
                                       : variantLabel(
                                           product,
                                           variant.optionValueIds,
@@ -951,9 +917,7 @@ export default function OrderExchangePanel({
                                   (variant) =>
                                     variant.available &&
                                     variant.stockQuantity >= quantity &&
-                                    variant.price === item.unitPrice &&
-                                    (allowSame ||
-                                      variant.id !== item.variantId),
+                                    variant.price === item.unitPrice,
                                 ) ?? [];
                               setSelection((v) => ({
                                 ...v,

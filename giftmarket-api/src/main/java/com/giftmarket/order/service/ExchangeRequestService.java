@@ -219,9 +219,8 @@ public class ExchangeRequestService {
                 throw new OrderException("가격이 다른 옵션으로는 교환할 수 없습니다. 반품 후 다시 구매해 주세요.");
             }
             if (responsibility == ExchangeResponsibility.BUYER
-                    && (item.getVariant() == null
-                    || Objects.equals(item.getVariant().getId(), variant.getId()))) {
-                throw new OrderException("구매자 귀책 교환은 기존 옵션과 다른 옵션을 선택해야 합니다.");
+                    && item.getVariant() == null) {
+                throw new OrderException("옵션이 없는 상품은 구매자 귀책 교환을 신청할 수 없습니다.");
             }
         }
         return result;

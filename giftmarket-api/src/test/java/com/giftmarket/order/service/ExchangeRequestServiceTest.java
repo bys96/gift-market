@@ -21,6 +21,8 @@ import com.giftmarket.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -221,22 +223,34 @@ class ExchangeRequestServiceTest {
         assertSavedTargetVariant(target, 501L);
     }
 
-    @Test
-    void buyerFaultRejectsSameVariantBeforeRequestPersistence() {
+    @ParameterizedTest
+    @EnumSource(value = ExchangeReasonType.class, names = {"CHANGE_OF_MIND", "OPTION_MISTAKE"})
+    void buyerFaultAllowsSameVariantWithEqualPrice(ExchangeReasonType reason) {
         ProductVariant target = configureVariantOrder(501L, 501L, 0L);
         int targetStock = target.getStockQuantity();
 
-        assertThatThrownBy(() -> create(request(
-                ExchangeReasonType.CHANGE_OF_MIND, 1, 501L, List.of()
-        )))
-                .isInstanceOf(OrderException.class)
-                .hasMessage("구매자 귀책 교환은 기존 옵션과 다른 옵션을 선택해야 합니다.");
+        ExchangeRequestResponse response = create(request(reason, 1, 501L, List.of()));
 
-        verify(exchangeRequestRepository, never()).saveAndFlush(any());
-        verify(exchangeRequestItemRepository, never()).saveAll(anyList());
-        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(response.status()).isEqualTo(ExchangeRequestStatus.REQUESTED);
+        assertThat(response.responsibility()).isEqualTo(ExchangeResponsibility.BUYER);
+        assertSavedTargetVariant(target, 501L);
         assertThat(target.getStockQuantity()).isEqualTo(targetStock);
         assertThat(orderItem.getExchangedQuantity()).isZero();
+    }
+
+    @Test
+    void buyerFaultSameVariantStillRejectsInsufficientStockAndChangedPrice() {
+        ProductVariant target = configureVariantOrder(501L, 501L, 0L);
+        given(target.getStockQuantity()).willReturn(0);
+        assertThatThrownBy(() -> create(request(ExchangeReasonType.CHANGE_OF_MIND, 1, 501L, List.of())))
+                .isInstanceOf(OrderException.class).hasMessageContaining("재고");
+
+        given(target.getStockQuantity()).willReturn(10);
+        given(target.getAdditionalPrice()).willReturn(1_000L);
+        assertThatThrownBy(() -> create(request(ExchangeReasonType.CHANGE_OF_MIND, 1, 501L, List.of())))
+                .isInstanceOf(OrderException.class).hasMessageContaining("가격이 다른 옵션");
+        verify(exchangeRequestRepository, never()).saveAndFlush(any());
+        verify(exchangeRequestItemRepository, never()).saveAll(anyList());
     }
 
     @Test
