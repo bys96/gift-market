@@ -90,6 +90,7 @@ public class SellerProductController {
     public ApiResponse<SellerProductPageResponse> getMyProducts(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -97,6 +98,7 @@ public class SellerProductController {
                 productService.getMyProducts(
                         userId,
                         status,
+                        keyword,
                         page,
                         size
                 )

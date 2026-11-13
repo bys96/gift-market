@@ -108,14 +108,31 @@ public interface ProductRepository extends
             SellerStatus sellerStatus
     );
 
+    @EntityGraph(attributePaths = "category")
     Page<Product> findAllBySellerIdAndDeletedAtIsNull(
             Long sellerId,
             Pageable pageable
     );
 
+    @EntityGraph(attributePaths = "category")
     Page<Product> findAllBySellerIdAndStatusAndDeletedAtIsNull(
             Long sellerId,
             ProductStatus status,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = "category")
+    Page<Product> findAllBySellerIdAndNameContainingIgnoreCaseAndDeletedAtIsNull(
+            Long sellerId,
+            String keyword,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = "category")
+    Page<Product> findAllBySellerIdAndStatusAndNameContainingIgnoreCaseAndDeletedAtIsNull(
+            Long sellerId,
+            ProductStatus status,
+            String keyword,
             Pageable pageable
     );
 

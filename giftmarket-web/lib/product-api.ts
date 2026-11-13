@@ -255,6 +255,7 @@ export async function getSellerProducts(
   page = 0,
   size = 20,
   status?: ProductStatus,
+  keyword?: string,
 ): Promise<SellerProductPage> {
   const params = new URLSearchParams({
     page: String(page),
@@ -263,6 +264,10 @@ export async function getSellerProducts(
 
   if (status) {
     params.set("status", status);
+  }
+
+  if (keyword?.trim()) {
+    params.set("keyword", keyword.trim());
   }
 
   const response = await apiFetch<ApiResponse<SellerProductPagePayload>>(

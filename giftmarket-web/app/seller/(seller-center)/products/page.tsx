@@ -1,15 +1,18 @@
 "use client";
 
 import { useScrollRestoration } from "@/hooks/useScrollRestoration";
-import { getRestoredScrollState } from "@/lib/scroll-restoration";
-
+import {
+  parseSellerProductList,
+  sellerProductsHref,
+  SELLER_PRODUCT_KEYWORD_MAX_LENGTH,
+} from "@/lib/seller-product-list";
 
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   deleteProductDraft,
@@ -95,8 +98,54 @@ function getDraftImageKey(draft: ProductDraft): string | null {
   return parseDraftData(draft)?.representativeImageKey ?? null;
 }
 
-export default function SellerProductsPage() {
+function SellerProductSearch(
+  { keyword, onSearch }: { keyword: string; onSearch: (value: string) => void },
+) {
+  const [value, setValue] = useState(keyword);
+  return (
+    <form
+      className="seller-products-search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch(value.trim());
+      }}
+    >
+      <label>
+        <span className="sr-only">상품명 검색</span>
+        <input
+          type="search"
+          name="keyword"
+          placeholder="상품명으로 검색"
+          maxLength={SELLER_PRODUCT_KEYWORD_MAX_LENGTH}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </label>
+      <button type="submit">검색</button>
+      <button
+        type="button"
+        className="is-secondary"
+        disabled={!value && !keyword}
+        onClick={() => {
+          setValue("");
+          onSearch("");
+        }}
+      >
+        초기화
+      </button>
+    </form>
+  );
+}
+
+function SellerProductsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { page: currentPage, status: selectedStatus, keyword } = parseSellerProductList(searchParams);
+  const productRequestId = useRef(0);
+  const createListUrl = useCallback(
+    (changes: Parameters<typeof sellerProductsHref>[1]) => sellerProductsHref(searchParams, changes),
+    [searchParams],
+  );
 
   const initialized = useAuthStore((state) => state.initialized);
 
@@ -110,12 +159,6 @@ export default function SellerProductsPage() {
 
   const [newProductDrafts, setNewProductDrafts] = useState<ProductDraft[]>([]);
 
-  const [selectedStatus, setSelectedStatus] = useState<ProductStatus | "ALL">(
-    () => getRestoredScrollState<{ status: ProductStatus | "ALL"; page: number }>({ status: "ALL", page: 0 }).status,
-  );
-
-  const [currentPage, setCurrentPage] = useState(() => getRestoredScrollState({ status: "ALL", page: 0 }).page);
-
   const [isLoading, setIsLoading] = useState(true);
 
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(true);
@@ -123,10 +166,13 @@ export default function SellerProductsPage() {
   const [deletingDraftId, setDeletingDraftId] = useState<number | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
-  useScrollRestoration({ ready: !isLoading && !isLoadingDrafts && productPage !== null, failed: Boolean(errorMessage), state: { status: selectedStatus, page: currentPage } });
-
+  useScrollRestoration({
+    ready: !isLoading && !isLoadingDrafts && productPage !== null,
+    failed: Boolean(errorMessage),
+  });
 
   const loadProducts = useCallback(async () => {
+    const requestId = ++productRequestId.current;
     try {
       setIsLoading(true);
       setErrorMessage("");
@@ -135,19 +181,26 @@ export default function SellerProductsPage() {
         currentPage,
         PAGE_SIZE,
         selectedStatus === "ALL" ? undefined : selectedStatus,
+        keyword,
       );
 
+      if (requestId !== productRequestId.current) return;
+      if (currentPage > 0 && (response.totalPages === 0 || currentPage >= response.totalPages)) {
+        router.replace(createListUrl({ page: Math.max(0, response.totalPages - 1) }), { scroll: false });
+        return;
+      }
       setProductPage(response);
     } catch (error) {
+      if (requestId !== productRequestId.current) return;
       setErrorMessage(
         error instanceof Error
           ? error.message
           : "상품 목록을 불러오지 못했습니다.",
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === productRequestId.current) setIsLoading(false);
     }
-  }, [currentPage, selectedStatus]);
+  }, [currentPage, selectedStatus, keyword, router, createListUrl]);
 
   const loadDrafts = useCallback(async () => {
     try {
@@ -176,11 +229,11 @@ export default function SellerProductsPage() {
     // 인증 완료 후 상품과 임시저장 목록을 최초 동기화한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void Promise.all([loadProducts(), loadDrafts()]);
+    return () => { productRequestId.current += 1; };
   }, [initialized, isAuthenticated, user, router, loadProducts, loadDrafts]);
 
   const handleStatusChange = (status: ProductStatus | "ALL") => {
-    setSelectedStatus(status);
-    setCurrentPage(0);
+    router.push(createListUrl({ status, page: 0 }), { scroll: false });
   };
 
   const handleContinueDraft = (draftId: number) => {
@@ -347,6 +400,11 @@ export default function SellerProductsPage() {
           ======================================== */}
 
           <section className="seller-products-panel">
+            <SellerProductSearch
+              key={keyword}
+              keyword={keyword}
+              onSearch={(value) => router.push(createListUrl({ keyword: value, page: 0 }), { scroll: false })}
+            />
             <div className="seller-products-toolbar">
               <div
                 className="seller-products-status-tabs"
@@ -374,7 +432,7 @@ export default function SellerProductsPage() {
               </div>
 
               <p className="seller-products-total-count">
-                총 <strong>{productPage?.totalElements ?? 0}</strong>개
+                총 <strong>{isLoading || errorMessage ? "-" : productPage?.totalElements ?? 0}</strong>개
               </p>
             </div>
 
@@ -404,9 +462,9 @@ export default function SellerProductsPage() {
                 <div className="seller-products-state">
                   <div className="seller-products-empty-icon">+</div>
 
-                  <strong>등록된 상품이 없습니다.</strong>
+                  <strong>{keyword || selectedStatus !== "ALL" ? "조건에 맞는 상품이 없습니다." : "등록된 상품이 없습니다."}</strong>
 
-                  <p>첫 상품을 등록하고 판매를 시작해보세요.</p>
+                  <p>{keyword || selectedStatus !== "ALL" ? "검색어나 상품 상태를 변경해보세요." : "첫 상품을 등록하고 판매를 시작해보세요."}</p>
 
                   <button
                     type="button"
@@ -560,7 +618,8 @@ export default function SellerProductsPage() {
                     totalPages={productPage.totalPages}
                     ariaLabel="판매자 상품 목록 페이지"
                     disabled={isLoading}
-                    onPageChange={setCurrentPage}
+                    getPageHref={(page) => createListUrl({ page })}
+                    scroll={false}
                     className="seller-products-pagination"
                   />
                 </>
@@ -569,5 +628,13 @@ export default function SellerProductsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SellerProductsPage() {
+  return (
+    <Suspense fallback={<div className="seller-products-state">상품 목록을 준비하고 있습니다.</div>}>
+      <SellerProductsContent />
+    </Suspense>
   );
 }

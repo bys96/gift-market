@@ -409,15 +409,26 @@ public class ProductService {
     public SellerProductPageResponse getMyProducts(
             Long userId,
             ProductStatus status,
+            String keyword,
             int page,
             int size
     ) {
         Seller seller = getActiveSeller(userId);
         Pageable pageable = createPageable(page, size, ProductSort.LATEST);
+        String normalizedKeyword = keyword == null ? "" : keyword.trim();
+        if (normalizedKeyword.length() > 100) {
+            throw new ProductException("검색어는 100자 이내로 입력해주세요.");
+        }
 
         Page<Product> productPage;
 
-        if (status == null) {
+        if (!normalizedKeyword.isEmpty()) {
+            productPage = status == null
+                    ? productRepository.findAllBySellerIdAndNameContainingIgnoreCaseAndDeletedAtIsNull(
+                            seller.getId(), normalizedKeyword, pageable)
+                    : productRepository.findAllBySellerIdAndStatusAndNameContainingIgnoreCaseAndDeletedAtIsNull(
+                            seller.getId(), status, normalizedKeyword, pageable);
+        } else if (status == null) {
             productPage =
                     productRepository
                             .findAllBySellerIdAndDeletedAtIsNull(
