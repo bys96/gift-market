@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -40,6 +43,8 @@ function MyInquiriesContent() {
   const [openInquiryId, setOpenInquiryId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useScrollRestoration({ ready: !loading && result !== null, failed: Boolean(error) });
+
 
   const createPageUrl = useCallback((nextPage: number) => {
     return nextPage > 0 ? `/my/inquiries?page=${nextPage}` : "/my/inquiries";

@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
@@ -70,6 +73,8 @@ function SellerOrdersContent() {
   const [keywordInput, setKeywordInput] = useState(keyword);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useScrollRestoration({ ready: !loading && orderPage !== null, failed: Boolean(error) });
+
 
   const createListUrl = (next: { status?: FilterStatus; keyword?: string; page?: number } = {}) => {
     const nextStatus = next.status ?? status;

@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
@@ -44,6 +47,8 @@ function SellerReturnsContent() {
   const page = parsePage(searchParams.get("page"));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useScrollRestoration({ ready: !loading && returnPage !== null, failed: Boolean(error) });
+
   const createListUrl = (next: { status?: FilterStatus; page?: number } = {}) => { const nextStatus = next.status ?? status; const nextPage = next.page ?? page; const params = new URLSearchParams(); if (nextStatus !== "ALL") params.set("status", nextStatus); if (nextPage > 0) params.set("page", String(nextPage)); const query = params.toString(); return query ? `/seller/orders/returns?${query}` : "/seller/orders/returns"; };
   const detailQuery = createListUrl().split("?")[1] ?? "";
 

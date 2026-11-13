@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import AuthInitializer from "@/components/auth/AuthInitializer";
+import ScrollHistoryTracker from "@/components/common/ScrollHistoryTracker";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
+        <ScrollHistoryTracker />
         <AuthInitializer />
         <Header />
 

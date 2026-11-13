@@ -1,5 +1,9 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+import { getRestoredScrollState } from "@/lib/scroll-restoration";
+
+
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Image from "next/image";
@@ -107,10 +111,10 @@ export default function SellerProductsPage() {
   const [newProductDrafts, setNewProductDrafts] = useState<ProductDraft[]>([]);
 
   const [selectedStatus, setSelectedStatus] = useState<ProductStatus | "ALL">(
-    "ALL",
+    () => getRestoredScrollState<{ status: ProductStatus | "ALL"; page: number }>({ status: "ALL", page: 0 }).status,
   );
 
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(() => getRestoredScrollState({ status: "ALL", page: 0 }).page);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -119,6 +123,8 @@ export default function SellerProductsPage() {
   const [deletingDraftId, setDeletingDraftId] = useState<number | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
+  useScrollRestoration({ ready: !isLoading && !isLoadingDrafts && productPage !== null, failed: Boolean(errorMessage), state: { status: selectedStatus, page: currentPage } });
+
 
   const loadProducts = useCallback(async () => {
     try {

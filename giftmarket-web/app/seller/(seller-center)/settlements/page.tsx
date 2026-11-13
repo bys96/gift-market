@@ -1,5 +1,9 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+import { getRestoredScrollState } from "@/lib/scroll-restoration";
+
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,10 +39,12 @@ export default function SellerSettlementsPage() {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(false);
   const [settlementPage, setSettlementPage] = useState<SellerSettlementPage | null>(null);
-  const [status, setStatus] = useState<StatusFilter>("ALL");
-  const [page, setPage] = useState(0);
+  const [status, setStatus] = useState<StatusFilter>(() => getRestoredScrollState<{ status: StatusFilter; page: number }>({ status: "ALL", page: 0 }).status);
+  const [page, setPage] = useState(() => getRestoredScrollState({ status: "ALL", page: 0 }).page);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  useScrollRestoration({ ready: !loading && !summaryLoading && settlementPage !== null, failed: error || summaryError, state: { status, page } });
+
   const listRequestId = useRef(0);
 
   const loadSummary = useCallback(async () => {

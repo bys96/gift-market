@@ -1,4 +1,7 @@
 "use client";
+
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
@@ -19,6 +22,8 @@ function Content() {
   const responsibility = responsibilities.includes(responsibilityValue as AdminExchangeResponsibility) ? responsibilityValue as AdminExchangeResponsibility : undefined;
   const [query, setQuery] = useState(keyword); const [data, setData] = useState<AdminExchangePage | null>(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  useScrollRestoration({ ready: !loading && data !== null, failed: Boolean(error) });
+
   const href = useCallback((changes: Record<string, string | number | undefined>) => { const next = new URLSearchParams(searchParams.toString()); Object.entries(changes).forEach(([key,value]) => value === undefined || value === "" || (key === "page" && value === 0) ? next.delete(key) : next.set(key,String(value))); return next.toString() ? `/admin/exchanges?${next}` : "/admin/exchanges"; }, [searchParams]);
   const load = useCallback(async () => { try { setLoading(true); setError(""); const result = await getAdminExchanges({ page, size:20, keyword:keyword || undefined, status, responsibility }); if (page > 0 && (result.totalPages === 0 || page >= result.totalPages)) { router.replace(href({ page:Math.max(0,result.totalPages - 1) }), { scroll:false }); return; } setData(result); } catch (caught) { setError(caught instanceof Error ? caught.message : "교환 목록을 불러오지 못했습니다."); } finally { setLoading(false); } }, [href,keyword,page,responsibility,router,status]);
   useEffect(() => { // eslint-disable-next-line react-hooks/set-state-in-effect

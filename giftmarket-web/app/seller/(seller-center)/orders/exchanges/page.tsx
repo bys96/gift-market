@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
@@ -28,6 +31,8 @@ function SellerExchangesContent() {
   const router = useRouter(); const searchParams = useSearchParams(); const initialized = useAuthStore((s) => s.initialized); const user = useAuthStore((s) => s.user); const authenticated = useAuthStore((s) => s.isAuthenticated);
   const status = parseStatus(searchParams.get("status")); const page = parsePage(searchParams.get("page"));
   const [result, setResult] = useState<SellerExchangeRequestPage | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  useScrollRestoration({ ready: !loading && result !== null, failed: Boolean(error) });
+
   const createListUrl = (next: { status?: Filter; page?: number } = {}) => { const nextStatus = next.status ?? status; const nextPage = next.page ?? page; const params = new URLSearchParams(); if (nextStatus !== "ALL") params.set("status", nextStatus); if (nextPage > 0) params.set("page", String(nextPage)); const query = params.toString(); return query ? `/seller/orders/exchanges?${query}` : "/seller/orders/exchanges"; }; const detailQuery = createListUrl().split("?")[1] ?? "";
   const load = useCallback(async (requestStatus: Filter, requestPage: number) => { await Promise.resolve(); try { setLoading(true); setError(""); setResult(await getSellerExchangeRequests({ status: requestStatus === "ALL" ? undefined : requestStatus, page: requestPage, size: PAGE_SIZE })); } catch (e) { setError(e instanceof Error ? e.message : "교환 요청 목록을 불러오지 못했습니다."); } finally { setLoading(false); } }, []);
   useEffect(() => { if (!initialized) return; if (!authenticated || !user) { router.replace(getLoginRedirectUrl()); return; } const id = window.setTimeout(() => void load(status, page), 0); return () => window.clearTimeout(id); }, [authenticated, initialized, load, page, router, status, user]);

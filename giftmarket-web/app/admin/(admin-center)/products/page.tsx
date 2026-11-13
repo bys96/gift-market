@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
@@ -32,6 +35,8 @@ function AdminProductsContent() {
   const [productPage, setProductPage] = useState<AdminProductPage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  useScrollRestoration({ ready: !isLoading && productPage !== null, failed: Boolean(error) });
+
 
   const buildHref = useCallback((changes: Record<string, string | number | undefined>) => {
     const next = new URLSearchParams(searchParams.toString());

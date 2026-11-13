@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import Link from "next/link";
@@ -38,6 +41,8 @@ function MyOrdersContent() {
   const [orderPage, setOrderPage] = useState<BuyerOrderPage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  useScrollRestoration({ ready: !isLoading && orderPage !== null, failed: Boolean(errorMessage) });
+
 
   const createOrdersUrl = useCallback((nextPage: number) => {
     return nextPage > 0 ? `/my/orders?page=${nextPage}` : "/my/orders";

@@ -1,5 +1,9 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+import { getRestoredScrollState } from "@/lib/scroll-restoration";
+
+
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import {
@@ -26,9 +30,11 @@ function formatDateTime(dateTime: string): string {
 export default function AdminSellerApplicationsPage() {
   const [applicationPage, setApplicationPage] =
     useState<SellerApplicationPage | null>(null);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(() => getRestoredScrollState({ page: 0 }).page);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  useScrollRestoration({ ready: !isLoading && applicationPage !== null, failed: Boolean(errorMessage), state: { page } });
+
   const [processingApplicationId, setProcessingApplicationId] = useState<
     number | null
   >(null);

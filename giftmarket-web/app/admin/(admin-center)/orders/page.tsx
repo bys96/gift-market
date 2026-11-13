@@ -1,4 +1,7 @@
 "use client";
+
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
@@ -12,7 +15,9 @@ const labels: Record<string,string> = { ORDERED:"주문 생성",PENDING_PAYMENT:
 const dt=(v:string|null)=>v?new Date(v).toLocaleString("ko-KR"):"-";
 function Content(){const router=useRouter(),sp=useSearchParams(); const page=Math.max(0,Number(sp.get("page"))||0), keyword=sp.get("keyword")?.trim()??"";
  const ov=sp.get("orderStatus"),pv=sp.get("paymentStatus"); const orderStatus=orderStatuses.includes(ov as AdminOrderStatus)?ov as AdminOrderStatus:undefined; const paymentStatus=paymentStatuses.includes(pv as AdminPaymentStatus)?pv as AdminPaymentStatus:undefined;
- const [data,setData]=useState<AdminOrderPage|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""); const [q,setQ]=useState(keyword);
+ const [data,setData]=useState<AdminOrderPage|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  useScrollRestoration({ ready: !loading && data !== null, failed: Boolean(error) });
+ const [q,setQ]=useState(keyword);
  const href=useCallback((c:Record<string,string|number|undefined>)=>{const n=new URLSearchParams(sp.toString());Object.entries(c).forEach(([k,v])=>v===undefined||v===""||(k==="page"&&v===0)?n.delete(k):n.set(k,String(v)));return n.toString()?`/admin/orders?${n}`:"/admin/orders"},[sp]);
  const load=useCallback(async()=>{try{setLoading(true);setError("");const r=await getAdminOrders({page,size:20,keyword:keyword||undefined,orderStatus,paymentStatus});if(page>0&&(r.totalPages===0||page>=r.totalPages)){router.replace(href({page:Math.max(0,r.totalPages-1)}),{scroll:false});return}setData(r)}catch(e){setError(e instanceof Error?e.message:"주문 목록을 불러오지 못했습니다.")}finally{setLoading(false)}},[href,keyword,orderStatus,page,paymentStatus,router]);
  useEffect(()=>{// URL 조건에 맞춰 주문 목록을 동기화한다.

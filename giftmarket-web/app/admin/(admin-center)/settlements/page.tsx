@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -36,6 +39,8 @@ function AdminSettlementListContent() {
   const [data, setData] = useState<AdminSettlementPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useScrollRestoration({ ready: !loading && data !== null, failed: Boolean(error) });
+
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateInput, setGenerateInput] = useState({ sellerId: "", periodStart: "", periodEnd: "", cutoff: "" });
   const [generateError, setGenerateError] = useState("");

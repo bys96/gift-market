@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import Pagination from "@/components/common/Pagination";
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+import { getRestoredScrollState } from "@/lib/scroll-restoration";
 import {
   getNotifications,
   getNotificationUnreadCount,
@@ -40,11 +42,12 @@ export default function NotificationList({
   description,
 }: NotificationListProps) {
   const router = useRouter();
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(() => getRestoredScrollState({ page: 0 }).page);
   const [result, setResult] = useState<NotificationPage | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  useScrollRestoration({ ready: !isLoading && result !== null, failed: Boolean(error), state: { page } });
   const [readingId, setReadingId] = useState<number | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 

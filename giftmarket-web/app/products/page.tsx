@@ -1,4 +1,5 @@
 "use client";
+import { getScrollEntry } from "@/lib/scroll-restoration";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -528,7 +529,9 @@ function ProductsContent() {
 
   useEffect(() => {
     pendingScrollRestoreRef.current =
-      productListScrollPositions.get(productListLocationKey) ?? null;
+      getScrollEntry()?.kind === "traverse"
+        ? productListScrollPositions.get(productListLocationKey) ?? null
+        : null;
   }, [productListLocationKey]);
 
   useEffect(() => {

@@ -1,5 +1,8 @@
 "use client";
 
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+
+
 import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -19,6 +22,8 @@ export default function MyWishlistPage() {
   const initialized = useWishlistStore((state) => state.initialized);
   const isLoading = useWishlistStore((state) => state.isLoading);
   const errorMessage = useWishlistStore((state) => state.errorMessage);
+  useScrollRestoration({ ready: authInitialized && initialized && !isLoading, failed: Boolean(errorMessage) });
+
   const loadWishlist = useWishlistStore((state) => state.loadWishlist);
 
   useEffect(() => {
