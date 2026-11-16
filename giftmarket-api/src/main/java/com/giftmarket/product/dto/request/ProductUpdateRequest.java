@@ -80,9 +80,18 @@ public record ProductUpdateRequest(
         @NotNull(message = "교환 배송비를 입력해주세요.")
         @PositiveOrZero(message = "교환 배송비는 0원 이상이어야 합니다.")
         @Max(value = MoneyLimits.MAX_AMOUNT, message = "금액은 최대 1,000만원까지 입력할 수 있습니다.")
-        Long exchangeShippingFee
+        Long exchangeShippingFee,
+
+        Long expectedStockVersion
 
 ) {
+
+    public ProductUpdateRequest(Long categoryId, String name, String brandName, String summary, String description,
+            Long price, Integer stockQuantity, String representativeImageKey, List<String> galleryImageKeys,
+            Boolean freeShipping, Long shippingFee, Integer shippingPreparationDays, Long returnShippingFee, Long exchangeShippingFee) {
+        this(categoryId, name, brandName, summary, description, price, stockQuantity, representativeImageKey,
+                galleryImageKeys, freeShipping, shippingFee, shippingPreparationDays, returnShippingFee, exchangeShippingFee, null);
+    }
 
     public List<String> normalizedGalleryImageKeys() {
         return galleryImageKeys == null

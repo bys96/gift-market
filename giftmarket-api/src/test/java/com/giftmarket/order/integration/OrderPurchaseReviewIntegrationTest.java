@@ -89,6 +89,10 @@ class OrderPurchaseReviewIntegrationTest {
     @Autowired ShipmentRepository shipmentRepository;
     @Autowired ReviewRepository reviewRepository;
     @Autowired EntityManager entityManager;
+    @Autowired com.giftmarket.product.service.ProductVariantService variantService;
+
+    @Autowired com.giftmarket.product.service.ProductOptionService optionService;
+    @Autowired com.giftmarket.payment.service.PaymentTransactionService paymentTransactions;
 
     @MockitoBean PaymentGatewayRegistry gatewayRegistry;
 
@@ -143,6 +147,24 @@ class OrderPurchaseReviewIntegrationTest {
         assertThat(gatewayCommand.getValue().merchantPaymentId())
                 .isEqualTo(prepared.merchantPaymentId());
         assertThat(gatewayCommand.getValue().amount()).isEqualTo(prepared.totalAmount());
+
+        ProductVariant renamedVariant = variantRepository.findById(fixture.variant().getId()).orElseThrow();
+        String systemSku = renamedVariant.getSkuCode();
+        int stockAfterPayment = renamedVariant.getStockQuantity();
+        List<Long> optionValueIds = variantOptionValueRepository.findAllByVariantIdIn(List.of(renamedVariant.getId()))
+                .stream().map(mapping -> mapping.getOptionValue().getId()).toList();
+        variantService.updateProductVariants(fixture.sellerOwner().getId(), fixture.product().getId(),
+                new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(List.of(
+                        new com.giftmarket.product.dto.request.ProductVariantRequest(renamedVariant.getId(),
+                                "CHANGED-F1", optionValueIds, renamedVariant.getAdditionalPrice(), null, true))));
+        renamedVariant.deactivate();
+        entityManager.flush();
+        entityManager.clear();
+        OrderItem retainedItem = orderItemRepository.findById(pendingItem.getId()).orElseThrow();
+        assertOrderItemSnapshot(retainedItem, fixture);
+        assertThat(retainedItem.getVariant().getSkuCode()).isEqualTo(systemSku);
+        assertThat(retainedItem.getVariant().getStockQuantity()).isEqualTo(stockAfterPayment);
+        retainedItem.getVariant().activate();
 
         sellerOrderManagementService.prepare(
                 fixture.sellerOwner().getId(), pendingSellerOrder.getId()
@@ -229,6 +251,141 @@ class OrderPurchaseReviewIntegrationTest {
                 .isEqualTo(INITIAL_STOCK - ORDER_QUANTITY);
     }
 
+    @Test
+    void archivedOptionsCannotBecomePlainOrdersAndRestoreKeepsOriginalStock() {
+        Fixture f = persistProductFixture();
+        var saved = savedOptions(f);
+        optionService.updateProductOptions(f.sellerOwner().getId(), f.product().getId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        entityManager.flush();
+        assertThat(f.variant().getStockQuantity()).isEqualTo(10);
+        assertThat(f.product().getStockQuantity()).isZero();
+        assertThatThrownBy(() -> orderService.createDirectOrder(f.buyer().getId(),
+                new DirectOrderCreateRequest(UUID.randomUUID().toString(), f.product().getId(), null, 1,
+                        "구매자", "010-1234-5678", "12345", "주소", "상세")))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(orderRepository.findAll()).isEmpty();
+        restoreOptions(f, saved);
+        assertThat(f.variant().getStockQuantity()).isEqualTo(10);
+        assertThat(f.product().getStockQuantity()).isEqualTo(10);
+        var ordered = orderOne(f);
+        entityManager.flush();
+        assertThat(f.variant().getStockQuantity()).isEqualTo(9);
+        assertThat(orderItemRepository.findAllByOrderIdOrderByIdAsc(ordered.orderId()).getFirst().getVariant().getId())
+                .isEqualTo(f.variant().getId());
+    }
+
+    @Test
+    void archiveAfterPreparationBlocksGatewayApprovalWithoutLosingReservation() {
+        Fixture f = persistProductFixture();
+        var ordered = orderOne(f);
+        optionService.updateProductOptions(f.sellerOwner().getId(), f.product().getId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        entityManager.flush();
+        assertThatThrownBy(() -> paymentService.confirm(f.buyer().getId(), ordered.paymentId(),
+                new PaymentConfirmRequest("not-sent-to-pg", ordered.merchantPaymentId(), ordered.totalAmount())))
+                .isInstanceOf(com.giftmarket.product.exception.ProductConflictException.class);
+        org.mockito.Mockito.verifyNoInteractions(gatewayRegistry);
+        assertThat(f.variant().getStockQuantity()).isEqualTo(9);
+        assertThat(f.product().getStockQuantity()).isZero();
+        assertThat(paymentRepository.findById(ordered.paymentId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
+    void paymentFailureWhileArchivedRestoresOriginalVariantExactlyOnce() {
+        Fixture f = persistProductFixture();
+        var saved = savedOptions(f);
+        var ordered = orderOne(f);
+        paymentTransactions.startConfirm(f.buyer().getId(), ordered.paymentId(),
+                new PaymentConfirmRequest("failed-key", ordered.merchantPaymentId(), ordered.totalAmount()));
+        optionService.updateProductOptions(f.sellerOwner().getId(), f.product().getId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        paymentTransactions.fail(f.buyer().getId(), ordered.paymentId(), "DECLINED", "테스트 실패", "ABORTED");
+        paymentTransactions.fail(f.buyer().getId(), ordered.paymentId(), "DECLINED", "중복 결과", "ABORTED");
+        entityManager.flush();
+        assertThat(f.variant().getStockQuantity()).isEqualTo(10);
+        assertThat(f.product().getStockQuantity()).isZero();
+        restoreOptions(f, saved);
+        assertThat(f.product().getStockQuantity()).isEqualTo(10);
+    }
+
+    @Test
+    void partialMappingLossWithOrderHistoryBlocksWritesAndPreservesOrderSnapshot() {
+        Fixture f = persistProductFixture();
+        ProductOptionGroup extra = optionGroupRepository.save(ProductOptionGroup.create(f.product(), "추가", 2));
+        ProductOptionValue value = optionValueRepository.save(ProductOptionValue.create(extra, "값", 0));
+        var extraMapping = variantOptionValueRepository.save(ProductVariantOptionValue.create(f.variant(), value));
+        f.variant().update(f.variant().getSellerSkuCode(), f.variant().getCombinationKey() + "|" + extra.getId() + ":" + value.getId(),
+                f.variant().getAdditionalPrice());
+        entityManager.flush();
+        var ordered = orderOne(f);
+        OrderItem item = orderItemRepository.findAllByOrderIdOrderByIdAsc(ordered.orderId()).getFirst();
+        String snapshot = item.getOptionSnapshot();
+        variantOptionValueRepository.delete(extraMapping);
+        entityManager.flush();
+        assertThat(variantService.getProductVariants(f.sellerOwner().getId(), f.product().getId()).getVariants().getFirst().isMappingValid()).isFalse();
+        assertThatThrownBy(() -> optionService.updateProductOptions(f.sellerOwner().getId(), f.product().getId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of())))
+                .isInstanceOf(com.giftmarket.product.exception.ProductConflictException.class).hasMessageContaining("매핑");
+        assertThat(item.getVariant().getId()).isEqualTo(f.variant().getId());
+        assertThat(item.getOptionSnapshot()).isEqualTo(snapshot);
+        assertThat(f.variant().getStockQuantity()).isEqualTo(9);
+    }
+
+    @Test
+    void legacyMixedOwnersAreQuarantinedAndFailedPaymentRestoresOnlyItsOriginalProduct() {
+        Fixture f = persistProductFixture();
+        Product plain = productRepository.save(Product.createDraft(f.product().getSeller(), f.product().getCategory(),
+                "혼재 데이터", null, null, "설명", 10_000L, 10, null, true, 0L, 1, 3_000L, 6_000L));
+        plain.startSale();
+        entityManager.flush();
+        var ordered = orderService.createDirectOrder(f.buyer().getId(), new DirectOrderCreateRequest(UUID.randomUUID().toString(),
+                plain.getId(), null, 1, "구매자", "010-1234-5678", "12345", "주소", null));
+        paymentTransactions.startConfirm(f.buyer().getId(), ordered.paymentId(),
+                new PaymentConfirmRequest("legacy-key", ordered.merchantPaymentId(), ordered.totalAmount()));
+        // Isolated fixture reproduces data created by the old unsafe type conversion.
+        var group = optionGroupRepository.save(ProductOptionGroup.create(plain, "이전 옵션", 0));
+        var value = optionValueRepository.save(ProductOptionValue.create(group, "값", 0));
+        var legacy = variantRepository.save(ProductVariant.create(plain, "LEGACY", group.getId() + ":" + value.getId(), 0L, 10));
+        variantOptionValueRepository.save(ProductVariantOptionValue.create(legacy, value));
+        entityManager.flush();
+        assertThatThrownBy(() -> optionService.updateProductOptions(f.sellerOwner().getId(), plain.getId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of())))
+                .isInstanceOf(com.giftmarket.product.exception.ProductConflictException.class).hasMessageContaining("혼재");
+        assertThat(plain.getStockQuantity()).isEqualTo(9);
+        assertThat(legacy.getStockQuantity()).isEqualTo(10);
+        paymentTransactions.fail(f.buyer().getId(), ordered.paymentId(), "FAILED", "실패", "ABORTED");
+        paymentTransactions.fail(f.buyer().getId(), ordered.paymentId(), "FAILED", "중복 결과", "ABORTED");
+        entityManager.flush();
+        assertThat(plain.getStockQuantity()).isEqualTo(10);
+        assertThat(legacy.getStockQuantity()).isEqualTo(10);
+    }
+
+    private OrderCreateResponse orderOne(Fixture f) {
+        return orderService.createDirectOrder(f.buyer().getId(), new DirectOrderCreateRequest(
+                UUID.randomUUID().toString(), f.product().getId(), f.variant().getId(), 1,
+                "구매자", "010-1234-5678", "12345", "주소", "상세"));
+    }
+
+    private com.giftmarket.product.dto.request.ProductOptionUpdateRequest savedOptions(Fixture f) {
+        return new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(
+                optionService.getProductOptions(f.sellerOwner().getId(), f.product().getId()).getOptionGroups().stream()
+                        .map(g -> new com.giftmarket.product.dto.request.ProductOptionGroupRequest(g.getId(), g.getName(), g.getSortOrder(),
+                                g.getValues().stream().map(v -> new com.giftmarket.product.dto.request.ProductOptionValueRequest(
+                                        v.getId(), v.getValue(), v.getSortOrder())).toList())).toList());
+    }
+
+    private void restoreOptions(Fixture f, com.giftmarket.product.dto.request.ProductOptionUpdateRequest options) {
+        optionService.updateProductOptions(f.sellerOwner().getId(), f.product().getId(), options);
+        var ids = variantOptionValueRepository.findAllByVariantIdIn(List.of(f.variant().getId())).stream()
+                .map(m -> m.getOptionValue().getId()).toList();
+        variantService.updateProductVariants(f.sellerOwner().getId(), f.product().getId(),
+                new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(List.of(
+                        new com.giftmarket.product.dto.request.ProductVariantRequest(f.variant().getId(),
+                                f.variant().getSellerSkuCode(), ids, f.variant().getAdditionalPrice(), null, true))));
+        entityManager.flush();
+    }
+
     private Fixture persistProductFixture() {
         User buyer = userRepository.save(User.createOAuthUser(
                 "buyer@example.test", "구매자", null, AuthProvider.GOOGLE, "buyer-provider-id"
@@ -246,7 +403,7 @@ class OrderPurchaseReviewIntegrationTest {
         ProductOptionGroup group = optionGroupRepository.save(ProductOptionGroup.create(product, "색상", 1));
         ProductOptionValue value = optionValueRepository.save(ProductOptionValue.create(group, "빨강", 1));
         ProductVariant variant = variantRepository.save(ProductVariant.create(
-                product, "INTEGRATION-SKU", "color-red", ADDITIONAL_PRICE, INITIAL_STOCK
+                product, "INTEGRATION-SKU", group.getId() + ":" + value.getId(), ADDITIONAL_PRICE, INITIAL_STOCK
         ));
         variantOptionValueRepository.save(ProductVariantOptionValue.create(variant, value));
         product.startSale();

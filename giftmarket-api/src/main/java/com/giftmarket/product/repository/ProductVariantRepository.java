@@ -14,6 +14,8 @@ import org.springframework.data.repository.query.Param;
 public interface ProductVariantRepository
         extends JpaRepository<ProductVariant, Long> {
 
+    boolean existsByProductId(Long productId);
+
     List<ProductVariant> findAllByProductIdOrderByIdAsc(
             Long productId
     );
@@ -32,6 +34,8 @@ public interface ProductVariantRepository
     List<ProductStockProjection> sumActiveStockByProductIds(
             @Param("productIds") Collection<Long> productIds
     );
+
+    Optional<ProductVariant> findByProductIdAndSellerSkuCode(Long productId, String sellerSkuCode);
 
     Optional<ProductVariant> findBySkuCode(
             String skuCode

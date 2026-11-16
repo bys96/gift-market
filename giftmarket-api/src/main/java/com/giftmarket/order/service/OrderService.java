@@ -78,6 +78,8 @@ public class OrderService {
 
     private static final int MAX_ORDER_PAGE_SIZE = 100;
 
+    private final com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
+
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
@@ -348,6 +350,8 @@ public class OrderService {
             );
 
         }
+
+        inventoryPolicy.requirePurchasable(product, variant);
 
         long additionalPrice =
                 variant == null
@@ -712,6 +716,8 @@ public class OrderService {
 
         }
 
+        inventoryPolicy.requirePurchasable(product, variant);
+
         long additionalPrice =
                 variant == null
                         ? 0L
@@ -976,7 +982,7 @@ public class OrderService {
     private boolean hasProductOptions(
             Long productId
     ) {
-        return !productOptionGroupRepository
+        return inventoryPolicy.usesVariants(productId) || !productOptionGroupRepository
                 .findAllByProductIdOrderBySortOrderAsc(
                         productId
                 )

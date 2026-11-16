@@ -73,6 +73,7 @@ class PaymentTransactionServiceTest {
     @BeforeEach
     void setUp() {
         service = new PaymentTransactionService(
+                org.mockito.Mockito.mock(com.giftmarket.product.service.ProductInventoryPolicy.class),
                 paymentRepository,
                 orderRepository,
                 orderItemRepository,

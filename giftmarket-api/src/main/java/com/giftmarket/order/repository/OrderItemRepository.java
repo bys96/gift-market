@@ -14,6 +14,10 @@ import java.util.Optional;
 public interface OrderItemRepository
         extends JpaRepository<OrderItem, Long> {
 
+    boolean existsByProductId(Long productId);
+
+    boolean existsByProductIdAndVariantIsNull(Long productId);
+
     @EntityGraph(attributePaths = {
             "product",
             "variant"

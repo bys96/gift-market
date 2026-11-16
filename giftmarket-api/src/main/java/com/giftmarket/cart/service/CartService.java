@@ -33,6 +33,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CartService {
 
+    private final com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
+
     private final CartItemRepository cartItemRepository;
 
     private final ProductRepository productRepository;
@@ -278,6 +280,7 @@ public class CartService {
                 );
             }
 
+            inventoryPolicy.requirePurchasable(product, null);
             return null;
         }
 
@@ -311,6 +314,7 @@ public class CartService {
             );
         }
 
+        inventoryPolicy.requirePurchasable(product, variant);
         return variant;
     }
 
@@ -338,7 +342,7 @@ public class CartService {
     private boolean hasProductOptions(
             Long productId
     ) {
-        return !productOptionGroupRepository
+        return inventoryPolicy.usesVariants(productId) || !productOptionGroupRepository
                 .findAllByProductIdOrderBySortOrderAsc(
                         productId
                 )

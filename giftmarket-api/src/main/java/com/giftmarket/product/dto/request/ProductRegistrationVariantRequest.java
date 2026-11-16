@@ -19,7 +19,8 @@ public record ProductRegistrationVariantRequest(
                 max = 100,
                 message = "SKU 코드는 100자 이하입니다."
         )
-        String skuCode,
+        @com.fasterxml.jackson.annotation.JsonProperty("sellerSkuCode")
+        String sellerSkuCode,
 
         @NotEmpty(message = "옵션 조합을 확인해주세요.")
         @Size(
@@ -41,6 +42,13 @@ public record ProductRegistrationVariantRequest(
         Boolean active
 
 ) {
+
+    public ProductRegistrationVariantRequest {
+        if (sellerSkuCode == null) {
+            throw new com.giftmarket.product.exception.ProductConflictException(
+                    "이전 형식의 상품 요청입니다. 최신 화면에서 sellerSkuCode를 확인한 후 다시 저장해주세요.");
+        }
+    }
 
     public List<ProductOptionReferenceRequest> normalizedOptions() {
         return options == null

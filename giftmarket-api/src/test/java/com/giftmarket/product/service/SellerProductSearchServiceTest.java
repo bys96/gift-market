@@ -40,7 +40,7 @@ class SellerProductSearchServiceTest {
         when(occasions.getActiveProductGiftOccasions(anyList())).thenReturn(Map.of());
         service = new ProductService(products, mock(ProductImageRepository.class), mock(ProductDraftRepository.class),
                 mock(ProductOptionGroupRepository.class), mock(ProductOptionValueRepository.class),
-                mock(ProductVariantRepository.class), mock(ProductVariantOptionValueRepository.class),
+                mock(ProductVariantRepository.class), mock(com.giftmarket.product.service.ProductInventoryPolicy.class), mock(ProductVariantOptionValueRepository.class),
                 mock(CategoryRepository.class), sellers, occasions, new ProductDescriptionSanitizer());
     }
 

@@ -1111,6 +1111,193 @@ class MySqlOrderConcurrencyIntegrationTest {
         verifyNoInteractions(tossPaymentClient);
     }
 
+    @Autowired com.giftmarket.product.service.ProductOptionService productOptions;
+    @Autowired com.giftmarket.product.service.ProductVariantService productVariants;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void orderedArchiveAndPurchaseHaveExactCommittedReservations(boolean archiveFirst) {
+        PaidFixture f = paidFixture(false, true);
+        Long variantId = transactions.execute(s -> orderItems.findById(f.item1()).orElseThrow().getVariant().getId());
+        long count = orders.count();
+        long paymentCount = payments.count();
+        if (archiveFirst) productOptions.updateProductOptions(f.sellerUserId(), f.product1(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        if (archiveFirst) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> purchaseFixture(f, variantId))
+                    .isInstanceOfAny(OrderException.class, com.giftmarket.product.exception.ProductConflictException.class);
+        } else {
+            purchaseFixture(f, variantId);
+            productOptions.updateProductOptions(f.sellerUserId(), f.product1(),
+                    new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        }
+        transactions.executeWithoutResult(s -> {
+            assertThat(orders.count()).isEqualTo(count + (archiveFirst ? 0 : 1));
+            assertThat(payments.count()).isEqualTo(paymentCount + (archiveFirst ? 0 : 1));
+            assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isZero();
+            assertThat(variantStock(f.product1())).isEqualTo(archiveFirst ? 3 : 2);
+            assertThat(entityManager.createQuery("select sum(i.quantity) from OrderItem i where i.product.id = :id", Long.class)
+                    .setParameter("id", f.product1()).getSingleResult()).isEqualTo(archiveFirst ? 3L : 4L);
+        });
+    }
+
+    @Test
+    void staleOuterTransactionReturns409RollsBackAllOptionChangesAndCanRetry() throws Exception {
+        PaidFixture f = paidFixture(false, true);
+        Long variantId = transactions.execute(s -> orderItems.findById(f.item1()).orElseThrow().getVariant().getId());
+        var loaded = new CountDownLatch(1);
+        var ordered = new CountDownLatch(1);
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var stale = pool.submit(() -> transactions.executeWithoutResult(s -> {
+                products.findById(f.product1()).orElseThrow();
+                // Include real pending option writes: a conflict must roll these back too.
+                var group = entityManager.createQuery("select g from ProductOptionGroup g where g.product.id = :id",
+                        com.giftmarket.product.entity.ProductOptionGroup.class).setParameter("id", f.product1()).getSingleResult();
+                group.archive();
+                loaded.countDown();
+                try {
+                    if (!ordered.await(20, TimeUnit.SECONDS)) throw new AssertionError("Order did not commit");
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+                productOptions.updateProductOptions(f.sellerUserId(), f.product1(),
+                        new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+            }));
+            assertThat(loaded.await(10, TimeUnit.SECONDS)).isTrue();
+            purchaseFixture(f, variantId);
+            String committed = inventorySnapshot(f.product1());
+            ordered.countDown();
+            Throwable conflict;
+            try { stale.get(30, TimeUnit.SECONDS); throw new AssertionError("Expected a stale Product conflict"); }
+            catch (java.util.concurrent.ExecutionException failure) { conflict = failure.getCause(); }
+            assertThat(conflict).isInstanceOf(org.springframework.orm.ObjectOptimisticLockingFailureException.class);
+            var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                    .standaloneSetup(new ConflictController((RuntimeException) conflict))
+                    .setControllerAdvice(new com.giftmarket.global.exception.GlobalExceptionHandler()).build();
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/conflict"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
+            assertThat(inventorySnapshot(f.product1())).isEqualTo(committed);
+            productOptions.updateProductOptions(f.sellerUserId(), f.product1(),
+                    new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+            transactions.executeWithoutResult(s -> {
+                assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isZero();
+                assertThat(variantStock(f.product1())).isEqualTo(2);
+            });
+        } finally { ordered.countDown(); }
+    }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class ConflictController {
+        private final RuntimeException failure;
+        ConflictController(RuntimeException failure) { this.failure = failure; }
+        @org.springframework.web.bind.annotation.GetMapping("/conflict")
+        public void conflict() { throw failure; }
+    }
+
+    private void purchaseFixture(PaidFixture f, Long variantId) {
+        orderService.createDirectOrder(f.buyerId(), new DirectOrderCreateRequest(UUID.randomUUID().toString(),
+                f.product1(), variantId, 1, "buyer", "010-1234-5678", "12345", "address", null));
+    }
+
+    private int variantStock(Long productId) {
+        return entityManager.createQuery("select v from ProductVariant v where v.product.id = :id",
+                com.giftmarket.product.entity.ProductVariant.class).setParameter("id", productId).getResultList()
+                .stream().mapToInt(v -> v.getStockQuantity()).sum();
+    }
+
+    private String inventorySnapshot(Long productId) {
+        return transactions.execute(s -> {
+            var result = new StringBuilder();
+            for (String sql : List.of(
+                    "select id, stock_quantity, version from products where id = " + productId,
+                    "select id, stock_quantity, active, version from product_variants where product_id = " + productId + " order by id",
+                    "select id, archived from product_option_groups where product_id = " + productId + " order by id",
+                    "select v.id, v.archived from product_option_values v join product_option_groups g on g.id=v.option_group_id where g.product_id = " + productId + " order by v.id",
+                    "select m.* from product_variant_option_values m join product_variants v on v.id=m.variant_id where v.product_id = " + productId + " order by m.id")) {
+                for (Object row : entityManager.createNativeQuery(sql).getResultList())
+                    result.append(java.util.Arrays.deepToString((Object[]) row));
+            }
+            result.append(orders.count()).append(':').append(payments.count());
+            return result.toString();
+        });
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void archiveOrRestoreAndOrderingShareInventoryLockAndNeverRecreateReservedStock(boolean restoring) throws Exception {
+        PaidFixture f = paidFixture(false, true);
+        var saved = transactions.execute(status -> new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(
+                productOptions.getProductOptions(f.sellerUserId(), f.product1()).getOptionGroups().stream()
+                        .map(g -> new com.giftmarket.product.dto.request.ProductOptionGroupRequest(g.getId(), g.getName(), g.getSortOrder(),
+                                g.getValues().stream().map(v -> new com.giftmarket.product.dto.request.ProductOptionValueRequest(
+                                        v.getId(), v.getValue(), v.getSortOrder())).toList())).toList()));
+        Long variantId = transactions.execute(status -> orderItems.findById(f.item1()).orElseThrow().getVariant().getId());
+        if (restoring) productOptions.updateProductOptions(f.sellerUserId(), f.product1(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        long orderCount = orders.count();
+        long paymentCount = payments.count();
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var archive = pool.submit(() -> {
+                start.await();
+                if (restoring) restoreFixtureVariants(f, saved);
+                else productOptions.updateProductOptions(f.sellerUserId(), f.product1(),
+                        new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+                return true;
+            });
+            var purchase = pool.submit(() -> {
+                start.await();
+                try {
+                    orderService.createDirectOrder(f.buyerId(), new DirectOrderCreateRequest(UUID.randomUUID().toString(),
+                            f.product1(), variantId, 1, "buyer", "010-1234-5678", "12345", "address", null));
+                    return true;
+                } catch (OrderException | com.giftmarket.product.exception.ProductConflictException unavailable) {
+                    return false;
+                }
+            });
+            start.countDown();
+            assertThat(archive.get(30, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            boolean purchased = purchase.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            transactions.executeWithoutResult(status -> {
+                var variants = entityManager.createQuery("select v from ProductVariant v where v.product.id = :id order by v.id",
+                        com.giftmarket.product.entity.ProductVariant.class).setParameter("id", f.product1()).getResultList();
+                int expected = 3 - (purchased ? 1 : 0);
+                assertThat(orders.count()).isEqualTo(orderCount + (purchased ? 1 : 0));
+                assertThat(payments.count()).isEqualTo(paymentCount + (purchased ? 1 : 0));
+                assertThat(entityManager.createQuery("select sum(i.quantity) from OrderItem i where i.product.id = :id", Long.class)
+                        .setParameter("id", f.product1()).getSingleResult()).isEqualTo(purchased ? 4L : 3L);
+                assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(restoring ? expected : 0);
+                assertThat(variants.stream().mapToInt(v -> v.getStockQuantity()).sum()).isEqualTo(expected);
+                productOptions.updateProductOptions(f.sellerUserId(), f.product1(), saved);
+                productVariants.updateProductVariants(f.sellerUserId(), f.product1(),
+                        new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(variants.stream().map(v -> {
+                            var values = entityManager.createQuery("select m from ProductVariantOptionValue m where m.variant.id = :id",
+                                    com.giftmarket.product.entity.ProductVariantOptionValue.class).setParameter("id", v.getId()).getResultList();
+                            return new com.giftmarket.product.dto.request.ProductVariantRequest(v.getId(), v.getSellerSkuCode(),
+                                    values.stream().map(m -> m.getOptionValue().getId()).toList(), v.getAdditionalPrice(), null, true);
+                        }).toList()));
+                entityManager.flush();
+                assertThat(products.findById(f.product1()).orElseThrow().getStockQuantity()).isEqualTo(expected);
+            });
+        }
+    }
+
+    private void restoreFixtureVariants(PaidFixture f, com.giftmarket.product.dto.request.ProductOptionUpdateRequest saved) {
+        transactions.executeWithoutResult(status -> {
+            productOptions.updateProductOptions(f.sellerUserId(), f.product1(), saved);
+            var variants = entityManager.createQuery("select v from ProductVariant v where v.product.id = :id order by v.id",
+                    com.giftmarket.product.entity.ProductVariant.class).setParameter("id", f.product1()).getResultList();
+            productVariants.updateProductVariants(f.sellerUserId(), f.product1(),
+                    new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(variants.stream().map(v -> {
+                        var values = entityManager.createQuery("select m from ProductVariantOptionValue m where m.variant.id = :id",
+                                com.giftmarket.product.entity.ProductVariantOptionValue.class).setParameter("id", v.getId()).getResultList();
+                        return new com.giftmarket.product.dto.request.ProductVariantRequest(v.getId(), v.getSellerSkuCode(),
+                                values.stream().map(m -> m.getOptionValue().getId()).toList(), v.getAdditionalPrice(), null, true);
+                    }).toList()));
+        });
+    }
+
     private PaidFixture paidFixture() { return paidFixture(false); }
 
     private PaidFixture paidFixture(boolean multiSeller) {
@@ -1150,6 +1337,8 @@ class MySqlOrderConcurrencyIntegrationTest {
                 var white = com.giftmarket.product.entity.ProductOptionValue.create(group, "흰색", 1);
                 var gray = com.giftmarket.product.entity.ProductOptionValue.create(group, "회색", 2);
                 entityManager.persist(white); entityManager.persist(gray);
+                variant1.update(variant1.getSellerSkuCode(), group.getId() + ":" + white.getId(), variant1.getAdditionalPrice());
+                variant2.update(variant2.getSellerSkuCode(), group.getId() + ":" + gray.getId(), variant2.getAdditionalPrice());
                 entityManager.persist(com.giftmarket.product.entity.ProductVariantOptionValue.create(variant1, white));
                 entityManager.persist(com.giftmarket.product.entity.ProductVariantOptionValue.create(variant2, gray));
                 first.changeStockQuantity(6);

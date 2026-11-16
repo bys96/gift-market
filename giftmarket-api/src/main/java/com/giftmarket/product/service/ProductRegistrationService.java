@@ -75,7 +75,7 @@ public class ProductRegistrationService {
                 request.options();
 
         ProductOptionResponse savedOptions =
-                productOptionService.updateProductOptions(
+                productOptionService.initializeProductOptions(
                         userId,
                         productId,
                         optionRequest
@@ -97,7 +97,7 @@ public class ProductRegistrationService {
                             savedOptions
                     );
 
-            productVariantService.updateProductVariants(
+            productVariantService.initializeProductVariants(
                     userId,
                     productId,
                     variantRequest
@@ -238,7 +238,7 @@ public class ProductRegistrationService {
 
         return new ProductVariantRequest(
                 null,
-                request.skuCode(),
+                request.sellerSkuCode(),
                 optionValueIds,
                 request.additionalPrice(),
                 request.stockQuantity(),

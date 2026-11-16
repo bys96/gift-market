@@ -58,6 +58,11 @@ public class ProductOptionValue extends BaseEntity {
     )
     private Integer sortOrder;
 
+    @Column(nullable = false)
+    private boolean archived;
+    public void archive() { this.archived = true; }
+    public void restore() { this.archived = false; }
+
     @Builder
     private ProductOptionValue(
             ProductOptionGroup optionGroup,

@@ -62,7 +62,7 @@ public record AdminProductDetailResponse(
                         .toList()
         )).toList();
         List<Variant> variantResponses = variants.stream().map(variant -> new Variant(
-                variant.getId(), variant.getSkuCode(), variant.getCombinationKey(),
+                variant.getId(), variant.getSkuCode(), variant.getSellerSkuCode(), variant.getCombinationKey(),
                 variant.getAdditionalPrice(), product.getPrice() + variant.getAdditionalPrice(),
                 variant.getStockQuantity(), variant.isActive(),
                 valuesByVariant.getOrDefault(variant.getId(), List.of()).stream()
@@ -107,7 +107,7 @@ public record AdminProductDetailResponse(
     public record OptionGroup(Long optionGroupId, String name, int sortOrder, List<OptionValue> values) {}
     public record OptionValue(Long optionValueId, String value, int sortOrder) {}
     public record Variant(
-            Long variantId, String skuCode, String combinationKey, long additionalPrice,
+            Long variantId, String skuCode, String sellerSkuCode, String combinationKey, long additionalPrice,
             long price, int stockQuantity, boolean active, List<VariantOptionValue> optionValues
     ) {}
     public record VariantOptionValue(Long optionValueId, String groupName, String value) {}

@@ -58,6 +58,8 @@ export interface HomeProductData {
 }
 
 export interface SellerProduct {
+  variantManaged: boolean;
+  version: number;
   id: number;
   sellerId: number;
   categoryId: number;
@@ -131,6 +133,7 @@ export interface ProductCreateRequest {
 }
 
 export interface ProductUpdateRequest {
+  expectedStockVersion?: number;
   categoryId: number;
   name: string;
   brandName: string | null;
@@ -152,6 +155,7 @@ export interface ProductStatusUpdateRequest {
 }
 
 export interface ProductStockUpdateRequest {
+  expectedVersion: number;
   stockQuantity: number;
 }
 
@@ -230,12 +234,14 @@ export interface ProductDetail {
 ======================================== */
 
 export interface ProductOptionValue {
+  archived?: boolean;
   id: number;
   value: string;
   sortOrder: number;
 }
 
 export interface ProductOptionGroup {
+  archived?: boolean;
   id: number;
   name: string;
   sortOrder: number;
@@ -243,6 +249,7 @@ export interface ProductOptionGroup {
 }
 
 export interface ProductOptionResponse {
+  archivedOptionGroups?: ProductOptionGroup[];
   productId: number;
   optionGroups: ProductOptionGroup[];
 }
@@ -279,8 +286,11 @@ export interface ProductVariantOptionValue {
 }
 
 export interface ProductVariant {
+  mappingValid: boolean;
+  version: number;
   id: number;
   skuCode: string;
+  sellerSkuCode: string;
   combinationKey: string;
 
   additionalPrice: number;
@@ -296,11 +306,12 @@ export interface ProductVariantListResponse {
 }
 
 export interface ProductVariantUpdateItem {
+  expectedVersion?: number;
   id: number | null;
-  skuCode: string;
+  sellerSkuCode: string;
   optionValueIds: number[];
   additionalPrice: number;
-  stockQuantity: number;
+  stockQuantity?: number;
   active: boolean;
 }
 
@@ -314,7 +325,7 @@ export interface ProductOptionReferenceRequest {
 }
 
 export interface ProductRegistrationVariantRequest {
-  skuCode: string;
+  sellerSkuCode: string;
   options: ProductOptionReferenceRequest[];
   additionalPrice: number;
   stockQuantity: number;
@@ -335,11 +346,12 @@ export interface ProductRegistrationResponse {
 }
 
 export interface ProductModificationVariantRequest {
+  expectedVersion?: number;
   id: number | null;
-  skuCode: string;
+  sellerSkuCode: string;
   options: ProductOptionReferenceRequest[];
   additionalPrice: number;
-  stockQuantity: number;
+  stockQuantity?: number;
   active: boolean;
 }
 

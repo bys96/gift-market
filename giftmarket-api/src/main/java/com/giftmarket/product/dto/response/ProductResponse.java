@@ -15,6 +15,10 @@ public class ProductResponse {
 
     private Long id;
 
+    private Long version;
+
+    private boolean variantManaged;
+
     private Long sellerId;
 
     private Long categoryId;
@@ -73,12 +77,19 @@ public class ProductResponse {
             List<ProductImage> productImages,
             List<GiftOccasionResponse> giftOccasions
     ) {
+        return from(product, productImages, giftOccasions, false);
+    }
+
+    public static ProductResponse from(Product product, List<ProductImage> productImages,
+            List<GiftOccasionResponse> giftOccasions, boolean variantManaged) {
         List<String> galleryImageKeys = productImages.stream()
                 .map(ProductImage::getObjectKey)
                 .toList();
 
         return ProductResponse.builder()
                 .id(product.getId())
+                .version(product.getVersion())
+                .variantManaged(variantManaged)
                 .sellerId(product.getSeller().getId())
                 .categoryId(product.getCategory().getId())
                 .categoryName(product.getCategory().getName())

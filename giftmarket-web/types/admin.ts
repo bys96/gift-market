@@ -246,7 +246,7 @@ export interface AdminProductDetail extends Omit<AdminProductSummary, "productNa
   category: { categoryId: number; categoryName: string; parentCategoryId: number | null; parentCategoryName: string | null };
   galleryImageKeys: string[];
   optionGroups: Array<{ optionGroupId: number; name: string; sortOrder: number; values: Array<{ optionValueId: number; value: string; sortOrder: number }> }>;
-  variants: Array<{ variantId: number; skuCode: string; combinationKey: string; additionalPrice: number; price: number; stockQuantity: number; active: boolean; optionValues: Array<{ optionValueId: number; groupName: string; value: string }> }>;
+  variants: Array<{ variantId: number; skuCode: string; sellerSkuCode: string; combinationKey: string; additionalPrice: number; price: number; stockQuantity: number; active: boolean; optionValues: Array<{ optionValueId: number; groupName: string; value: string }> }>;
   operationSummary: { reviewCount: number; averageRating: number; inquiryCount: number };
 }
 

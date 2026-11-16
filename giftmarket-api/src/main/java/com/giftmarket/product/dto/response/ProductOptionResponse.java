@@ -11,6 +11,9 @@ public class ProductOptionResponse {
 
     private Long productId;
 
+    @Builder.Default
+    private List<ProductOptionGroupResponse> archivedOptionGroups = List.of();
+
     private List<ProductOptionGroupResponse> optionGroups;
 
     public static ProductOptionResponse of(

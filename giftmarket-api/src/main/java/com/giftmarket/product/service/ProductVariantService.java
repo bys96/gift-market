@@ -29,7 +29,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -54,6 +53,7 @@ public class ProductVariantService {
             productVariantOptionValueRepository;
 
     private final SellerRepository sellerRepository;
+    private final ProductInventoryPolicy inventoryPolicy;
 
     @Transactional(readOnly = true)
     public ProductVariantListResponse getProductVariants(
@@ -71,17 +71,27 @@ public class ProductVariantService {
     }
 
     @Transactional
-    public ProductVariantListResponse updateProductVariants(
-            Long userId,
-            Long productId,
-            ProductVariantUpdateRequest request
-    ) {
+    public ProductVariantListResponse updateProductVariants(Long userId, Long productId, ProductVariantUpdateRequest request) {
+        return saveVariants(userId, productId, request, false);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public ProductVariantListResponse initializeProductVariants(Long userId, Long productId, ProductVariantUpdateRequest request) {
+        return saveVariants(userId, productId, request, true);
+    }
+
+    private ProductVariantListResponse saveVariants(Long userId, Long productId, ProductVariantUpdateRequest request,
+            boolean initialRegistration) {
+        // Match order/archive locking order before loading the Product snapshot.
+        productRepository.findByIdForUpdate(productId);
         Seller seller = getActiveSeller(userId);
 
         Product product = getSellerProduct(
                 productId,
                 seller.getId()
         );
+
+        inventoryPolicy.requireConfiguration(product, !request.normalizedVariants().isEmpty(), initialRegistration);
 
         List<ProductOptionGroup> optionGroups =
                 productOptionGroupRepository
@@ -103,8 +113,7 @@ public class ProductVariantService {
 
             productVariantRepository.flush();
 
-            // 옵션 없는 상품의 재고는 Product에서 직접 관리하므로
-            // 기존 SKU만 비활성화하고 판매자가 입력한 재고는 유지합니다.
+            if (inventoryPolicy.usesVariants(productId)) synchronizeProductStock(product, productId);
 
             return createResponse(product);
         }
@@ -179,10 +188,13 @@ public class ProductVariantService {
 
             String normalizedSkuCode =
                     normalizeSkuCode(
-                            variantRequest.skuCode()
+                            variantRequest.sellerSkuCode()
                     );
 
             if (variantRequest.id() == null) {
+                if (variantRequest.stockQuantity() == null) {
+                    throw new ProductException("신규 옵션의 초기 재고를 입력해주세요.");
+                }
                 createVariant(
                         product,
                         normalizedSkuCode,
@@ -212,9 +224,12 @@ public class ProductVariantService {
             variant.update(
                     normalizedSkuCode,
                     variant.getCombinationKey(),
-                    variantRequest.additionalPrice(),
-                    variantRequest.stockQuantity()
+                    variantRequest.additionalPrice()
             );
+
+            if (variantRequest.expectedVersion() != null) {
+                variant.changeStockQuantity(variantRequest.stockQuantity());
+            }
 
             if (variantRequest.active()) {
                 variant.activate();
@@ -313,14 +328,14 @@ public class ProductVariantService {
 
             String normalizedSkuCode =
                     normalizeSkuCode(
-                            variantRequest.skuCode()
+                            variantRequest.sellerSkuCode()
                     );
 
             if (!requestSkuCodes.add(
                     normalizedSkuCode
             )) {
                 throw new ProductException(
-                        "SKU 코드는 중복될 수 없습니다."
+                        "동일 상품의 옵션 관리 코드는 중복될 수 없습니다."
                 );
             }
 
@@ -364,6 +379,12 @@ public class ProductVariantService {
                 );
             }
 
+            if (variantRequest.id() == null && existingVariantMap.values().stream()
+                    .anyMatch(existing -> ProductVariantMapping.parse(existing.getCombinationKey())
+                            .equals(ProductVariantMapping.parse(combinationKey)))) {
+                throw new com.giftmarket.product.exception.ProductConflictException(
+                        "이미 존재하는 옵션 조합입니다. 보관 옵션의 기존 Variant를 복원해주세요.");
+            }
             if (variantRequest.id() != null) {
                 ProductVariant existingVariant =
                         existingVariantMap.get(
@@ -374,6 +395,18 @@ public class ProductVariantService {
                     throw new ProductException(
                             "해당 상품에 속하지 않은 SKU입니다."
                     );
+                }
+
+                if (variantRequest.expectedVersion() != null) {
+                    if (!java.util.Objects.equals(existingVariant.getVersion(), variantRequest.expectedVersion())
+                            || variantRequest.stockQuantity() == null) {
+                        throw new com.giftmarket.product.exception.ProductConflictException(
+                                "상품 또는 재고가 변경되었습니다. 최신 값을 다시 조회한 후 저장해주세요.");
+                    }
+                } else if (variantRequest.stockQuantity() != null
+                        && !variantRequest.stockQuantity().equals(existingVariant.getStockQuantity())) {
+                    throw new com.giftmarket.product.exception.ProductConflictException(
+                            "상품 또는 재고가 변경되었습니다. 최신 값을 다시 조회한 후 저장해주세요.");
                 }
 
                 Set<Long> requestedOptionValueIds =
@@ -394,9 +427,8 @@ public class ProductVariantService {
                     );
                 }
 
-                if (!existingVariant
-                        .getCombinationKey()
-                        .equals(combinationKey)) {
+                if (!ProductVariantMapping.parse(existingVariant.getCombinationKey())
+                        .equals(ProductVariantMapping.parse(combinationKey))) {
                     throw new ProductException(
                             "기존 SKU의 옵션 조합은 변경할 수 없습니다."
                     );
@@ -437,7 +469,7 @@ public class ProductVariantService {
             String skuCode
     ) {
         productVariantRepository
-                .findBySkuCode(skuCode)
+                .findByProductIdAndSellerSkuCode(productId, skuCode)
                 .ifPresent(existingVariant -> {
                     boolean sameVariant =
                             variantId != null
@@ -447,7 +479,7 @@ public class ProductVariantService {
 
                     if (!sameVariant) {
                         throw new ProductException(
-                                "이미 사용 중인 SKU 코드입니다."
+                                "비활성 옵션을 포함하여 동일 상품에서 이미 사용 중인 옵션 관리 코드입니다."
                         );
                     }
 
@@ -456,7 +488,7 @@ public class ProductVariantService {
                             .getId()
                             .equals(productId)) {
                         throw new ProductException(
-                                "이미 사용 중인 SKU 코드입니다."
+                                "비활성 옵션을 포함하여 동일 상품에서 이미 사용 중인 옵션 관리 코드입니다."
                         );
                     }
                 });
@@ -524,31 +556,11 @@ public class ProductVariantService {
         return selectedOptionValues;
     }
 
-    private String createCombinationKey(
-            List<ProductOptionValue> selectedOptionValues
-    ) {
+    private String createCombinationKey(List<ProductOptionValue> selectedOptionValues) {
         return selectedOptionValues.stream()
-                .sorted(
-                        Comparator
-                                .comparing(
-                                        (ProductOptionValue value) ->
-                                                value.getOptionGroup()
-                                                        .getSortOrder()
-                                )
-                                .thenComparing(
-                                        value ->
-                                                value.getOptionGroup()
-                                                        .getId()
-                                )
-                )
-                .map(value ->
-                        value.getOptionGroup().getId()
-                                + ":"
-                                + value.getId()
-                )
-                .collect(
-                        Collectors.joining("|")
-                );
+                .sorted(Comparator.comparing(value -> value.getOptionGroup().getId()))
+                .map(value -> value.getOptionGroup().getId() + ":" + value.getId())
+                .collect(Collectors.joining("|"));
     }
 
     private Map<Long, Set<Long>>
@@ -662,9 +674,7 @@ public class ProductVariantService {
     private String normalizeSkuCode(
             String skuCode
     ) {
-        return skuCode
-                .trim()
-                .toUpperCase(Locale.ROOT);
+        return ProductVariant.normalizeSellerSkuCode(skuCode);
     }
 
     private Seller getActiveSeller(

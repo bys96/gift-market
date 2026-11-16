@@ -67,6 +67,7 @@ import static org.mockito.Mockito.verify;
 @SuppressWarnings("unchecked")
 @ExtendWith(MockitoExtension.class)
 class OrderServicePaymentPreparationTest {
+    @org.mockito.Mock com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
 
     private static final Long USER_ID = 1L;
     private static final Long PRODUCT_ID = 10L;

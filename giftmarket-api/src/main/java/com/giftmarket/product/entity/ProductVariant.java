@@ -13,6 +13,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
+import java.util.Locale;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,6 +25,8 @@ import lombok.NoArgsConstructor;
 @Table(
         name = "product_variants",
         uniqueConstraints = {
+                @UniqueConstraint(name = "uk_product_variants_product_seller_sku",
+                        columnNames = {"product_id", "seller_sku_code"}),
                 @UniqueConstraint(
                         name = "uk_product_variants_sku_code",
                         columnNames = "sku_code"
@@ -61,10 +65,14 @@ public class ProductVariant extends BaseEntity {
 
     @Column(
             name = "sku_code",
+            updatable = false,
             nullable = false,
             length = 100
     )
     private String skuCode;
+
+    @Column(name = "seller_sku_code", nullable = false, length = 100)
+    private String sellerSkuCode;
 
     @Column(
             name = "combination_key",
@@ -91,14 +99,15 @@ public class ProductVariant extends BaseEntity {
     @Builder
     private ProductVariant(
             Product product,
-            String skuCode,
+            String sellerSkuCode,
             String combinationKey,
             Long additionalPrice,
             Integer stockQuantity,
             boolean active
     ) {
         this.product = product;
-        this.skuCode = skuCode;
+        this.skuCode = "GM-" + UUID.randomUUID();
+        this.sellerSkuCode = normalizeSellerSkuCode(sellerSkuCode);
         this.combinationKey = combinationKey;
         this.additionalPrice = additionalPrice;
         this.stockQuantity = stockQuantity;
@@ -107,14 +116,14 @@ public class ProductVariant extends BaseEntity {
 
     public static ProductVariant create(
             Product product,
-            String skuCode,
+            String sellerSkuCode,
             String combinationKey,
             Long additionalPrice,
             Integer stockQuantity
     ) {
         return ProductVariant.builder()
                 .product(product)
-                .skuCode(skuCode)
+                .sellerSkuCode(sellerSkuCode)
                 .combinationKey(combinationKey)
                 .additionalPrice(additionalPrice)
                 .stockQuantity(stockQuantity)
@@ -123,15 +132,24 @@ public class ProductVariant extends BaseEntity {
     }
 
     public void update(
-            String skuCode,
+            String sellerSkuCode,
             String combinationKey,
-            Long additionalPrice,
-            Integer stockQuantity
+            Long additionalPrice
     ) {
-        this.skuCode = skuCode;
+        this.sellerSkuCode = normalizeSellerSkuCode(sellerSkuCode);
         this.combinationKey = combinationKey;
         this.additionalPrice = additionalPrice;
-        this.stockQuantity = stockQuantity;
+    }
+
+    public static String normalizeSellerSkuCode(String code) {
+        if (code == null || code.trim().isEmpty()) {
+            throw new com.giftmarket.product.exception.ProductException("옵션 관리 코드를 입력해주세요.");
+        }
+        String normalized = code.trim().toUpperCase(Locale.ROOT);
+        if (normalized.length() > 100) {
+            throw new com.giftmarket.product.exception.ProductException("옵션 관리 코드는 정규화 후 100자 이하입니다.");
+        }
+        return normalized;
     }
 
     public void changeStockQuantity(Integer stockQuantity) {

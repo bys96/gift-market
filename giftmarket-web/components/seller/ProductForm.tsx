@@ -1,5 +1,7 @@
 "use client";
 
+import { createVariantStockUpdate } from "@/lib/variant-stock";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -23,6 +25,7 @@ import {
   registerProduct,
 } from "@/lib/product-api";
 import { ApiResponseFormatError } from "@/lib/api";
+import { normalizeSellerSkuCode } from "@/lib/seller-sku";
 import {
   createProductDraft,
   getProductDraftByProductId,
@@ -769,6 +772,9 @@ export default function ProductForm({
       throw new Error("상품 옵션 정보를 아직 불러오는 중입니다.");
     }
 
+    if (optionEditorState.mappingInvalid) {
+      throw new Error("옵션 매핑이 과거 조합 이력과 일치하지 않습니다. 저장을 중단하고 운영 대사를 요청해주세요.");
+    }
     const hasPersistedOptionData =
       optionEditorState.optionGroups.some((group) => group.id !== null) ||
       optionEditorState.variants.some((variant) => variant.id !== null);
@@ -786,6 +792,9 @@ export default function ProductForm({
       };
     }
 
+    if (optionEditorState.optionGroups.length === 0 && mode === "edit" && initialProduct?.variantManaged) {
+      return { totalStockQuantity: 0, optionRequest: { optionGroups: [] } as ProductOptionUpdateRequest };
+    }
     if (optionEditorState.optionGroups.length === 0) {
       throw new Error("옵션을 1개 이상 등록해주세요.");
     }
@@ -864,10 +873,10 @@ export default function ProductForm({
         throw new Error(`${variantIndex + 1}번째 SKU 코드를 입력해주세요.`);
       }
 
-      const normalizedSkuCode = skuCode.toUpperCase();
+      const normalizedSkuCode = normalizeSellerSkuCode(skuCode);
 
       if (skuCodes.has(normalizedSkuCode)) {
-        throw new Error("SKU 코드는 중복될 수 없습니다.");
+        throw new Error("동일 상품의 옵션 관리 코드는 중복될 수 없습니다. 비활성 옵션도 확인해주세요.");
       }
 
       skuCodes.add(normalizedSkuCode);
@@ -947,7 +956,7 @@ export default function ProductForm({
         });
 
         return {
-          skuCode,
+          sellerSkuCode: normalizeSellerSkuCode(skuCode),
           options,
           additionalPrice: parseRequiredNumber(
             variant.additionalPrice,
@@ -1000,16 +1009,14 @@ export default function ProductForm({
 
         return {
           id: variant.id,
-          skuCode,
+          sellerSkuCode: normalizeSellerSkuCode(skuCode),
           options,
           additionalPrice: parseRequiredNumber(
             variant.additionalPrice,
             `${skuCode} 추가금`,
           ),
-          stockQuantity: parseRequiredNumber(
-            variant.stockQuantity,
-            `${skuCode} 재고`,
-          ),
+          ...createVariantStockUpdate(variant.id, parseRequiredNumber(variant.stockQuantity, "옵션 재고"),
+            variant.originalStockQuantity, variant.version),
           active: variant.active,
         };
       });
@@ -1484,6 +1491,8 @@ export default function ProductForm({
         product: {
           ...commonRequest,
           ...imageRequest,
+          expectedStockVersion: !optionEditorState.enabled && Number(form.stockQuantity) !== initialProduct.stockQuantity
+            ? initialProduct.version : undefined,
         },
 
         options: optionRequest,
@@ -1579,6 +1588,7 @@ export default function ProductForm({
           {errorMessage && (
             <div className="seller-product-form-error" role="alert">
               {errorMessage}
+              {mode === "edit" && <button type="button" onClick={() => window.location.reload()}>최신 상품·재고 다시 불러오기 (입력 초기화)</button>}
             </div>
           )}
 

@@ -88,6 +88,10 @@ class ReturnWorkflowIntegrationTest {
     @Autowired ReturnRequestItemRepository returnItemRepository;
     @Autowired PaymentCancellationRepository cancellationRepository;
     @Autowired EntityManager entityManager;
+    @Autowired com.giftmarket.product.service.ProductOptionService optionService;
+    @Autowired com.giftmarket.product.service.ProductVariantService variantService;
+    @Autowired ExchangeRequestService exchangeService;
+    @Autowired SellerExchangeRequestService sellerExchangeService;
 
     @MockitoBean PaymentGatewayRegistry gatewayRegistry;
 
@@ -143,12 +147,67 @@ class ReturnWorkflowIntegrationTest {
                 .isEqualTo(INITIAL_STOCK - ORDER_QUANTITY);
     }
 
+    @Test
+    void returnWhileArchivedRestoresOriginalVariantAndDoesNotDoubleRestoreOnActivation() {
+        CompletedReturn result = completeReturn("archived-return", ReturnReasonType.DEFECTIVE,
+                ReturnInspectionResult.RESTOCKABLE, true);
+        assertThat(result.variant().getStockQuantity()).isEqualTo(8);
+        assertThat(result.product().getStockQuantity()).isEqualTo(8);
+        assertThat(result.orderItem().getVariant().getId()).isEqualTo(result.variant().getId());
+        assertThat(result.requestItem().getRestockedQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void restoredOptionsSupportRealExchangeApprovalAndTargetReservation() {
+        DeliveredOrder delivered = createDeliveredOrder("restored-exchange");
+        var options = saveOptions(delivered);
+        optionService.updateProductOptions(delivered.sellerOwnerId(), delivered.productId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        restoreOptions(delivered, options);
+        var request = exchangeService.create(delivered.buyerId(), delivered.orderId(), delivered.sellerOrderId(),
+                new ExchangeRequestCreateRequest(UUID.randomUUID().toString(), ExchangeReasonType.DEFECTIVE, "교환",
+                        "회수인", "010-1111-2222", "12345", "서울", "상세",
+                        "수령인", "010-1111-2222", "12345", "서울", "상세",
+                        List.of(new ExchangeRequestItemRequest(delivered.orderItemId(), 1, delivered.variantId())), List.of()));
+        sellerExchangeService.approve(delivered.sellerOwnerId(), request.exchangeRequestId(), null);
+        entityManager.flush();
+        assertStock(delivered, INITIAL_STOCK - ORDER_QUANTITY - 1);
+    }
+
+    private com.giftmarket.product.dto.request.ProductOptionUpdateRequest saveOptions(DeliveredOrder delivered) {
+        return new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(
+                optionService.getProductOptions(delivered.sellerOwnerId(), delivered.productId()).getOptionGroups().stream()
+                        .map(g -> new com.giftmarket.product.dto.request.ProductOptionGroupRequest(g.getId(), g.getName(), g.getSortOrder(),
+                                g.getValues().stream().map(v -> new com.giftmarket.product.dto.request.ProductOptionValueRequest(
+                                        v.getId(), v.getValue(), v.getSortOrder())).toList())).toList());
+    }
+
+    private void restoreOptions(DeliveredOrder delivered, com.giftmarket.product.dto.request.ProductOptionUpdateRequest options) {
+        optionService.updateProductOptions(delivered.sellerOwnerId(), delivered.productId(), options);
+        ProductVariant variant = variantRepository.findById(delivered.variantId()).orElseThrow();
+        var ids = variantOptionValueRepository.findAllByVariantIdIn(List.of(variant.getId())).stream()
+                .map(m -> m.getOptionValue().getId()).toList();
+        variantService.updateProductVariants(delivered.sellerOwnerId(), delivered.productId(),
+                new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(List.of(
+                        new com.giftmarket.product.dto.request.ProductVariantRequest(variant.getId(), variant.getSellerSkuCode(),
+                                ids, variant.getAdditionalPrice(), null, true))));
+        entityManager.flush();
+    }
+
     private CompletedReturn completeReturn(
             String suffix,
             ReturnReasonType reasonType,
             ReturnInspectionResult inspectionResult
     ) {
+        return completeReturn(suffix, reasonType, inspectionResult, false);
+    }
+
+    private CompletedReturn completeReturn(String suffix, ReturnReasonType reasonType,
+            ReturnInspectionResult inspectionResult, boolean archive) {
         DeliveredOrder delivered = createDeliveredOrder(suffix);
+        var options = saveOptions(delivered);
+        if (archive) optionService.updateProductOptions(delivered.sellerOwnerId(), delivered.productId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
         PaymentGateway gateway = delivered.gateway();
         Payment paymentBeforeReturn = paymentRepository.findById(delivered.paymentId()).orElseThrow();
         long originalAmount = paymentBeforeReturn.getAmount();
@@ -225,6 +284,11 @@ class ReturnWorkflowIntegrationTest {
         assertThat(sellerOrder.getStatus()).isEqualTo(SellerOrderStatus.DELIVERED);
         assertThat(cancellationRepository.findAll()).hasSize(1);
 
+        if (archive) {
+            assertThat(product.getStockQuantity()).isZero();
+            assertThat(variant.getStockQuantity()).isEqualTo(INITIAL_STOCK - ORDER_QUANTITY + RETURN_QUANTITY);
+            restoreOptions(delivered, options);
+        }
         return new CompletedReturn(
                 request, requestItem, orderItem, payment, cancellation,
                 product, variant, shipments
@@ -250,7 +314,7 @@ class ReturnWorkflowIntegrationTest {
         ProductOptionGroup group = optionGroupRepository.save(ProductOptionGroup.create(product, "색상", 1));
         ProductOptionValue value = optionValueRepository.save(ProductOptionValue.create(group, "빨강", 1));
         ProductVariant variant = variantRepository.save(ProductVariant.create(
-                product, "RETURN-SKU-" + suffix, "color-red-" + suffix,
+                product, "RETURN-SKU-" + suffix, group.getId() + ":" + value.getId(),
                 ADDITIONAL_PRICE, INITIAL_STOCK
         ));
         variantOptionValueRepository.save(ProductVariantOptionValue.create(variant, value));
@@ -299,7 +363,7 @@ class ReturnWorkflowIntegrationTest {
         assertThat(variantRepository.findById(delivered.variantId()).orElseThrow().getStockQuantity())
                 .isEqualTo(expected);
         assertThat(productRepository.findById(delivered.productId()).orElseThrow().getStockQuantity())
-                .isEqualTo(expected);
+                .isEqualTo(variantRepository.findById(delivered.variantId()).orElseThrow().isActive() ? expected : 0);
     }
 
     private void assertCompleted(

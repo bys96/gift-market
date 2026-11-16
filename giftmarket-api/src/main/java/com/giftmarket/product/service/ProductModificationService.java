@@ -56,12 +56,6 @@ public class ProductModificationService {
          * 옵션 저장 후 새로 생성된 옵션값까지 포함한
          * 실제 DB ID를 응답으로 확보합니다.
          */
-        productOptionService.retireVariantsUsingRemovedOptions(
-                userId,
-                productId,
-                request.options()
-        );
-
         giftOccasionService.synchronizeProductGiftOccasions(
                 productId,
                 request.normalizedGiftOccasionIds()
@@ -200,11 +194,12 @@ public class ProductModificationService {
 
         return new ProductVariantRequest(
                 request.id(),
-                request.skuCode(),
+                request.sellerSkuCode(),
                 optionValueIds,
                 request.additionalPrice(),
                 request.stockQuantity(),
-                request.active()
+                request.active(),
+                request.expectedVersion()
         );
     }
 

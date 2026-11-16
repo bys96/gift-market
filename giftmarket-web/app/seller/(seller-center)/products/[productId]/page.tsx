@@ -231,7 +231,7 @@ export default function SellerProductDetailPage() {
     [product?.galleryImageKeys],
   );
 
-  const hasOptions = (optionResponse?.optionGroups.length ?? 0) > 0;
+  const hasOptions = product?.variantManaged || (variantResponse?.variants.length ?? 0) > 0 || (optionResponse?.optionGroups.length ?? 0) > 0;
   const variants = variantResponse?.variants ?? [];
 
   if (
@@ -536,6 +536,9 @@ export default function SellerProductDetailPage() {
               </div>
             ) : (
               <>
+                {(optionResponse?.optionGroups.length ?? 0) === 0 && (
+                  <p className="seller-product-detail-empty-box">활성 옵션이 없습니다. 보관된 SKU 재고는 유지되며, 옵션 복원 전에는 구매할 수 없습니다.</p>
+                )}
                 <div className="seller-product-detail-option-groups">
                   {optionResponse?.optionGroups.map((group) => (
                     <div
@@ -558,7 +561,7 @@ export default function SellerProductDetailPage() {
                     <thead>
                       <tr>
                         <th scope="col">옵션 조합</th>
-                        <th scope="col">SKU</th>
+                        <th scope="col">옵션 관리 코드</th>
                         <th scope="col">추가금</th>
                         <th scope="col">재고</th>
                         <th scope="col">판매 여부</th>
@@ -581,7 +584,7 @@ export default function SellerProductDetailPage() {
 
                           <td>
                             <span className="seller-product-detail-sku">
-                              {variant.skuCode || "-"}
+                              {variant.sellerSkuCode || "-"}
                             </span>
                           </td>
 

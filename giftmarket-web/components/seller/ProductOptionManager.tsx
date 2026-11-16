@@ -23,6 +23,9 @@ export interface ProductVariantDraft {
   id: number | null;
 
   skuCode: string;
+  systemSkuCode?: string;
+  version?: number;
+  originalStockQuantity?: number;
 
   optionValueClientIds: string[];
 
@@ -33,6 +36,7 @@ export interface ProductVariantDraft {
 }
 
 export interface ProductOptionEditorState {
+  mappingInvalid?: boolean;
   enabled: boolean;
 
   optionGroups: ProductOptionGroupDraft[];
@@ -83,7 +87,7 @@ function createEmptyOptionGroup(): ProductOptionGroupDraft {
 }
 
 function createVariantClientKey(optionValueClientIds: string[]): string {
-  return optionValueClientIds.join("|");
+  return [...optionValueClientIds].sort().join("|");
 }
 
 function createOptionCombinations(
@@ -118,11 +122,11 @@ function createOptionDrafts(
   optionGroups: ProductOptionGroup[],
 ): ProductOptionGroupDraft[] {
   return optionGroups.map((group) => ({
-    clientId: createClientId(),
+    clientId: `group-${group.id}`,
     id: group.id,
     name: group.name,
     values: group.values.map((value) => ({
-      clientId: createClientId(),
+      clientId: `group-${group.id}-value-${value.id}`,
       id: value.id,
       value: value.value,
     })),
@@ -144,6 +148,7 @@ function createVariantDrafts(
   });
 
   return variants.flatMap((variant) => {
+    if (variant.mappingValid === false) return [];
     const optionValueClientIds = variant.optionValues
       .sort(
         (a, b) =>
@@ -155,7 +160,7 @@ function createVariantDrafts(
       );
 
     if (
-      optionValueClientIds.length !== optionGroups.length ||
+      optionValueClientIds.length === 0 ||
       optionValueClientIds.some((clientId) => !clientId)
     ) {
       return [];
@@ -165,7 +170,10 @@ function createVariantDrafts(
       {
         clientId: createVariantClientKey(optionValueClientIds as string[]),
         id: variant.id,
-        skuCode: variant.skuCode,
+        skuCode: variant.sellerSkuCode,
+        systemSkuCode: variant.skuCode,
+        version: variant.version,
+        originalStockQuantity: variant.stockQuantity,
         optionValueClientIds: optionValueClientIds as string[],
         additionalPrice: String(variant.additionalPrice),
         stockQuantity: String(variant.stockQuantity),
@@ -222,6 +230,11 @@ export default function ProductOptionManager({
 }: ProductOptionManagerProps) {
   const onChangeRef = useRef(onChange);
 
+  const fixedModeRef = useRef<boolean | null>(null);
+  const variantHistoryRef = useRef<ProductVariantDraft[]>([]);
+  const [lockedValueIds, setLockedValueIds] = useState<string[]>([]);
+  const [unmappedVariants, setUnmappedVariants] = useState<ProductVariant[]>([]);
+  const [archivedGroups, setArchivedGroups] = useState<ProductOptionGroupDraft[]>([]);
   const [enabled, setEnabled] = useState(false);
 
   const [optionGroups, setOptionGroups] = useState<ProductOptionGroupDraft[]>(
@@ -263,20 +276,37 @@ export default function ProductOptionManager({
           return;
         }
 
-        const loadedOptionGroups = createOptionDrafts(
-          optionResponse.optionGroups,
-        );
+        const activeValueIds = new Set(optionResponse.optionGroups.flatMap(group => group.values.map(value => value.id)));
+        const activeGroupIds = new Set(optionResponse.optionGroups.map(group => group.id));
+        const allGroups = optionResponse.optionGroups.map(group => ({...group, values: [...group.values]}));
+        for (const group of optionResponse.archivedOptionGroups ?? []) {
+          const existing = allGroups.find(item => item.id === group.id);
+          if (existing) existing.values.push(...group.values);
+          else allGroups.push(group);
+        }
+        const allDrafts = createOptionDrafts(allGroups);
+        const loadedOptionGroups = allDrafts.filter(group => activeGroupIds.has(group.id!)).map(group => ({
+          ...group, values: group.values.filter(value => activeValueIds.has(value.id!)),
+        }));
+        setArchivedGroups(allDrafts.map(group => ({...group,
+          values: group.values.filter(value => !activeValueIds.has(value.id!)),
+        })).filter(group => group.values.length > 0));
 
         const loadedVariants = createVariantDrafts(
           variantResponse.variants,
-          loadedOptionGroups,
+          allDrafts,
         );
+        variantHistoryRef.current = loadedVariants;
+        setLockedValueIds(loadedVariants.filter(variant => variant.id !== null).flatMap(variant => variant.optionValueClientIds));
+        setUnmappedVariants(variantResponse.variants.filter(variant =>
+          !loadedVariants.some(draft => draft.id === variant.id)));
 
-        const hasOptions = loadedOptionGroups.length > 0;
+        const hasOptions = variantResponse.variants.length > 0 || loadedOptionGroups.length > 0;
+        fixedModeRef.current = hasOptions;
 
         setEnabled(hasOptions);
         setOptionGroups(loadedOptionGroups);
-        setVariants(loadedVariants);
+        setVariants(synchronizeVariants(loadedOptionGroups, loadedVariants));
       } catch (error) {
         if (cancelled) {
           return;
@@ -307,8 +337,11 @@ export default function ProductOptionManager({
       return;
     }
 
+    if (productId !== undefined && fixedModeRef.current !== null && draftState.enabled !== fixedModeRef.current) {
+      setErrorMessage("임시저장 데이터의 재고 관리 방식이 현재 상품과 다릅니다. 최신 상품을 다시 불러와주세요.");
+      return;
+    }
     // Draft 복원은 외부 저장 snapshot을 로컬 편집 상태로 한 번 동기화한다.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEnabled(draftState.enabled);
 
     setOptionGroups(
@@ -330,7 +363,7 @@ export default function ProductOptionManager({
     setInitialized(true);
     setIsLoading(false);
     setErrorMessage("");
-  }, [draftRevision, draftState]);
+  }, [draftRevision, draftState, productId]);
 
   useEffect(() => {
     if (!initialized) {
@@ -342,8 +375,9 @@ export default function ProductOptionManager({
       optionGroups,
       variants,
       initialized,
+      mappingInvalid: unmappedVariants.length > 0,
     });
-  }, [enabled, optionGroups, variants, initialized]);
+  }, [enabled, optionGroups, variants, initialized, unmappedVariants]);
 
   const optionValueMap = useMemo(() => {
     const result = new Map<
@@ -391,15 +425,34 @@ export default function ProductOptionManager({
     setOptionGroups((currentGroups) => {
       const nextGroups = updater(currentGroups);
 
-      setVariants((currentVariants) =>
-        synchronizeVariants(nextGroups, currentVariants),
-      );
+      setVariants((currentVariants) => {
+        const combined = [...variantHistoryRef.current.filter(old => !currentVariants.some(item => item.id === old.id && item.id !== null)), ...currentVariants];
+        variantHistoryRef.current = combined;
+        return synchronizeVariants(nextGroups, combined);
+      });
 
       return nextGroups;
     });
   };
 
+  const restoreArchivedValue = (group: ProductOptionGroupDraft, value: ProductOptionValueDraft) => {
+    setEnabled(true);
+    updateOptionGroups(current => {
+      const existing = current.find(item => item.id === group.id);
+      return existing ? current.map(item => item.id === group.id
+        ? {...item, values: [...item.values, value]} : item)
+        : [...current, {...group, values: [value]}];
+    });
+    setArchivedGroups(current => current.map(item => ({...item,
+      values: item.values.filter(candidate => candidate.id !== value.id),
+    })).filter(item => item.values.length > 0));
+  };
+
   const handleEnabledChange = (nextEnabled: boolean) => {
+    if (productId !== undefined && fixedModeRef.current !== null && nextEnabled !== fixedModeRef.current) {
+      setErrorMessage("기존 상품의 재고 관리 방식은 변경할 수 없습니다. 옵션 전체 보관은 판매 중지로 처리됩니다.");
+      return;
+    }
     setEnabled(nextEnabled);
 
     if (nextEnabled && optionGroups.length === 0) {
@@ -418,6 +471,16 @@ export default function ProductOptionManager({
   };
 
   const handleRemoveGroup = (groupClientId: string) => {
+    const removed = optionGroups.find(group => group.clientId === groupClientId);
+    if (removed?.id !== null && removed) {
+      setArchivedGroups(current => {
+        const previous = current.find(group => group.id === removed.id);
+        const values = [...(previous?.values ?? []), ...removed.values];
+        return [...current.filter(group => group.id !== removed.id), {...removed,
+          values: values.filter((value, index) => values.findIndex(item => item.id === value.id) === index),
+        }];
+      });
+    }
     updateOptionGroups((currentGroups) =>
       currentGroups.filter((group) => group.clientId !== groupClientId),
     );
@@ -453,6 +516,16 @@ export default function ProductOptionManager({
     groupClientId: string,
     valueClientId: string,
   ) => {
+    const removedGroup = optionGroups.find(group => group.clientId === groupClientId);
+    const removedValue = removedGroup?.values.find(value => value.clientId === valueClientId);
+    if (removedGroup && removedValue && removedValue.id !== null) {
+      setArchivedGroups(current => {
+        const existing = current.find(group => group.id === removedGroup.id);
+        return existing ? current.map(group => group.id === existing.id
+          ? {...group, values: [...group.values, removedValue]} : group)
+          : [...current, {...removedGroup, values: [removedValue]}];
+      });
+    }
     updateOptionGroups((currentGroups) =>
       currentGroups.map((group) => {
         if (group.clientId !== groupClientId) {
@@ -646,6 +719,28 @@ export default function ProductOptionManager({
         </div>
       )}
 
+      {unmappedVariants.length > 0 && (
+        <div className="seller-product-option-error" role="alert">
+          <strong>옵션 매핑 확인이 필요한 기존 SKU</strong>
+          <p>옵션 매핑이 조합 이력과 일치하지 않아 자동 복원할 수 없습니다. 저장이 차단됩니다. 기존 주문과 재고는 보존됩니다. 아래 관리 코드는 계속 사용 중이며, 복원은 원본 이력 확인이 필요합니다.</p>
+          {unmappedVariants.map(variant => (
+            <p key={variant.id}>관리 코드: {variant.sellerSkuCode} / 시스템 SKU: {variant.skuCode} / 보존 재고: {variant.stockQuantity}개</p>
+          ))}
+        </div>
+      )}
+      {archivedGroups.length > 0 && (
+        <details className="seller-product-option-group-card seller-product-option-archive">
+          <summary>보관 옵션 복원</summary>
+          <p>기존 옵션과 SKU·재고를 그대로 복원합니다. 복원 후 비활성 SKU를 활성화해주세요.</p>
+          {archivedGroups.flatMap(group => group.values.map(value => (
+            <button type="button" className="seller-product-option-add-button" disabled={disabled}
+              key={value.clientId} onClick={() => restoreArchivedValue(group, value)}>
+              {group.name} / {value.value} 복원
+            </button>
+          )))}
+        </details>
+      )}
+      <p className="seller-product-option-notice">SKU에 연결된 옵션 이름은 변경할 수 없습니다. 전체 옵션 보관 시 구매가 차단되며 기존 Variant 재고는 보존됩니다. 재고 수정은 최신 버전을 확인합니다.</p>
       <div className="seller-product-option-use">
         <div>
           <strong>상품 옵션 사용</strong>
@@ -664,7 +759,7 @@ export default function ProductOptionManager({
                 ? "seller-product-option-use-button seller-product-option-use-button-active"
                 : "seller-product-option-use-button"
             }
-            disabled={disabled}
+            disabled={disabled || productId !== undefined}
             onClick={() => handleEnabledChange(false)}
           >
             옵션 없음
@@ -726,6 +821,7 @@ export default function ProductOptionManager({
                   <label>옵션명</label>
 
                   <input
+                    readOnly={group.values.some(value => lockedValueIds.includes(value.clientId))}
                     value={group.name}
                     autoComplete="off"
                     maxLength={50}
@@ -759,6 +855,7 @@ export default function ProductOptionManager({
                         <span>{valueIndex + 1}</span>
 
                         <input
+                          readOnly={lockedValueIds.includes(optionValue.clientId)}
                           value={optionValue.value}
                           autoComplete="off"
                           maxLength={100}
@@ -804,7 +901,7 @@ export default function ProductOptionManager({
               <div>
                 <strong>SKU / 재고 설정</strong>
 
-                <p>옵션 조합별 SKU, 추가금, 재고를 설정합니다.</p>
+                <p>상품 내 옵션을 구분하는 코드입니다. 다른 상품에서는 같은 코드를 사용할 수 있습니다. 비활성 옵션을 포함하여 대소문자는 구분하지 않습니다.</p>
               </div>
 
               <span className="seller-product-variant-total-stock">
@@ -825,7 +922,7 @@ export default function ProductOptionManager({
                   <thead>
                     <tr>
                       <th>옵션 조합</th>
-                      <th>SKU</th>
+                      <th>옵션 관리 코드</th>
                       <th>추가금</th>
                       <th>재고</th>
                       <th>판매</th>
@@ -863,7 +960,8 @@ export default function ProductOptionManager({
                             value={variant.skuCode}
                             autoComplete="off"
                             maxLength={100}
-                            placeholder="SKU 코드"
+                            placeholder="예: F1, RED, BLUE"
+                            aria-label="옵션 관리 코드"
                             disabled={disabled}
                             data-variant-field="true"
                             onChange={(event) =>
@@ -876,9 +974,9 @@ export default function ProductOptionManager({
                             onKeyDown={handleVariantInputKeyDown}
                           />
 
-                          {variant.id !== null && (
+                          {variant.id !== null && variant.systemSkuCode && (
                             <small className="seller-product-variant-existing">
-                              기존 SKU
+                              시스템 SKU: {variant.systemSkuCode}
                             </small>
                           )}
                         </td>

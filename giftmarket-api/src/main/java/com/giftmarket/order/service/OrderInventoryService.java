@@ -29,6 +29,8 @@ import java.util.LinkedHashMap;
 @RequiredArgsConstructor
 public class OrderInventoryService {
 
+    private final com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
+
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
@@ -160,6 +162,7 @@ public class OrderInventoryService {
         }
 
         for (Long productId : variantProductIds) {
+            if (inventoryPolicy.hasMixedHistory(productId)) continue;
             int totalStock = productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
                     .stream().mapToInt(ProductVariant::getStockQuantity).sum();
             lockedProducts.get(productId).changeStockQuantity(totalStock);
@@ -208,6 +211,7 @@ public class OrderInventoryService {
             }
         }
         for (Long productId : variantProductIds) {
+            if (inventoryPolicy.hasMixedHistory(productId)) continue;
             int total = productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
                     .stream().mapToInt(ProductVariant::getStockQuantity).sum();
             products.get(productId).changeStockQuantity(total);
@@ -224,6 +228,7 @@ public class OrderInventoryService {
             Product product,
             ProductVariant variant
     ) {
+        inventoryPolicy.requirePurchasable(product, variant);
         if (product.isDeleted() || product.getStatus() != ProductStatus.ON_SALE) {
             throw new OrderException("현재 판매가 중지된 상품은 교환 승인할 수 없습니다.");
         }
@@ -294,6 +299,7 @@ public class OrderInventoryService {
         }
 
         for (Long productId : variantProductIds) {
+            if (inventoryPolicy.hasMixedHistory(productId)) continue;
             Product product = lockedProducts.get(productId);
             int totalStockQuantity = productVariantRepository
                     .findAllByProductIdAndActiveTrueOrderByIdAsc(productId)

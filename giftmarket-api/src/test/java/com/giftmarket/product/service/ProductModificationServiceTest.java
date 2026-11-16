@@ -35,7 +35,7 @@ class ProductModificationServiceTest {
     @InjectMocks ProductModificationService productModificationService;
 
     @Test
-    void retiresRemovedMappingsBeforeSavingOptionsAndVariants() {
+    void savesOptionsAndValidatesRetirementBeforeSavingVariants() {
         ProductModificationRequest request = mock(ProductModificationRequest.class);
         ProductOptionUpdateRequest options = new ProductOptionUpdateRequest(List.of());
         ProductModificationVariantRequest variant = new ProductModificationVariantRequest(
@@ -59,7 +59,6 @@ class ProductModificationServiceTest {
         productModificationService.modifyProduct(1L, 2L, request);
 
         InOrder order = inOrder(productOptionService, productVariantService);
-        order.verify(productOptionService).retireVariantsUsingRemovedOptions(1L, 2L, options);
         order.verify(productOptionService).updateProductOptions(1L, 2L, options);
         order.verify(productVariantService).updateProductVariants(any(), any(), any(ProductVariantUpdateRequest.class));
     }

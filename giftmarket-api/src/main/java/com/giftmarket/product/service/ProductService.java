@@ -73,6 +73,7 @@ public class ProductService {
 
     private final ProductVariantRepository
             productVariantRepository;
+    private final ProductInventoryPolicy inventoryPolicy;
 
     private final ProductVariantOptionValueRepository
             productVariantOptionValueRepository;
@@ -401,7 +402,8 @@ public class ProductService {
                 variantOptionValues,
                 giftOccasionService.getActiveProductGiftOccasions(
                         product.getId()
-                )
+                ),
+                inventoryPolicy.usesVariants(productId)
         );
     }
 
@@ -486,7 +488,8 @@ public class ProductService {
         return ProductResponse.from(
                 product,
                 productImages,
-                giftOccasionService.getActiveProductGiftOccasions(product.getId())
+                giftOccasionService.getActiveProductGiftOccasions(product.getId()),
+                inventoryPolicy.usesVariants(productId)
         );
     }
 
@@ -514,6 +517,9 @@ public class ProductService {
                 productId,
                 seller.getId()
         );
+
+        inventoryPolicy.requireEditable(productId);
+        if (request.expectedStockVersion() != null) inventoryPolicy.requireDirectStock(product);
 
         Category category = getActiveCategory(
                 request.categoryId()
@@ -549,6 +555,11 @@ public class ProductService {
             productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
                     .forEach(variant -> ProductVariantService.validateFinalVariantPrice(request.price(), variant.getAdditionalPrice()));
         }
+        if (request.expectedStockVersion() != null
+                && !java.util.Objects.equals(product.getVersion(), request.expectedStockVersion())) {
+            throw new com.giftmarket.product.exception.ProductConflictException(
+                    "상품 또는 재고가 변경되었습니다. 최신 값을 다시 조회한 후 저장해주세요.");
+        }
         product.update(
                 category,
                 request.name().trim(),
@@ -556,7 +567,7 @@ public class ProductService {
                 trimToNull(request.summary()),
                 description,
                 request.price(),
-                request.stockQuantity(),
+                request.expectedStockVersion() == null ? product.getStockQuantity() : request.stockQuantity(),
                 representativeImageKey,
                 request.freeShipping(),
                 request.normalizedShippingFee(),
@@ -664,9 +675,14 @@ public class ProductService {
                 seller.getId()
         );
 
-        product.changeStockQuantity(
-                request.stockQuantity()
-        );
+        inventoryPolicy.requireDirectStock(product);
+        if (request.expectedVersion() == null || !request.expectedVersion().equals(product.getVersion())) {
+            throw new com.giftmarket.product.exception.ProductConflictException("상품 또는 재고가 변경되었습니다. 최신 값을 다시 조회한 후 저장해주세요.");
+        }
+        if (!productOptionGroupRepository.findAllByProductIdOrderBySortOrderAsc(productId).isEmpty()) {
+            throw new ProductException("옵션 상품은 옵션별 재고를 변경해주세요.");
+        }
+        product.changeStockQuantity(request.stockQuantity());
 
         List<ProductImage> productImages = productImageRepository
                 .findAllByProductIdOrderBySortOrderAsc(

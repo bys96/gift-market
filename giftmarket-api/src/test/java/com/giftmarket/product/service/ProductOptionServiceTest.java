@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
 class ProductOptionServiceTest {
+    @org.mockito.Mock com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
 
     @Mock ProductRepository productRepository;
     @Mock ProductOptionGroupRepository optionGroupRepository;
@@ -81,7 +82,7 @@ class ProductOptionServiceTest {
 
         verify(variant).deactivate();
         verify(keptVariant, never()).deactivate();
-        verify(mappingRepository).deleteAll(List.of(mapping));
+        verify(mappingRepository, never()).deleteAll(List.of(mapping));
         verify(productRepository, never()).delete(product);
     }
 
@@ -128,8 +129,8 @@ class ProductOptionServiceTest {
 
         verify(woodyVariant).deactivate();
         verify(floralVariant).deactivate();
-        verify(mappingRepository).deleteAll(List.of(woodyMapping, floralMapping));
-        verify(mappingRepository).flush();
+        verify(mappingRepository, never()).deleteAll(List.of(woodyMapping, floralMapping));
+        verify(mappingRepository, never()).flush();
     }
 
     @Test

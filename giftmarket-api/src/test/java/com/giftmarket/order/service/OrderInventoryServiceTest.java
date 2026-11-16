@@ -54,6 +54,7 @@ class OrderInventoryServiceTest {
     @BeforeEach
     void setUp() {
         service = new OrderInventoryService(
+                org.mockito.Mockito.mock(com.giftmarket.product.service.ProductInventoryPolicy.class),
                 orderItemRepository,
                 productRepository,
                 productVariantRepository

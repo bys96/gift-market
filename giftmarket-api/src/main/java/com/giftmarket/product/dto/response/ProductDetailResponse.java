@@ -76,7 +76,14 @@ public class ProductDetailResponse {
             List<ProductVariantOptionValue> variantOptionValues,
             List<GiftOccasionResponse> giftOccasions
     ) {
-        boolean hasOptions = !optionGroups.isEmpty();
+        return from(product, productImages, optionGroups, optionValues, variants, variantOptionValues,
+                giftOccasions, !optionGroups.isEmpty());
+    }
+
+    public static ProductDetailResponse from(Product product, List<ProductImage> productImages,
+            List<ProductOptionGroup> optionGroups, List<ProductOptionValue> optionValues,
+            List<ProductVariant> variants, List<ProductVariantOptionValue> variantOptionValues,
+            List<GiftOccasionResponse> giftOccasions, boolean hasOptions) {
 
         Map<Long, List<ProductOptionValue>> valuesByGroupId =
                 new HashMap<>();

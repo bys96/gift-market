@@ -20,7 +20,8 @@ public record ProductVariantRequest(
                 max = 100,
                 message = "SKU 코드는 100자 이하입니다."
         )
-        String skuCode,
+        @com.fasterxml.jackson.annotation.JsonProperty("sellerSkuCode")
+        String sellerSkuCode,
 
         @NotEmpty(message = "옵션 조합을 선택해주세요.")
         @Size(
@@ -34,14 +35,26 @@ public record ProductVariantRequest(
         @Max(value = MoneyLimits.MAX_AMOUNT, message = "옵션 추가금은 1,000만원 이하여야 합니다.")
         Long additionalPrice,
 
-        @NotNull(message = "옵션 재고 수량을 입력해주세요.")
         @PositiveOrZero(message = "옵션 재고 수량은 0개 이상이어야 합니다.")
         Integer stockQuantity,
 
         @NotNull(message = "SKU 활성 여부를 선택해주세요.")
-        Boolean active
+        Boolean active,
+
+        Long expectedVersion
 
 ) {
+
+    public ProductVariantRequest {
+        if (sellerSkuCode == null) {
+            throw new com.giftmarket.product.exception.ProductConflictException(
+                    "이전 형식의 상품 요청입니다. 최신 화면에서 sellerSkuCode를 확인한 후 다시 저장해주세요.");
+        }
+    }
+    public ProductVariantRequest(Long id, String sellerSkuCode, List<Long> optionValueIds,
+            Long additionalPrice, Integer stockQuantity, Boolean active) {
+        this(id, sellerSkuCode, optionValueIds, additionalPrice, stockQuantity, active, null);
+    }
 
     public List<Long> normalizedOptionValueIds() {
         return optionValueIds == null

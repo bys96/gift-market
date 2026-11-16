@@ -13,6 +13,8 @@ public class ProductOptionGroupResponse {
 
     private Long id;
 
+    private boolean archived;
+
     private String name;
 
     private Integer sortOrder;
@@ -25,6 +27,7 @@ public class ProductOptionGroupResponse {
     ) {
         return ProductOptionGroupResponse.builder()
                 .id(optionGroup.getId())
+                .archived(optionGroup.isArchived())
                 .name(optionGroup.getName())
                 .sortOrder(optionGroup.getSortOrder())
                 .values(

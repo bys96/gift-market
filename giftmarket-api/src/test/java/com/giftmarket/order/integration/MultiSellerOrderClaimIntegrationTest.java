@@ -93,6 +93,8 @@ class MultiSellerOrderClaimIntegrationTest {
     @Autowired ReturnRequestItemRepository returnItemRepository;
     @Autowired PaymentCancellationRepository paymentCancellationRepository;
     @Autowired EntityManager entityManager;
+    @Autowired com.giftmarket.product.service.ProductOptionService optionService;
+    @Autowired com.giftmarket.product.service.ProductVariantService variantService;
 
     @MockitoBean PaymentGatewayRegistry gatewayRegistry;
 
@@ -281,6 +283,36 @@ class MultiSellerOrderClaimIntegrationTest {
         assertStock(fixture.b(), INITIAL_STOCK);
     }
 
+    @Test
+    void paidOrderCancellationWhileArchivedRestoresOriginalVariantExactlyOnce() {
+        MultiSellerOrder fixture = createPaidOrder("archived-cancel");
+        Side side = fixture.a();
+        var options = new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(
+                optionService.getProductOptions(side.ownerId(), side.productId()).getOptionGroups().stream()
+                        .map(g -> new com.giftmarket.product.dto.request.ProductOptionGroupRequest(g.getId(), g.getName(), g.getSortOrder(),
+                                g.getValues().stream().map(v -> new com.giftmarket.product.dto.request.ProductOptionValueRequest(
+                                        v.getId(), v.getValue(), v.getSortOrder())).toList())).toList());
+        optionService.updateProductOptions(side.ownerId(), side.productId(),
+                new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of()));
+        cancel(fixture, side, QUANTITY, new AtomicLong());
+        entityManager.flush();
+        ProductVariant variant = variantRepository.findById(side.variantId()).orElseThrow();
+        assertThat(variant.getStockQuantity()).isEqualTo(INITIAL_STOCK);
+        assertThat(productsStock(side.productId())).isZero();
+        optionService.updateProductOptions(side.ownerId(), side.productId(), options);
+        var ids = variantOptionValueRepository.findAllByVariantIdIn(List.of(variant.getId())).stream()
+                .map(m -> m.getOptionValue().getId()).toList();
+        variantService.updateProductVariants(side.ownerId(), side.productId(),
+                new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(List.of(
+                        new com.giftmarket.product.dto.request.ProductVariantRequest(variant.getId(), variant.getSellerSkuCode(),
+                                ids, variant.getAdditionalPrice(), null, true))));
+        entityManager.flush();
+        assertStock(side, INITIAL_STOCK);
+        assertThat(orderItemRepository.findById(side.orderItemId()).orElseThrow().getVariant().getId()).isEqualTo(side.variantId());
+    }
+
+    private int productsStock(Long id) { return productRepository.findById(id).orElseThrow().getStockQuantity(); }
+
     private OrderCancellationResponse cancel(
             MultiSellerOrder fixture,
             Side side,
@@ -412,7 +444,7 @@ class MultiSellerOrderClaimIntegrationTest {
         ProductOptionGroup group = optionGroupRepository.save(ProductOptionGroup.create(product, "색상", 1));
         ProductOptionValue value = optionValueRepository.save(ProductOptionValue.create(group, "빨강", 1));
         ProductVariant variant = variantRepository.save(ProductVariant.create(
-                product, "MULTI-SKU-" + suffix, "red-" + suffix,
+                product, "MULTI-SKU-" + suffix, group.getId() + ":" + value.getId(),
                 additionalPrice, INITIAL_STOCK
         ));
         variantOptionValueRepository.save(ProductVariantOptionValue.create(variant, value));

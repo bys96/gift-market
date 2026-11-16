@@ -15,6 +15,7 @@ import com.giftmarket.product.repository.ProductOptionGroupRepository;
 import com.giftmarket.product.repository.ProductOptionValueRepository;
 import com.giftmarket.product.repository.ProductRepository;
 import com.giftmarket.product.repository.ProductVariantOptionValueRepository;
+import com.giftmarket.product.repository.ProductVariantRepository;
 import com.giftmarket.seller.entity.Seller;
 import com.giftmarket.seller.entity.SellerStatus;
 import com.giftmarket.seller.repository.SellerRepository;
@@ -42,6 +43,8 @@ public class ProductOptionService {
     private final ProductVariantOptionValueRepository
             productVariantOptionValueRepository;
     private final SellerRepository sellerRepository;
+    private final ProductVariantRepository productVariantRepository;
+    private final ProductInventoryPolicy inventoryPolicy;
 
     @Transactional(readOnly = true)
     public ProductOptionResponse getProductOptions(
@@ -55,7 +58,16 @@ public class ProductOptionService {
                 seller.getId()
         );
 
-        return createResponse(product);
+        ProductOptionResponse active = createResponse(product);
+        List<ProductOptionGroup> allGroups = productOptionGroupRepository.findIncludingArchivedByProductId(productId);
+        List<ProductOptionGroupResponse> archived = allGroups.stream().map(group -> {
+            List<ProductOptionValue> values = productOptionValueRepository
+                    .findIncludingArchivedByOptionGroupIdIn(List.of(group.getId())).stream()
+                    .filter(value -> group.isArchived() || value.isArchived()).toList();
+            return ProductOptionGroupResponse.from(group, values);
+        }).filter(group -> group.isArchived() || !group.getValues().isEmpty()).toList();
+        return ProductOptionResponse.builder().productId(productId).optionGroups(active.getOptionGroups())
+                .archivedOptionGroups(archived).build();
     }
 
     @Transactional
@@ -64,8 +76,11 @@ public class ProductOptionService {
             Long productId,
             ProductOptionUpdateRequest request
     ) {
+        // Use the same Product-first lock order as orders, before snapshot reads.
+        productRepository.findByIdForUpdate(productId);
         Seller seller = getActiveSeller(userId);
         getSellerProduct(productId, seller.getId());
+        inventoryPolicy.requireEditable(productId);
 
         Set<Long> requestedValueIds = request.normalizedOptionGroups().stream()
                 .flatMap(group -> group.normalizedValues().stream())
@@ -101,16 +116,23 @@ public class ProductOptionService {
                 .distinct()
                 .forEach(variant -> variant.deactivate());
 
-        productVariantOptionValueRepository.deleteAll(removedMappings);
-        productVariantOptionValueRepository.flush();
+        // Preserve mappings for historical references and explicit restoration.
     }
 
     @Transactional
-    public ProductOptionResponse updateProductOptions(
-            Long userId,
-            Long productId,
-            ProductOptionUpdateRequest request
-    ) {
+    public ProductOptionResponse updateProductOptions(Long userId, Long productId, ProductOptionUpdateRequest request) {
+        return saveOptions(userId, productId, request, false);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public ProductOptionResponse initializeProductOptions(Long userId, Long productId, ProductOptionUpdateRequest request) {
+        return saveOptions(userId, productId, request, true);
+    }
+
+    private ProductOptionResponse saveOptions(Long userId, Long productId, ProductOptionUpdateRequest request,
+            boolean initialRegistration) {
+        // A current locking read must precede seller/product snapshot reads.
+        productRepository.findByIdForUpdate(productId);
         Seller seller = getActiveSeller(userId);
 
         Product product = getSellerProduct(
@@ -118,16 +140,16 @@ public class ProductOptionService {
                 seller.getId()
         );
 
+        inventoryPolicy.requireConfiguration(product, !request.normalizedOptionGroups().isEmpty(), initialRegistration);
+        retireVariantsUsingRemovedOptions(userId, productId, request);
+
         List<ProductOptionGroupRequest> groupRequests =
                 request.normalizedOptionGroups();
 
         validateOptionRequests(groupRequests);
 
         List<ProductOptionGroup> existingGroups =
-                productOptionGroupRepository
-                        .findAllByProductIdOrderBySortOrderAsc(
-                                productId
-                        );
+                productOptionGroupRepository.findIncludingArchivedByProductId(productId);
 
         Map<Long, ProductOptionGroup> existingGroupMap =
                 existingGroups.stream()
@@ -146,9 +168,7 @@ public class ProductOptionService {
                 existingGroupIds.isEmpty()
                         ? List.of()
                         : productOptionValueRepository
-                        .findAllByOptionGroupIdInOrderByOptionGroupIdAscSortOrderAsc(
-                                existingGroupIds
-                        );
+                        .findIncludingArchivedByOptionGroupIdIn(existingGroupIds);
 
         Map<Long, List<ProductOptionValue>> valuesByGroupId =
                 existingValues.stream()
@@ -166,6 +186,10 @@ public class ProductOptionService {
             ProductOptionGroup optionGroup;
 
             if (groupRequest.id() == null) {
+                if (existingGroups.stream().anyMatch(group -> group.isArchived()
+                        && normalizeForComparison(group.getName()).equals(normalizeForComparison(groupRequest.name())))) {
+                    throw new ProductException("보관된 동일 옵션이 있습니다. 보관 옵션 복원에서 기존 옵션을 복원해주세요.");
+                }
                 optionGroup = ProductOptionGroup.create(
                         product,
                         groupRequest.name().trim(),
@@ -191,6 +215,12 @@ public class ProductOptionService {
                     );
                 }
 
+                if (!optionGroup.getName().equals(groupRequest.name().trim())
+                        && valuesByGroupId.getOrDefault(optionGroup.getId(), List.of()).stream()
+                        .anyMatch(value -> productVariantOptionValueRepository.existsByOptionValueId(value.getId()))) {
+                    throw new ProductException("SKU에 연결된 옵션 이름은 변경할 수 없습니다. 새 옵션을 추가해주세요.");
+                }
+                optionGroup.restore();
                 optionGroup.update(
                         groupRequest.name().trim(),
                         groupRequest.sortOrder()
@@ -216,7 +246,38 @@ public class ProductOptionService {
         productOptionGroupRepository.flush();
         productOptionValueRepository.flush();
 
-        return createResponse(product);
+        if (inventoryPolicy.usesVariants(productId)) {
+            var activeGroupIds = productOptionGroupRepository.findAllByProductIdOrderBySortOrderAsc(productId)
+                    .stream().map(ProductOptionGroup::getId).collect(Collectors.toSet());
+            var allVariants = productVariantRepository.findAllByProductIdOrderByIdAsc(productId);
+            var byVariant = productVariantOptionValueRepository
+                    .findAllByVariantIdIn(allVariants.stream().map(v -> v.getId()).toList()).stream()
+                    .collect(Collectors.groupingBy(mapping -> mapping.getVariant().getId()));
+            for (var variant : allVariants) {
+                var selected = byVariant.getOrDefault(variant.getId(), List.of());
+                if (selected.stream().anyMatch(mapping -> mapping.getOptionValue().isArchived()
+                        || mapping.getOptionValue().getOptionGroup().isArchived())
+                        || !activeGroupIds.equals(selected.stream()
+                        .map(mapping -> mapping.getOptionValue().getOptionGroup().getId()).collect(Collectors.toSet()))) {
+                    variant.deactivate();
+                }
+            }
+            productVariantRepository.flush();
+            product.changeStockQuantity(productVariantRepository
+                    .findAllByProductIdAndActiveTrueOrderByIdAsc(productId).stream()
+                    .mapToInt(com.giftmarket.product.entity.ProductVariant::getStockQuantity).sum());
+        }
+
+        ProductOptionResponse active = createResponse(product);
+        List<ProductOptionGroup> allGroups = productOptionGroupRepository.findIncludingArchivedByProductId(productId);
+        List<ProductOptionGroupResponse> archived = allGroups.stream().map(group -> {
+            List<ProductOptionValue> values = productOptionValueRepository
+                    .findIncludingArchivedByOptionGroupIdIn(List.of(group.getId())).stream()
+                    .filter(value -> group.isArchived() || value.isArchived()).toList();
+            return ProductOptionGroupResponse.from(group, values);
+        }).filter(group -> group.isArchived() || !group.getValues().isEmpty()).toList();
+        return ProductOptionResponse.builder().productId(productId).optionGroups(active.getOptionGroups())
+                .archivedOptionGroups(archived).build();
     }
 
     private void updateOptionValues(
@@ -238,6 +299,10 @@ public class ProductOptionService {
 
         for (ProductOptionValueRequest valueRequest : valueRequests) {
             if (valueRequest.id() == null) {
+                if (existingValues.stream().anyMatch(value -> value.isArchived()
+                        && normalizeForComparison(value.getValue()).equals(normalizeForComparison(valueRequest.value())))) {
+                    throw new ProductException("보관된 동일 옵션 값이 있습니다. 보관 옵션 복원에서 기존 옵션을 복원해주세요.");
+                }
                 ProductOptionValue optionValue =
                         ProductOptionValue.create(
                                 optionGroup,
@@ -266,6 +331,11 @@ public class ProductOptionService {
                 );
             }
 
+            if (!optionValue.getValue().equals(valueRequest.value().trim())
+                    && productVariantOptionValueRepository.existsByOptionValueId(optionValue.getId())) {
+                throw new ProductException("SKU에 연결된 옵션 값은 이름을 변경할 수 없습니다. 실물 변경은 새 옵션 값으로 등록해주세요.");
+            }
+            optionValue.restore();
             optionValue.update(
                     valueRequest.value().trim(),
                     valueRequest.sortOrder()
@@ -279,9 +349,7 @@ public class ProductOptionService {
                 continue;
             }
 
-            validateOptionValueCanBeDeleted(existingValue);
-
-            productOptionValueRepository.delete(existingValue);
+            existingValue.archive();
         }
     }
 
@@ -300,24 +368,8 @@ public class ProductOptionService {
                                     existingGroup.getId()
                             );
 
-            for (ProductOptionValue optionValue : optionValues) {
-                validateOptionValueCanBeDeleted(optionValue);
-            }
-
-            productOptionValueRepository.deleteAll(optionValues);
-            productOptionGroupRepository.delete(existingGroup);
-        }
-    }
-
-    private void validateOptionValueCanBeDeleted(
-            ProductOptionValue optionValue
-    ) {
-        if (productVariantOptionValueRepository.existsByOptionValueId(
-                optionValue.getId()
-        )) {
-            throw new ProductException(
-                    "상품 옵션 조합에서 사용 중인 옵션 값은 삭제할 수 없습니다."
-            );
+            optionValues.forEach(ProductOptionValue::archive);
+            existingGroup.archive();
         }
     }
 

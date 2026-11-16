@@ -7,7 +7,12 @@ public record ProductStockUpdateRequest(
 
         @NotNull(message = "재고 수량을 입력해주세요.")
         @PositiveOrZero(message = "재고는 0개 이상이어야 합니다.")
-        Integer stockQuantity
+        Integer stockQuantity,
+
+        @NotNull(message = "최신 재고를 다시 조회해주세요.")
+        Long expectedVersion
 
 ) {
+    public ProductStockUpdateRequest(Integer stockQuantity) { this(stockQuantity, null); }
+
 }

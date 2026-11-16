@@ -37,6 +37,8 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class PaymentTransactionService {
 
+    private final com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
+
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -77,6 +79,8 @@ public class PaymentTransactionService {
             )) {
                 throw new PaymentException("결제 정보를 다시 확인해주세요.");
             }
+
+            inventoryPolicy.requirePayable(orderItemRepository.findAllByOrderIdOrderByIdAsc(order.getId()));
 
             payment.startConfirm(
                     request.providerPaymentKey(),

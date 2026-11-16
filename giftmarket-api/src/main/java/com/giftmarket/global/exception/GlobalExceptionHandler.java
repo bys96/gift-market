@@ -40,8 +40,41 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler({com.giftmarket.product.exception.ProductConflictException.class,
+            org.springframework.orm.ObjectOptimisticLockingFailureException.class,
+            jakarta.persistence.OptimisticLockException.class})
+    public ResponseEntity<ApiResponse<?>> handleProductConflict(Exception exception) {
+        String message = exception instanceof com.giftmarket.product.exception.ProductConflictException
+                ? exception.getMessage() : "상품 또는 재고가 변경되었습니다. 최신 값을 다시 조회한 후 저장해주세요.";
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.fail(message));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
+                    && violation.getConstraintName() != null
+                    && violation.getConstraintName().toLowerCase(java.util.Locale.ROOT)
+                            .contains("uk_product_variants_product_seller_sku")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponse.fail("비활성 옵션을 포함하여 동일 상품에서 이미 사용 중인 옵션 관리 코드입니다."));
+            }
+            cause = cause.getCause();
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.fail("데이터가 중복되거나 현재 상태와 충돌합니다. 새로고침 후 다시 시도해주세요."));
+    }
+
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<?>> handleInvalidRequestBody(org.springframework.http.converter.HttpMessageNotReadableException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof com.giftmarket.product.exception.ProductConflictException conflict) {
+                return handleProductConflict(conflict);
+            }
+            cause = cause.getCause();
+        }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail("요청 형식이 올바르지 않습니다. 금액과 수량은 정수로 입력해주세요."));
     }

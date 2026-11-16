@@ -43,6 +43,7 @@ class CartServiceAdminHiddenTest {
     @BeforeEach
     void setUp() {
         service = new CartService(
+                org.mockito.Mockito.mock(com.giftmarket.product.service.ProductInventoryPolicy.class),
                 cartItemRepository,
                 productRepository,
                 optionGroupRepository,

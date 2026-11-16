@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 
 @ExtendWith(MockitoExtension.class)
 class ProductVariantServiceTest {
+    @org.mockito.Mock com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
 
     @Mock ProductRepository productRepository;
     @Mock ProductOptionGroupRepository optionGroupRepository;
@@ -124,7 +125,7 @@ class ProductVariantServiceTest {
                         new ProductVariantRequest(6L, "SKU-30", List.of(5L), 500L, 7, true)
                 )));
 
-        verify(variant).update("SKU-30", "4:5", 500L, 7);
+        verify(variant).update("SKU-30", "4:5", 500L);
         verify(variant).activate();
         verify(product).changeStockQuantity(7);
         verify(variantRepository, never()).save(org.mockito.ArgumentMatchers.any(ProductVariant.class));

@@ -10,6 +10,8 @@ public class ProductOptionValueResponse {
 
     private Long id;
 
+    private boolean archived;
+
     private String value;
 
     private Integer sortOrder;
@@ -19,6 +21,7 @@ public class ProductOptionValueResponse {
     ) {
         return ProductOptionValueResponse.builder()
                 .id(optionValue.getId())
+                .archived(optionValue.isArchived())
                 .value(optionValue.getValue())
                 .sortOrder(optionValue.getSortOrder())
                 .build();

@@ -15,7 +15,11 @@ public class ProductVariantResponse {
 
     private Long id;
 
+    private Long version;
+
     private String skuCode;
+
+    private String sellerSkuCode;
 
     private String combinationKey;
 
@@ -24,6 +28,8 @@ public class ProductVariantResponse {
     private Integer stockQuantity;
 
     private boolean active;
+
+    private boolean mappingValid;
 
     private List<ProductVariantOptionValueResponse> optionValues;
 
@@ -50,7 +56,9 @@ public class ProductVariantResponse {
 
         return ProductVariantResponse.builder()
                 .id(variant.getId())
+                .version(variant.getVersion())
                 .skuCode(variant.getSkuCode())
+                .sellerSkuCode(variant.getSellerSkuCode())
                 .combinationKey(
                         variant.getCombinationKey()
                 )
@@ -61,6 +69,7 @@ public class ProductVariantResponse {
                         variant.getStockQuantity()
                 )
                 .active(variant.isActive())
+                .mappingValid(com.giftmarket.product.service.ProductVariantMapping.isValid(variant, variantOptionValues))
                 .optionValues(optionValues)
                 .build();
     }

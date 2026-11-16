@@ -200,7 +200,7 @@ class ClaimPendingQuantityRepositoryTest {
         ProductOptionGroup group = optionGroupRepository.save(ProductOptionGroup.create(product, "color", 1));
         ProductOptionValue value = optionValueRepository.save(ProductOptionValue.create(group, "red", 1));
         ProductVariant variant = variantRepository.save(ProductVariant.create(
-                product, "SKU-" + suffix, "color-red-" + suffix, ADDITIONAL_PRICE, STOCK
+                product, "SKU-" + suffix, group.getId() + ":" + value.getId(), ADDITIONAL_PRICE, STOCK
         ));
         variantOptionValueRepository.save(ProductVariantOptionValue.create(variant, value));
         product.startSale();
