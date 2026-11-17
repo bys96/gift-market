@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { addVariantSelection, changeSelectionQuantity, selectionTotal, type PurchaseSelection } from "@/lib/product-selection";
 import Modal from "@/components/common/modal/Modal";
 import WishlistHeartIcon from "@/components/product/WishlistHeartIcon";
 import { useAuthStore } from "@/stores/auth-store";
@@ -37,15 +38,13 @@ export default function ProductDetailActions({
 
   const [quantity, setQuantity] = useState(1);
 
-  const [selectedOptionValues, setSelectedOptionValues] = useState<
-    Record<number, number>
-  >({});
+  const [selections, setSelections] = useState<PurchaseSelection[]>([]);
 
   const [isAddingCart, setIsAddingCart] = useState(false);
   const [isBuyingNow, setIsBuyingNow] = useState(false);
   const [isCartPromptOpen, setIsCartPromptOpen] = useState(false);
 
-  const addCartItem = useCartStore((state) => state.addItem);
+  const addCartItems = useCartStore((state) => state.addItems);
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -55,59 +54,13 @@ export default function ProductDetailActions({
 
   const toggleWishlistItem = useWishlistStore((state) => state.toggleItem);
 
-  const selectedOptionValueIds = useMemo(
-    () => Object.values(selectedOptionValues),
-    [selectedOptionValues],
-  );
-
-  const selectedVariant = useMemo(() => {
-    if (!product.hasOptions) {
-      return null;
-    }
-
-    if (selectedOptionValueIds.length !== product.optionGroups.length) {
-      return null;
-    }
-
-    return (
-      product.variants.find((variant) => {
-        if (variant.optionValueIds.length !== selectedOptionValueIds.length) {
-          return false;
-        }
-
-        return selectedOptionValueIds.every((optionValueId) =>
-          variant.optionValueIds.includes(optionValueId),
-        );
-      }) ?? null
-    );
-  }, [
-    product.hasOptions,
-    product.optionGroups.length,
-    product.variants,
-    selectedOptionValueIds,
-  ]);
-
-  const currentPrice = selectedVariant?.price ?? product.price;
-
-  const currentStockQuantity = product.hasOptions
-    ? (selectedVariant?.stockQuantity ?? 0)
-    : product.stockQuantity;
-
-  const isVariantSelectionComplete =
-    !product.hasOptions ||
-    selectedOptionValueIds.length === product.optionGroups.length;
-
-  const isSelectedVariantUnavailable =
-    product.hasOptions &&
-    isVariantSelectionComplete &&
-    (!selectedVariant || !selectedVariant.available);
-
+  const currentStockQuantity = product.stockQuantity;
   const isWishlisted =
     isAuthenticated && wishlistItems.some((item) => item.id === product.id);
 
   const totalPrice = useMemo(
-    () => currentPrice * quantity,
-    [currentPrice, quantity],
+    () => product.hasOptions ? selectionTotal(selections, product.variants) : product.price * quantity,
+    [product.hasOptions, product.variants, product.price, selections, quantity],
   );
 
   const getVariantOptionLabel = (variant: ProductDetailVariant) =>
@@ -139,29 +92,8 @@ export default function ProductDetailActions({
   };
 
   const handleVariantSelect = (variantId: number | null) => {
-    setQuantity(1);
-    const variant = product.variants.find((item) => item.id === variantId);
-
-    if (!variant) {
-      setSelectedOptionValues({});
-      return;
-    }
-
-    const nextSelectedOptionValues = product.optionGroups.reduce<
-      Record<number, number>
-    >((selectedValues, optionGroup) => {
-      const selectedValue = optionGroup.values.find((optionValue) =>
-        variant.optionValueIds.includes(optionValue.id),
-      );
-
-      if (selectedValue) {
-        selectedValues[optionGroup.id] = selectedValue.id;
-      }
-
-      return selectedValues;
-    }, {});
-
-    setSelectedOptionValues(nextSelectedOptionValues);
+    const variant = product.variants.find(item => item.id === variantId);
+    if (variant) setSelections(current => addVariantSelection(current, variant));
   };
 
   const decreaseQuantity = () => {
@@ -193,24 +125,15 @@ export default function ProductDetailActions({
 
   const validateVariantSelection = () => {
     if (!product.hasOptions) {
-      return true;
-    }
-
-    if (!isVariantSelectionComplete) {
-      alert("상품 옵션을 모두 선택해주세요.");
+      if (quantity > 0 && quantity <= product.stockQuantity) return true;
+      alert("상품 재고가 변경되었습니다. 구매 수량을 다시 확인해주세요.");
       return false;
     }
-
-    if (!selectedVariant) {
-      alert("선택할 수 없는 옵션 조합입니다.");
-      return false;
-    }
-
-    if (!selectedVariant.available) {
-      alert("선택한 상품 옵션은 품절되었습니다.");
-      return false;
-    }
-
+    if (!selections.length) { alert("상품 옵션을 선택해주세요."); return false; }
+    if (selections.some(item => {
+      const variant = product.variants.find(v => v.id === item.variantId);
+      return !variant?.available || item.quantity > variant.stockQuantity;
+    })) { alert("옵션 상태 또는 재고가 변경되었습니다. 다시 확인해주세요."); return false; }
     return true;
   };
 
@@ -231,11 +154,10 @@ export default function ProductDetailActions({
     try {
       setIsAddingCart(true);
 
-      await addCartItem({
-        productId: product.id,
-        variantId: selectedVariant?.id ?? null,
-        quantity,
-      });
+      await addCartItems((product.hasOptions ? selections : [{ variantId: null, quantity }])
+        .map(item => ({ productId: product.id, ...item,
+          expectedUnitPrice: product.variants.find(v => v.id === item.variantId)?.price ?? product.price,
+        })));
 
       setIsCartPromptOpen(true);
     } catch (error) {
@@ -266,14 +188,9 @@ export default function ProductDetailActions({
     try {
       setIsBuyingNow(true);
 
-      const params = new URLSearchParams({
-        productId: String(product.id),
-        quantity: String(quantity),
-      });
-
-      if (selectedVariant) {
-        params.set("variantId", String(selectedVariant.id));
-      }
+      const params = new URLSearchParams({ productId: String(product.id) });
+      if (product.hasOptions) params.set("items", JSON.stringify(selections));
+      else params.set("quantity", String(quantity));
 
       router.push(`/order?${params.toString()}`);
     } finally {
@@ -285,7 +202,7 @@ export default function ProductDetailActions({
     isAddingCart ||
     isBuyingNow ||
     (!product.hasOptions && product.stockQuantity <= 0) ||
-    isSelectedVariantUnavailable;
+    (product.hasOptions && selections.length === 0);
 
   return (
     <div className="product-detail-purchase">
@@ -302,7 +219,8 @@ export default function ProductDetailActions({
             <select
               id="product-variant-select"
               className="product-detail-option-select"
-              value={selectedVariant?.id ?? ""}
+              value=""
+              disabled={isAddingCart || isBuyingNow}
               onChange={(event) =>
                 handleVariantSelect(
                   event.target.value ? Number(event.target.value) : null,
@@ -315,7 +233,7 @@ export default function ProductDetailActions({
                 <option
                   key={variant.id}
                   value={variant.id}
-                  disabled={!variant.available}
+                  disabled={!variant.available || variant.stockQuantity <= 0}
                 >
                   {getVariantOptionLabel(variant)}
                   {getAdditionalPriceLabel(variant.additionalPrice)}
@@ -325,28 +243,44 @@ export default function ProductDetailActions({
             </select>
           </div>
 
-          {isVariantSelectionComplete && selectedVariant && (
-            <div className="product-detail-selected-variant">
-              <span>선택 상품</span>
-
-              <strong>{currentPrice.toLocaleString("ko-KR")}원</strong>
-            </div>
-          )}
+          <div className="product-detail-selection-list" aria-live="polite">
+            {selections.map(item => {
+              const variant = product.variants.find(v => v.id === item.variantId)!;
+              const label = getVariantOptionLabel(variant);
+              const busy = isAddingCart || isBuyingNow;
+              return (
+                <div className="product-detail-selection-card" key={variant.id}>
+                  <div className="product-detail-selection-heading">
+                    <div><strong>{label}</strong><p>개당 {variant.price.toLocaleString("ko-KR")}원</p></div>
+                    <button type="button" className="product-detail-selection-remove" aria-label={label + " 삭제"}
+                      disabled={busy} onClick={() => setSelections(current => current.filter(v => v.variantId !== variant.id))}>×</button>
+                  </div>
+                  <div className="product-detail-selection-bottom">
+                    <div className="product-detail-quantity-control" aria-label={label + " 수량"}>
+                      <button type="button" className="product-detail-quantity-button" aria-label={label + " 수량 줄이기"}
+                        disabled={busy || item.quantity <= 1} onClick={() => setSelections(current => changeSelectionQuantity(current, variant.id, -1, variant.stockQuantity))}>−</button>
+                      <span className="product-detail-quantity-value">{item.quantity}</span>
+                      <button type="button" className="product-detail-quantity-button" aria-label={label + " 수량 늘리기"}
+                        disabled={busy || item.quantity >= variant.stockQuantity} onClick={() => setSelections(current => changeSelectionQuantity(current, variant.id, 1, variant.stockQuantity))}>+</button>
+                    </div>
+                    <strong>{(variant.price * item.quantity).toLocaleString("ko-KR")}원</strong>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
+      {!product.hasOptions && (
       <div className="product-detail-quantity-section">
         <div>
           <strong className="product-detail-quantity-title">구매 수량</strong>
 
           <p className="product-detail-quantity-stock">
-            {product.hasOptions && !isVariantSelectionComplete
-              ? "옵션을 선택하면 재고를 확인할 수 있습니다."
-              : product.hasOptions
-                ? "선택한 옵션의 구매 수량을 정해주세요."
-                : currentStockQuantity > 0
-                ? `현재 재고 ${currentStockQuantity.toLocaleString("ko-KR")}개`
-                : "현재 품절된 상품입니다."}
+            {currentStockQuantity > 0
+              ? `현재 재고 ${currentStockQuantity.toLocaleString("ko-KR")}개`
+              : "현재 품절된 상품입니다."}
           </p>
         </div>
 
@@ -359,7 +293,7 @@ export default function ProductDetailActions({
             className="product-detail-quantity-button"
             aria-label="수량 줄이기"
             disabled={
-              isActionDisabled || !isVariantSelectionComplete || quantity <= 1
+              isActionDisabled || quantity <= 1
             }
             onClick={decreaseQuantity}
           >
@@ -376,7 +310,6 @@ export default function ProductDetailActions({
             aria-label="수량 늘리기"
             disabled={
               isActionDisabled ||
-              !isVariantSelectionComplete ||
               currentStockQuantity <= 0 ||
               quantity >= currentStockQuantity
             }
@@ -386,6 +319,8 @@ export default function ProductDetailActions({
           </button>
         </div>
       </div>
+
+      )}
 
       <div className="product-detail-total">
         <span>총 상품 금액</span>

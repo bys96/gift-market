@@ -55,66 +55,89 @@ public class CartService {
             Long userId,
             CartItemCreateRequest request
     ) {
-        User user = getAuthenticatedUser(userId);
+        return addCartItems(userId, List.of(request));
+    }
 
-        Product product =
-                getAvailableProduct(request.productId());
+    @Transactional
+    public CartResponse addCartItems(Long userId, List<CartItemCreateRequest> requests) {
+        validateAuthentication(userId);
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new AuthenticationException("사용자 정보를 찾을 수 없습니다."));
+        if (requests == null || requests.isEmpty() || requests.size() > 100) {
+            throw new CartException("담을 상품을 다시 확인해주세요.");
+        }
+        return addCartItemsForUser(user, userId, requests);
+    }
 
-        boolean hasOptions =
-                hasProductOptions(product.getId());
+    private CartResponse addCartItemsForUser(User user, Long userId, List<CartItemCreateRequest> requests) {
+        for (CartItemCreateRequest request : requests) {
 
-        ProductVariant variant =
-                resolveVariant(
-                        product,
-                        request.variantId(),
-                        hasOptions
-                );
+            Product product =
+                    getAvailableProduct(request.productId());
 
-        int stockQuantity =
-                getStockQuantity(
-                        product,
-                        variant
-                );
+            boolean hasOptions =
+                    hasProductOptions(product.getId());
 
-        validateQuantity(
-                request.quantity(),
-                stockQuantity
-        );
+            ProductVariant variant =
+                    resolveVariant(
+                            product,
+                            request.variantId(),
+                            hasOptions
+                    );
 
-        Optional<CartItem> existingCartItem =
-                findExistingCartItem(
-                        user.getId(),
-                        product.getId(),
-                        variant
-                );
+            long unitPrice = com.giftmarket.global.util.MoneyLimits.unitPrice(
+                    product.getPrice(), variant == null ? 0L : variant.getAdditionalPrice());
+            if (request.expectedUnitPrice() != null && request.expectedUnitPrice() != unitPrice) {
+                throw new CartException("상품 가격이 변경되었습니다. 상품 정보를 새로고침한 뒤 다시 담아주세요.");
+            }
 
-        if (existingCartItem.isPresent()) {
-            CartItem cartItem =
-                    existingCartItem.get();
-
-            int nextQuantity =
-                    cartItem.getQuantity()
-                            + request.quantity();
+            int stockQuantity =
+                    getStockQuantity(
+                            product,
+                            variant
+                    );
 
             validateQuantity(
-                    nextQuantity,
+                    request.quantity(),
                     stockQuantity
             );
 
-            cartItem.increaseQuantity(
-                    request.quantity()
-            );
-        } else {
-            cartItemRepository.save(
-                    CartItem.create(
-                            user,
-                            product,
-                            variant,
-                            request.quantity()
-                    )
-            );
-        }
+            Optional<CartItem> existingCartItem =
+                    findExistingCartItem(
+                            user.getId(),
+                            product.getId(),
+                            variant
+                    );
 
+            if (existingCartItem.isPresent()) {
+                CartItem cartItem =
+                        existingCartItem.get();
+
+                if (request.quantity() > stockQuantity - cartItem.getQuantity()) {
+                    throw new CartException("기존 장바구니 수량을 포함하면 구매 가능한 재고를 초과합니다.");
+                }
+                int nextQuantity = cartItem.getQuantity() + request.quantity();
+
+                validateQuantity(
+                        nextQuantity,
+                        stockQuantity
+                );
+
+                cartItem.increaseQuantity(
+                        request.quantity()
+                );
+            } else {
+                cartItemRepository.save(
+                        CartItem.create(
+                                user,
+                                product,
+                                variant,
+                                request.quantity()
+                        )
+                );
+            }
+
+        }
         return getCart(userId);
     }
 
@@ -389,20 +412,6 @@ public class CartService {
         }
 
         return result;
-    }
-
-    private User getAuthenticatedUser(
-            Long userId
-    ) {
-        validateAuthentication(userId);
-
-        return userRepository
-                .findById(userId)
-                .orElseThrow(() ->
-                        new AuthenticationException(
-                                "사용자 정보를 찾을 수 없습니다."
-                        )
-                );
     }
 
     private void validateAuthentication(

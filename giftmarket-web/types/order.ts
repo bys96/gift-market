@@ -177,8 +177,9 @@ export interface OrderCancelResponse {
 export interface DirectOrderCreateRequest {
   clientOrderRequestKey: string;
   productId: number;
-  variantId: number | null;
-  quantity: number;
+  variantId?: number | null;
+  quantity?: number;
+  items?: Array<{ variantId: number | null; quantity: number }>;
   recipientName: string;
   recipientPhone: string;
   postalCode: string;

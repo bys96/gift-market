@@ -52,6 +52,7 @@ export interface CartItemCreateRequest {
   productId: number;
   variantId: number | null;
   quantity: number;
+  expectedUnitPrice?: number;
 }
 
 export interface CartItemQuantityUpdateRequest {

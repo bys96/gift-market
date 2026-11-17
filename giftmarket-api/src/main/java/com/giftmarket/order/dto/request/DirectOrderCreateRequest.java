@@ -22,7 +22,6 @@ public record DirectOrderCreateRequest(
         @Positive(message = "올바르지 않은 상품 옵션 번호입니다.")
         Long variantId,
 
-        @NotNull(message = "구매 수량을 다시 확인해주세요.")
         @Positive(message = "구매 수량을 다시 확인해주세요.")
         Integer quantity,
 
@@ -46,7 +45,30 @@ public record DirectOrderCreateRequest(
         String address,
 
         @Size(max = 500, message = "상세주소는 500자 이하입니다.")
-        String addressDetail
+        String addressDetail,
+
+        @jakarta.validation.Valid
+        @Size(min = 1, max = 100)
+        java.util.List<@NotNull DirectOrderItemRequest> items
 
 ) {
+    public DirectOrderCreateRequest(String clientOrderRequestKey, Long productId, Long variantId,
+            Integer quantity, String recipientName, String recipientPhone, String postalCode,
+            String address, String addressDetail) {
+        this(clientOrderRequestKey, productId, variantId, quantity, recipientName, recipientPhone,
+                postalCode, address, addressDetail, null);
+    }
+
+    @jakarta.validation.constraints.AssertTrue(message = "구매 항목 목록 또는 단일 구매 수량을 지정해주세요.")
+    public boolean isValidSelection() {
+        return items == null ? quantity != null && quantity > 0
+                : !items.isEmpty() && quantity == null && variantId == null;
+    }
+
+    public java.util.List<DirectOrderItemRequest> selectedItems() {
+        if (!isValidSelection()) {
+            throw new com.giftmarket.order.exception.OrderException("구매 항목을 다시 확인해주세요.");
+        }
+        return items == null ? java.util.List.of(new DirectOrderItemRequest(variantId, quantity)) : items;
+    }
 }

@@ -103,3 +103,13 @@ export async function clearCart(): Promise<void> {
     throw new Error(result.message || "장바구니를 비우지 못했습니다.");
   }
 }
+
+export async function addCartItems(items: CartItemCreateRequest[]): Promise<Cart> {
+  const result = await apiFetch<ApiResponse<Cart>>("/api/cart/items/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (!result.success || !result.data) throw new Error(result.message || "장바구니에 상품을 담지 못했습니다.");
+  return result.data;
+}

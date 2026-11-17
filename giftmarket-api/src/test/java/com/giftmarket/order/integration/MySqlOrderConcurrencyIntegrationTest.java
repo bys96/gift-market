@@ -1542,6 +1542,45 @@ class MySqlOrderConcurrencyIntegrationTest {
         });
     }
 
+    @Test
+    void concurrentMultiOptionDirectOrdersCannotOversellEitherVariant() throws Exception {
+        Fixture f = fixture();
+        List<Long> variantIds = transactions.execute(status -> {
+            var product = products.findById(f.productId()).orElseThrow();
+            var group = com.giftmarket.product.entity.ProductOptionGroup.create(product, "크기", 0);
+            entityManager.persist(group);
+            List<Long> ids = new ArrayList<>();
+            for (String label : List.of("소형", "대형")) {
+                var value = com.giftmarket.product.entity.ProductOptionValue.create(group, label, ids.size());
+                entityManager.persist(value);
+                var variant = com.giftmarket.product.entity.ProductVariant.create(product, label,
+                        group.getId() + ":" + value.getId(), 0L, 2);
+                entityManager.persist(variant);
+                entityManager.persist(com.giftmarket.product.entity.ProductVariantOptionValue.create(variant, value));
+                ids.add(variant.getId());
+            }
+            product.changeStockQuantity(4);
+            return ids;
+        });
+        var items = variantIds.stream().map(id -> new com.giftmarket.order.dto.request.DirectOrderItemRequest(id, 2)).toList();
+        var first = new DirectOrderCreateRequest(UUID.randomUUID().toString(), f.productId(), null, null,
+                "구매자", "010-1234-5678", "12345", "서울", null, items);
+        var second = new DirectOrderCreateRequest(UUID.randomUUID().toString(), f.productId(), null, null,
+                "구매자", "010-1234-5678", "12345", "서울", null, items.reversed());
+        var results = concurrently(() -> orderService.createDirectOrder(f.buyer1(), first),
+                () -> orderService.createDirectOrder(f.buyer2(), second));
+        assertThat(results.stream().filter(OrderCreateResponse.class::isInstance)).hasSize(1);
+        assertThat(results.stream().filter(OrderException.class::isInstance)).hasSize(1);
+        transactions.executeWithoutResult(status -> {
+            for (Long id : variantIds) {
+                assertThat(entityManager.find(com.giftmarket.product.entity.ProductVariant.class, id).getStockQuantity()).isZero();
+            }
+            assertThat(products.findById(f.productId()).orElseThrow().getStockQuantity()).isZero();
+            var winner = (OrderCreateResponse) results.stream().filter(OrderCreateResponse.class::isInstance).findFirst().orElseThrow();
+            assertThat(orderItems.findAllByOrderIdOrderByIdAsc(winner.orderId())).hasSize(2);
+        });
+    }
+
     private DirectOrderCreateRequest request(Long productId) {
         return new DirectOrderCreateRequest(UUID.randomUUID().toString(), productId, null, 1,
                 "구매자", "010-1234-5678", "12345", "서울", null);

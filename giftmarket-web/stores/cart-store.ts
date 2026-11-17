@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import {
   addCartItem,
+  addCartItems,
   clearCart as clearCartApi,
   deleteCartItem,
   deleteCartItems,
@@ -25,6 +26,7 @@ interface CartState {
   loadCart: () => Promise<void>;
 
   addItem: (item: CartItemCreateRequest) => Promise<void>;
+  addItems: (items: CartItemCreateRequest[]) => Promise<void>;
 
   removeItem: (cartItemId: number) => Promise<void>;
 
@@ -105,6 +107,37 @@ export const useCartStore = create<CartState>((set, get) => ({
       });
 
       const cart = await addCartItem(item);
+
+      set({
+        ...createCartState(cart),
+        initialized: true,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "장바구니에 상품을 담지 못했습니다.";
+
+      set({
+        errorMessage: message,
+      });
+
+      throw error;
+    } finally {
+      set({
+        isLoading: false,
+      });
+    }
+  },
+
+  addItems: async (items) => {
+    try {
+      set({
+        isLoading: true,
+        errorMessage: "",
+      });
+
+      const cart = await addCartItems(items);
 
       set({
         ...createCartState(cart),

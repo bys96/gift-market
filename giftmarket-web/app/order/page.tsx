@@ -36,6 +36,7 @@ import type {
 } from "@/types/order";
 import type { ProductDetail } from "@/types/product";
 import type { PaymentSession } from "@/types/payment";
+import { isDirectPurchaseUnavailable, parsePurchaseSelections } from "@/lib/product-selection";
 import { calculateCheckoutAmounts } from "@/lib/money";
 
 interface RecipientForm {
@@ -242,6 +243,10 @@ function OrderContent() {
     () => parsePositiveInteger(searchParams.get("quantity")),
     [searchParams],
   );
+  const directSelections = useMemo(() => searchParams.has("items")
+    ? parsePurchaseSelections(searchParams.get("items"))
+    : directQuantity ? [{ variantId: directVariantId, quantity: directQuantity }] : [],
+    [searchParams, directVariantId, directQuantity]);
   const isDirectOrder = directProductId !== null;
   const checkoutPaymentId = parsePositiveInteger(searchParams.get("paymentId"));
 
@@ -402,46 +407,28 @@ function OrderContent() {
     [items, requestedCartItemIds],
   );
 
-  const directVariant = useMemo(
-    () =>
-      directProduct?.variants.find(
-        (variant) => variant.id === directVariantId,
-      ) ?? null,
-    [directProduct, directVariantId],
-  );
-
   const orderItems = useMemo<OrderProductItem[]>(() => {
     if (isDirectOrder) {
-      if (!directProduct || !directQuantity) return [];
-
-      const optionText = directVariant
-        ? directProduct.optionGroups
-            .map((group) => {
-              const value = group.values.find((optionValue) =>
-                directVariant.optionValueIds.includes(optionValue.id),
-              );
-              return value ? `${group.name}: ${value.value}` : null;
-            })
-            .filter((value): value is string => value !== null)
-            .join(" / ")
-        : null;
-
-      return [
-        {
-          key: `direct-${directProduct.id}-${directVariantId ?? "none"}`,
+      if (!directProduct) return [];
+      return directSelections.map(selection => {
+        const variant = directProduct.variants.find(v => v.id === selection.variantId);
+        const optionText = variant ? directProduct.optionGroups.map(group => {
+          const value = group.values.find(v => variant.optionValueIds.includes(v.id));
+          return value ? group.name + ": " + value.value : null;
+        }).filter(Boolean).join(" / ") : null;
+        return {
+          key: "direct-" + directProduct.id + "-" + (selection.variantId ?? "none"),
           productName: directProduct.name,
           brandName: directProduct.brandName,
           storeName: directProduct.storeName,
           representativeImageKey: directProduct.representativeImageKey,
           optionText,
-          quantity: directQuantity,
-          price: directVariant?.price ?? directProduct.price,
+          quantity: selection.quantity,
+          price: variant?.price ?? directProduct.price,
           freeShipping: directProduct.freeShipping,
-          shippingFee: directProduct.freeShipping
-            ? 0
-            : directProduct.shippingFee,
-        },
-      ];
+          shippingFee: directProduct.freeShipping ? 0 : directProduct.shippingFee,
+        };
+      });
     }
 
     return cartOrderItems.map((item) => ({
@@ -464,7 +451,7 @@ function OrderContent() {
       freeShipping: item.freeShipping,
       shippingFee: item.shippingFee,
     }));
-  }, [isDirectOrder, directProduct, directQuantity, directVariant, directVariantId, cartOrderItems]);
+  }, [isDirectOrder, directProduct, directSelections, cartOrderItems]);
 
   /*
    * URL로 요청한 CartItem 중 하나라도
@@ -478,19 +465,10 @@ function OrderContent() {
       cartOrderItems.length !== requestedCartItemIds.length ||
       cartOrderItems.some((item) => !item.purchasable));
 
-  const hasInvalidDirectOrder =
-    isDirectOrder &&
-    !isDirectProductLoading &&
-    (!directProduct ||
-      !directQuantity ||
-      directProduct.status !== "ON_SALE" ||
-      (directProduct.hasOptions &&
-        (!directVariantId || !directVariant || !directVariant.available)) ||
-      (!directProduct.hasOptions && directVariantId !== null) ||
-      directQuantity >
-        (directProduct.hasOptions
-          ? (directVariant?.stockQuantity ?? 0)
-          : directProduct.stockQuantity));
+  // A verified READY order already owns its reservation, which may have sold out the product.
+  const hasReservedDirectStock = preparedOrder !== null && verifiedPaymentId === preparedOrder.paymentId;
+  const hasInvalidDirectOrder = isDirectOrder && !isDirectProductLoading &&
+    isDirectPurchaseUnavailable(directProduct, directSelections, hasReservedDirectStock);
 
   const { productAmount, shippingFee, totalAmount, moneyError } = useMemo(() => {
     try {
@@ -643,14 +621,11 @@ function OrderContent() {
       if (moneyError) throw new Error(moneyError);
 
       const expectedItems = isDirectOrder
-        ? [
-            {
-              productId: directProductId,
-              variantId: directVariantId,
-              quantity: directQuantity!,
-              unitPrice: directVariant?.price ?? directProduct!.price,
-            },
-          ]
+        ? directSelections.map(selection => ({
+            productId: directProductId!,
+            ...selection,
+            unitPrice: directProduct!.variants.find(v => v.id === selection.variantId)?.price ?? directProduct!.price,
+          }))
         : cartOrderItems.map((item) => ({
             productId: item.productId,
             variantId: item.variantId,
@@ -750,8 +725,7 @@ function OrderContent() {
         mode: isDirectOrder ? "direct" : "cart",
         cartItemIds: isDirectOrder ? null : requestedCartItemIds,
         productId: isDirectOrder ? directProductId : null,
-        variantId: isDirectOrder ? directVariantId : null,
-        quantity: isDirectOrder ? directQuantity : null,
+        items: isDirectOrder ? directSelections : null,
       });
       const deliveryFingerprint = JSON.stringify(delivery);
 
@@ -777,8 +751,7 @@ function OrderContent() {
         ? await createDirectOrder({
             clientOrderRequestKey,
             productId: directProductId,
-            variantId: directVariantId,
-            quantity: directQuantity!,
+            items: directSelections,
             ...delivery,
           })
         : await createOrder({

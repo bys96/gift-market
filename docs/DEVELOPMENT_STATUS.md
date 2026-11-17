@@ -2,6 +2,15 @@
 
 > 이 문서는 현재 Backend, Frontend, 설정과 수동 SQL을 기준으로 한 구현 상태다. 문서와 코드가 충돌하면 코드가 최종 기준이다. 향후 작업은 [`ROADMAP.md`](./ROADMAP.md)에서 관리한다.
 
+## 상품 상세 다중 옵션 구매 (2026-11-17)
+
+- 드롭다운에서 선택한 Variant별 구매 카드를 추가한다. 동일 Variant 재선택은 수량을 병합하며, 옵션별 재고 상한·증감·삭제·단가/합계를 표시한다. 무옵션 상품의 단일 수량 UI와 모바일 CSS를 유지한다.
+- `POST /api/cart/items/bulk`를 추가했다. 요청은 `{ items: [{ productId, variantId, quantity, expectedUnitPrice? }] }`이며 최대 100개다. 기존 장바구니 수량과 병합하고 한 항목이라도 실패하면 기존 수량 변경/신규 행 모두 rollback한다. 단일 담기도 같은 사용자 잠금을 사용해 담기 요청끼리 중복 행/갱신 유실을 방지한다. 가격 비교값은 검증용이며 서버 가격이 최종 기준이다.
+- `POST /api/orders/direct`는 기존 단일 `variantId`/`quantity` 요청과 새 `items: [{ variantId, quantity }]` 요청을 지원한다. 목록 방식에서는 상위 `variantId`/`quantity`를 함께 보내지 않는다. 상품 하나의 옵션 목록을 최대 100개 처리하며 중복 Variant는 거부한다. 무옵션 목록 항목은 `variantId: null`이다.
+- 바로구매는 장바구니를 변경하지 않고 옵션별 OrderItem을 생성한다. 서버 금액 계산, Product → Variant ID 순 잠금, 예약 차감, 기존 결제/취소/복원 primitive를 유지한다. 기존 정책대로 배송비는 각 구매 항목별로 합산한다. Variant ID·시스템 SKU·ERD·DB schema 변경은 없다.
+- 주문서는 모든 선택 항목을 표시하고 서버 주문 snapshot/합계와 비교한 뒤 결제를 시작한다. 확인된 READY 주문은 본인의 예약 때문에 재고가 0이 된 경우에도 재개할 수 있다. 옵션 보관/판매 중지는 기존 서버 결제 검증을 따른다.
+- 검증 결과와 변경 파일 전체는 [구현 보고서](./MULTI_OPTION_PURCHASE.md)에 기록한다. 실제 Toss·운영 DB 및 브라우저 실결제 E2E는 수행하지 않았다.
+
 ## SKU 2차 감사 보완 — 재고 소유권 고정
 
 - 일반 상품 Product / 옵션 상품 Variant 재고 소유권을 고정했다. Variant 생성 이후 전체 보관은 판매 중지이며 일반 상품으로 전환하지 않는다. 기존 상품 관리 방식 변경은 409다. 최초 등록·초기 재고 입력은 유지한다.

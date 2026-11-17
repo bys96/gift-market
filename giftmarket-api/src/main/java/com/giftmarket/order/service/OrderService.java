@@ -320,85 +320,104 @@ public class OrderService {
 
         boolean hasOptions = hasProductOptions(product.getId());
 
-        if (hasOptions && request.variantId() == null) {
-            throw new OrderException("상품 옵션을 선택해주세요.");
+        var selections = request.selectedItems();
+        if (selections.size() > 100 || selections.stream().anyMatch(item -> item == null
+                || item.quantity() == null || item.quantity() <= 0)) {
+            throw new OrderException("구매 수량을 다시 확인해주세요.");
         }
-
-        if (!hasOptions && request.variantId() != null) {
-            throw new OrderException("옵션이 없는 상품에는 상품 옵션을 지정할 수 없습니다.");
+        if (selections.stream().map(com.giftmarket.order.dto.request.DirectOrderItemRequest::variantId)
+                .distinct().count() != selections.size()) {
+            throw new OrderException("동일 옵션은 수량을 합쳐서 요청해주세요.");
         }
+        List<PreparedOrderItem> preparedItems = new ArrayList<>();
+        for (var selection : selections.stream().sorted(Comparator.comparing(
+                item -> item.variantId() == null ? Long.MIN_VALUE : item.variantId())).toList()) {
+            if (hasOptions && selection.variantId() == null) {
+                throw new OrderException("상품 옵션을 선택해주세요.");
+            }
 
-        ProductVariant variant = null;
+            if (!hasOptions && selection.variantId() != null) {
+                throw new OrderException("옵션이 없는 상품에는 상품 옵션을 지정할 수 없습니다.");
+            }
 
-        if (request.variantId() != null) {
-            variant = getLockedDirectVariant(
-                    request.variantId(),
-                    product.getId()
-            );
+            ProductVariant variant = null;
 
-            validateVariantPurchasable(
-                    variant,
-                    request.quantity(),
-                    true
-            );
-
-        } else {
-            validateProductStock(
-                    product,
-                    request.quantity(),
-                    true
-            );
-
-        }
-
-        inventoryPolicy.requirePurchasable(product, variant);
-
-        long additionalPrice =
-                variant == null
-                        ? 0L
-                        : variant.getAdditionalPrice();
-
-        String optionSnapshot =
-                variant == null
-                        ? null
-                        : createOptionSnapshot(variant.getId());
-
-        Seller seller = product.getSeller();
-        validateMoneySnapshot(product);
-        long unitPrice = MoneyLimits.unitPrice(product.getPrice(), additionalPrice);
-        long totalPrice = MoneyMath.lineTotal(unitPrice, request.quantity());
-
-        PreparedOrderItem preparedItem =
-                new PreparedOrderItem(
-                        product,
-                        variant,
-                        seller,
-                        null,
-                        product.getName(),
-                        product.getBrandName(),
-                        seller.getStoreName(),
-                        product.getRepresentativeImageKey(),
-                        optionSnapshot,
-                        product.getPrice(),
-                        additionalPrice,
-                        unitPrice,
-                        request.quantity(),
-                        totalPrice,
-                        product.isFreeShipping(),
-                        product.isFreeShipping()
-                                ? 0L
-                                : product.getShippingFee(),
-                        product.getReturnShippingFee(),
-                        product.getExchangeShippingFee()
+            if (selection.variantId() != null) {
+                variant = getLockedDirectVariant(
+                        selection.variantId(),
+                        product.getId()
                 );
 
-        MoneyLimits.price(MoneyMath.add(preparedItem.totalPrice(), preparedItem.shippingFee()));
+                validateVariantPurchasable(
+                        variant,
+                        selection.quantity(),
+                        true
+                );
+
+            } else {
+                validateProductStock(
+                        product,
+                        selection.quantity(),
+                        true
+                );
+
+            }
+
+            inventoryPolicy.requirePurchasable(product, variant);
+
+            long additionalPrice =
+                    variant == null
+                            ? 0L
+                            : variant.getAdditionalPrice();
+
+            String optionSnapshot =
+                    variant == null
+                            ? null
+                            : createOptionSnapshot(variant.getId());
+
+            Seller seller = product.getSeller();
+            validateMoneySnapshot(product);
+            long unitPrice = MoneyLimits.unitPrice(product.getPrice(), additionalPrice);
+            long totalPrice = MoneyMath.lineTotal(unitPrice, selection.quantity());
+
+            PreparedOrderItem preparedItem =
+                    new PreparedOrderItem(
+                            product,
+                            variant,
+                            seller,
+                            null,
+                            product.getName(),
+                            product.getBrandName(),
+                            seller.getStoreName(),
+                            product.getRepresentativeImageKey(),
+                            optionSnapshot,
+                            product.getPrice(),
+                            additionalPrice,
+                            unitPrice,
+                            selection.quantity(),
+                            totalPrice,
+                            product.isFreeShipping(),
+                            product.isFreeShipping()
+                                    ? 0L
+                                    : product.getShippingFee(),
+                            product.getReturnShippingFee(),
+                            product.getExchangeShippingFee()
+                    );
+
+            preparedItems.add(preparedItem);
+        }
+
+        long totalProductAmount = preparedItems.stream().mapToLong(PreparedOrderItem::totalPrice)
+                .reduce(0L, MoneyMath::add);
+        long totalShippingFee = preparedItems.stream().mapToLong(PreparedOrderItem::shippingFee)
+                .reduce(0L, MoneyMath::add);
+        MoneyLimits.price(MoneyMath.add(totalProductAmount, totalShippingFee));
         Order order =
                 Order.createPendingPayment(
                         generateOrderNumber(),
                         user,
-                        preparedItem.totalPrice(),
-                        preparedItem.shippingFee(),
+                        totalProductAmount,
+                        totalShippingFee,
                         request.recipientName().trim(),
                         request.recipientPhone().trim(),
                         request.postalCode().trim(),
@@ -406,22 +425,19 @@ public class OrderService {
                         normalizeNullableText(request.addressDetail())
                 );
 
-        reservePreparedStock(List.of(preparedItem));
+        reservePreparedStock(preparedItems);
         orderRepository.save(order);
         Map<Long, SellerOrder> sellerOrders =
                 sellerOrderLifecycleService.createPendingPayment(
                         order,
-                        List.of(preparedItem.seller())
+                        List.of(product.getSeller())
                 );
-        orderItemRepository.save(
-                createOrderItem(
-                        order,
-                        preparedItem,
-                        sellerOrders.get(preparedItem.seller().getId())
-                )
-        );
+        for (PreparedOrderItem preparedItem : preparedItems) {
+            orderItemRepository.save(createOrderItem(order, preparedItem,
+                    sellerOrders.get(preparedItem.seller().getId())));
+        }
 
-        if (variant != null) {
+        if (hasOptions) {
             synchronizeVariantProductStock(
                     product,
                     product.getId()
@@ -431,7 +447,7 @@ public class OrderService {
         return createPaymentPreparation(
                 order,
                 request.clientOrderRequestKey(),
-                preparedItem.productName()
+                createOrderNameFromPreparedItems(preparedItems)
         );
     }
 

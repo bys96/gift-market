@@ -55,7 +55,7 @@ class CartServiceAdminHiddenTest {
 
     @Test
     void cannotAddAdminHiddenProduct() {
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(productRepository.findById(10L)).willReturn(Optional.of(product));
         given(product.isDeleted()).willReturn(false);
         given(product.isAdminHidden()).willReturn(true);
@@ -70,7 +70,7 @@ class CartServiceAdminHiddenTest {
 
     @Test
     void cannotAddSalesSuspendedSellerProduct() {
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(productRepository.findById(10L)).willReturn(Optional.of(product));
         given(product.isDeleted()).willReturn(false);
         given(product.isAdminHidden()).willReturn(false);

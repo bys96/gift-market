@@ -47,6 +47,14 @@ public class CartController {
         );
     }
 
+    @PostMapping("/items/bulk")
+    public ApiResponse<CartResponse> addCartItems(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody com.giftmarket.cart.dto.request.CartItemsCreateRequest request
+    ) {
+        return ApiResponse.success(cartService.addCartItems(userId, request.items()));
+    }
+
     @PatchMapping("/items/{cartItemId}")
     public ApiResponse<CartResponse> updateQuantity(
             @AuthenticationPrincipal Long userId,
