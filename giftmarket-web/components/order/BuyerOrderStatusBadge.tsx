@@ -9,14 +9,12 @@ interface Props {
   returns: ReturnRequest[];
   loading?: boolean;
   error?: boolean;
-  className: string;
-  appearance?: "badge" | "text";
+  className?: string;
 }
 
-export default function BuyerOrderStatusBadge({ className, appearance = "badge", ...props }: Props) {
+export default function BuyerOrderStatusBadge({ className = "", ...props }: Props) {
   const display = getBuyerOrderStatus(
     props.status, props.label, props.items, props.returns, props.loading, props.error,
   );
-  if (appearance === "text") return <strong className={className}>{display.label}</strong>;
-  return <span className={`${className} ${display.tone ? `buyer-order-status-${display.tone}` : ""}`}>{display.label}</span>;
+  return <span className={`buyer-order-status-badge ${className} buyer-order-status-${display.tone}`}>{display.label}</span>;
 }

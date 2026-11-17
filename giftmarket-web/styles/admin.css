@@ -119,19 +119,14 @@
 
 .admin-center-content { min-width: 0; }
 .admin-center-auth-loading { min-height: 50vh; display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); }
-.admin-center-sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 24px 18px; background: #20242c; color: #fff; }
-.admin-center-sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 24px; }
-.admin-center-brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; }
-.admin-center-brand-mark { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; background: #ffd84d; color: #20242c; font-weight: 800; }
-.admin-center-brand > span:last-child { display: flex; flex-direction: column; gap: 3px; }
-.admin-center-brand strong { font-size: 15px; }
-.admin-center-brand small { color: #9ea5b2; font-size: 11px; }
-.admin-center-menu { display: flex; flex: 1; flex-direction: column; gap: 5px; }
-.admin-center-menu-item { display: flex; min-height: 43px; align-items: center; justify-content: space-between; padding: 0 13px; border-radius: 9px; color: #d9dde4; font-size: 14px; font-weight: 600; text-decoration: none; }
+.admin-center-sidebar { position: sticky; top: 0; height: calc(100dvh - 80px); min-height: 0; align-self: start; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; padding: 16px 18px; background: #20242c; color: #fff; }
+.admin-center-sidebar-header { display: flex; flex-shrink: 0; justify-content: flex-end; padding: 0 0 8px; }
+.admin-center-menu { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 5px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.admin-center-menu-item { flex-shrink: 0; display: flex; min-height: 43px; align-items: center; justify-content: space-between; padding: 0 13px; border-radius: 9px; color: #d9dde4; font-size: 14px; font-weight: 600; text-decoration: none; }
 .admin-center-menu-active { background: #383e49; color: #fff; box-shadow: inset 3px 0 #ffd84d; }
 .admin-center-menu-disabled { color: #737a86; cursor: not-allowed; }
 .admin-center-menu-disabled small { padding: 3px 6px; border-radius: 999px; background: #2c313a; font-size: 10px; }
-.admin-center-sidebar-footer { padding: 18px 7px 2px; border-top: 1px solid #393e47; }
+.admin-center-sidebar-footer { flex-shrink: 0; padding: 18px 7px 2px; border-top: 1px solid #393e47; }
 .admin-center-sidebar-footer a { color: #b8bec8; font-size: 13px; text-decoration: none; }
 .admin-center-mobile-trigger, .admin-center-mobile-backdrop { display: none; }
 
@@ -899,7 +894,7 @@
   .admin-center-mobile-trigger small { color: #8a909a; font-size: 10px; }
   .admin-center-mobile-trigger strong { font-size: 14px; }
   .admin-center-mobile-backdrop { display: flex; position: fixed; z-index: 1000; inset: 0; align-items: stretch; justify-content: flex-start; background: rgb(10 13 18 / 55%); }
-  .admin-center-mobile-drawer { width: min(84vw, 310px); height: 100%; display: flex; flex-direction: column; padding: 22px 16px; background: #20242c; color: #fff; outline: none; }
+  .admin-center-mobile-drawer { width: min(84vw, 310px); height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); background: #20242c; color: #fff; outline: none; }
   .admin-center-mobile-close { width: 34px; height: 34px; border: 0; background: transparent; color: #fff; font-size: 25px; }
   .admin-dashboard { padding: 24px 16px 52px; }
   .admin-dashboard-header { align-items: flex-start; flex-direction: column; margin-bottom: 26px; }

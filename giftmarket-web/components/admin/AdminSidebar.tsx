@@ -15,12 +15,12 @@ interface AdminMenuItem {
 }
 
 const ADMIN_MENU: AdminMenuItem[] = [
-  { label: "선물 상황 관리", href: "/admin/gift-occasions", enabled: true },
   { label: "대시보드", href: "/admin", enabled: true },
   { label: "회원 관리", href: "/admin/users", enabled: true },
   { label: "관리자 관리", href: "/admin/administrators", enabled: true, superAdminOnly: true },
   { label: "판매자 관리", href: "/admin/sellers", enabled: true },
   { label: "판매자 신청", href: "/admin/seller-applications", enabled: true },
+  { label: "선물 상황 관리", href: "/admin/gift-occasions", enabled: true },
   { label: "상품 관리", href: "/admin/products", enabled: true },
   { label: "주문 관리", href: "/admin/orders", enabled: true },
   { label: "취소 관리", href: "/admin/cancellations", enabled: true },
@@ -50,12 +50,8 @@ function SidebarContent({
 }: SidebarContentProps) {
   return (
     <>
-      <div className="admin-center-sidebar-header">
-        <Link href="/admin" className="admin-center-brand" onClick={onNavigate}>
-          <span className="admin-center-brand-mark">A</span>
-          <span><strong>Admin Center</strong><small>Gift Market</small></span>
-        </Link>
-        {closeButtonRef && (
+      {closeButtonRef && (
+        <div className="admin-center-sidebar-header">
           <button
             ref={closeButtonRef}
             type="button"
@@ -65,8 +61,8 @@ function SidebarContent({
           >
             ×
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <nav className="admin-center-menu" aria-label="관리자 메뉴">
         {ADMIN_MENU.map((item) => {

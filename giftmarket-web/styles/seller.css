@@ -9,3 +9,21 @@
 @import "./seller/inquiries.css";
 @import "./seller/settings.css";
 @import "./seller/settlements.css";
+
+/* Shared interaction feedback, including seller dialogs rendered in portals. */
+:is(.seller-center-layout, .seller-sidebar-mobile-drawer, [role="dialog"][class*="seller-"], [role="dialog"]:has([class*="seller-"])) :is(button, a[href], summary, select, [role="button"], [role="menuitem"], input[type="checkbox"], input[type="radio"]) {
+  cursor: pointer;
+}
+:is(.seller-center-layout, .seller-sidebar-mobile-drawer, [role="dialog"][class*="seller-"], [role="dialog"]:has([class*="seller-"])) :is(button, a[href], summary, select, [role="button"], [role="menuitem"]):focus-visible {
+  outline: 2px solid #897500;
+  outline-offset: 3px;
+}
+@media (hover: hover) {
+  :is(.seller-center-layout, .seller-sidebar-mobile-drawer, [role="dialog"][class*="seller-"], [role="dialog"]:has([class*="seller-"])) :is(button, a[href], summary, select, [role="button"], [role="menuitem"]):not(:disabled):not([aria-disabled="true"]):hover {
+    filter: brightness(0.94);
+  }
+}
+:is(.seller-center-layout, .seller-sidebar-mobile-drawer, [role="dialog"][class*="seller-"], [role="dialog"]:has([class*="seller-"])) :is(:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+  filter: none;
+}

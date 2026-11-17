@@ -225,7 +225,6 @@ export default function MyOrderDetailPage() {
           <div className="order-detail-status-row">
             <BuyerOrderStatusBadge
               className="order-detail-status"
-              appearance="text"
               status={order.deliveryStatus}
               label={BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
               items={order.items}

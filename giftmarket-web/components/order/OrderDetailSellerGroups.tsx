@@ -190,7 +190,7 @@ export default function OrderDetailSellerGroups({
                 <h2>{sellerOrder.sellerName}</h2>
               </div>
               <BuyerOrderStatusBadge
-                className={`order-detail-delivery-badge order-detail-delivery-${sellerOrder.status.toLowerCase()}`}
+                className="order-detail-status-badge"
                 status={sellerOrder.status}
                 label={BUYER_SELLER_ORDER_STATUS_LABELS[sellerOrder.status]}
                 items={sellerOrder.items}
@@ -244,7 +244,7 @@ export default function OrderDetailSellerGroups({
                       {item.canceledQuantity > 0 && (
                         <p className="order-detail-product-cancellation-quantity">
                           {item.canceledQuantity === item.quantity ? (
-                            <span className="order-detail-product-cancelled-badge">취소완료</span>
+                            <BuyerOrderStatusBadge status="CANCELLED" label="취소완료" items={[]} returns={[]} />
                           ) : (
                             <>취소 {item.canceledQuantity}개 · 남은 {item.quantity - item.canceledQuantity}개</>
                           )}

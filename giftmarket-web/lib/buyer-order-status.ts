@@ -3,6 +3,21 @@ import type { ReturnRequest } from "@/types/return";
 
 type StatusItem = Pick<OrderHistoryItem, "id" | "quantity" | "canceledQuantity">;
 
+// Delivery summary and seller-order enums use different names for the same phase.
+const STATUS_DISPLAY: Record<string, { label: string; tone: string }> = {
+  ORDERED: { label: "주문 완료", tone: "neutral" },
+  PAYMENT_PENDING: { label: "결제 대기", tone: "neutral" },
+  PENDING_PAYMENT: { label: "결제 대기", tone: "neutral" },
+  PAYMENT_FAILED: { label: "결제 실패", tone: "closed" },
+  PAYMENT_EXPIRED: { label: "결제 만료", tone: "neutral" },
+  PAID: { label: "결제 완료", tone: "paid" },
+  PREPARING: { label: "상품준비중", tone: "pending" },
+  SHIPPING: { label: "배송중", tone: "shipping" },
+  SHIPPED: { label: "배송중", tone: "shipping" },
+  DELIVERED: { label: "배송완료", tone: "delivered" },
+  CANCELLED: { label: "취소완료", tone: "closed" },
+};
+
 // Presentation only. Completed request quantities are per-request, whereas
 // returnedQuantity in the return API is cumulative for the original order item.
 export function getBuyerOrderStatus(
@@ -40,5 +55,5 @@ export function getBuyerOrderStatus(
     );
     return { label: full ? "반품완료" : "부분반품완료", tone: "closed" };
   }
-  return { label, tone: status === "DELIVERED" ? "delivered" : "" };
+  return STATUS_DISPLAY[status] ?? { label, tone: "neutral" };
 }

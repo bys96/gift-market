@@ -65,7 +65,7 @@ export default function OrderHistoryCard({ order }: OrderHistoryCardProps) {
 
           <p className="order-history-number">주문번호 {order.orderNumber}</p>
           <BuyerOrderStatusBadge
-            className={`order-history-status order-history-status-${order.deliveryStatus.toLowerCase()}`}
+            className="order-history-status"
             status={order.deliveryStatus}
             label={BUYER_DELIVERY_STATUS_LABELS[order.deliveryStatus]}
             items={order.items}

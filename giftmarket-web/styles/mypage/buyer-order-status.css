@@ -39,3 +39,24 @@
   background: #fff0db;
   color: #b85c00;
 }
+
+/* All buyer order summaries use the same badge, independent of placement. */
+.buyer-order-status-badge[class] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.buyer-order-status-badge.buyer-order-status-paid { background: #e8f0fe; color: #2455a4; }
+.buyer-order-status-badge.buyer-order-status-shipping { background: #eeeafa; color: #6343a0; }
+.buyer-order-status-badge.buyer-order-status-delivered { background: #eaf7ef; color: #18804a; }
+.buyer-order-status-badge.buyer-order-status-pending { background: #fff0db; color: #995000; }
+.buyer-order-status-badge.buyer-order-status-closed { background: #fde8e8; color: #b42323; }
+.buyer-order-status-badge.buyer-order-status-neutral { background: #f1f2f4; color: #555b65; }

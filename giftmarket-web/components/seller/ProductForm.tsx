@@ -3,6 +3,7 @@
 import { createVariantStockUpdate } from "@/lib/variant-stock";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type ChangeEvent,
@@ -24,7 +25,8 @@ import {
   ProductRegistrationResponseError,
   registerProduct,
 } from "@/lib/product-api";
-import { ApiResponseFormatError } from "@/lib/api";
+import { ApiError, ApiResponseFormatError } from "@/lib/api";
+import { getProductSaveErrorKind } from "@/lib/product-save-error";
 import { normalizeSellerSkuCode } from "@/lib/seller-sku";
 import {
   createProductDraft,
@@ -260,6 +262,7 @@ export default function ProductForm({
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [saveErrorStatus, setSaveErrorStatus] = useState<number | null>(null);
 
   const [draftId, setDraftId] = useState<number | null>(
     initialDraft?.id ?? null,
@@ -1387,6 +1390,7 @@ export default function ProductForm({
   }, [mode, initialDraft]);
 
   const handleSave = async (startSale: boolean) => {
+    setSaveErrorStatus(null);
     if (registrationResultUnknownRef.current) {
       setErrorMessage(
         "상품 등록 결과를 확인할 수 없습니다. 중복 등록을 막기 위해 다시 제출하지 말고 상품 목록에서 등록 여부를 확인해주세요.",
@@ -1517,6 +1521,8 @@ export default function ProductForm({
         (error instanceof ApiResponseFormatError ||
           error instanceof ProductRegistrationResponseError);
 
+      setSaveErrorStatus(error instanceof ApiError ? error.status : null);
+
       if (isRegistrationResultUnknown) {
         registrationResultUnknownRef.current = true;
         setIsRegistrationResultUnknown(true);
@@ -1588,7 +1594,14 @@ export default function ProductForm({
           {errorMessage && (
             <div className="seller-product-form-error" role="alert">
               {errorMessage}
-              {mode === "edit" && <button type="button" onClick={() => window.location.reload()}>최신 상품·재고 다시 불러오기 (입력 초기화)</button>}
+              {mode === "edit" && initialProduct && getProductSaveErrorKind(saveErrorStatus, errorMessage) === "stale" && (
+                <div className="seller-product-form-conflict-recovery">
+                  <p>현재 입력은 이 탭에 유지됩니다. 새 탭의 최신 상품·재고와 비교한 뒤 필요한 변경만 최신 수정 화면에 반영해주세요.</p>
+                  <Link href={`/seller/products/${initialProduct.id}/edit`} target="_blank" rel="noopener noreferrer">
+                    새 탭에서 최신 수정 화면 확인
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
