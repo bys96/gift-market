@@ -133,6 +133,7 @@ function hasMatchingOrderSnapshot(
   productAmount: number,
   shippingFee: number,
   totalAmount: number,
+  directProduct: Pick<ProductDetail, "id" | "hasOptions"> | null = null,
 ) {
   if (
     prepared.totalProductAmount !== productAmount ||
@@ -159,7 +160,21 @@ function hasMatchingOrderSnapshot(
       )
       .sort();
 
-  return JSON.stringify(normalize(detail.items)) ===
+  // A public optionless direct request uses NULL; the server resolves it to an
+  // internal default SKU. Cart and option selections retain strict ID matching.
+  const isOptionlessDirectOrder = directProduct?.hasOptions === false &&
+    expectedItems.length === 1 && expectedItems[0].productId === directProduct.id &&
+    expectedItems[0].variantId === null;
+  if (isOptionlessDirectOrder && (detail.items.length !== 1 || detail.items[0].optionSnapshot !== null ||
+    (detail.items[0].variantId !== null &&
+      (!Number.isSafeInteger(detail.items[0].variantId) || detail.items[0].variantId <= 0)))) {
+    return false;
+  }
+  const actualItems = isOptionlessDirectOrder
+    ? detail.items.map(item => ({ ...item, variantId: null }))
+    : detail.items;
+
+  return JSON.stringify(normalize(actualItems)) ===
     JSON.stringify(normalize(expectedItems));
 }
 
@@ -707,7 +722,8 @@ function OrderContent() {
           return;
         }
         const detail = await getMyOrder(preparedOrder.orderId);
-        if (!hasMatchingOrderSnapshot(preparedOrder, detail, expectedItems, productAmount, shippingFee, totalAmount)) {
+        if (!hasMatchingOrderSnapshot(preparedOrder, detail, expectedItems, productAmount, shippingFee, totalAmount,
+          isDirectOrder ? directProduct : null)) {
           router.replace(`/my/orders/${preparedOrder.orderId}`);
           return;
         }
@@ -769,6 +785,7 @@ function OrderContent() {
           productAmount,
           shippingFee,
           totalAmount,
+          isDirectOrder ? directProduct : null,
         )
       ) {
         await cancelOrder(createdOrder.orderId, {

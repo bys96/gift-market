@@ -62,6 +62,50 @@ class MultiOptionPurchaseIntegrationTest {
     @Autowired com.giftmarket.product.service.ProductVariantService variantService;
     @Autowired com.giftmarket.product.service.ProductService productService;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void optionlessDirectCheckoutReturnsInternalSkuWithNoPublicOptionsForBothRequestFormats(boolean listRequest) {
+        Plain f = plain(true, 10);
+        String requestKey = UUID.randomUUID().toString();
+        var request = listRequest
+                ? new DirectOrderCreateRequest(requestKey, f.product(), null, null,
+                    "수령인", "010-1234-5678", "12345", "서울", null,
+                    List.of(new DirectOrderItemRequest(null, 2)))
+                : new DirectOrderCreateRequest(requestKey, f.product(), null, 2,
+                    "수령인", "010-1234-5678", "12345", "서울", null);
+        var publicProduct = productService.getProduct(f.product());
+        assertThat(publicProduct.isHasOptions()).isFalse();
+        assertThat(publicProduct.getVariants()).isEmpty();
+        var prepared = orders.createDirectOrder(f.buyer(), request);
+        assertThat(orders.createDirectOrder(f.buyer(), request).orderId()).isEqualTo(prepared.orderId());
+        var detail = orders.getMyOrder(f.buyer(), prepared.orderId());
+        assertThat(detail.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        assertThat(detail.items()).singleElement().satisfies(item -> {
+            assertThat(item.productId()).isEqualTo(f.product());
+            assertThat(item.variantId()).isEqualTo(f.variant());
+            assertThat(item.optionSnapshot()).isNull();
+            assertThat(item.quantity()).isEqualTo(2);
+            assertThat(item.unitPrice()).isEqualTo(publicProduct.getPrice());
+        });
+        assertThat(detail.totalProductAmount()).isEqualTo(prepared.totalProductAmount()).isEqualTo(10000L);
+        assertThat(detail.totalShippingFee()).isEqualTo(prepared.totalShippingFee()).isZero();
+        assertThat(detail.totalAmount()).isEqualTo(prepared.totalAmount());
+        assertThat(variants.findById(f.variant()).orElseThrow().getCombinationKey()).isEqualTo("__DEFAULT__");
+        assertThat(carts.getCart(f.buyer()).getItems()).isEmpty();
+        assertPlain(f, 8, 8);
+
+        String paymentKey = "plain-checkout-" + UUID.randomUUID();
+        PaymentGateway gateway = mock(PaymentGateway.class);
+        given(gateways.get(PaymentProvider.TOSS)).willReturn(gateway);
+        given(gateway.confirm(any())).willReturn(new GatewayConfirmResult(GatewayPaymentStatus.PAID,
+                paymentKey, "plain-checkout-confirm", prepared.merchantPaymentId(), prepared.totalAmount(), "KRW",
+                PaymentMethod.CARD, null, "DONE", LocalDateTime.now()));
+        payments.confirm(f.buyer(), prepared.paymentId(), new PaymentConfirmRequest(
+                paymentKey, prepared.merchantPaymentId(), prepared.totalAmount()));
+        assertThat(orders.getMyOrder(f.buyer(), prepared.orderId()).status()).isEqualTo(OrderStatus.PAID);
+        assertPlain(f, 8, 8);
+    }
+
     @Test
     void competingDefaultStockEditsRejectTheStaleSellerVersion() throws Exception {
         Plain f = plain(true, 10);

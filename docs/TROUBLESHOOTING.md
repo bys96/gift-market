@@ -12,6 +12,25 @@
 
 # Payment / PG
 
+## 기본 Variant 통합 후 무옵션 바로 구매의 주문 비교 실패 (2026-11-18)
+
+증상: 상품 상세에서 바로 구매하면 “장바구니 또는 상품 정보가 변경되었습니다”가 표시되지만 장바구니 경유 결제 준비는 정상이다.
+
+원인과 경로:
+
+1. 상품 상세는 무옵션을 `/order?productId=...&quantity=...`로 전달한다. 주문서는 기존 호환 요청인 `items: [{ variantId: null, quantity }]`로 `POST /api/orders/direct`를 호출한다.
+2. 서버는 NULL을 `combination_key='__DEFAULT__'`인 실제 기본 Variant로 해석하고, 해당 재고를 예약한 뒤 OrderItem/결제 준비를 정상 생성한다. 주문 상세 응답의 variantId는 실제 기본 ID이며 optionSnapshot은 NULL이다.
+3. 주문서의 `hasMatchingOrderSnapshot`이 요청의 NULL과 응답의 실제 ID를 비교해 불일치로 판정했다. 결제창을 열기 전에 방금 만든 주문을 취소하고 오류를 표시했다.
+4. 장바구니는 담기 응답부터 실제 기본 Variant ID를 갖고 있어 같은 비교를 통과했다. 요청 DTO나 재고 예약 자체의 오류가 아니었다.
+
+수정: `giftmarket-web/app/order/page.tsx`에서 서버 상품 정보가 무옵션인 단일 바로 구매에만 기본 SKU ID를 공개 선택값 NULL과 동등하게 비교한다. 응답의 옵션 snapshot도 NULL이어야 한다. 신규 준비와 기존 READY 주문 재개 모두 적용한다. 상품 ID·수량·단가·상품금액·배송비·총액 검증과 장바구니/단일·다중 옵션의 정확한 Variant ID 비교는 유지한다. 서버 응답이나 저장된 주문 객체는 변경하지 않는다.
+
+회귀: `giftmarket-web/tests/order-snapshot.test.mjs`가 수정 전 NULL/기본 ID 비교 실패를 재현한다. 무옵션/장바구니/단일·다중 옵션, 잘못된 상품·수량·금액·snapshot 및 READY 재개 경로를 검증한다. `MultiOptionPurchaseIntegrationTest`는 단일/목록 두 요청 형식의 실제 기본 Variant 참조·옵션 비노출·결제 준비/주문 상세 일치와 gateway stub을 통한 결제 완료·재고 유지까지 확인한다.
+
+검증: `gradlew test --no-daemon` 전체 1,250개, `node --test tests/*.test.mjs` 전체 128개가 실패·오류·스킵 없이 통과했다. `npm.cmd run lint`, `npx.cmd tsc --noEmit`, `npm.cmd run build`도 성공했다. 빌드가 자동 수정한 next-env.d.ts는 원래 내용으로 복원하고 타입 검사를 다시 통과했다.
+
+이번 수정은 ERD·API 계약·백엔드 운영 코드·재고 로직을 바꾸지 않는다. 운영 DB 접속, SQL 작성/실행, 마이그레이션 재실행, 배포·커밋·푸시는 하지 않았다. 실제 Toss 결제 및 브라우저 실결제 인수는 별도다.
+
 ## Toss 부분취소 결과 불명
 
 ### 상황 / 증상
