@@ -67,10 +67,15 @@ public class ProductVariantService {
                 seller.getId()
         );
 
-        return createResponse(product);
+        ProductVariantListResponse response = createResponse(product);
+        ProductVariant defaultVariant = inventoryPolicy.defaultVariant(productId);
+        return ProductVariantListResponse.builder().productId(productId).variants(response.getVariants())
+                .retainedDefaultStock(defaultVariant == null ? null : defaultVariant.getStockQuantity())
+                .conversionAvailable(inventoryPolicy.conversionBlockReason(productId) == null)
+                .conversionBlockReason(inventoryPolicy.conversionBlockReason(productId)).build();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ProductVariantListResponse updateProductVariants(Long userId, Long productId, ProductVariantUpdateRequest request) {
         return saveVariants(userId, productId, request, false);
     }
@@ -109,7 +114,8 @@ public class ProductVariantService {
                 );
             }
 
-            deactivateAllVariants(productId);
+            productVariantRepository.findAllByProductIdOrderByIdAsc(productId).stream()
+                    .filter(v -> !v.isDefaultVariant()).forEach(ProductVariant::deactivate);
 
             productVariantRepository.flush();
 
@@ -147,6 +153,8 @@ public class ProductVariantService {
                         .findAllByProductIdOrderByIdAsc(
                                 productId
                         );
+
+        existingVariants = existingVariants.stream().filter(v -> !v.isDefaultVariant()).toList();
 
         Map<Long, ProductVariant> existingVariantMap =
                 existingVariants.stream()
@@ -567,6 +575,7 @@ public class ProductVariantService {
     getExistingOptionValueIdsByVariant(
             List<ProductVariant> variants
     ) {
+        variants = variants.stream().filter(v -> !v.isDefaultVariant()).toList();
         if (variants.isEmpty()) {
             return Map.of();
         }
@@ -622,6 +631,7 @@ public class ProductVariantService {
                                 product.getId()
                         );
 
+        variants = variants.stream().filter(v -> !v.isDefaultVariant()).toList();
         if (variants.isEmpty()) {
             return ProductVariantListResponse.of(
                     product.getId(),
@@ -724,19 +734,6 @@ public class ProductVariantService {
             Product product,
             Long productId
     ) {
-        int totalStockQuantity =
-                productVariantRepository
-                        .findAllByProductIdAndActiveTrueOrderByIdAsc(
-                                productId
-                        )
-                        .stream()
-                        .mapToInt(
-                                ProductVariant::getStockQuantity
-                        )
-                        .sum();
-
-        product.changeStockQuantity(
-                totalStockQuantity
-        );
+        inventoryPolicy.synchronizeStock(product);
     }
 }

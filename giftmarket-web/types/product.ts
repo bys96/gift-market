@@ -269,6 +269,7 @@ export interface ProductOptionGroupUpdateRequest {
 
 export interface ProductOptionUpdateRequest {
   optionGroups: ProductOptionGroupUpdateRequest[];
+  retainDefaultStock?: boolean;
 }
 
 /* ========================================
@@ -303,6 +304,9 @@ export interface ProductVariant {
 export interface ProductVariantListResponse {
   productId: number;
   variants: ProductVariant[];
+  retainedDefaultStock?: number | null;
+  conversionAvailable?: boolean;
+  conversionBlockReason?: string | null;
 }
 
 export interface ProductVariantUpdateItem {

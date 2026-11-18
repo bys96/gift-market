@@ -60,7 +60,8 @@ public class ProductRegistrationService {
         ProductResponse createdProduct =
                 productService.createProduct(
                         userId,
-                        productRequest
+                        productRequest,
+                        request.options().normalizedOptionGroups().isEmpty()
                 );
 
         Long productId =

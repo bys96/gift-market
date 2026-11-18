@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** Guards existing inventory owners; never transfers stock between Product and Variant. */
+/** Preserves SKU inventory owners; existing Product inventory is migrated only by manual SQL. */
 @Service
 @RequiredArgsConstructor
 public class ProductInventoryPolicy {
@@ -38,6 +38,7 @@ public class ProductInventoryPolicy {
             entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
             ProductVariant variant = item.getVariant() == null ? null
                     : variants.findWithLockByIdAndProductId(item.getVariant().getId(), product.getId()).orElseThrow();
+            if (variant == null) variant = defaultVariant(product.getId());
             if (variant != null) entityManager.refresh(variant, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
             if (product.isDeleted() || product.isAdminHidden()
                     || product.getSeller().getStatus() != com.giftmarket.seller.entity.SellerStatus.ACTIVE
@@ -47,6 +48,39 @@ public class ProductInventoryPolicy {
             // Reserved stock may be zero/SOLD_OUT. Never reserve or deduct it a second time.
             requirePurchasable(product, variant);
         }
+    }
+
+    public boolean hasOptions(Long productId) {
+        return variants.existsByProductIdAndCombinationKeyNot(productId, ProductVariant.DEFAULT_COMBINATION_KEY);
+    }
+
+    public ProductVariant defaultVariant(Long productId) {
+        return variants.findDefault(productId).orElse(null);
+    }
+
+    /** Caller holds the Product lock. Flush restored stock before current reads. */
+    public void synchronizeStock(Product product) {
+        entityManager.flush();
+        int total = 0;
+        for (ProductVariant variant : variants.findActiveForStockUpdate(product.getId())) {
+            entityManager.refresh(variant, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            total = Math.addExact(total, variant.getStockQuantity());
+        }
+        product.changeStockQuantity(total);
+    }
+
+    public String conversionBlockReason(Long productId) {
+        if (variants.findDefault(productId).isEmpty()) return "기본 SKU 이관이 필요합니다. 운영 대사를 요청해주세요.";
+        if (hasOptions(productId)) return "이미 옵션 상품입니다.";
+        if (orderItems.hasPendingPayment(productId)) return "결제 대기 주문이 있습니다. 결제 완료 또는 예약 만료 후 다시 시도해주세요.";
+        if (orderItems.hasOpenExchange(productId)) return "진행 중인 교환이 있습니다. 교환 처리와 재고 예약 해제 후 다시 시도해주세요.";
+        return null;
+    }
+
+    public void requireConversion(Long productId, boolean acknowledged) {
+        String reason = conversionBlockReason(productId);
+        if (reason != null) throw new ProductConflictException(reason);
+        if (!acknowledged) throw new ProductConflictException("기본 SKU 재고 별도 보관에 동의해주세요. 새 옵션에 자동 배분하지 않습니다.");
     }
 
     public boolean usesVariants(Long productId) {
@@ -60,7 +94,8 @@ public class ProductInventoryPolicy {
     }
 
     public boolean hasMixedHistory(Long productId) {
-        return usesVariants(productId) && orderItems.existsByProductIdAndVariantIsNull(productId);
+        return usesVariants(productId) && variants.findDefault(productId).isEmpty()
+                && orderItems.existsByProductIdAndVariantIsNull(productId);
     }
 
     public void requireEditable(Long productId) {
@@ -86,7 +121,7 @@ public class ProductInventoryPolicy {
 
     public void requireDirectStock(Product product) {
         requireUnmixedHistory(product.getId());
-        if (usesVariants(product.getId())) {
+        if (hasOptions(product.getId())) {
             throw new ProductConflictException("옵션 상품은 보관 여부와 관계없이 Variant별 재고를 사용합니다. 일반 상품으로 전환하거나 합계 재고를 직접 수정할 수 없습니다.");
         }
     }
@@ -104,6 +139,14 @@ public class ProductInventoryPolicy {
             return;
         }
         var selected = mappings.findAllByVariantId(variant.getId());
+        if (variant.isDefaultVariant()) {
+            ProductVariantMapping.requireValid(variant, selected);
+            if (!variant.isActive() || hasOptions(product.getId())
+                    || !groups.findAllByProductIdOrderBySortOrderAsc(product.getId()).isEmpty()) {
+                throw new ProductConflictException("전환 전 기본 SKU는 현재 구매할 수 없습니다.");
+            }
+            return;
+        }
         ProductVariantMapping.requireValid(variant, selected);
         var activeGroups = groups.findAllByProductIdOrderBySortOrderAsc(product.getId());
         var selectedGroups = selected.stream().map(mapping -> mapping.getOptionValue().getOptionGroup().getId())

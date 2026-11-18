@@ -16,6 +16,16 @@ public interface ProductVariantRepository
 
     boolean existsByProductId(Long productId);
 
+    boolean existsByProductIdAndCombinationKeyNot(Long productId, String combinationKey);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from ProductVariant v where v.product.id = :productId and v.active = true order by v.id")
+    List<ProductVariant> findActiveForStockUpdate(@Param("productId") Long productId);
+
+    default Optional<ProductVariant> findDefault(Long productId) {
+        return findByProductIdAndCombinationKey(productId, ProductVariant.DEFAULT_COMBINATION_KEY);
+    }
+
     List<ProductVariant> findAllByProductIdOrderByIdAsc(
             Long productId
     );

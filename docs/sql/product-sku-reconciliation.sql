@@ -24,7 +24,9 @@ SELECT v.id, v.product_id, v.sku_code, v.seller_sku_code, v.active,
        (SELECT COUNT(*) FROM actual a WHERE a.variant_id = v.id) AS actual_count,
        EXISTS (SELECT 1 FROM order_items oi WHERE oi.variant_id = v.id) AS has_order_history
 FROM product_variants v
-WHERE NOT REGEXP_LIKE(v.combination_key, '^[1-9][0-9]*:[1-9][0-9]*([|][1-9][0-9]*:[1-9][0-9]*)*$')
+WHERE (v.combination_key <> '__DEFAULT__' AND NOT REGEXP_LIKE(v.combination_key, '^[1-9][0-9]*:[1-9][0-9]*([|][1-9][0-9]*:[1-9][0-9]*)*$'))
+   OR (v.combination_key = '__DEFAULT__' AND (v.additional_price <> 0 OR EXISTS
+       (SELECT 1 FROM actual a WHERE a.variant_id=v.id)))
    OR (SELECT COUNT(*) FROM expected e WHERE e.variant_id = v.id)
       <> (SELECT COUNT(*) FROM actual a WHERE a.variant_id = v.id)
    OR (SELECT COUNT(*) FROM expected e WHERE e.variant_id = v.id)
@@ -44,4 +46,5 @@ SELECT p.id AS product_id, p.stock_quantity AS product_stock,
        COUNT(*) AS plain_order_item_count
 FROM products p JOIN order_items oi ON oi.product_id = p.id AND oi.variant_id IS NULL
 WHERE EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id)
+  AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=p.id AND v.combination_key='__DEFAULT__')
 GROUP BY p.id, p.stock_quantity;

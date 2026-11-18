@@ -29,6 +29,9 @@ public final class ProductVariantMapping {
     }
 
     public static boolean isValid(ProductVariant variant, List<ProductVariantOptionValue> mappings) {
+        if (variant.isDefaultVariant()) {
+            return mappings.isEmpty() && Long.valueOf(0).equals(variant.getAdditionalPrice());
+        }
         try {
             Set<String> expected = parse(variant.getCombinationKey());
             Set<String> actual = new HashSet<>();

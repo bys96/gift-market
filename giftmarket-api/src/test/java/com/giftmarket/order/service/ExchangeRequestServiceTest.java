@@ -117,7 +117,8 @@ class ExchangeRequestServiceTest {
                 orderRepository, sellerOrderRepository, orderItemRepository, shipmentRepository,
                 returnRequestRepository, exchangeRequestRepository, exchangeRequestItemRepository,
                 exchangeRequestImageRepository, productVariantRepository,
-                productVariantOptionValueRepository, storageService, eventPublisher
+                productVariantOptionValueRepository, storageService, eventPublisher,
+                mock(com.giftmarket.product.repository.ProductRepository.class)
         ));
         doReturn(NOW).when(service).currentTime();
         User user = mock(User.class);

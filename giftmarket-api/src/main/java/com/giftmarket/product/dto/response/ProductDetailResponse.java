@@ -85,6 +85,7 @@ public class ProductDetailResponse {
             List<ProductVariant> variants, List<ProductVariantOptionValue> variantOptionValues,
             List<GiftOccasionResponse> giftOccasions, boolean hasOptions) {
 
+        variants = variants.stream().filter(v -> !v.isDefaultVariant()).toList();
         Map<Long, List<ProductOptionValue>> valuesByGroupId =
                 new HashMap<>();
 

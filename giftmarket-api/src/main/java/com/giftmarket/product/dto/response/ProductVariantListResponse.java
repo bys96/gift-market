@@ -13,6 +13,10 @@ public class ProductVariantListResponse {
 
     private List<ProductVariantResponse> variants;
 
+    private Integer retainedDefaultStock;
+    private boolean conversionAvailable;
+    private String conversionBlockReason;
+
     public static ProductVariantListResponse of(
             Long productId,
             List<ProductVariantResponse> variants

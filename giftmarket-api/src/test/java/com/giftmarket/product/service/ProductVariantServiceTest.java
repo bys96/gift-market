@@ -118,7 +118,6 @@ class ProductVariantServiceTest {
         when(mapping.getVariant()).thenReturn(variant);
         when(mapping.getOptionValue()).thenReturn(value);
         when(mappingRepository.findAllByVariantIdIn(List.of(6L))).thenReturn(List.of(mapping));
-        when(variantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(3L)).thenReturn(List.of(variant));
 
         productVariantService.updateProductVariants(1L, 3L,
                 new ProductVariantUpdateRequest(List.of(
@@ -127,7 +126,7 @@ class ProductVariantServiceTest {
 
         verify(variant).update("SKU-30", "4:5", 500L);
         verify(variant).activate();
-        verify(product).changeStockQuantity(7);
+        verify(inventoryPolicy).synchronizeStock(product);
         verify(variantRepository, never()).save(org.mockito.ArgumentMatchers.any(ProductVariant.class));
     }
 

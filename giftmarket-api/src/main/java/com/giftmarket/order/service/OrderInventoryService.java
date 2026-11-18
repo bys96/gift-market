@@ -35,6 +35,9 @@ public class OrderInventoryService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     /**
      * OrderItem snapshot을 기준으로 예약/주문 재고를 복원합니다.
      * 호출 측 transaction 안에서 Order 상태 검증과 함께 실행해야 합니다.
@@ -163,9 +166,7 @@ public class OrderInventoryService {
 
         for (Long productId : variantProductIds) {
             if (inventoryPolicy.hasMixedHistory(productId)) continue;
-            int totalStock = productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
-                    .stream().mapToInt(ProductVariant::getStockQuantity).sum();
-            lockedProducts.get(productId).changeStockQuantity(totalStock);
+            inventoryPolicy.synchronizeStock(lockedProducts.get(productId));
         }
 
         for (ExchangeRequestItem item : sortedItems) {
@@ -212,9 +213,7 @@ public class OrderInventoryService {
         }
         for (Long productId : variantProductIds) {
             if (inventoryPolicy.hasMixedHistory(productId)) continue;
-            int total = productVariantRepository.findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
-                    .stream().mapToInt(ProductVariant::getStockQuantity).sum();
-            products.get(productId).changeStockQuantity(total);
+            inventoryPolicy.synchronizeStock(products.get(productId));
         }
         for (ExchangeRequestItem item : sorted) {
             int effective = item.getEffectiveReservedQuantity();
@@ -284,6 +283,7 @@ public class OrderInventoryService {
             );
 
             ProductVariant orderVariant = orderItem.getVariant();
+            if (orderVariant == null) orderVariant = inventoryPolicy.defaultVariant(productId);
             if (orderVariant == null) {
                 product.increaseStock(restoreQuantity);
                 continue;
@@ -301,12 +301,7 @@ public class OrderInventoryService {
         for (Long productId : variantProductIds) {
             if (inventoryPolicy.hasMixedHistory(productId)) continue;
             Product product = lockedProducts.get(productId);
-            int totalStockQuantity = productVariantRepository
-                    .findAllByProductIdAndActiveTrueOrderByIdAsc(productId)
-                    .stream()
-                    .mapToInt(ProductVariant::getStockQuantity)
-                    .sum();
-            product.changeStockQuantity(totalStockQuantity);
+            inventoryPolicy.synchronizeStock(product);
         }
 
     }
@@ -326,17 +321,21 @@ public class OrderInventoryService {
     }
 
     private Product getLockedProduct(Long productId) {
-        return productRepository.findByIdForUpdate(productId)
+        Product product = productRepository.findByIdForUpdate(productId)
                 .orElseThrow(() -> new OrderException(
                         "주문 상품 정보를 확인할 수 없습니다."
                 ));
+        entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        return product;
     }
 
     private ProductVariant getLockedVariant(Long variantId, Long productId) {
-        return productVariantRepository
+        ProductVariant variant = productVariantRepository
                 .findWithLockByIdAndProductId(variantId, productId)
                 .orElseThrow(() -> new OrderException(
                         "주문 상품 옵션 정보를 확인할 수 없습니다."
                 ));
+        entityManager.refresh(variant, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        return variant;
     }
 }

@@ -119,7 +119,7 @@ public class ProductOptionService {
         // Preserve mappings for historical references and explicit restoration.
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ProductOptionResponse updateProductOptions(Long userId, Long productId, ProductOptionUpdateRequest request) {
         return saveOptions(userId, productId, request, false);
     }
@@ -141,6 +141,11 @@ public class ProductOptionService {
         );
 
         inventoryPolicy.requireConfiguration(product, !request.normalizedOptionGroups().isEmpty(), initialRegistration);
+        if (!initialRegistration && !request.normalizedOptionGroups().isEmpty()
+                && !inventoryPolicy.hasOptions(productId) && inventoryPolicy.defaultVariant(productId) != null) {
+            inventoryPolicy.requireConversion(productId, Boolean.TRUE.equals(request.retainDefaultStock()));
+            inventoryPolicy.defaultVariant(productId).deactivate();
+        }
         retireVariantsUsingRemovedOptions(userId, productId, request);
 
         List<ProductOptionGroupRequest> groupRequests =
@@ -263,9 +268,7 @@ public class ProductOptionService {
                 }
             }
             productVariantRepository.flush();
-            product.changeStockQuantity(productVariantRepository
-                    .findAllByProductIdAndActiveTrueOrderByIdAsc(productId).stream()
-                    .mapToInt(com.giftmarket.product.entity.ProductVariant::getStockQuantity).sum());
+            inventoryPolicy.synchronizeStock(product);
         }
 
         ProductOptionResponse active = createResponse(product);

@@ -48,6 +48,17 @@ import lombok.NoArgsConstructor;
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProductVariant extends BaseEntity {
+    // Reserved identity; the existing product/combination UNIQUE permits exactly one.
+    public static final String DEFAULT_COMBINATION_KEY = "__DEFAULT__";
+
+    public boolean isDefaultVariant() {
+        return DEFAULT_COMBINATION_KEY.equals(combinationKey);
+    }
+
+    public static ProductVariant createDefault(Product product) {
+        return create(product, "DEFAULT-" + product.getId(), DEFAULT_COMBINATION_KEY,
+                0L, product.getStockQuantity());
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

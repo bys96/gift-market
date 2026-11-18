@@ -90,6 +90,11 @@ public class ProductService {
             Long userId,
             ProductCreateRequest request
     ) {
+        return createProduct(userId, request, true);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public ProductResponse createProduct(Long userId, ProductCreateRequest request, boolean createDefault) {
         Seller seller = getActiveSeller(userId);
         validateNewMoney(request.price(), request.shippingFee(), request.returnShippingFee(), request.exchangeShippingFee());
         Category category = getActiveCategory(request.categoryId());
@@ -137,6 +142,7 @@ public class ProductService {
         );
 
         Product savedProduct = productRepository.save(product);
+        if (createDefault) productVariantRepository.save(ProductVariant.createDefault(savedProduct));
 
         List<ProductImage> productImages = saveProductImages(
                 savedProduct,
@@ -403,7 +409,7 @@ public class ProductService {
                 giftOccasionService.getActiveProductGiftOccasions(
                         product.getId()
                 ),
-                inventoryPolicy.usesVariants(productId)
+                inventoryPolicy.hasOptions(productId)
         );
     }
 
@@ -489,11 +495,11 @@ public class ProductService {
                 product,
                 productImages,
                 giftOccasionService.getActiveProductGiftOccasions(product.getId()),
-                inventoryPolicy.usesVariants(productId)
+                inventoryPolicy.hasOptions(productId)
         );
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ProductResponse updateProduct(
             Long userId,
             Long productId,
@@ -503,7 +509,7 @@ public class ProductService {
     }
 
     /** The enclosing modification transaction validates the replacement variants together. */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ProductResponse updateProductForModification(Long userId, Long productId, ProductUpdateRequest request) {
         return updateProductDetails(userId, productId, request, false);
     }
@@ -513,6 +519,7 @@ public class ProductService {
         Seller seller = getActiveSeller(userId);
         validateNewMoney(request.price(), request.shippingFee(), request.returnShippingFee(), request.exchangeShippingFee());
 
+        productRepository.findByIdForUpdate(productId);
         Product product = getSellerProduct(
                 productId,
                 seller.getId()
@@ -559,6 +566,9 @@ public class ProductService {
                 && !java.util.Objects.equals(product.getVersion(), request.expectedStockVersion())) {
             throw new com.giftmarket.product.exception.ProductConflictException(
                     "상품 또는 재고가 변경되었습니다. 최신 값을 다시 조회한 후 저장해주세요.");
+        }
+        if (request.expectedStockVersion() != null) {
+            productVariantRepository.findDefault(productId).ifPresent(v -> v.changeStockQuantity(request.stockQuantity()));
         }
         product.update(
                 category,
@@ -662,7 +672,7 @@ public class ProductService {
         product.softDelete();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ProductResponse updateProductStock(
             Long userId,
             Long productId,
@@ -670,6 +680,7 @@ public class ProductService {
     ) {
         Seller seller = getActiveSeller(userId);
 
+        productRepository.findByIdForUpdate(productId);
         Product product = getSellerProduct(
                 productId,
                 seller.getId()
@@ -682,7 +693,9 @@ public class ProductService {
         if (!productOptionGroupRepository.findAllByProductIdOrderBySortOrderAsc(productId).isEmpty()) {
             throw new ProductException("옵션 상품은 옵션별 재고를 변경해주세요.");
         }
+        productVariantRepository.findDefault(productId).ifPresent(v -> v.changeStockQuantity(request.stockQuantity()));
         product.changeStockQuantity(request.stockQuantity());
+        productRepository.flush();
 
         List<ProductImage> productImages = productImageRepository
                 .findAllByProductIdOrderBySortOrderAsc(

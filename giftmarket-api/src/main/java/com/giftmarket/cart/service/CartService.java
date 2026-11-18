@@ -297,14 +297,12 @@ public class CartService {
             boolean hasOptions
     ) {
         if (!hasOptions) {
-            if (variantId != null) {
-                throw new CartException(
-                        "옵션이 없는 상품에는 상품 옵션을 선택할 수 없습니다."
-                );
+            ProductVariant variant = inventoryPolicy.defaultVariant(product.getId());
+            if (variantId != null && (variant == null || !variantId.equals(variant.getId()))) {
+                throw new CartException("Invalid default SKU.");
             }
-
-            inventoryPolicy.requirePurchasable(product, null);
-            return null;
+            inventoryPolicy.requirePurchasable(product, variant);
+            return variant;
         }
 
         if (variantId == null) {
@@ -365,7 +363,7 @@ public class CartService {
     private boolean hasProductOptions(
             Long productId
     ) {
-        return inventoryPolicy.usesVariants(productId) || !productOptionGroupRepository
+        return inventoryPolicy.hasOptions(productId) || !productOptionGroupRepository
                 .findAllByProductIdOrderBySortOrderAsc(
                         productId
                 )

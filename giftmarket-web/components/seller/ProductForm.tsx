@@ -918,6 +918,7 @@ export default function ProductForm({
       totalStockQuantity,
       optionRequest: {
         optionGroups,
+        retainDefaultStock: optionEditorState.retainDefaultStock === true,
       } satisfies ProductOptionUpdateRequest,
     };
   };

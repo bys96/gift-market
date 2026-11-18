@@ -36,6 +36,7 @@ export interface ProductVariantDraft {
 }
 
 export interface ProductOptionEditorState {
+  retainDefaultStock?: boolean;
   mappingInvalid?: boolean;
   enabled: boolean;
 
@@ -236,6 +237,9 @@ export default function ProductOptionManager({
   const [unmappedVariants, setUnmappedVariants] = useState<ProductVariant[]>([]);
   const [archivedGroups, setArchivedGroups] = useState<ProductOptionGroupDraft[]>([]);
   const [enabled, setEnabled] = useState(false);
+  const [conversion, setConversion] = useState<{ stock: number; available: boolean; reason: string | null; hasOptions: boolean } | null>(null);
+  const [retainDefaultStock, setRetainDefaultStock] = useState(false);
+  const [conversionRevision, setConversionRevision] = useState(0);
 
   const [optionGroups, setOptionGroups] = useState<ProductOptionGroupDraft[]>(
     [],
@@ -303,6 +307,12 @@ export default function ProductOptionManager({
 
         const hasOptions = variantResponse.variants.length > 0 || loadedOptionGroups.length > 0;
         fixedModeRef.current = hasOptions;
+        if (variantResponse.retainedDefaultStock != null) {
+          setConversion({ stock: variantResponse.retainedDefaultStock,
+            hasOptions,
+            available: variantResponse.conversionAvailable === true,
+            reason: variantResponse.conversionBlockReason ?? null });
+        }
 
         setEnabled(hasOptions);
         setOptionGroups(loadedOptionGroups);
@@ -330,7 +340,7 @@ export default function ProductOptionManager({
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, conversionRevision]);
 
   useEffect(() => {
     if (!draftState || draftRevision <= 0) {
@@ -371,13 +381,14 @@ export default function ProductOptionManager({
     }
 
     onChangeRef.current({
+      retainDefaultStock: enabled && fixedModeRef.current === false && retainDefaultStock,
       enabled,
       optionGroups,
       variants,
       initialized,
       mappingInvalid: unmappedVariants.length > 0,
     });
-  }, [enabled, optionGroups, variants, initialized, unmappedVariants]);
+  }, [enabled, optionGroups, variants, initialized, unmappedVariants, retainDefaultStock]);
 
   const optionValueMap = useMemo(() => {
     const result = new Map<
@@ -449,6 +460,16 @@ export default function ProductOptionManager({
   };
 
   const handleEnabledChange = (nextEnabled: boolean) => {
+    if (productId !== undefined && fixedModeRef.current === false && nextEnabled) {
+      if (!conversion?.available || !retainDefaultStock) {
+        setErrorMessage(conversion?.reason ?? "기본 SKU 재고 별도 보관 정책에 먼저 동의해주세요.");
+        return;
+      }
+      setErrorMessage("");
+      setEnabled(true);
+      if (optionGroups.length === 0) setOptionGroups([createEmptyOptionGroup()]);
+      return;
+    }
     if (productId !== undefined && fixedModeRef.current !== null && nextEnabled !== fixedModeRef.current) {
       setErrorMessage("기존 상품의 재고 관리 방식은 변경할 수 없습니다. 옵션 전체 보관은 판매 중지로 처리됩니다.");
       return;
@@ -741,6 +762,20 @@ export default function ProductOptionManager({
         </details>
       )}
       <p className="seller-product-option-notice">SKU에 연결된 옵션 이름은 변경할 수 없습니다. 전체 옵션 보관 시 구매가 차단되며 기존 Variant 재고는 보존됩니다. 재고 수정은 최신 버전을 확인합니다.</p>
+      {conversion && !conversion.hasOptions && (
+        <div className="seller-product-option-group-card">
+          <strong>기존 상품에 옵션 추가</strong>
+          <p>저장 시 기존 기본 SKU 재고 {conversion.stock}개는 별도 보관되어 판매에서 제외됩니다. 새 옵션에는 기존 보관 재고와 주문 예약분을 제외한 별도 재고만 입력해주세요. 기존 주문 취소·반품 시 복구된 재고도 기본 SKU에 보관됩니다.</p>
+          {conversion.reason && <p role="alert">{conversion.reason}</p>}
+          <button type="button" className="seller-product-option-add-button" disabled={disabled || enabled}
+            onClick={() => setConversionRevision(value => value + 1)}>전환 조건 다시 확인</button>
+          <label><input type="checkbox" checked={retainDefaultStock} disabled={disabled || !conversion.available || enabled}
+            onChange={event => setRetainDefaultStock(event.target.checked)} /> 기존 재고를 자동 배분하지 않고 별도 보관하는 데 동의합니다.</label>
+        </div>
+      )}
+      {conversion && conversion.hasOptions && (
+        <p className="seller-product-option-notice">전환 전 기본 SKU 보관 재고: {conversion.stock}개 (판매 제외, 기존 주문 복구용)</p>
+      )}
       <div className="seller-product-option-use">
         <div>
           <strong>상품 옵션 사용</strong>
@@ -772,7 +807,7 @@ export default function ProductOptionManager({
                 ? "seller-product-option-use-button seller-product-option-use-button-active"
                 : "seller-product-option-use-button"
             }
-            disabled={disabled}
+            disabled={disabled || (conversion !== null && !conversion.hasOptions && (!conversion.available || !retainDefaultStock))}
             onClick={() => handleEnabledChange(true)}
           >
             옵션 사용

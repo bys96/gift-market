@@ -30,7 +30,7 @@ public class ProductModificationService {
     private final ProductDraftService productDraftService;
     private final GiftOccasionService giftOccasionService;
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ProductResponse modifyProduct(
             Long userId,
             Long productId,

@@ -14,6 +14,12 @@ import java.util.Optional;
 public interface OrderItemRepository
         extends JpaRepository<OrderItem, Long> {
 
+    @Query("select (count(i) > 0) from OrderItem i where i.product.id = :id and i.order.status = com.giftmarket.order.entity.OrderStatus.PENDING_PAYMENT")
+    boolean hasPendingPayment(@Param("id") Long productId);
+
+    @Query("select (count(i) > 0) from ExchangeRequestItem i where i.targetProduct.id = :id and i.exchangeRequest.status not in (com.giftmarket.order.entity.ExchangeRequestStatus.COMPLETED, com.giftmarket.order.entity.ExchangeRequestStatus.REJECTED, com.giftmarket.order.entity.ExchangeRequestStatus.CANCELED)")
+    boolean hasOpenExchange(@Param("id") Long productId);
+
     boolean existsByProductId(Long productId);
 
     boolean existsByProductIdAndVariantIsNull(Long productId);

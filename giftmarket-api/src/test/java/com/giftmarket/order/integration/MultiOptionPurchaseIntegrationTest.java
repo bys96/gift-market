@@ -56,6 +56,201 @@ class MultiOptionPurchaseIntegrationTest {
     @Autowired OrderItemRepository orderItems;
     @Autowired PlatformTransactionManager transactionManager;
     @MockitoBean PaymentGatewayRegistry gateways;
+    @Autowired PaymentTransactionService paymentTransactions;
+    @Autowired PaymentExpirationTransactionService expiration;
+    @Autowired com.giftmarket.product.service.ProductOptionService optionService;
+    @Autowired com.giftmarket.product.service.ProductVariantService variantService;
+    @Autowired com.giftmarket.product.service.ProductService productService;
+
+    @Test
+    void competingDefaultStockEditsRejectTheStaleSellerVersion() throws Exception {
+        Plain f = plain(true, 10);
+        Long version = products.findById(f.product()).orElseThrow().getVersion();
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var futures = java.util.stream.IntStream.range(0, 2).mapToObj(i -> pool.submit(() -> {
+                start.await();
+                try {
+                    productService.updateProductStock(f.sellerUser(), f.product(),
+                            new com.giftmarket.product.dto.request.ProductStockUpdateRequest(9, version));
+                    return true;
+                } catch (com.giftmarket.product.exception.ProductConflictException expected) { return false; }
+            })).toList();
+            start.countDown();
+            int successes = 0;
+            for (var future : futures) if (future.get(30, java.util.concurrent.TimeUnit.SECONDS)) successes++;
+            assertThat(successes).isEqualTo(1);
+        }
+        assertPlain(f, 9, 9);
+    }
+
+    @Test
+    void conversionAndPurchaseSerializeWithoutStrandingAReservation() throws Exception {
+        Plain f = plain(true, 10);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var purchase = pool.submit(() -> {
+                start.await();
+                try { orders.createDirectOrder(f.buyer(), plainOrder(f, 2)); return true; }
+                catch (RuntimeException expected) { return false; }
+            });
+            var conversion = pool.submit(() -> {
+                start.await();
+                try { convert(f); return true; }
+                catch (com.giftmarket.product.exception.ProductConflictException expected) { return false; }
+            });
+            start.countDown();
+            boolean bought = purchase.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            boolean converted = conversion.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(bought).isNotEqualTo(converted);
+            assertPlain(f, bought ? 8 : 10, bought ? 8 : 3);
+            assertThat(variants.findById(f.variant()).orElseThrow().isActive()).isEqualTo(bought);
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"cancel", "failure", "expiry"})
+    void defaultSkuReservationsRestoreExactlyOnce(String outcome) {
+        Plain f = plain(true, 10);
+        var request = plainOrder(f, 2);
+        var prepared = orders.createDirectOrder(f.buyer(), request);
+        assertThat(orders.createDirectOrder(f.buyer(), request).orderId()).isEqualTo(prepared.orderId());
+        tx().executeWithoutResult(status -> {
+            var item = orderItems.findAllByOrderIdOrderByIdAsc(prepared.orderId()).getFirst();
+            assertThat(item.getVariant().getId()).isEqualTo(f.variant());
+            assertThat(item.getOptionSnapshot()).isNull();
+        });
+        assertPlain(f, 8, 8);
+        if (outcome.equals("cancel")) {
+            var cancel = new OrderCancelRequest(UUID.randomUUID().toString(), "미결제 취소");
+            cancellations.cancel(f.buyer(), prepared.orderId(), cancel);
+            cancellations.cancel(f.buyer(), prepared.orderId(), cancel);
+        } else if (outcome.equals("failure")) {
+            paymentTransactions.startConfirm(f.buyer(), prepared.paymentId(), new PaymentConfirmRequest(
+                    "default-failure", prepared.merchantPaymentId(), prepared.totalAmount()));
+            paymentTransactions.fail(f.buyer(), prepared.paymentId(), "DECLINED", "거절", "ABORTED");
+            paymentTransactions.fail(f.buyer(), prepared.paymentId(), "DECLINED", "중복", "ABORTED");
+        } else {
+            assertThat(expiration.expireReadyPayment(prepared.paymentId(), LocalDateTime.now().plusDays(2))).isTrue();
+            assertThat(expiration.expireReadyPayment(prepared.paymentId(), LocalDateTime.now().plusDays(2))).isFalse();
+        }
+        assertPlain(f, 10, 10);
+    }
+
+    @Test
+    void defaultCartIsMergedAndOrderedThroughVariantWithoutOptionUi() {
+        Plain f = plain(true, 10);
+        carts.addCartItem(f.buyer(), new CartItemCreateRequest(f.product(), null, 1));
+        var cart = carts.addCartItem(f.buyer(), new CartItemCreateRequest(f.product(), null, 1));
+        assertThat(cart.getItems()).hasSize(1);
+        assertThat(cart.getItems().getFirst().getOptions()).isEmpty();
+        var ordered = orders.createOrder(f.buyer(), new OrderCreateRequest(UUID.randomUUID().toString(),
+                List.of(cart.getItems().getFirst().getCartItemId()), "수령인", "010-1234-5678", "12345", "서울", null));
+        assertPlain(f, 8, 8);
+        tx().executeWithoutResult(status -> assertThat(orderItems.findAllByOrderIdOrderByIdAsc(ordered.orderId())
+                .getFirst().getVariant().getId()).isEqualTo(f.variant()));
+    }
+
+    @Test
+    void legacyNullOrderRestoresToDefaultAfterMigrationWithoutChangingSnapshot() {
+        Plain legacy = plain(false, 10);
+        var prepared = orders.createDirectOrder(legacy.buyer(), plainOrder(legacy, 2));
+        Long variantId = tx().execute(status -> variants.save(ProductVariant.createDefault(
+                products.findById(legacy.product()).orElseThrow())).getId());
+        Plain migrated = new Plain(legacy.buyer(), legacy.sellerUser(), legacy.product(), variantId);
+        cancellations.cancel(legacy.buyer(), prepared.orderId(), new OrderCancelRequest(UUID.randomUUID().toString(), "이관 후 취소"));
+        assertPlain(migrated, 10, 10);
+        tx().executeWithoutResult(status -> {
+            var item = orderItems.findAllByOrderIdOrderByIdAsc(prepared.orderId()).getFirst();
+            assertThat(item.getVariant()).isNull();
+            assertThat(item.getOptionSnapshot()).isNull();
+            assertThat(item.getUnitPrice()).isEqualTo(5000);
+        });
+    }
+
+    @Test
+    void paidOrderCanBeRefundedAfterConversionIntoRetainedDefaultOnly() {
+        Plain f = plain(true, 10);
+        var prepared = orders.createDirectOrder(f.buyer(), plainOrder(f, 2));
+        assertThatThrownBy(() -> convert(f)).hasMessageContaining("결제 대기");
+        assertPlain(f, 8, 8);
+        PaymentGateway gateway = mock(PaymentGateway.class);
+        given(gateways.get(PaymentProvider.TOSS)).willReturn(gateway);
+        given(gateway.confirm(any())).willReturn(new GatewayConfirmResult(GatewayPaymentStatus.PAID,
+                "default-paid", "default-confirm", prepared.merchantPaymentId(), prepared.totalAmount(), "KRW",
+                PaymentMethod.CARD, null, "DONE", LocalDateTime.now()));
+        payments.confirm(f.buyer(), prepared.paymentId(), new PaymentConfirmRequest(
+                "default-paid", prepared.merchantPaymentId(), prepared.totalAmount()));
+        String sku = variants.findById(f.variant()).orElseThrow().getSkuCode();
+        convert(f);
+        assertPlain(f, 8, 3);
+        assertThat(variants.findById(f.variant()).orElseThrow().isActive()).isFalse();
+        assertThatThrownBy(() -> orders.createDirectOrder(f.buyer(), plainOrder(f, 1))).isInstanceOf(RuntimeException.class);
+        given(gateway.cancel(any(GatewayCancelCommand.class))).willReturn(new GatewayCancelResult(
+                GatewayPaymentStatus.CANCELED, "default-paid", "default-cancel", prepared.merchantPaymentId(),
+                prepared.totalAmount(), 0L, "KRW", "CANCELED", LocalDateTime.now(), prepared.totalAmount(), "DONE", 0L));
+        var cancel = new OrderCancelRequest(UUID.randomUUID().toString(), "전환 전 주문 취소");
+        cancellations.cancel(f.buyer(), prepared.orderId(), cancel);
+        cancellations.cancel(f.buyer(), prepared.orderId(), cancel);
+        assertPlain(f, 10, 3);
+        assertThat(variants.findById(f.variant()).orElseThrow().getSkuCode()).isEqualTo(sku);
+        verify(gateway, times(1)).cancel(any(GatewayCancelCommand.class));
+    }
+
+    @Test
+    void competingDefaultOrdersCannotOversell() throws Exception {
+        Plain f = plain(true, 1);
+        Long otherBuyer = fixture().buyer();
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var futures = java.util.stream.IntStream.range(0, 2).mapToObj(i -> pool.submit(() -> {
+                start.await();
+                try { orders.createDirectOrder(i == 0 ? f.buyer() : otherBuyer, plainOrder(f, 1)); return true; }
+                catch (RuntimeException expected) { return false; }
+            })).toList();
+            start.countDown();
+            int successes = 0;
+            for (var future : futures) if (future.get(30, java.util.concurrent.TimeUnit.SECONDS)) successes++;
+            assertThat(successes).isEqualTo(1);
+        }
+        assertPlain(f, 0, 0);
+    }
+
+    private void convert(Plain f) {
+        tx().executeWithoutResult(status -> {
+            var saved = optionService.updateProductOptions(f.sellerUser(), f.product(),
+                    new com.giftmarket.product.dto.request.ProductOptionUpdateRequest(List.of(
+                            new com.giftmarket.product.dto.request.ProductOptionGroupRequest(null, "색상", 0,
+                                    List.of(new com.giftmarket.product.dto.request.ProductOptionValueRequest(null, "빨강", 0)))), true));
+            variantService.updateProductVariants(f.sellerUser(), f.product(), new com.giftmarket.product.dto.request.ProductVariantUpdateRequest(
+                    List.of(new com.giftmarket.product.dto.request.ProductVariantRequest(null, "NEW-RED",
+                            List.of(saved.getOptionGroups().getFirst().getValues().getFirst().getId()), 0L, 3, true))));
+        });
+    }
+
+    private Plain plain(boolean withDefault, int stock) {
+        Fixture source = fixture();
+        return tx().execute(status -> {
+            var original = products.findById(source.product()).orElseThrow();
+            var product = products.save(Product.createDraft(original.getSeller(), original.getCategory(),
+                    "무옵션", null, null, "설명", 5000L, stock, null, true, 0L, 1, 3000L, 6000L));
+            product.startSale();
+            Long variantId = withDefault ? variants.save(ProductVariant.createDefault(product)).getId() : null;
+            return new Plain(source.buyer(), original.getSeller().getUser().getId(), product.getId(), variantId);
+        });
+    }
+
+    private DirectOrderCreateRequest plainOrder(Plain f, int quantity) {
+        return new DirectOrderCreateRequest(UUID.randomUUID().toString(), f.product(), null, quantity,
+                "수령인", "010-1234-5678", "12345", "서울", null);
+    }
+
+    private void assertPlain(Plain f, int retained, int available) {
+        assertThat(variants.findById(f.variant()).orElseThrow().getStockQuantity()).isEqualTo(retained);
+        assertThat(products.findById(f.product()).orElseThrow().getStockQuantity()).isEqualTo(available);
+    }
+
+    private record Plain(Long buyer, Long sellerUser, Long product, Long variant) {}
 
     @Test
     void multiOptionPaymentAndCancellationPreserveStockAndIdentityExactlyOnce() {

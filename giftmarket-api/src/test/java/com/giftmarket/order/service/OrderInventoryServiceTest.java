@@ -50,15 +50,19 @@ class OrderInventoryServiceTest {
     @Mock ExchangeRequestItem exchangeItem;
 
     private OrderInventoryService service;
+    private com.giftmarket.product.service.ProductInventoryPolicy inventoryPolicy;
 
     @BeforeEach
     void setUp() {
+        inventoryPolicy = org.mockito.Mockito.mock(com.giftmarket.product.service.ProductInventoryPolicy.class);
         service = new OrderInventoryService(
-                org.mockito.Mockito.mock(com.giftmarket.product.service.ProductInventoryPolicy.class),
+                inventoryPolicy,
                 orderItemRepository,
                 productRepository,
                 productVariantRepository
         );
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "entityManager",
+                org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class));
         given(orderItemRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID))
                 .willReturn(List.of(orderItem));
         given(orderItem.getProduct()).willReturn(product);
@@ -93,7 +97,7 @@ class OrderInventoryServiceTest {
         service.restore(ORDER_ID);
 
         verify(variant).increaseStock(2);
-        verify(product).changeStockQuantity(7);
+        verify(inventoryPolicy).synchronizeStock(product);
     }
 
     @Test
@@ -122,7 +126,7 @@ class OrderInventoryServiceTest {
         service.restoreCancellationItems(List.of(cancellationItem));
 
         verify(variant).increaseStock(1);
-        verify(product).changeStockQuantity(8);
+        verify(inventoryPolicy).synchronizeStock(product);
     }
 
     @Test
@@ -174,7 +178,7 @@ class OrderInventoryServiceTest {
         service.restoreExchangeOriginalItems(List.of(exchangeItem));
 
         verify(variant).increaseStock(1);
-        verify(product).changeStockQuantity(9);
+        verify(inventoryPolicy).synchronizeStock(product);
     }
 
     @Test
@@ -241,7 +245,7 @@ class OrderInventoryServiceTest {
         service.reserveExchangeTargets(List.of(second, exchangeItem));
 
         verify(variant).decreaseStock(4);
-        verify(product).changeStockQuantity(4);
+        verify(inventoryPolicy).synchronizeStock(product);
         verify(exchangeItem).reserveTargetStock(2);
         verify(second).reserveTargetStock(2);
     }

@@ -13,9 +13,14 @@ public record ProductOptionUpdateRequest(
                 max = 10,
                 message = "상품 옵션은 최대 10개까지 등록할 수 있습니다."
         )
-        List<@Valid ProductOptionGroupRequest> optionGroups
+        List<@Valid ProductOptionGroupRequest> optionGroups,
+        Boolean retainDefaultStock
 
 ) {
+
+    public ProductOptionUpdateRequest(List<ProductOptionGroupRequest> optionGroups) {
+        this(optionGroups, null);
+    }
 
     public List<ProductOptionGroupRequest> normalizedOptionGroups() {
         return optionGroups == null

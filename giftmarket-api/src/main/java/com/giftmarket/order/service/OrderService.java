@@ -118,7 +118,7 @@ public class OrderService {
      *
      * 중간에 하나라도 실패하면 전체 rollback 됩니다.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public OrderCreateResponse createOrder(
             Long userId,
             OrderCreateRequest request
@@ -297,7 +297,7 @@ public class OrderService {
      * 장바구니를 거치지 않는 단일 상품 바로구매 결제 준비.
      * Product / Variant를 직접 잠그고 서버의 현재 값으로 주문 Snapshot을 만듭니다.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public OrderCreateResponse createDirectOrder(
             Long userId,
             DirectOrderCreateRequest request
@@ -321,6 +321,9 @@ public class OrderService {
         boolean hasOptions = hasProductOptions(product.getId());
 
         var selections = request.selectedItems();
+        if (!hasOptions && selections.size() != 1) {
+            throw new OrderException("무옵션 상품의 구매 수량은 한 항목으로 합쳐서 요청해주세요.");
+        }
         if (selections.size() > 100 || selections.stream().anyMatch(item -> item == null
                 || item.quantity() == null || item.quantity() <= 0)) {
             throw new OrderException("구매 수량을 다시 확인해주세요.");
@@ -336,15 +339,17 @@ public class OrderService {
                 throw new OrderException("상품 옵션을 선택해주세요.");
             }
 
-            if (!hasOptions && selection.variantId() != null) {
-                throw new OrderException("옵션이 없는 상품에는 상품 옵션을 지정할 수 없습니다.");
+            ProductVariant defaultVariant = hasOptions ? null : inventoryPolicy.defaultVariant(product.getId());
+            if (!hasOptions && selection.variantId() != null
+                    && (defaultVariant == null || !selection.variantId().equals(defaultVariant.getId()))) {
+                throw new OrderException("Invalid default SKU.");
             }
-
             ProductVariant variant = null;
-
-            if (selection.variantId() != null) {
+            Long resolvedVariantId = selection.variantId() == null && defaultVariant != null
+                    ? defaultVariant.getId() : selection.variantId();
+            if (resolvedVariantId != null) {
                 variant = getLockedDirectVariant(
-                        selection.variantId(),
+                        resolvedVariantId,
                         product.getId()
                 );
 
@@ -371,7 +376,7 @@ public class OrderService {
                             : variant.getAdditionalPrice();
 
             String optionSnapshot =
-                    variant == null
+                    variant == null || variant.isDefaultVariant()
                             ? null
                             : createOptionSnapshot(variant.getId());
 
@@ -437,7 +442,7 @@ public class OrderService {
                     sellerOrders.get(preparedItem.seller().getId())));
         }
 
-        if (hasOptions) {
+        if (hasOptions || inventoryPolicy.defaultVariant(product.getId()) != null) {
             synchronizeVariantProductStock(
                     product,
                     product.getId()
@@ -693,7 +698,8 @@ public class OrderService {
             );
         }
 
-        if (!hasOptions && cartVariant != null) {
+        if (cartVariant == null && !hasOptions) cartVariant = inventoryPolicy.defaultVariant(productId);
+        if (!hasOptions && cartVariant != null && !cartVariant.isDefaultVariant()) {
             throw new OrderException(
                     "상품 옵션 정보가 변경되었습니다. 장바구니를 다시 확인해주세요."
             );
@@ -740,7 +746,7 @@ public class OrderService {
                         : variant.getAdditionalPrice();
 
         String optionSnapshot =
-                variant == null
+                variant == null || variant.isDefaultVariant()
                         ? null
                         : createOptionSnapshot(
                         variant.getId()
@@ -998,7 +1004,7 @@ public class OrderService {
     private boolean hasProductOptions(
             Long productId
     ) {
-        return inventoryPolicy.usesVariants(productId) || !productOptionGroupRepository
+        return inventoryPolicy.hasOptions(productId) || !productOptionGroupRepository
                 .findAllByProductIdOrderBySortOrderAsc(
                         productId
                 )
@@ -1053,20 +1059,7 @@ public class OrderService {
             Product product,
             Long productId
     ) {
-        int totalStockQuantity =
-                productVariantRepository
-                        .findAllByProductIdAndActiveTrueOrderByIdAsc(
-                                productId
-                        )
-                        .stream()
-                        .mapToInt(
-                                ProductVariant::getStockQuantity
-                        )
-                        .sum();
-
-        product.changeStockQuantity(
-                totalStockQuantity
-        );
+        inventoryPolicy.synchronizeStock(product);
     }
 
     private List<Long> normalizeCartItemIds(

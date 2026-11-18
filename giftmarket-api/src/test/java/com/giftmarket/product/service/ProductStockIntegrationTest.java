@@ -58,6 +58,46 @@ class ProductStockIntegrationTest {
     private Long categoryId;
     private String imageKey;
 
+    @Test
+    void conversionRetainsDefaultIdentityAndStockWithoutAllocation() {
+        Long id = register(50);
+        ProductVariant original = variantRepository.findDefault(id).orElseThrow();
+        Long variantId = original.getId();
+        String sku = original.getSkuCode();
+        var options = new ProductOptionUpdateRequest(List.of(new ProductOptionGroupRequest(null, "색상", 0,
+                List.of(new ProductOptionValueRequest(null, "빨강", 0)))), true);
+        var request = new ProductModificationRequest(request(999, "옵션 전환").product(), options,
+                List.of(modificationVariant(null, "RED-NEW", 0, 7)), null);
+        modificationService.modifyProduct(userId, id, request);
+        entityManager.flush();
+        entityManager.clear();
+        ProductVariant retained = variantRepository.findDefault(id).orElseThrow();
+        assertThat(retained.getId()).isEqualTo(variantId);
+        assertThat(retained.getSkuCode()).isEqualTo(sku);
+        assertThat(retained.getStockQuantity()).isEqualTo(50);
+        assertThat(retained.isActive()).isFalse();
+        assertStock(id, 7);
+        assertThat(variantService.getProductVariants(userId, id).getVariants()).hasSize(1);
+        assertThat(productService.getProduct(id).getVariants()).hasSize(1);
+        assertThat(productService.getProduct(id).isHasOptions()).isTrue();
+    }
+
+    @Test
+    void defaultStockUsesExistingVersionedEndpointAndIsHiddenFromOptionRows() {
+        Long id = register(50);
+        var before = productService.getMyProduct(userId, id);
+        assertThat(before.isVariantManaged()).isFalse();
+        assertThat(productService.getProduct(id).isHasOptions()).isFalse();
+        assertThat(productService.getProduct(id).getVariants()).isEmpty();
+        assertThat(variantService.getProductVariants(userId, id).getVariants()).isEmpty();
+        productService.updateProductStock(userId, id, new ProductStockUpdateRequest(20, before.getVersion()));
+        entityManager.flush();
+        assertThat(variantRepository.findDefault(id).orElseThrow().getStockQuantity()).isEqualTo(20);
+        assertThatThrownBy(() -> productService.updateProductStock(userId, id,
+                new ProductStockUpdateRequest(20, before.getVersion())))
+                .isInstanceOf(com.giftmarket.product.exception.ProductConflictException.class);
+    }
+
     @BeforeEach
     void setUp() {
         User user = userRepository.save(User.createOAuthUser(
@@ -74,7 +114,9 @@ class ProductStockIntegrationTest {
         Long productId = register(50);
 
         assertStock(productId, 50);
-        assertThat(variantRepository.findAllByProductIdOrderByIdAsc(productId)).isEmpty();
+        assertThat(variantRepository.findAllByProductIdOrderByIdAsc(productId)).singleElement()
+                .satisfies(v -> { assertThat(v.isDefaultVariant()).isTrue();
+                    assertThat(v.getStockQuantity()).isEqualTo(productRepository.findById(productId).orElseThrow().getStockQuantity()); });
     }
 
     @Test
@@ -156,7 +198,9 @@ class ProductStockIntegrationTest {
 
         assertThat(response.getStockQuantity()).isEqualTo(20);
         assertStock(productId, 20);
-        assertThat(variantRepository.findAllByProductIdOrderByIdAsc(productId)).isEmpty();
+        assertThat(variantRepository.findAllByProductIdOrderByIdAsc(productId)).singleElement()
+                .satisfies(v -> { assertThat(v.isDefaultVariant()).isTrue();
+                    assertThat(v.getStockQuantity()).isEqualTo(productRepository.findById(productId).orElseThrow().getStockQuantity()); });
     }
 
     @Test
@@ -229,7 +273,9 @@ class ProductStockIntegrationTest {
         variantService.updateProductVariants(userId, productId, new ProductVariantUpdateRequest(List.of()));
 
         assertStock(productId, 30);
-        assertThat(variantRepository.findAllByProductIdOrderByIdAsc(productId)).isEmpty();
+        assertThat(variantRepository.findAllByProductIdOrderByIdAsc(productId)).singleElement()
+                .satisfies(v -> { assertThat(v.isDefaultVariant()).isTrue();
+                    assertThat(v.getStockQuantity()).isEqualTo(productRepository.findById(productId).orElseThrow().getStockQuantity()); });
     }
 
     @Test
@@ -368,6 +414,7 @@ class ProductStockIntegrationTest {
         Product product = productRepository.findById(productId).orElseThrow();
         ProductModificationRequest staleStockEdit = stockRequest(productId, 20, "재고 수정");
         product.increaseStock(1);
+        variantRepository.findDefault(productId).orElseThrow().increaseStock(1);
         entityManager.flush();
         entityManager.clear();
         modificationService.modifyProduct(userId, productId, request(10, "상품명 수정"));
@@ -420,7 +467,7 @@ class ProductStockIntegrationTest {
         assertThatThrownBy(() -> optionService.updateProductOptions(userId, id, new ProductOptionUpdateRequest(List.of(
                 new ProductOptionGroupRequest(null, "색상", 0, List.of(new ProductOptionValueRequest(null, "빨강", 0)))))))
                 .isInstanceOf(com.giftmarket.product.exception.ProductConflictException.class);
-        assertThat(variantRepository.existsByProductId(id)).isFalse();
+        assertThat(variantRepository.findDefault(id)).isPresent();
     }
 
     @Test

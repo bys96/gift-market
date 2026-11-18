@@ -59,6 +59,10 @@ public class ExchangeRequestService {
     private final ProductVariantOptionValueRepository productVariantOptionValueRepository;
     private final StorageService storageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.giftmarket.product.repository.ProductRepository productRepository;
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public ExchangeRequestResponse getOwned(Long userId, Long exchangeRequestId) {
@@ -186,6 +190,12 @@ public class ExchangeRequestService {
             ExchangeResponsibility responsibility
     ) {
         Map<Long, ProductVariant> result = new HashMap<>();
+        orderItems.stream().filter(item -> item.getVariant() != null && item.getVariant().isDefaultVariant())
+                .map(OrderItem::getProduct).distinct().sorted(Comparator.comparing(Product::getId))
+                .forEach(product -> {
+                    productRepository.findByIdForUpdate(product.getId()).orElseThrow(this::orderNotFound);
+                    entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                });
         for (OrderItem item : orderItems) {
             Product product = item.getProduct();
             NormalizedItem target = requested.get(item.getId());
@@ -201,11 +211,21 @@ public class ExchangeRequestService {
                     throw new OrderException("교환 대상 상품의 현재 재고가 부족합니다.");
                 }
             } else {
-                if (target.targetVariantId() == null) {
+                Long targetId = target.targetVariantId();
+                if (item.getVariant().isDefaultVariant() && targetId != null) {
+                    throw new OrderException("무옵션 상품은 교환 옵션을 선택하지 않습니다.");
+                }
+                if (targetId == null && item.getVariant().isDefaultVariant()) targetId = item.getVariant().getId();
+                if (targetId == null) {
                     throw new OrderException("교환할 상품 옵션을 선택해주세요.");
                 }
-                variant = productVariantRepository.findById(target.targetVariantId())
+                variant = (item.getVariant().isDefaultVariant()
+                        ? productVariantRepository.findWithLockByIdAndProductId(targetId, product.getId())
+                        : productVariantRepository.findById(targetId))
                         .orElseThrow(() -> new OrderException("교환할 상품 옵션을 확인할 수 없습니다."));
+                if (item.getVariant().isDefaultVariant()) {
+                    entityManager.refresh(variant, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                }
                 if (!variant.getProduct().getId().equals(product.getId())) {
                     throw new OrderException("같은 상품의 옵션으로만 교환할 수 있습니다.");
                 }
@@ -219,7 +239,7 @@ public class ExchangeRequestService {
                 throw new OrderException("가격이 다른 옵션으로는 교환할 수 없습니다. 반품 후 다시 구매해 주세요.");
             }
             if (responsibility == ExchangeResponsibility.BUYER
-                    && item.getVariant() == null) {
+                    && (item.getVariant() == null || item.getVariant().isDefaultVariant())) {
                 throw new OrderException("옵션이 없는 상품은 구매자 귀책 교환을 신청할 수 없습니다.");
             }
         }
@@ -241,6 +261,7 @@ public class ExchangeRequestService {
                 .stream().collect(Collectors.groupingBy(value -> value.getVariant().getId()));
         Map<Long, String> result = new HashMap<>();
         for (ProductVariant variant : variants) {
+            if (variant.isDefaultVariant()) continue;
             List<ProductVariantOptionValue> values = byVariant.getOrDefault(variant.getId(), List.of());
             if (values.isEmpty()) throw new OrderException("상품 옵션 정보를 확인할 수 없습니다.");
             String snapshot = values.stream().map(ProductVariantOptionValue::getOptionValue)
@@ -303,7 +324,8 @@ public class ExchangeRequestService {
             Map<Long, NormalizedItem> existingItems = new LinkedHashMap<>();
             for (ExchangeRequestItem item : items) {
                 existingItems.put(item.getOrderItem().getId(), new NormalizedItem(
-                        item.getQuantity(), item.getTargetVariant() == null ? null : item.getTargetVariant().getId()
+                        item.getQuantity(), item.getTargetVariant() == null || item.getTargetVariant().isDefaultVariant()
+                                ? null : item.getTargetVariant().getId()
                 ));
             }
             List<ExchangeRequestImage> images = exchangeRequestImageRepository
