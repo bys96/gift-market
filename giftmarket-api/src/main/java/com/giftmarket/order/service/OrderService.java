@@ -7,6 +7,7 @@ import com.giftmarket.cart.entity.CartItem;
 import com.giftmarket.cart.repository.CartItemRepository;
 import com.giftmarket.order.dto.request.OrderCreateRequest;
 import com.giftmarket.order.dto.request.DirectOrderCreateRequest;
+import com.giftmarket.order.dto.request.DirectOrderItemRequest;
 import com.giftmarket.order.dto.response.OrderCreateResponse;
 import com.giftmarket.order.dto.response.OrderDetailResponse;
 import com.giftmarket.order.dto.response.OrderSummaryResponse;
@@ -18,6 +19,7 @@ import com.giftmarket.order.entity.SellerOrder;
 import com.giftmarket.order.entity.Shipment;
 import com.giftmarket.order.entity.ShipmentType;
 import com.giftmarket.order.exception.OrderException;
+import com.giftmarket.order.exception.OrderRequestConflictException;
 import com.giftmarket.order.repository.OrderItemRepository;
 import com.giftmarket.order.repository.OrderCancellationRepository;
 import com.giftmarket.order.repository.OrderRepository;
@@ -61,6 +63,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -307,7 +310,8 @@ public class OrderService {
         Optional<OrderCreateResponse> existingPreparation =
                 findExistingPreparation(
                         userId,
-                        request.clientOrderRequestKey()
+                        request.clientOrderRequestKey(),
+                        request
                 );
 
         if (existingPreparation.isPresent()) {
@@ -1152,6 +1156,14 @@ public class OrderService {
             Long userId,
             String clientOrderRequestKey
     ) {
+        return findExistingPreparation(userId, clientOrderRequestKey, null);
+    }
+
+    private Optional<OrderCreateResponse> findExistingPreparation(
+            Long userId,
+            String clientOrderRequestKey,
+            DirectOrderCreateRequest directRequest
+    ) {
         return paymentRepository
                 .findByClientRequestKeyAndOrderUserId(
                         clientOrderRequestKey,
@@ -1181,6 +1193,10 @@ public class OrderService {
                         );
                     }
 
+                    if (directRequest != null) {
+                        validateDirectOrderReplay(directRequest, orderItems);
+                    }
+
                     return OrderCreateResponse.from(
                             order,
                             payment,
@@ -1189,6 +1205,29 @@ public class OrderService {
                             )
                     );
                 });
+    }
+
+    private void validateDirectOrderReplay(DirectOrderCreateRequest request, List<OrderItem> orderItems) {
+        List<DirectOrderItemRequest> requestedItems = request.selectedItems();
+        List<DirectOrderItemRequest> storedItems = orderItems.stream()
+                .map(item -> {
+                    ProductVariant variant = item.getVariant();
+                    Long variantId = variant == null ? null : variant.getId();
+                    if (variant != null && variant.isDefaultVariant() && orderItems.size() == 1
+                            && requestedItems.size() == 1 && requestedItems.getFirst().variantId() == null) {
+                        variantId = null;
+                    }
+                    return new DirectOrderItemRequest(variantId, item.getQuantity());
+                })
+                .toList();
+        Comparator<DirectOrderItemRequest> bySelection = Comparator
+                .comparing(DirectOrderItemRequest::variantId, Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing(DirectOrderItemRequest::quantity);
+        if (orderItems.stream().anyMatch(item -> !Objects.equals(item.getProduct().getId(), request.productId()))
+                || !storedItems.stream().sorted(bySelection).toList()
+                        .equals(requestedItems.stream().sorted(bySelection).toList())) {
+            throw new OrderRequestConflictException();
+        }
     }
 
     private OrderCreateResponse createPaymentPreparation(

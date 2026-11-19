@@ -40,6 +40,13 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(com.giftmarket.order.exception.OrderRequestConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleOrderRequestConflict(
+            com.giftmarket.order.exception.OrderRequestConflictException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.fail(exception.getMessage()));
+    }
+
     @ExceptionHandler({com.giftmarket.product.exception.ProductConflictException.class,
             org.springframework.orm.ObjectOptimisticLockingFailureException.class,
             jakarta.persistence.OptimisticLockException.class})

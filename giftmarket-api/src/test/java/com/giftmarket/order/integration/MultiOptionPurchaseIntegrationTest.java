@@ -79,6 +79,14 @@ class MultiOptionPurchaseIntegrationTest {
         var prepared = orders.createDirectOrder(f.buyer(), request);
         assertThat(orders.createDirectOrder(f.buyer(), request).orderId()).isEqualTo(prepared.orderId());
         var detail = orders.getMyOrder(f.buyer(), prepared.orderId());
+        var equivalentRequest = listRequest
+                ? new DirectOrderCreateRequest(requestKey, f.product(), f.variant(), 2,
+                    request.recipientName(), request.recipientPhone(), request.postalCode(),
+                    request.address(), request.addressDetail())
+                : new DirectOrderCreateRequest(requestKey, f.product(), null, null,
+                    request.recipientName(), request.recipientPhone(), request.postalCode(),
+                    request.address(), request.addressDetail(), List.of(new DirectOrderItemRequest(f.variant(), 2)));
+        assertSamePreparation(prepared, orders.createDirectOrder(f.buyer(), equivalentRequest));
         assertThat(detail.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(detail.items()).singleElement().satisfies(item -> {
             assertThat(item.productId()).isEqualTo(f.product());
@@ -297,6 +305,40 @@ class MultiOptionPurchaseIntegrationTest {
     private record Plain(Long buyer, Long sellerUser, Long product, Long variant) {}
 
     @Test
+    void singleOptionReplayRejectsChangedSelectionsWithoutReservingAgain() {
+        Fixture f = fixture();
+        var request = direct(f, List.of(new DirectOrderItemRequest(f.small(), 2)));
+        var prepared = orders.createDirectOrder(f.buyer(), request);
+        var legacy = new DirectOrderCreateRequest(request.clientOrderRequestKey(), f.product(), f.small(), 2,
+                request.recipientName(), request.recipientPhone(), request.postalCode(), request.address(), null);
+        assertSamePreparation(prepared, orders.createDirectOrder(f.buyer(), legacy));
+        var changed = List.of(
+                replay(request, fixture().product(), request.selectedItems()),
+                replay(request, f.product(), List.of(new DirectOrderItemRequest(f.large(), 2))),
+                replay(request, f.product(), List.of(new DirectOrderItemRequest(f.small(), 3))));
+        for (var different : changed) {
+            assertThatThrownBy(() -> orders.createDirectOrder(f.buyer(), different))
+                    .isInstanceOf(com.giftmarket.order.exception.OrderRequestConflictException.class);
+        }
+        assertSamePreparation(prepared, orders.createDirectOrder(f.buyer(), request));
+        assertThat(orderItems.findAllByOrderIdOrderByIdAsc(prepared.orderId())).hasSize(1);
+        assertStocks(f, 8, 10);
+    }
+
+    private DirectOrderCreateRequest replay(DirectOrderCreateRequest request, Long productId,
+                                            List<DirectOrderItemRequest> items) {
+        return new DirectOrderCreateRequest(request.clientOrderRequestKey(), productId, null, null,
+                request.recipientName(), request.recipientPhone(), request.postalCode(),
+                request.address(), request.addressDetail(), items);
+    }
+
+    private void assertSamePreparation(com.giftmarket.order.dto.response.OrderCreateResponse expected,
+                                       com.giftmarket.order.dto.response.OrderCreateResponse actual) {
+        assertThat(actual.orderId()).isEqualTo(expected.orderId());
+        assertThat(actual.paymentId()).isEqualTo(expected.paymentId());
+    }
+
+    @Test
     void multiOptionPaymentAndCancellationPreserveStockAndIdentityExactlyOnce() {
         Fixture f = fixture();
         var request = direct(f, List.of(new DirectOrderItemRequest(f.large(), 2), new DirectOrderItemRequest(f.small(), 2)));
@@ -306,6 +348,9 @@ class MultiOptionPurchaseIntegrationTest {
         assertThat(prepared.totalAmount()).isEqualTo(50_000L);
         assertStocks(f, 8, 8);
         assertThat(orders.createDirectOrder(f.buyer(), request).orderId()).isEqualTo(prepared.orderId());
+        assertSamePreparation(prepared, orders.createDirectOrder(f.buyer(),
+                replay(request, f.product(), request.selectedItems().reversed())));
+        assertStocks(f, 8, 8);
         tx().executeWithoutResult(status -> {
             var items = orderItems.findAllByOrderIdOrderByIdAsc(prepared.orderId());
             assertThat(items).hasSize(2);

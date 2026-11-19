@@ -50,6 +50,15 @@ class MultiOptionPurchaseHttpContractTest {
     }
 
     @Test
+    void directReplayConflictReturns409() throws Exception {
+        when(orders.createDirectOrder(isNull(), any()))
+                .thenThrow(new com.giftmarket.order.exception.OrderRequestConflictException());
+        mvc.perform(post("/api/orders/direct").contentType(MediaType.APPLICATION_JSON)
+                .content(direct("\"variantId\":1,\"quantity\":2")))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void invalidDirectSelectionsNeverReachOrderService() throws Exception {
         for (String selection : new String[] {"\"items\":[]", "\"items\":[null]",
                 "\"items\":[{\"variantId\":1,\"quantity\":0}]",
