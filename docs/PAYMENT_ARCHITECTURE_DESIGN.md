@@ -129,7 +129,9 @@ SellerOrder = 기존 배송 상태 유지
 
 Frontend sessionStorage는 비민감 복구 정보만 저장한다.
 
-`OrderService.findExistingPreparation`은 같은 요청 키·사용자의 PENDING_PAYMENT/READY 결과를 반환한다. Frontend 주문 페이지는 반환된 주문 상세 snapshot을 현재 상품·수량·금액과 비교하고 불일치 시 기존 취소 API로 준비 주문을 취소한 뒤 재시도를 안내한다. 배송정보는 `PATCH /api/payments/{paymentId}/preparation` → `PaymentTransactionService.updateReadyPreparation`에서 사용자·상태·만료를 검증하고 갱신한다. 이 비교/재시도 흐름 전체가 OrderService 하나에 구현된 것은 아니다. 최초 주문의 금액·재고·소유권은 서버 계산을 최종값으로 한다. 일반 주문의 수령인 snapshot은 선물 수락/거절 또는 수신자 주소 입력 링크 기능이 아니다.
+`OrderService.findExistingPreparation`은 같은 사용자·요청 키의 PENDING_PAYMENT/READY 결과를 조회한다. 바로구매는 `selectedItems()`로 단건·목록 요청을 통일한 뒤 저장된 주문 항목의 상품·Variant·수량을 대조한다. 무옵션 단일 선택의 `null`과 저장된 `__DEFAULT__` Variant ID는 같은 선택으로 처리하며, 다중 옵션 항목의 순서는 무시한다. 선택이 다르면 HTTP 409를 반환하고, 같으면 현재 상품 상태·재고를 다시 검증하지 않고 기존 준비 주문을 반환한다. 장바구니 주문 재사용에는 이 선택 검증을 적용하지 않는다.
+
+Frontend 주문 페이지는 반환된 주문 상세 snapshot을 현재 상품·수량·금액과 비교하고 불일치 시 기존 취소 API로 준비 주문을 취소한 뒤 재시도를 안내한다. 배송정보는 `PATCH /api/payments/{paymentId}/preparation` → `PaymentTransactionService.updateReadyPreparation`에서 사용자·상태·만료를 검증하고 갱신한다. 최초 주문의 금액·재고·소유권은 서버 계산을 최종값으로 한다. 일반 주문의 수령인 snapshot은 선물 수락/거절 또는 수신자 주소 입력 링크 기능이 아니다.
 
 ## 6. 결제 승인 transaction
 

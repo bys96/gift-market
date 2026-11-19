@@ -134,8 +134,9 @@ Gift Market은 다중 판매자 주문, Toss 결제, 배송, 취소·반품·교
 ### 인증·회원
 
 - Google OIDC와 Kakao OAuth2 로그인
-- JWT Access Token과 HttpOnly Refresh Token cookie
+- JWT Access Token과 HttpOnly Refresh Token cookie. 설정 샘플 기준 만료는 각각 30분, 14일
 - Refresh Token rotation, 이전 토큰 grace, 동시 갱신 잠금
+- 서버 로그아웃 실패 시 로컬 인증 상태를 정리하고 브라우저에 미완료 상태를 저장한다. 새로고침·재접속 시 자동 갱신을 차단하고 서버 로그아웃 재시도를 안내한다. 서버 로그아웃 성공 또는 명시적 OAuth 로그인 콜백에서 차단 상태를 해제한다.
 - 프로필 조회·수정과 프로필 이미지 저장
 - 배송지 CRUD와 회원당 최대 10개 정책
 - 회원 탈퇴: 진행 중 주문·클레임과 판매자 처리 건 검증, 개인정보 익명화, Refresh Token·주소·장바구니·찜 정리
@@ -189,7 +190,7 @@ Gift Market은 다중 판매자 주문, Toss 결제, 배송, 취소·반품·교
 - 최초 배송, 반품 회수, 교환 회수·재배송을 구분하는 `SellerOrder 1:N Shipment`
 - 구매확정 수량과 리뷰 작성 자격 연결
 - 결제창을 닫은 뒤 배송정보가 바뀌면 READY/PENDING_PAYMENT 주문 snapshot을 갱신하고 기존 Payment를 안전하게 재사용
-- Frontend가 재사용 주문 상세와 현재 상품·옵션·수량·금액 snapshot을 비교하고 불일치 시 취소 API로 준비 주문을 취소·예약 복원한 뒤 재시도를 안내. 같은 요청 키 조회 자체는 OrderService에서 기존 준비 결과를 반환하며, 모든 비교가 Backend에 구현된 것은 아님
+- 바로구매는 같은 사용자·요청 키의 준비 주문을 반환하기 전에 서버에서 상품·Variant·수량을 비교하고, 선택이 다르면 HTTP 409를 반환한다. 장바구니 주문 재사용은 기존 방식이며, Frontend의 준비 주문 상세·금액 비교와 별도 배송정보 갱신은 유지한다. [결제 설계](./PAYMENT_ARCHITECTURE_DESIGN.md) 참고.
 - 결제 callback에서 `sessionStorage`가 없어도 `merchantPaymentId + 현재 사용자`로 Payment를 조회
 - confirm 통신 실패·5xx를 즉시 결제 실패로 단정하지 않고 상태 재조회와 제한된 polling/reconciliation으로 복구
 - polling timeout은 실패가 아니라 결과 확인 지연으로 안내

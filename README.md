@@ -13,17 +13,17 @@
 
 ### 사용자
 
-- Google·Kakao OAuth2 로그인, 프로필·배송지 관리
+- Google·Kakao OAuth2 로그인과 JWT 인증, 프로필·배송지 관리
 - 상품 목록·상세, 카테고리·선물 상황별 탐색, 검색·필터·정렬
 - 한국어 동의어 검색과 추천 검색어 자동완성
-- 장바구니·찜, 바로구매, Toss Payments 결제
+- 장바구니·찜, 단일·다중 옵션 바로구매, Toss Payments 테스트 결제
 - 주문·배송 조회, 구매확정, 전체·부분 취소, 반품·교환
 - 상품 문의·리뷰 작성과 알림 확인
 
 ### 판매자
 
 - 판매자 신청과 상점 정보 관리
-- 상품·옵션·재고 관리, 이미지·동영상이 포함된 상세 설명 편집
+- 상품·옵션·재고 관리(무옵션 상품은 내부 기본 Variant 사용), 이미지·동영상이 포함된 상세 설명 편집
 - 주문 확인, 배송 처리, 취소·반품·교환 요청 처리
 - 상품 문의 답변과 정산 내역 조회
 
@@ -35,7 +35,7 @@
 - 검색 인덱스·동의어 설정 관리
 - SUPER_ADMIN 전용 관리자 권한 부여·회수
 
-정산은 금액 확정까지 지원하며 실제 판매자 계좌로 지급하는 기능은 아직 없습니다.
+정산은 수동 생성과 금액 확정까지 지원하며 자동 정산 스케줄러와 실제 판매자 계좌 지급은 지원하지 않습니다.
 선물 상황 분류와 일반 주문의 수령인 입력은 지원하지만, 선물 전용 수락·거절·수신자 배송지 입력은 미구현입니다.
 
 ## 기술 스택
@@ -78,6 +78,7 @@ cp src/main/resources/application-example.yaml src/main/resources/application.ya
 
 복사한 설정의 환경변수를 준비한 뒤 실행합니다.
 필요한 항목은 [Backend 설정 샘플](./giftmarket-api/src/main/resources/application-example.yaml)에서 확인할 수 있습니다.
+샘플의 JWT Access Token은 30분, HttpOnly 쿠키로 관리하는 Refresh Token은 14일이며, 결제에는 Toss 테스트용 `TOSS_SECRET_KEY`를 사용합니다.
 
 ```bash
 ./gradlew bootRun
@@ -97,9 +98,9 @@ npm ci
 npm run dev
 ```
 
-[Frontend 설정 샘플](./giftmarket-web/.env.sample)을 참고해 API·스토리지 주소와 Toss client key를 설정합니다.
+[Frontend 설정 샘플](./giftmarket-web/.env.sample)을 참고해 API·스토리지 주소와 Toss 테스트용 `NEXT_PUBLIC_TOSS_CLIENT_KEY`를 설정합니다.
 로컬 API 주소는 `NEXT_PUBLIC_API_BASE_URL`로 지정합니다.
-샘플의 과거 Render 주소는 사용하지 않으며, 운영은 Vercel의 same-origin rewrite를 유지합니다.
+Vercel 배포에서는 same-origin rewrite를 사용합니다.
 
 ### 테스트와 빌드
 
@@ -121,6 +122,8 @@ Windows PowerShell에서 npm 실행 정책에 막히면 `npm.cmd`, `npx.cmd`를 
 ## 현재 개발 상태와 계획
 
 상품 탐색부터 주문·결제·배송, 취소·반품·교환까지 기본 흐름과 판매자·관리자 화면이 구현되어 있습니다.
+바로구매는 같은 요청 키로 동일한 구매 선택을 재시도하면 기존 준비 주문을 반환하며, 선택이 달라지면 HTTP 409를 반환합니다.
+서버 로그아웃에 실패하면 로컬 인증 상태를 정리하고 자동 로그인 복원을 막으며, 서버 로그아웃 재시도를 안내합니다.
 구현 여부와 운영 환경의 검증 완료는 구분하고 있으며, 테스트 결과와 남은 확인 항목은 [개발 현황](./docs/DEVELOPMENT_STATUS.md)에 기록합니다.
 
 당장은 주문·결제 E2E 검증과 선물하기의 미구현 수신자 흐름을 우선 진행할 계획입니다.
