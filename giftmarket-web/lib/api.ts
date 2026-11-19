@@ -18,6 +18,66 @@ let refreshPromise: Promise<string | null> | null = null;
 let refreshFailure: Error | null = null;
 let refreshFailedAt = 0;
 let authSessionVersion = 0;
+const PENDING_LOGOUT_KEY = "gift-market-pending-logout";
+let pendingLogout = false;
+let logoutPromise: Promise<boolean> | null = null;
+
+export function hasPendingLogout(): boolean {
+  if (typeof window === "undefined") return pendingLogout;
+  try {
+    return window.localStorage.getItem(PENDING_LOGOUT_KEY) === "1";
+  } catch {
+    return pendingLogout;
+  }
+}
+
+function setPendingLogout(value: boolean): void {
+  pendingLogout = value;
+  try {
+    if (value) window.localStorage.setItem(PENDING_LOGOUT_KEY, "1");
+    else window.localStorage.removeItem(PENDING_LOGOUT_KEY);
+  } catch {
+    // Storage may be unavailable. Keep the current document blocked.
+  }
+  window.dispatchEvent(new Event("gift-market-logout-change"));
+}
+
+export function completeExplicitLogin(): void {
+  if (hasPendingLogout()) setPendingLogout(false);
+}
+
+export function waitForServerLogout(): Promise<boolean> | null {
+  return logoutPromise;
+}
+
+export function logoutSession(): Promise<boolean> {
+  if (logoutPromise) return logoutPromise;
+
+  const activeRefresh = refreshPromise;
+  setPendingLogout(true);
+  invalidateAuthSession();
+  useAuthStore.getState().clearAuth();
+
+  logoutPromise = (async () => {
+    try {
+      // Revoke the cookie after an already-sent refresh has finished rotating it.
+      await activeRefresh?.catch(() => null);
+      const result = await apiFetch<ApiResponse<null>>("/api/auth/logout", {
+        method: "POST",
+        skipAuthRefresh: true,
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (result.success !== true) return false;
+      setPendingLogout(false);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      logoutPromise = null;
+    }
+  })();
+  return logoutPromise;
+}
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
@@ -144,6 +204,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
+  if (hasPendingLogout()) return null;
   // Request failures are retained until a throttled page-resume recovery.
   if (refreshFailure) throw refreshFailure;
   if (refreshPromise) {
@@ -167,7 +228,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       if (result?.success !== true || typeof result.data?.accessToken !== "string"
         || !result.data.accessToken) throw new Error("인증 응답을 확인하지 못했습니다.");
 
-      if (sessionVersion !== authSessionVersion) return null;
+      if (sessionVersion !== authSessionVersion || hasPendingLogout()) return null;
 
       const accessToken = result.data.accessToken;
 

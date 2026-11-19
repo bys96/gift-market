@@ -4,7 +4,7 @@ import { getLoginRedirectUrl } from "@/lib/login-redirect";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, invalidateAuthSession } from "@/lib/api";
+import { logoutSession } from "@/lib/api";
 import { getMyAddresses } from "@/lib/address-api";
 import { getMyOrders } from "@/lib/order-api";
 import { getWishlistCount } from "@/lib/wishlist-api";
@@ -33,7 +33,6 @@ export default function MyPage() {
   const initialized = useAuthStore((state) => state.initialized);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const clearAuth = useAuthStore((state) => state.clearAuth);
 
   const [summary, setSummary] = useState<MySummary>(INITIAL_SUMMARY);
   const [summaryError, setSummaryError] = useState("");
@@ -95,25 +94,13 @@ export default function MyPage() {
     };
   }, [initialized, isAuthenticated, user]);
 
-  const handleLogout = async () => {
-    try {
-      setIsLoggingOut(true);
-
-      await apiFetch("/api/auth/logout", {
-        method: "POST",
-      });
-    } catch (error) {
-      console.error("서버 로그아웃 처리 실패:", error);
-    } finally {
-      // 서버 요청이 실패해도 프론트 로그인 상태는 제거
-      invalidateAuthSession();
-      clearAuth();
-      useCartStore.getState().resetCart();
-      useWishlistStore.getState().resetWishlist();
-      router.replace("/");
-    }
+  const handleLogout = () => {
+    setIsLoggingOut(true);
+    void logoutSession();
+    useCartStore.getState().resetCart();
+    useWishlistStore.getState().resetWishlist();
+    router.replace("/");
   };
-
   if (!user) {
     return null;
   }

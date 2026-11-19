@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, type MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, waitForServerLogout } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 const DEFAULT_REDIRECT_URL = "/";
@@ -51,8 +51,14 @@ function LoginContent() {
     }
   }, [initialized, isAuthenticated, user, redirectUrl, router]);
 
-  const handleOAuthLogin = () => {
+  const handleOAuthLogin = async (event: MouseEvent<HTMLAnchorElement>) => {
     sessionStorage.setItem(LOGIN_REDIRECT_STORAGE_KEY, redirectUrl);
+    const logout = waitForServerLogout();
+    if (!logout || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const url = event.currentTarget.href;
+    await logout;
+    window.location.assign(url);
   };
 
   if (!initialized) {

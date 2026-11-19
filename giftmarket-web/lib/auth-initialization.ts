@@ -1,4 +1,4 @@
-import { ApiError, apiFetch, refreshAccessToken } from "@/lib/api";
+import { ApiError, apiFetch, completeExplicitLogin, refreshAccessToken } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
 import type { ApiResponse } from "@/types/api";
@@ -32,12 +32,17 @@ export function initializeAuth(): Promise<void> {
       auth.setInitialized(true);
     };
     try {
+      if (window.location.pathname === "/oauth/callback" &&
+        sessionStorage.getItem("login_redirect_url") !== null) {
+        completeExplicitLogin();
+      }
       const token = await refreshAccessToken();
       if (!token) {
         clearSession();
         return;
       }
       const result = await loadCurrentUser();
+      if (useAuthStore.getState().accessToken !== token) return;
       if (result?.success !== true || !result.data) {
         throw new Error("사용자 정보를 확인하지 못했습니다.");
       }
