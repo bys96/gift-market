@@ -8,6 +8,7 @@ import com.giftmarket.auth.jwt.JwtTokenProvider;
 import com.giftmarket.auth.repository.RefreshTokenRepository;
 import com.giftmarket.user.entity.User;
 import com.giftmarket.user.entity.UserStatus;
+import com.giftmarket.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.GeneralSecurityException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import javax.crypto.Cipher;
@@ -35,6 +38,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties jwtProperties;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -44,15 +48,17 @@ public class RefreshTokenService {
     }
 
     /**
-     * 로그인 성공 시 Refresh Token을 최초 발급하거나 기존 토큰을 교체한다.
+     * OAuth 로그인 성공 시 Refresh Token을 발급하거나 교체하고 로그인 일시를 기록한다.
      */
     @Transactional
     public String issue(User user) {
+        LocalDateTime loginAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
         String rawToken = generateToken();
         String tokenHash = hash(rawToken);
 
         Instant expiresAt = calculateExpiration();
 
+        userRepository.updateLastLoginAt(user.getId(), loginAt);
         refreshTokenRepository.findByUserId(user.getId())
                 .ifPresentOrElse(
                         refreshToken -> refreshToken.rotate(

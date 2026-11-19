@@ -9,9 +9,11 @@ import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Collection;
 import java.util.Optional;
@@ -54,6 +56,18 @@ public interface UserRepository
     Optional<User> findByProviderAndProviderId(
             AuthProvider provider,
             String providerId
+    );
+
+    @Modifying
+    @Query("""
+            update User u
+            set u.lastLoginAt = :lastLoginAt
+            where u.id = :userId
+              and (u.lastLoginAt is null or u.lastLoginAt < :lastLoginAt)
+            """)
+    void updateLastLoginAt(
+            @Param("userId") Long userId,
+            @Param("lastLoginAt") LocalDateTime lastLoginAt
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

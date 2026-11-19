@@ -54,6 +54,9 @@ public class User extends BaseEntity {
     @Column(name = "withdrawn_at")
     private LocalDateTime withdrawnAt;
 
+    @Column(name = "last_login_at", updatable = false)
+    private LocalDateTime lastLoginAt;
+
     @Builder
     private User(
             String email,
